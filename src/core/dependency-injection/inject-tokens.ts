@@ -32,10 +32,8 @@ export class InjectTokens {
   public static Zippy: symbol = Symbol.for('Zippy');
   public static DependencyManager: symbol = Symbol.for('DependencyManager');
   public static Helm: symbol = Symbol.for('Helm');
-  public static CurlVersion: symbol = Symbol.for('CurlVersion');
   public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
   public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
-  public static CurlDependencyManager: symbol = Symbol.for('CurlDependencyManager');
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
   public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
   public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');

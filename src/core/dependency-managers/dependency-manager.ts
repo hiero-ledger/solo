@@ -13,10 +13,8 @@ import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 import {PodmanDependencyManager} from './podman-dependency-manager.js';
 import {VfkitDependencyManager} from './vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from './gvproxy-dependency-manager.js';
-import {CurlDependencyManager} from './curl-dependency-manager.js';
 
 export type DependencyManagerType =
-  | CurlDependencyManager
   | HelmDependencyManager
   | KindDependencyManager
   | KubectlDependencyManager
@@ -35,7 +33,6 @@ export class DependencyManager extends ShellRunner {
     @inject(InjectTokens.PodmanDependencyManager) podmanDependencyManager?: PodmanDependencyManager,
     @inject(InjectTokens.VfkitDependencyManager) vfkitDependencyManager?: VfkitDependencyManager,
     @inject(InjectTokens.GvproxyDependencyManager) gvproxyDependencyManager?: GvproxyDependencyManager,
-    @inject(InjectTokens.CurlDependencyManager) curlDependencyManager?: CurlDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
@@ -68,11 +65,6 @@ export class DependencyManager extends ShellRunner {
     this.dependancyManagerMap.set(
       constants.GVPROXY,
       gvproxyDependencyManager || container.resolve(InjectTokens.GvproxyDependencyManager),
-    );
-
-    this.dependancyManagerMap.set(
-      constants.CURL,
-      curlDependencyManager || container.resolve(InjectTokens.CurlDependencyManager),
     );
   }
 

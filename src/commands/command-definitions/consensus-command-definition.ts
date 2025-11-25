@@ -122,7 +122,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.networkCommand,
                 this.networkCommand.deploy,
                 NetworkCommand.DEPLOY_FLAGS_LIST,
-                [constants.HELM, constants.KUBECTL, constants.CURL],
+                [constants.HELM, constants.KUBECTL],
               ),
             )
             .addSubcommand(

@@ -28,7 +28,7 @@ import {K8ClientSecrets} from './resources/secret/k8-client-secrets.js';
 import {type Ingresses} from '../resources/ingress/ingresses.js';
 import {K8ClientIngresses} from './resources/ingress/k8-client-ingresses.js';
 import {type Crds} from '../resources/crd/crds.js';
-import {K8ClientCRDs} from './resources/crd/k8-clinet-crds.js';
+import {K8ClientCRDs} from './resources/crd/k8-client-crds.js';
 import {KubeConfig} from '@kubernetes/client-node';
 import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.js';
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
