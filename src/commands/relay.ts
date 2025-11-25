@@ -44,7 +44,7 @@ import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
-import {MIRROR_NODE_PORT} from '../core/constants.js';
+import {MIRROR_INGRESS_CONTROLLER, MIRROR_NODE_PORT} from '../core/constants.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -242,13 +242,13 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
     valuesArgument += ' --set ws.enabled=true';
-    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://127.0.0.1:${MIRROR_NODE_PORT}`;
-    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${mirrorNodeReleaseName}-web3.${mirrorNamespace}.svc.cluster.local`;
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}.${mirrorNamespace}.svc.cluster.local`;
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${MIRROR_INGRESS_CONTROLLER}.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ' --set relay.config.MIRROR_NODE_AGENT_CACHEABLE_DNS=false';
     valuesArgument += ' --set relay.config.MIRROR_NODE_RETRY_DELAY=2001';
     valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
 
-    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://127.0.0.1:${MIRROR_NODE_PORT}`;
+    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
     if (chainId) {
