@@ -18,7 +18,6 @@ import {PathEx} from '../business/utils/path-ex.js';
 import path from 'node:path';
 import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
-import {TDirectoryData} from '../integration/kube/t-directory-data.js';
 
 /**
  * Class to manage network nodes
