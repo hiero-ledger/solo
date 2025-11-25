@@ -97,18 +97,6 @@ export class NetworkNodes {
       await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
       await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
       await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
-
-      const csvFilesPath: string = `${constants.HEDERA_HAPI_PATH}/data/stats/`;
-
-      const targetFiles: TDirectoryData[] = await container
-        .listDir(csvFilesPath)
-        .then((files): TDirectoryData[] => files.filter((file): boolean => file.name.endsWith('.csv')));
-
-      for (const targetFile of targetFiles) {
-        const sourceFilePath: string = PathEx.join(csvFilesPath, targetFile.name);
-
-        await container.copyFrom(sourceFilePath, baseDirectory);
-      }
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
       // and also delete namespace in the end
