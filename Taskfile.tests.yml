@@ -150,7 +150,7 @@ tasks:
       - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
         {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
-        {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
+        {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
 
   test-example-node-create-transaction:
     dir: examples/node-create-transaction

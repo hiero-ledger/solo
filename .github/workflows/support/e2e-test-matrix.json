@@ -5,7 +5,7 @@
     "coverage-subdirectory": "e2e-one-shot-single-podman",
     "coverage-report-name": "E2E_Quick_Start_Single_Podman_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": true,
+    "install-dependencies": false,
     "runner": "ubuntu-24.04"
   },
   {
@@ -14,7 +14,7 @@
     "coverage-subdirectory": "e2e-one-shot-single",
     "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -23,7 +23,7 @@
     "coverage-subdirectory": "e2e-external-database",
     "coverage-report-name": "External_Database_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -32,7 +32,7 @@
     "coverage-subdirectory": "e2e-block-node",
     "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report",
     "local-java-build": true,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -41,7 +41,7 @@
     "coverage-subdirectory": "e2e-integration",
     "coverage-report-name": "E2E_Integration_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -50,7 +50,7 @@
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -59,7 +59,7 @@
     "coverage-subdirectory": "e2e-standard",
     "coverage-report-name": "E2E_Standard_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -68,7 +68,7 @@
     "coverage-subdirectory": "e2e-node-upgrade",
     "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
     "local-java-build": false,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -77,7 +77,7 @@
     "coverage-subdirectory": "e2e-node-local-ptt",
     "coverage-report-name": "E2E_Node_Local_PTT_Tests_Coverage_Report",
     "local-java-build": true,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   },
   {
@@ -86,7 +86,7 @@
     "coverage-subdirectory": "e2e-node-add-local",
     "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report",
     "local-java-build": true,
-    "solo-install-dependencies": false,
+    "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
   }
 ]
