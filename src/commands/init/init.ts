@@ -32,7 +32,7 @@ import {type AnyObject} from '../../types/aliases.js';
 import {getTemporaryDirectory} from '../../core/helpers.js';
 import {BrewPackageManager} from '../../core/package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../../core/package-managers/os-package-manager.js';
-import {PackageManager} from '../../core/package-managers/package-manager.js';
+import {AptGetPackageManager} from '../../core/package-managers/apt-get-package-manager.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -197,20 +197,17 @@ export class InitCommand extends BaseCommand {
               } else {
                 subTasks.push(
                   {
-                    title: 'Please provide root permissions to setup podman and kind:',
-                    task: async (_, task) => {
-                      await this.run('sudo whoami');
-                      task.title = 'Root permissions granted.';
-                    },
-                  },
-                  {
                     title: 'Install git, iptables...',
                     task: async (_, subTask) => {
                       try {
                         await this.run('git version');
                       } catch {
                         this.logger.info('Git not found, installing git...');
-                        const osPackageManager: PackageManager = this.osPackageManager.getPackageManager();
+                        const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
+                        const osPackageManager: AptGetPackageManager =
+                          this.osPackageManager.getPackageManager() as AptGetPackageManager;
+                        osPackageManager.setOnSudoGranted(onSudoGranted);
+                        osPackageManager.setOnSudoRequested(onSudoRequested);
                         await osPackageManager.update();
                         await osPackageManager.installPackages(['git', 'iptables']);
                       }
@@ -247,17 +244,32 @@ export class InitCommand extends BaseCommand {
                     task: async (context_, task) => {
                       const whichPodman = await this.run('which podman');
                       const podmanPath = whichPodman.join('').replace('/podman', '');
-                      await this.run(
-                        `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
+                      const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
+                      await this.sudoRun(
+                        onSudoRequested,
+                        onSudoGranted,
+                        `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
                       );
 
                       // Merge kubeconfig data from root user into normal user's kubeconfig
                       const user = await this.run('whoami');
                       const temporaryDirectory = getTemporaryDirectory();
 
-                      await this.run(`sudo cp /root/.kube/config ${temporaryDirectory}/kube-config-root`);
-                      await this.run(`sudo chown ${user} ${temporaryDirectory}/kube-config-root`);
-                      await this.run(`sudo chmod 755 ${temporaryDirectory}/kube-config-root`);
+                      await this.sudoRun(
+                        onSudoRequested,
+                        onSudoGranted,
+                        `cp /root/.kube/config ${temporaryDirectory}/kube-config-root`,
+                      );
+                      await this.sudoRun(
+                        onSudoRequested,
+                        onSudoGranted,
+                        `chown ${user} ${temporaryDirectory}/kube-config-root`,
+                      );
+                      await this.sudoRun(
+                        onSudoRequested,
+                        onSudoGranted,
+                        `chmod 755 ${temporaryDirectory}/kube-config-root`,
+                      );
 
                       const rootYamlData = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
                       const rootConfig = yaml.parse(rootYamlData) as Record<string, AnyObject>;
@@ -343,6 +355,20 @@ export class InitCommand extends BaseCommand {
         skip: this.skipKindSetup.bind(this),
       },
     ];
+  }
+
+  private sudoCallbacks(task: any): {
+    onSudoRequested: (message: string) => void;
+    onSudoGranted: (message: string) => void;
+  } {
+    const originalTitle: string | any[] = task.title;
+    const onSudoRequested: (message: string) => void = (message: string): void => {
+      task.title = message;
+    };
+    const onSudoGranted: (message: string) => void = (message: string): void => {
+      task.title = originalTitle;
+    };
+    return {onSudoGranted, onSudoRequested};
   }
 
   public installDependenciesTasks(options: InitDependenciesOptions): SoloListrTask<InitContext>[] {
