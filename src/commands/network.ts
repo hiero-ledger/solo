@@ -977,7 +977,7 @@ export class NetworkCommand extends BaseCommand {
       const yamlContent: string = await response.text();
       fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
 
-      await this.k8Factory.getK8(context).crds().applyManifest(temporaryFile);
+      await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
 
       // apply CRD YAML to the current K8s context
       const kubectlCommand: string = `kubectl apply -f ${temporaryFile} --context ${context}`;
