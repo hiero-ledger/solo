@@ -969,13 +969,15 @@ export class NetworkCommand extends BaseCommand {
       const temporaryFile: string = PathEx.join('/tmp', 'podlogs-crd.yaml');
 
       // download YAML from GitHub
-      const response: Response = await fetch(CRD_URL);
-      if (!response.ok) {
-        throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
-      }
+      if (!fs.existsSync(temporaryFile)) {
+        const response: Response = await fetch(CRD_URL);
+        if (!response.ok) {
+          throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
+        }
 
-      const yamlContent: string = await response.text();
-      fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
+        const yamlContent: string = await response.text();
+        fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
+      }
 
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
     }
