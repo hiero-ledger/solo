@@ -352,7 +352,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     skipConsensusNodesValidation: boolean = true,
   ): Promise<void> {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
-    this.setDefaultContextIfNotSet();
+    await this.setDefaultContextIfNotSet();
 
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const context: Context = this.populateClusterReferences(deploymentName);
@@ -485,12 +485,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     argv[flags.namespace.name] = namespace;
   }
 
-  private setDefaultContextIfNotSet(): void {
+  private async setDefaultContextIfNotSet(): Promise<void> {
     if (this.configManager.hasFlag(flags.context)) {
       return;
     }
 
-    const context: Context = this.getContextForFirstCluster() ?? this.k8Factory.default().contexts().readCurrent();
+    const context: Context =
+      (await this.getContextForFirstCluster().catch()) ?? this.k8Factory.default().contexts().readCurrent();
 
     if (!context) {
       throw new SoloError("Context is not passed and default one can't be acquired");
@@ -569,7 +570,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return accumulator;
   }
 
-  private getContextForFirstCluster(): string {
+  private async getContextForFirstCluster(): Promise<string> {
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
     const clusterReference: ClusterReferenceName =
