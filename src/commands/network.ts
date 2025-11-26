@@ -457,7 +457,7 @@ export class NetworkCommand extends BaseCommand {
     }
 
     // add debug options to the debug node
-    config.consensusNodes.filter(consensusNode => {
+    config.consensusNodes.filter((consensusNode): void => {
       if (consensusNode.name === config.debugNodeAlias) {
         valuesArguments[consensusNode.cluster] = addDebugOptions(
           valuesArguments[consensusNode.cluster],
@@ -637,8 +637,9 @@ export class NetworkCommand extends BaseCommand {
           // Create a unique filename for each consensus node
           const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+
           // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), null, 2);
+          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);
 
           this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNodeId}`);
@@ -657,7 +658,7 @@ export class NetworkCommand extends BaseCommand {
 
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
           // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), null, 2);
+          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);
 
           valuesArguments[clusterReference] += ` --set-file "hedera.configMaps.blockNodesJson=${blockNodesJsonPath}"`;
@@ -978,10 +979,6 @@ export class NetworkCommand extends BaseCommand {
       fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
 
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
-
-      // apply CRD YAML to the current K8s context
-      const kubectlCommand: string = `kubectl apply -f ${temporaryFile} --context ${context}`;
-      await this.run(kubectlCommand);
     }
   }
 
@@ -1004,6 +1001,7 @@ export class NetworkCommand extends BaseCommand {
       {key: 'thanosrulers', crd: 'thanosrulers.monitoring.coreos.com'},
     ];
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, context] of clusterRefs) {
       let valuesArgument: string = '';
       let missingCount: number = 0;
@@ -1052,7 +1050,7 @@ export class NetworkCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListr<NetworkDeployContext> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1180,7 +1178,7 @@ export class NetworkCommand extends BaseCommand {
         // TODO: Move the check for load balancer logic to a utility method or class
         {
           title: 'Check for load balancer',
-          skip: context_ => context_.config.loadBalancerEnabled === false,
+          skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
           task: (context_, task): SoloListr<NetworkDeployContext> => {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
             const config: NetworkDeployConfigClass = context_.config;
@@ -1191,7 +1189,7 @@ export class NetworkCommand extends BaseCommand {
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
                   let attempts: number = 0;
-                  let svc: Service[] | null = null;
+                  let svc: Service[];
 
                   while (attempts < constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS) {
                     svc = await this.k8Factory
@@ -1236,7 +1234,7 @@ export class NetworkCommand extends BaseCommand {
         // TODO: find a better solution to avoid the need to redeploy the chart
         {
           title: 'Redeploy chart with external IP address config',
-          skip: context_ => context_.config.loadBalancerEnabled === false,
+          skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
             // Update the valuesArgMap with the external IP addresses
             // This regenerates the config.txt and genesis-network.json files with the external IP addresses
@@ -1295,7 +1293,7 @@ export class NetworkCommand extends BaseCommand {
             for (const consensusNode of config.consensusNodes) {
               subTasks.push({
                 title: `Check HAProxy for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
-                task: async () =>
+                task: async (): Promise<Pod[]> =>
                   await this.k8Factory
                     .getK8(consensusNode.context)
                     .pods()
@@ -1312,7 +1310,7 @@ export class NetworkCommand extends BaseCommand {
             for (const consensusNode of config.consensusNodes) {
               subTasks.push({
                 title: `Check Envoy Proxy for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
-                task: async () =>
+                task: async (): Promise<Pod[]> =>
                   await this.k8Factory
                     .getK8(consensusNode.context)
                     .pods()
@@ -1340,13 +1338,13 @@ export class NetworkCommand extends BaseCommand {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [
               {
                 title: 'Check MinIO',
-                task: async context_ => {
-                  for (const context of context_.config.contexts) {
+                task: async ({config: {contexts, namespace}}): Promise<void> => {
+                  for (const context of contexts) {
                     await this.k8Factory
                       .getK8(context)
                       .pods()
                       .waitForReadyStatus(
-                        context_.config.namespace,
+                        namespace,
                         ['v1.min.io/tenant=minio'],
                         constants.PODS_RUNNING_MAX_ATTEMPTS,
                         constants.PODS_RUNNING_DELAY,
@@ -1354,10 +1352,10 @@ export class NetworkCommand extends BaseCommand {
                   }
                 },
                 // skip if only cloud storage is/are used
-                skip: context_ =>
-                  context_.config.storageType === constants.StorageType.GCS_ONLY ||
-                  context_.config.storageType === constants.StorageType.AWS_ONLY ||
-                  context_.config.storageType === constants.StorageType.AWS_AND_GCS,
+                skip: ({config: {storageType}}): boolean =>
+                  storageType === constants.StorageType.GCS_ONLY ||
+                  storageType === constants.StorageType.AWS_ONLY ||
+                  storageType === constants.StorageType.AWS_AND_GCS,
               },
             ];
 
