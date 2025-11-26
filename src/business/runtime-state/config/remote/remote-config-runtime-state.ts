@@ -490,7 +490,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    const context: Context = this.getContextForFirstCluster(deploymentName) ?? this.k8Factory.default().contexts().readCurrent();
+    const context: Context = this.getContextForFirstCluster() ?? this.k8Factory.default().contexts().readCurrent();
 
     if (!context) {
       throw new SoloError("Context is not passed and default one can't be acquired");
@@ -569,8 +569,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return accumulator;
   }
 
-  private getContextForFirstCluster(deploymentName: DeploymentName): string {
-    deploymentName ??= this.configManager.getFlag<DeploymentName>(flags.deployment);
+  private getContextForFirstCluster(): string {
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
     const clusterReference: ClusterReferenceName =
       this.localConfig.configuration.deploymentByName(deploymentName)?.clusters?.get(0)?.toString() ??

@@ -637,7 +637,6 @@ export class NetworkCommand extends BaseCommand {
           // Create a unique filename for each consensus node
           const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-
           // Format JSON with indentation for readability
           const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);

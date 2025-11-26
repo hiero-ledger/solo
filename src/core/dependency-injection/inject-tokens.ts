@@ -12,7 +12,6 @@ export class InjectTokens {
   public static OsArch: symbol = Symbol.for('OsArch');
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
-  public static CurlInstallationDir: symbol = Symbol.for('CurlInstallationDir');
   public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
   public static PodmanInstallationDir: symbol = Symbol.for('PodmanInstallationDir');
   public static PodmanDependenciesInstallationDir: symbol = Symbol.for('PodmanDependenciesInstallationDir');

@@ -97,7 +97,7 @@ export class NetworkNodes {
         .containers()
         .readByRef(containerReference)
         .execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await k8.containers().readByRef(containerReference).execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
+      await k8.containers().readByRef(containerReference).execContainer(`${HEDERA_HAPI_PATH}/${scriptName}`);
       await k8
         .containers()
         .readByRef(containerReference)
