@@ -37,10 +37,12 @@ argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 
-// @ts-expect-error - to mock
-container.resolve<NetworkCommand>(InjectTokens.NetworkCommand).ensurePodLogsCrd = sinon.stub().resolves();
+const networkCmd: NetworkCommand = container.resolve<NetworkCommand>(InjectTokens.NetworkCommand);
 
-endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
+// @ts-expect-error - to mock
+networkCmd.ensurePodLogsCrd = sinon.stub().resolves();
+
+endToEndTestSuite(namespace.name, argv, {startNodes: false, networkCmdArg: networkCmd}, ({opts}): void => {
   describe('Platform Installer E2E', async (): Promise<void> => {
     let k8Factory: K8Factory;
     let accountManager: AccountManager;
