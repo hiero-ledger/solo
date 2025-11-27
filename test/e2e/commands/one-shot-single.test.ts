@@ -21,6 +21,8 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
+import {type NetworkNodes} from '../../../src/core/network-nodes.js';
+import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 
 const testName: string = 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
@@ -56,6 +58,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
+        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
@@ -64,7 +67,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName));
+        await main(soloOneShotDeploy(testName, namespace));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(15).toMillis());
 
@@ -92,7 +95,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string): string[] {
+export function soloOneShotDeploy(testName: string, namespace: NamespaceName): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -100,6 +103,8 @@ export function soloOneShotDeploy(testName: string): string[] {
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
+    '--namespace',
+    namespace.name,
   );
   argvPushGlobalFlags(argv, testName);
   return argv;
