@@ -21,7 +21,7 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
-import type {NetworkNodes} from '../../../src/core/network-nodes.js';
+import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 
 const testName: string = 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
