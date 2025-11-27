@@ -724,8 +724,6 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
-    this.configManager.update(argv);
-
     const flagsWithDisabledPrompts: CommandFlag[] = [
       flags.apiPermissionProperties,
       flags.app,
@@ -1048,7 +1046,6 @@ export class NetworkCommand extends BaseCommand {
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
     const tasks: SoloListr<NetworkDeployContext> = this.taskList.newTaskList(
@@ -1056,8 +1053,9 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv, true, true);
+            this.configManager.update(argv);
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv, true, true);
             lease = await this.leaseManager.create();
 
             context_.config = await this.prepareConfig(task, argv);

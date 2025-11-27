@@ -2,15 +2,11 @@
 
 import {after, before, describe, it} from 'mocha';
 import {expect} from 'chai';
-import sinon from 'sinon';
 import {endToEndTestSuite, getTestCacheDirectory, getTestCluster, getTestLogger} from '../../../test-utility.js';
 
 import * as fs from 'node:fs';
 import * as version from '../../../../version.js';
 import * as constants from '../../../../src/core/constants.js';
-
-import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {Flags as flags} from '../../../../src/commands/flags.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
@@ -22,7 +18,6 @@ import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {type AccountManager} from '../../../../src/core/account-manager.js';
 import {type PlatformInstaller} from '../../../../src/core/platform-installer.js';
-import {type NetworkCommand} from '../../../../src/commands/network.js';
 
 const defaultTimeout: number = Duration.ofSeconds(20).toMillis();
 
@@ -37,12 +32,7 @@ argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 
-const networkCmd: NetworkCommand = container.resolve<NetworkCommand>(InjectTokens.NetworkCommand);
-
-// @ts-expect-error - to mock
-networkCmd.ensurePodLogsCrd = sinon.stub().resolves();
-
-endToEndTestSuite(namespace.name, argv, {startNodes: false, networkCmdArg: networkCmd}, ({opts}): void => {
+endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
   describe('Platform Installer E2E', async (): Promise<void> => {
     let k8Factory: K8Factory;
     let accountManager: AccountManager;
