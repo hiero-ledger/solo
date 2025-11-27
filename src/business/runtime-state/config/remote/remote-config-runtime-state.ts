@@ -197,6 +197,18 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   ): Promise<void> {
     this.populateClusterReferences(deploymentName);
 
+    console.log({
+      argv,
+      ledgerPhase,
+      nodeAliases,
+      namespace,
+      deploymentName,
+      clusterReference,
+      context,
+      dnsBaseDomain,
+      dnsConsensusNodePattern,
+    });
+
     const consensusNodeStates: ConsensusNodeStateSchema[] = nodeAliases.map(
       (nodeAlias: NodeAlias): ConsensusNodeStateSchema => {
         return new ConsensusNodeStateSchema(
@@ -351,6 +363,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     validate: boolean = true,
     skipConsensusNodesValidation: boolean = true,
   ): Promise<void> {
+    console.log(argv);
+
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
@@ -461,9 +475,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
-    if (!deploymentName) {
+    if (!deploymentName && !argv[flags.deployment.name]) {
       deploymentName = await promptTheUserForDeployment(this.configManager);
       currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
+
       // TODO: Fix once we have the DataManager,
       //       without this the user will be prompted a second time for the deployment
       // TODO: we should not be mutating argv
