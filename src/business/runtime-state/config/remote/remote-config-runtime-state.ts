@@ -490,8 +490,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    const context: Context =
-      (await this.getContextForFirstCluster().catch()) ?? this.k8Factory.default().contexts().readCurrent();
+    let context: Context;
+    try {
+      context = await this.getContextForFirstCluster();
+    } catch {
+      context = this.k8Factory.default().contexts().readCurrent();
+    }
 
     if (!context) {
       throw new SoloError("Context is not passed and default one can't be acquired");
