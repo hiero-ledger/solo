@@ -43,10 +43,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   private static readonly STATE_SUBCOMMAND_DESCRIPTION =
     'List, download, and upload consensus node state backups to/from individual consensus node instances.';
 
-  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostics';
-  private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION =
-    'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
-
   public static readonly DEV_NODE_ADD_SUBCOMMAND_NAME = 'dev-node-add';
   private static readonly DEV_NODE_ADD_SUBCOMMAND_DESCRIPTION = 'Dev operations for adding consensus nodes.';
 
@@ -85,10 +81,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NETWORK_UPGRADE = 'upgrade';
   public static readonly NETWORK_FREEZE = 'freeze';
 
-  public static readonly DIAGNOSTIC_ALL = 'all';
-  public static readonly DIAGNOSTIC_LOGS = 'logs';
-  public static readonly DIAGNOSTIC_CONNECTIONS = 'connections';
-
   public static readonly STATE_DOWNLOAD = 'download';
 
   public static readonly SETUP_COMMAND =
@@ -102,9 +94,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
 
   public static readonly DESTROY_COMMAND =
     `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DESTROY}` as const;
-
-  public static readonly CONNECTIONS_COMMAND =
-    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return (
@@ -257,39 +246,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
               NodeFlags.STATES_FLAGS,
             ),
           ),
-        )
-        .addCommandGroup(
-          new CommandGroup(
-            ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
-            ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_DESCRIPTION,
-          )
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.DIAGNOSTIC_ALL,
-                'Captures logs, configs, and diagnostic artifacts from all consensus nodes and test connections.',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.all,
-                NodeFlags.DIAGNOSTICS_CONNECTIONS,
-              ),
-            )
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS,
-                'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.connections,
-                NodeFlags.DIAGNOSTICS_CONNECTIONS,
-              ),
-            )
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.DIAGNOSTIC_LOGS,
-                'Get logs and configuration files from consensus node/nodes.',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.logs,
-                NodeFlags.LOGS_FLAGS,
-              ),
-            ),
         )
         // DEV NODE ADD SUBCOMMANDS
         .addCommandGroup(

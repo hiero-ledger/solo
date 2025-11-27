@@ -145,6 +145,7 @@ export class NetworkNodes {
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8 = this.k8Factory.getK8(context);
+      const zipfilleName = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
       await k8
@@ -153,12 +154,10 @@ export class NetworkNodes {
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .)`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipfilleName} . && sync && test -f ${zipfilleName})`,
         ]);
-      await k8
-        .containers()
-        .readByRef(containerReference)
-        .copyFrom(`${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`, targetDirectory);
+      await sleep(Duration.ofSeconds(1));
+      await k8.containers().readByRef(containerReference).copyFrom(`${zipfilleName}`, targetDirectory);
     } catch (error: Error | unknown) {
       this.logger.error(`failed to download state from pod ${podReference.name}`, error);
       this.logger.showUser(`Failed to download state from pod ${podReference.name}` + error);

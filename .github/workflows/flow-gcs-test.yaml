@@ -157,7 +157,7 @@ jobs:
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
-            npm run solo-test -- consensus diagnostics logs --deployment solo-e2e -q --dev || true
+            npm run solo-test -- deployment diagnostics logs --deployment solo-e2e -q --dev || true
             exit ${RC}
           fi
 
