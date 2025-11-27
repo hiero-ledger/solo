@@ -1653,7 +1653,11 @@ export class NodeCommandTasks {
               await k8
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['systemctl', 'restart', 'network-node']);
+                .execContainer([
+                  'bash',
+                  '-c',
+                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                ]);
             },
           });
         }
@@ -1894,7 +1898,7 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer('systemctl stop network-node'),
+                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
             });
           }
         }
