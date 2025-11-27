@@ -461,12 +461,14 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment) ?? argv[flags.deployment.name];
     let currentDeployment: Deployment;
 
     if (deploymentName) {
       currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
     }
+
+    console.log({argv, deploymentName, currentDeployment, config: this.configManager.config});
 
     if (!this.configManager.hasFlag(flags.deployment) && !deploymentName) {
       deploymentName = await promptTheUserForDeployment(this.configManager);
