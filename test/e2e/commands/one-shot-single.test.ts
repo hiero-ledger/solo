@@ -22,7 +22,6 @@ import {MetricsServerImpl} from '../../../src/business/runtime-state/services/me
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
-import {Flags} from '../../../src/commands/flags.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 
 const testName: string = 'one-shot-single';
