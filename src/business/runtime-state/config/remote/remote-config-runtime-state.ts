@@ -351,8 +351,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     validate: boolean = true,
     skipConsensusNodesValidation: boolean = true,
   ): Promise<void> {
+    console.log({argv});
+
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     await this.setDefaultContextIfNotSet();
+
+    console.log({argv});
 
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const context: Context = this.populateClusterReferences(deploymentName);
@@ -453,15 +457,18 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
-    if (this.configManager.hasFlag(flags.namespace)) {
+    if (this.configManager.hasFlag(flags.namespace) && this.configManager.hasFlag(flags.deployment)) {
       return;
     }
 
-    // TODO: Current quick fix for commands where namespace is not passed
     let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
-    let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+    let currentDeployment: Deployment;
 
-    if (!deploymentName) {
+    if (deploymentName) {
+      currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
+    }
+
+    if (!this.configManager.hasFlag(flags.deployment) && !deploymentName) {
       deploymentName = await promptTheUserForDeployment(this.configManager);
       currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
       // TODO: Fix once we have the DataManager,
@@ -472,17 +479,19 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         `Deployment name not found in flags or local config, setting it in argv and config manager to: ${deploymentName}`,
       );
       this.configManager.setFlag(flags.deployment, deploymentName);
+
+      if (!currentDeployment) {
+        throw new SoloError(`Selected deployment name is not set in local config - ${deploymentName}`);
+      }
     }
 
-    if (!currentDeployment) {
-      throw new SoloError(`Selected deployment name is not set in local config - ${deploymentName}`);
+    // TODO: Current quick fix for commands where namespace is not passed
+    if (!this.configManager.hasFlag(flags.namespace)) {
+      const namespace: NamespaceNameAsString = currentDeployment.namespace;
+      this.logger.warn(`Namespace not found in flags, setting it to: ${namespace}`);
+      this.configManager.setFlag(flags.namespace, namespace);
+      argv[flags.namespace.name] = namespace;
     }
-
-    const namespace: NamespaceNameAsString = currentDeployment.namespace;
-
-    this.logger.warn(`Namespace not found in flags, setting it to: ${namespace}`);
-    this.configManager.setFlag(flags.namespace, namespace);
-    argv[flags.namespace.name] = namespace;
   }
 
   private async setDefaultContextIfNotSet(): Promise<void> {
