@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {type ApiextensionsV1Api} from '@kubernetes/client-node';
-import {container} from 'tsyringe-neo';
 import {type Crds} from '../../../resources/crd/crds.js';
-import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 
-export class K8ClientCRDs implements Crds {
+export class K8ClientCrds implements Crds {
   private readonly logger: SoloLogger;
 
   public constructor(private readonly networkingApi: ApiextensionsV1Api) {

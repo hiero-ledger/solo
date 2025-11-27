@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import type * as k8s from '@kubernetes/client-node';
 import {type Namespaces} from '../../types/namespace/namespaces.js';
 import {type Containers} from './resources/container/containers.js';
 import {type Clusters} from './resources/cluster/clusters.js';
@@ -13,7 +14,7 @@ import {type IngressClasses} from './resources/ingress-class/ingress-classes.js'
 import {type Secrets} from './resources/secret/secrets.js';
 import {type Ingresses} from './resources/ingress/ingresses.js';
 import {type Crds} from './resources/crd/crds.js';
-import type * as k8s from '@kubernetes/client-node';
+import {type Manifests} from './resources/manifest/manifests.js';
 
 export interface K8 {
   /**
@@ -99,4 +100,10 @@ export interface K8 {
    * @returns an object instance providing RBAC operations
    */
   rbac(): k8s.RbacAuthorizationV1Api;
+
+  /**
+   * Fluent accessor for manifest operations.
+   * @returns an object instance providing manifest operations
+   */
+  manifests(): Manifests;
 }
