@@ -161,6 +161,12 @@ export interface ReleaseInfo {
 
 export type ComponentDisplayName = 'Consensus node' | 'Mirror node' | 'Explorer node' | 'Relay node' | 'Block node';
 
+export enum PodmanMode {
+  ROOTLESS = 'rootless',
+  ROOTFUL = 'rootful',
+  VIRTUAL_MACHINE = 'virtual-machine',
+}
+
 export type ComponentData = {
   clusterReference: ClusterReferenceName;
   contextName: Context;

@@ -19,6 +19,7 @@ import {ContainerName} from '../../../integration/kube/resources/container/conta
 import {PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
 import {RemoteConfigRuntimeState} from '../config/remote/remote-config-runtime-state.js';
 import {container} from 'tsyringe-neo';
+import {Duration} from '../../../core/time/duration.js';
 
 @injectable()
 export class MetricsServerImpl implements MetricsServer {
@@ -57,6 +58,7 @@ export class MetricsServerImpl implements MetricsServer {
     namespaceLookup: NamespaceName = undefined,
     labelSelector: string = undefined,
     context: Context = undefined,
+    attempt: number = 1,
   ): Promise<ClusterMetrics> {
     const podMetrics: PodMetrics[] = [];
     const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
@@ -100,8 +102,18 @@ export class MetricsServerImpl implements MetricsServer {
       );
     } catch (error) {
       if (error.message.includes('Metrics API not available')) {
-        this.logger.showUser('Metrics API not available for reporting metrics');
-        return undefined;
+        if (attempt <= 3) {
+          const backOffSeconds: number = 5;
+          this.logger.debug(
+            `Metrics API not available, retrying attempt ${attempt} after ${backOffSeconds} seconds...`,
+            error,
+          );
+          await new Promise(resolve => setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()));
+          return this.getClusterMetrics(namespaceLookup, labelSelector, context, attempt + 1);
+        } else {
+          this.logger.showUser('Metrics API not available for reporting metrics');
+          return undefined;
+        }
       }
       throw error;
     }

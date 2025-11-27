@@ -17,6 +17,7 @@ export class EndToEndTestSuiteBuilder {
   private shard: number;
   private serviceMonitor: boolean;
   private podLog: boolean;
+  private minimalSetup: boolean;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -60,23 +61,28 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
-  withRealm(realm: number): this {
+  public withRealm(realm: number): this {
     this.realm = realm;
     return this;
   }
 
-  withShard(shard: number): this {
+  public withShard(shard: number): this {
     this.shard = shard;
     return this;
   }
 
-  withServiceMonitor(serviceMonitor: boolean): this {
+  public withServiceMonitor(serviceMonitor: boolean): this {
     this.serviceMonitor = serviceMonitor;
     return this;
   }
 
-  withPodLog(podLog: boolean): this {
+  public withPodLog(podLog: boolean): this {
     this.podLog = podLog;
+    return this;
+  }
+
+  public withMinimalSetup(minimalSetup: boolean): this {
+    this.minimalSetup = minimalSetup;
     return this;
   }
 
@@ -102,6 +108,7 @@ export class EndToEndTestSuiteBuilder {
       this.shard || 0,
       this.serviceMonitor || false,
       this.podLog || false,
+      this.minimalSetup || false,
       this.testSuiteCallback,
     );
   }

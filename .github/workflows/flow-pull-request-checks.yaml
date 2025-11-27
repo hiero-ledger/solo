@@ -114,6 +114,8 @@ jobs:
       coverage-report-name: ${{ matrix.e2e-test-type.coverage-report-name }}
       local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
+      install-dependencies: ${{ matrix.e2e-test-type.install-dependencies }}
+      runner: ${{ matrix.e2e-test-type.runner }}
 
   codecov:
     name: CodeCov
