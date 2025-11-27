@@ -21,6 +21,7 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
+import type {NetworkNodes} from '../../../src/core/network-nodes.js';
 
 const testName: string = 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
@@ -57,6 +58,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       after(async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
