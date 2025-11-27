@@ -104,7 +104,7 @@ export function soloOneShotDeploy(testName: string, namespace: NamespaceName): s
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
-    Flags.namespace.name,
+    '--namespace',
     namespace.name,
   );
   argvPushGlobalFlags(argv, testName);
