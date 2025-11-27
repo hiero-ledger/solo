@@ -1,0 +1,20 @@
+mirror:
+  - --deployment
+  - external-database-test-deployment
+  - --cluster-ref
+  - solo-e2e-c2
+  - --enable-ingress
+  - --pinger
+  - --dev
+  - --quiet-mode
+  - --use-external-database
+  - --external-database-host
+  - my-postgresql.database.svc.cluster.local
+  - --external-database-owner-username
+  - postgres
+  - --external-database-owner-password
+  - XXXXXXX
+  - --external-database-read-username
+  - readonlyuser
+  - --external-database-read-password
+  - XXXXXXXX

@@ -60,7 +60,7 @@ tasks:
       - task: "mutate:one-shot-falcon-example"
       - task: "mutate:rapid-fire-example"
       - task: "mutate:state-save-and-restore-example"
-      - task: "mutate:backup-restore-workflow-example"
+      - task: "mutate:multicluster-backup-restore-example"
       - task: "mutate:version-upgrade-test-example"
       - task: "build:all"
 

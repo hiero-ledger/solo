@@ -527,7 +527,7 @@ export class DeploymentCommand extends BaseCommand {
    */
   public testClusterConnection(): SoloListrTask<DeploymentAddClusterContext> {
     return {
-      title: 'Test cluster connection',
+      title: 'Test cluster reference connection',
       task: async (context_, task): Promise<void> => {
         const {clusterRef, context} = context_.config;
 
@@ -604,7 +604,7 @@ export class DeploymentCommand extends BaseCommand {
 
         argv[flags.nodeAliasesUnparsed.name] = nodeAliases.join(',');
 
-        task.title += `: ${deployment} in cluster: ${clusterRef}`;
+        task.title += `: ${deployment} in cluster reference: ${clusterRef}`;
 
         if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
           await this.k8Factory.getK8(context).namespaces().create(namespace);

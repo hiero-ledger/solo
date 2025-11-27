@@ -231,7 +231,7 @@ export abstract class BaseCommand extends ShellRunner {
         constants.SOLO_VALUES_DIR,
       ];
     }
-    const self = this;
+    const self: this = this;
 
     try {
       for (const directoryPath of directories) {

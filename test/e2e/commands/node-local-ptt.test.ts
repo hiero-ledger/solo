@@ -67,7 +67,15 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should restore from backup', async () => {
       const {newArgv} = BaseCommandTest;
       const restoreArguments: string[] = newArgv();
-      restoreArguments.push('config', 'ops', 'restore', '--deployment', deploymentName, '--input-dir', backupDirectory);
+      restoreArguments.push(
+        'config',
+        'ops',
+        'restore-config',
+        '--deployment',
+        deploymentName,
+        '--input-dir',
+        backupDirectory,
+      );
 
       await main(restoreArguments);
     }).timeout(Duration.ofMinutes(5).toMillis());

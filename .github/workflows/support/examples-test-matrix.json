@@ -68,10 +68,5 @@
     "name": "State Save and Restore",
     "directory": "state-save-and-restore",
     "local-java-build": false
-  },
-  {
-    "name": "Backup Restore Workflow",
-    "directory": "backup-restore-workflow",
-    "local-java-build": false
   }
 ]
