@@ -53,6 +53,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Templates} from '../../core/templates.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {RESOURCES_DIR} from '../../core/constants.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -363,6 +364,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               if (config.networkConfiguration) {
                 this.appendConfigToArgv(argv, config.networkConfiguration);
               }
+
+              argv.push(
+                `--${flags.applicationProperties.name}`,
+                PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'one-shot', 'application.properties'),
+              );
+
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
