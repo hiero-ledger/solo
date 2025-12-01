@@ -35,7 +35,7 @@ An example of `custom-spec.yaml` is in `solo` repository `/resources/profiles/cu
 
 We are going to deploy the following sets of hardware in our Latitude clusters.
 
-| Hardware Profile | CPU     | RAM    |
+| Hardware Profile | CPU     | Memory |
 |------------------|---------|--------|
 | **LARGE**        | 48 vCPU | 256 GB |
 | **MEDIUM**       | 24 vCPU | 128 GB |
@@ -48,8 +48,8 @@ We define the maximum resource limits for various components in the table below 
 TPS.
 
 <aside>
-💡 1. Consensus node with 24vCPU, 64 GB RAM was found to be sufficient for ~10K TPS in our PoC. 
-2. Same colored containers in the table below are deployed on the same HW (e.g. LARGE / MEDIUM / SMALL / TINY/ LOCAL). LOCAL profile is for local development where Docker Desktop should have 8 cores and 16 GB RAM.
+💡 1. Consensus node with 24vCPU, 64 GB of memory was found to be sufficient for ~10K TPS in our PoC. 
+2. Same colored containers in the table below are deployed on the same HW (e.g. LARGE / MEDIUM / SMALL / TINY/ LOCAL). LOCAL profile is for local development where Docker Desktop should have 8 cores and 16 GB of memory.
 3. Regular black colored containers in the table below are deployed on any HW
 
 </aside>
@@ -85,7 +85,7 @@ specified TPS
 
 ### Performance  with SMALL profile
 
-### Performance with TINY profile (Consensus node resource limit: 4 vCPU, 8GB RAM)
+### Performance with TINY profile (Consensus node resource limit: 4 vCPU, 8GB memory)
 
 ![Screenshot 2024-04-03 at 9.04.46 AM.png](images/preconfigured_resource_profiles/screenshot_20240403_090446.png)
 
@@ -107,25 +107,25 @@ following allocation rules using taints/affinity:
 
 ## Pod Resource Profiles
 
-| Pod Size | CPU          | RAM   | Supported on HW          |
-|----------|--------------|-------|--------------------------|
-| **XL3**  | 12 vCPU      | 32 GB | **MEDIUM**               |
-| **XL2**  | 8 vCPU       | 16 GB | **SMALL**                |
-| **XL1**  | 6 vCPU       | 16 GB | **SMALL**                |
-| **L3**   | 4 vCPU       | 32 GB | **LARGE, MEDIUM**        |
-| **L2**   | 4 vCPU       | 16 GB | **SMALL**                |
-| **L1**   | 4 vCPU       | 8 GB  | **SMALL**                |
-| **M3**   | 3 vCPU       | 8 GB  | **SMALL**                |
-| **M2**   | 2 vCPU       | 8 GB  | **LARGE, MEDIUM, SMALL** |
-| **M1**   | 2 vCPU       | 4 GB  | **SMALL, TINY**          |Ò
-| **S3**   | 1 vCPU       | 8 GB  | **MEDIUM, SMALL**        |
-| **S2**   | 1 vCPU       | 4 GB  | **MEDIUM, SMALL**        |
-| **S1**   | 1 vCPU       | 2 GB  | **SMALL, TINY**          |
-| **T1**   | **0.5 vCPU** | 1 GB  | **TINY**                 |
+| Pod Size | CPU          | Memory | Supported on HW          |
+|----------|--------------|--------|--------------------------|
+| **XL3**  | 12 vCPU      | 32 GB  | **MEDIUM**               |
+| **XL2**  | 8 vCPU       | 16 GB  | **SMALL**                |
+| **XL1**  | 6 vCPU       | 16 GB  | **SMALL**                |
+| **L3**   | 4 vCPU       | 32 GB  | **LARGE, MEDIUM**        |
+| **L2**   | 4 vCPU       | 16 GB  | **SMALL**                |
+| **L1**   | 4 vCPU       | 8 GB   | **SMALL**                |
+| **M3**   | 3 vCPU       | 8 GB   | **SMALL**                |
+| **M2**   | 2 vCPU       | 8 GB   | **LARGE, MEDIUM, SMALL** |
+| **M1**   | 2 vCPU       | 4 GB   | **SMALL, TINY**          |Ò
+| **S3**   | 1 vCPU       | 8 GB   | **MEDIUM, SMALL**        |
+| **S2**   | 1 vCPU       | 4 GB   | **MEDIUM, SMALL**        |
+| **S1**   | 1 vCPU       | 2 GB   | **SMALL, TINY**          |
+| **T1**   | **0.5 vCPU** | 1 GB   | **TINY**                 |
 
 ## Example: potential pod allocations on a Hardware
 
-| Hardware Profile | CPU     | RAM    | Potential pod combinations                                                                                                                                                                                                                                                                         |
+| Hardware Profile | CPU     | Memory | Potential pod combinations                                                                                                                                                                                                                                                                         |
 |------------------|---------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **LARGE**        | 48 vCPU | 256 GB | 16 x (2 vCPU, 8 GB) + 4 x  (4 vCPU, 32 GB)                                                                                                                                                                                                                                                         |
 | **MEDIUM**       | 24 vCPU | 128 GB | 4 x (4 vCPU, 16 GB) + 2 x (4 vCPU, 32 GB), 8 x (2 vCPU, 8 GB) + 2 x (4 vCPU, 32 GB), 16 x (1 vCPU, 4 GB) + 8 x (1 vCPU, 8 GB),                                                                                                                                                                     |

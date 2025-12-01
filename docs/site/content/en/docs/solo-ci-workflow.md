@@ -14,8 +14,8 @@ You’ll verify that your runner meets Docker resource requirements, install the
 You can use GitHub runners or self-hosted runners to deploy Solo.
 
 ### Minimum Requirements
-- 4 CPUs
-- 12 GB Memory
+- 6 CPU cores
+- 12 GB of memory
 
 If these requirements aren’t met, some Solo components may hang or fail to install during deployment.
 
@@ -30,11 +30,11 @@ Add the following step to your workflow to verify your Docker environment:
     run: |
       read cpus mem <<<"$(docker info --format '{{.NCPU}} {{.MemTotal}}')"
       mem_gb=$(awk -v m="$mem" 'BEGIN{printf "%.1f", m/1000000000}')
-      echo "CPUs: $cpus"
+      echo "CPU cores: $cpus"
       echo "Memory: ${mem_gb} GB"
 ```
 Expected Output:
-CPUs: 4
+CPU cores: 6
 Memory: 16 GB
 
 ## Step 2: Set Up Kind
@@ -102,7 +102,7 @@ Here’s the full workflow combining all the steps above:
     run: |
       read cpus mem <<<"$(docker info --format '{{.NCPU}} {{.MemTotal}}')"
       mem_gb=$(awk -v m="$mem" 'BEGIN{printf "%.1f", m/1000000000}')
-      echo "CPUs: $cpus"
+      echo "CPU cores: $cpus"
       echo "Memory: ${mem_gb} GB"
       
   - name: Setup Kind

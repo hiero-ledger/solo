@@ -30,7 +30,7 @@ Browse the source code and configuration files for this example in the [GitHub r
 * [Kind](https://kind.sigs.k8s.io/) installed (`brew install kind` on macOS)
 * [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
 * Node.js 22+ and npm installed
-* Docker Desktop running with sufficient resources (8GB+ RAM recommended)
+* Docker Desktop running with sufficient resources (Memory: 16GB+ recommended)
 
 ## Quick Start
 
