@@ -524,8 +524,8 @@ export class NodeTest extends BaseCommandTest {
   }
 
   public static PemStop(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger, consensusNodesCount} = options;
-    const {soloNodeStopArgv} = NodeTest;
+    const {namespace, testName, testLogger, consensusNodesCount, deployment} = options;
+    const {soloNodeStartArgv, soloNodeStopArgv} = NodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
@@ -542,6 +542,8 @@ export class NodeTest extends BaseCommandTest {
       this.refresh(options);
 
       this.checkNetwork(testName, namespace, testLogger);
+
+      await main(soloNodeStartArgv(testName, deployment));
 
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));
