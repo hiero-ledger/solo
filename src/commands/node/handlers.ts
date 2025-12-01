@@ -748,7 +748,7 @@ export class NodeCommandHandlers extends CommandHandler {
         }),
         this.tasks.identifyNetworkPods(1),
         this.tasks.stopNodes('nodeAliases'),
-        this.changeAllNodePhases(DeploymentPhase.STARTED),
+        this.changeAllNodePhases(DeploymentPhase.STOPPED),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error stopping node',
