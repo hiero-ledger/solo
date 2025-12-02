@@ -1747,6 +1747,29 @@ export class Flags {
     },
   };
 
+  public static readonly optionsFile: CommandFlag = {
+    constName: 'optionsFile',
+    name: 'options-file',
+    definition: {
+      describe:
+        'Path to YAML file containing component-specific deployment options (consensus, block, mirror, relay, explorer)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly metallbConfig: CommandFlag = {
+    constName: 'metallbConfig',
+    name: 'metallb-config',
+    definition: {
+      describe: 'Path pattern for MetalLB configuration YAML files (supports {index} placeholder for cluster number)',
+      defaultValue: 'metallb-cluster-{index}.yaml',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',
@@ -2790,6 +2813,7 @@ export class Flags {
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
     Flags.log4j2Xml,
+    Flags.metallbConfig,
     Flags.mirrorNodeVersion,
     Flags.mirrorStaticIp,
     Flags.mirrorNamespace,
@@ -2801,6 +2825,7 @@ export class Flags {
     Flags.nodeAliasesUnparsed,
     Flags.operatorId,
     Flags.operatorKey,
+    Flags.optionsFile,
     Flags.outputDir,
     Flags.persistentVolumeClaims,
     Flags.pinger,
