@@ -2387,7 +2387,7 @@ export class NodeCommandTasks {
               config.nodeAlias,
               Templates.nodeIdFromNodeAlias(config.nodeAlias),
               config.namespace,
-              '',
+              'n/a',
               context,
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
