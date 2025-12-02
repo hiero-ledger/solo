@@ -700,6 +700,8 @@ export class NodeCommandHandlers extends CommandHandler {
         }),
         this.tasks.identifyNetworkPods(),
         this.tasks.dumpNetworkNodesSaveState(),
+        this.tasks.downloadLastState(),
+        this.tasks.uploadStateToNewNode(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
         this.tasks.startNodes('nodeAliases'),
