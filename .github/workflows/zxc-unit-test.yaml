@@ -106,14 +106,14 @@ jobs:
         run: task test-helm
 
       - name: Publish Windows Unit Test Report
-        uses: EnricoMi/publish-unit-test-result-action/windows/bash@34d7c956a59aed1bfebf31df77b8de55db9bbaaf # v2.21.0
+        uses: step-security/publish-unit-test-result-action/windows@914f0f642c242f38335a491805adfc9bd64b1cbb  # v2.21.0 full SHA
         if: ${{ runner.os == 'Windows' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'
           files: "junit.xml"
 
       - name: Publish Linux Unit Test Report
-        uses: step-security/publish-unit-test-result-action@32f89bf71205087367e3fe317be553f2ee59a5b0 # v2.21.0
+        uses: step-security/publish-unit-test-result-action@914f0f642c242f38335a491805adfc9bd64b1cbb # v2.21.1
         if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'

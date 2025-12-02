@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr, ListrContext, ListrRendererValue} from 'listr2';
+import {Listr, ListrRendererValue} from 'listr2';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
@@ -12,14 +12,12 @@ import {injectable, inject} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
-import {ArgumentProcessor} from '../../argument-processor.js';
 import {OneShotCommand} from './one-shot.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
-import {TaskList} from '../../core/task-list/task-list.js';
-import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
 import * as version from '../../../version.js';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
@@ -49,10 +47,10 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
-import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
-import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Templates} from '../../core/templates.js';
+import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {Templates} from '../../core/templates.js';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -85,14 +83,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  private newArgv(): string[] {
-    return ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
-  }
-
-  private optionFromFlag(flag: CommandFlag): string {
-    return `--${flag.name}`;
-  }
-
   /**
    * Appends non-empty config entries to the argv array as CLI flags.
    * @param argv - The argument array to append to
@@ -107,41 +97,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         argv.push(`${key}`, value.toString());
       }
     }
-  }
-
-  private argvPushGlobalFlags(argv: string[], cacheDirectory: string = StringEx.EMPTY): string[] {
-    argv.push(this.optionFromFlag(Flags.devMode), this.optionFromFlag(Flags.quiet));
-    if (cacheDirectory) {
-      argv.push(this.optionFromFlag(Flags.cacheDir), cacheDirectory);
-    }
-    return argv;
-  }
-
-  private invokeSoloCommand(
-    title: string,
-    commandName: string,
-    callback: () => string[],
-    skipCallback: (context?: OneShotSingleDeployContext) => boolean = (): boolean => false,
-  ) {
-    return {
-      title,
-      skip: skipCallback(),
-      task: async (_, taskListWrapper) => {
-        return this.subTaskSoloCommand(commandName, this.taskList, taskListWrapper, callback);
-      },
-    };
-  }
-
-  private async subTaskSoloCommand(
-    commandName: string,
-    taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-    taskListWrapper: TaskListWrapper,
-    callback: () => string[],
-  ): Promise<Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[]> {
-    taskList.parentTaskListMap.set(commandName, {taskListWrapper});
-    const newArgv: string[] = callback();
-    await ArgumentProcessor.process(newArgv);
-    return this.taskList.parentTaskListMap.get(commandName).children;
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -260,158 +215,168 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
             skip: (context_: OneShotSingleDeployContext): boolean => context_.config.force === true,
           },
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
-                this.optionFromFlag(Flags.clusterRef),
+                optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
-                this.optionFromFlag(Flags.context),
+                optionFromFlag(Flags.context),
                 config.context,
               );
-              return this.argvPushGlobalFlags(argv);
+              return argvPushGlobalFlags(argv);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
             DeploymentCommandDefinition.CREATE_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
-                this.optionFromFlag(Flags.namespace),
+                optionFromFlag(Flags.namespace),
                 config.namespace.name,
               );
-              return this.argvPushGlobalFlags(argv);
+              return argvPushGlobalFlags(argv);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
             DeploymentCommandDefinition.ATTACH_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
+                optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
-                this.optionFromFlag(Flags.numberOfConsensusNodes),
+                optionFromFlag(Flags.numberOfConsensusNodes),
                 config.numberOfConsensusNodes.toString(),
               );
-              return this.argvPushGlobalFlags(argv);
+              return argvPushGlobalFlags(argv);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
             ClusterReferenceCommandDefinition.SETUP_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
-                this.optionFromFlag(Flags.clusterRef),
+                optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
-              return this.argvPushGlobalFlags(argv);
+              return argvPushGlobalFlags(argv);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
             KeysCommandDefinition.KEYS_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
-                this.optionFromFlag(Flags.generateGossipKeys),
+                optionFromFlag(Flags.generateGossipKeys),
                 'true',
-                this.optionFromFlag(Flags.generateTlsKeys),
+                optionFromFlag(Flags.generateTlsKeys),
               );
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
+              return argvPushGlobalFlags(argv, config.cacheDir);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${BlockCommandDefinition.ADD_COMMAND}`,
             BlockCommandDefinition.ADD_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
               );
-              return this.argvPushGlobalFlags(argv);
+              return argvPushGlobalFlags(argv);
             },
+            this.taskList,
             (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
             ConsensusCommandDefinition.DEPLOY_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
               );
               if (config.networkConfiguration) {
                 this.appendConfigToArgv(argv, config.networkConfiguration);
               }
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
+              return argvPushGlobalFlags(argv, config.cacheDir);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
             ConsensusCommandDefinition.SETUP_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
               );
               this.appendConfigToArgv(argv, config.setupConfiguration);
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
+              return argvPushGlobalFlags(argv, config.cacheDir);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.START_COMMAND}`,
             ConsensusCommandDefinition.START_COMMAND,
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
               );
               this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
-              return this.argvPushGlobalFlags(argv);
+              return argvPushGlobalFlags(argv);
             },
+            this.taskList,
           ),
-          this.invokeSoloCommand(
+          invokeSoloCommand(
             `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
             MirrorCommandDefinition.ADD_COMMAND,
 
             (): string[] => {
-              const argv: string[] = this.newArgv();
+              const argv: string[] = newArgv();
               argv.push(
                 ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
+                optionFromFlag(Flags.deployment),
                 config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
+                optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
-                this.optionFromFlag(Flags.pinger),
-                this.optionFromFlag(Flags.enableIngress),
+                optionFromFlag(Flags.pinger),
+                optionFromFlag(Flags.enableIngress),
               );
               this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
+              return argvPushGlobalFlags(argv, config.cacheDir);
             },
+            this.taskList,
           ),
           {
             title: 'Extended setup',
@@ -420,39 +385,41 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
-                this.invokeSoloCommand(
+                invokeSoloCommand(
                   `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
                   ExplorerCommandDefinition.ADD_COMMAND,
                   (): string[] => {
-                    const argv: string[] = this.newArgv();
+                    const argv: string[] = newArgv();
                     argv.push(
                       ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                      this.optionFromFlag(Flags.deployment),
+                      optionFromFlag(Flags.deployment),
                       config.deployment,
-                      this.optionFromFlag(Flags.clusterRef),
+                      optionFromFlag(Flags.clusterRef),
                       config.clusterRef,
                     );
                     this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                    return argvPushGlobalFlags(argv, config.cacheDir);
                   },
+                  this.taskList,
                 ),
-                this.invokeSoloCommand(
+                invokeSoloCommand(
                   `solo ${RelayCommandDefinition.ADD_COMMAND}`,
                   RelayCommandDefinition.ADD_COMMAND,
                   (): string[] => {
-                    const argv: string[] = this.newArgv();
+                    const argv: string[] = newArgv();
                     argv.push(
                       ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                      this.optionFromFlag(Flags.deployment),
+                      optionFromFlag(Flags.deployment),
                       config.deployment,
-                      this.optionFromFlag(Flags.clusterRef),
+                      optionFromFlag(Flags.clusterRef),
                       config.clusterRef,
-                      this.optionFromFlag(Flags.nodeAliasesUnparsed),
+                      optionFromFlag(Flags.nodeAliasesUnparsed),
                       'node1',
                     );
                     this.appendConfigToArgv(argv, config.relayNodeConfiguration);
-                    return this.argvPushGlobalFlags(argv);
+                    return argvPushGlobalFlags(argv);
                   },
+                  this.taskList,
                 ),
               ];
 
@@ -846,40 +813,42 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
         ): Promise<Listr<OneShotSingleDeployContext>> => {
           const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
-            this.invokeSoloCommand(
+            invokeSoloCommand(
               `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
               ExplorerCommandDefinition.DESTROY_COMMAND,
               (): string[] => {
-                const argv: string[] = this.newArgv();
+                const argv: string[] = newArgv();
                 argv.push(
                   ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
-                  this.optionFromFlag(flags.clusterRef),
+                  optionFromFlag(flags.clusterRef),
                   config.clusterRef,
-                  this.optionFromFlag(flags.deployment),
+                  optionFromFlag(flags.deployment),
                   config.deployment,
-                  this.optionFromFlag(flags.quiet),
-                  this.optionFromFlag(flags.force),
+                  optionFromFlag(flags.quiet),
+                  optionFromFlag(flags.force),
                 );
-                return this.argvPushGlobalFlags(argv);
+                return argvPushGlobalFlags(argv);
               },
+              this.taskList,
             ),
-            this.invokeSoloCommand(
+            invokeSoloCommand(
               `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
               RelayCommandDefinition.DESTROY_COMMAND,
               (): string[] => {
-                const argv: string[] = this.newArgv();
+                const argv: string[] = newArgv();
                 argv.push(
                   ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
-                  this.optionFromFlag(flags.clusterRef),
+                  optionFromFlag(flags.clusterRef),
                   config.clusterRef,
-                  this.optionFromFlag(flags.deployment),
+                  optionFromFlag(flags.deployment),
                   config.deployment,
-                  this.optionFromFlag(flags.nodeAliasesUnparsed),
+                  optionFromFlag(flags.nodeAliasesUnparsed),
                   'node1',
-                  this.optionFromFlag(flags.quiet),
+                  optionFromFlag(flags.quiet),
                 );
-                return this.argvPushGlobalFlags(argv);
+                return argvPushGlobalFlags(argv);
               },
+              this.taskList,
             ),
           ];
 
@@ -897,102 +866,107 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return !hasExplorers || !hasRelays;
         },
       },
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
         MirrorCommandDefinition.DESTROY_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...MirrorCommandDefinition.DESTROY_COMMAND.split(' '),
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             config.clusterRef,
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.devMode),
+            optionFromFlag(flags.quiet),
+            optionFromFlag(flags.force),
+            optionFromFlag(flags.devMode),
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
         BlockCommandDefinition.DESTROY_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...BlockCommandDefinition.DESTROY_COMMAND.split(' '),
-            this.optionFromFlag(Flags.deployment),
+            optionFromFlag(Flags.deployment),
             config.deployment,
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             config.clusterRef,
-            this.optionFromFlag(flags.quiet),
+            optionFromFlag(flags.quiet),
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
         (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
       ),
-
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
         ConsensusCommandDefinition.DESTROY_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ConsensusCommandDefinition.DESTROY_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.deletePvcs),
-            this.optionFromFlag(flags.deleteSecrets),
-            this.optionFromFlag(flags.enableTimeout),
+            optionFromFlag(flags.quiet),
+            optionFromFlag(flags.force),
+            optionFromFlag(flags.deletePvcs),
+            optionFromFlag(flags.deleteSecrets),
+            optionFromFlag(flags.enableTimeout),
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
         ClusterReferenceCommandDefinition.RESET_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ClusterReferenceCommandDefinition.RESET_COMMAND.split(' '),
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             config.clusterRef,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
+            optionFromFlag(flags.quiet),
+            optionFromFlag(flags.force),
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
         ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ClusterReferenceCommandDefinition.DISCONNECT_COMMAND.split(' '),
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             config.clusterRef,
-            this.optionFromFlag(flags.quiet),
+            optionFromFlag(flags.quiet),
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
         DeploymentCommandDefinition.DELETE_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...DeploymentCommandDefinition.DELETE_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             config.deployment,
-            this.optionFromFlag(flags.quiet),
+            optionFromFlag(flags.quiet),
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
       {
         title: 'Delete cache folder',
