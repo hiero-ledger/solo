@@ -173,7 +173,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   // Podman should only be installed if Docker is not already present on the client system
   public override async shouldInstall(): Promise<boolean> {
     // Check if Podman is explicitly requested via environment variable
-    if (process.env.CONTAINER_ENGINE === 'podman') {
+    if (process.env.FORCE_PODMAN === 'true') {
       return true;
     }
 
