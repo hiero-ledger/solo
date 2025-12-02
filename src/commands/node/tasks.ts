@@ -2383,7 +2383,16 @@ export class NodeCommandTasks {
           const k8: K8 = this.k8Factory.getK8(context);
 
           const externalEndpointAddress: Address = await Address.getExternalAddress(
-            config.consensusNodes.find((node): boolean => node.name === config.nodeAlias),
+            new ConsensusNode(
+              config.nodeAlias,
+              Templates.nodeIdFromNodeAlias(config.nodeAlias),
+              config.namespace,
+              '',
+              context,
+              config.consensusNodes[0].dnsBaseDomain,
+              config.consensusNodes[0].dnsConsensusNodePattern,
+              Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+            ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
           );
