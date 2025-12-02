@@ -8,7 +8,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
-import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
+import {DEFAULT_LOCAL_CONFIG_FILE, SOLO_CACHE_DIR} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 
@@ -58,7 +58,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+        const generatedDeploymentName: string = fs.readFileSync(
+          PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
+          'utf8',
+        );
+        await main(soloConsenusDiagnosticsLogs(testName, generatedDeploymentName));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
@@ -115,6 +119,14 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloConsenusDiagnosticsLogs(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push('consensus', 'diagnostics', 'logs', '--deployment', deployment);
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
