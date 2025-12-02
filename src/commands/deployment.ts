@@ -35,7 +35,6 @@ import {type ConfigMap} from '../integration/kube/resources/config-map/config-ma
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
 import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
 import {MessageLevel} from '../core/logging/message-level.js';
-import {SOLO_REMOTE_CONFIGMAP_NAME} from '../core/constants.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
