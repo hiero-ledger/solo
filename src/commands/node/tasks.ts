@@ -2972,13 +2972,14 @@ export class NodeCommandTasks {
       title: 'Download last state from an existing node',
       task: async context_ => {
         const config = context_.config;
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
+        // TODO: currently only supports downloading from the first existing node
+        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.consensusNodes[0].name);
         const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
         const context = helpers.extractContextFromConsensusNodes(
-          config.existingNodeAliases[0],
+          config.consensusNodes[0].name,
           context_.config.consensusNodes,
         );
 
@@ -2992,7 +2993,7 @@ export class NodeCommandTasks {
         const zipFileName = await container.execContainer([
           'bash',
           '-c',
-          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
         this.logger.debug(`state zip file to download is = ${zipFileName}`);
@@ -3010,14 +3011,15 @@ export class NodeCommandTasks {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
         const config = context_.config;
-        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const nodeAlias = config.nodeAlias || config.nodeAliases[0];
+        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const savedStateDirectory = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
-        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
 
         const container = k8.containers().readByRef(containerReference);
@@ -3042,7 +3044,7 @@ export class NodeCommandTasks {
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${path.basename(config.lastStateZipPath)}`,
           ]);
       },
     };
