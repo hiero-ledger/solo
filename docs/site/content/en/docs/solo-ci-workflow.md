@@ -35,7 +35,7 @@ Add the following step to your workflow to verify your Docker environment:
 ```
 Expected Output:
 CPU cores: 6
-Memory: 16 GB
+Memory: 12 GB
 
 ## Step 2: Set Up Kind
 
