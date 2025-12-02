@@ -40,7 +40,7 @@ describe('Helpers', (): void => {
 
   it('Should ipv4ToByteArray convert IPv4 address to string', (): void => {
     const ipV4Address: string = '192.168.0.1';
-    const byteString: string = helpers.ipv4ToBase64(ipV4Address);
+    const byteString: string = helpers.ipV4ToBase64(ipV4Address);
     expect(byteString).to.equal('wKgAAQ==');
   });
 });
