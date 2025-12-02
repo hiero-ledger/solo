@@ -88,8 +88,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       MirrorNodeTest.add(options);
 
-      NodeTest.add(options, false);
-      NodeTest.update(options, false);
+      NodeTest.add(options);
+      NodeTest.update(options);
       NodeTest.destroy(options);
 
       ExplorerTest.add(options);
