@@ -60,7 +60,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force],
+    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.minimalSetup, flags.force],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -378,42 +378,61 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
             this.taskList,
           ),
-          invokeSoloCommand(
-            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-            ExplorerCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-              );
-              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-              return argvPushGlobalFlags(argv, config.cacheDir);
+          {
+            title: 'Extended setup',
+            task: async (
+              context_: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+            ): Promise<Listr<OneShotSingleDeployContext>> => {
+              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
+                invokeSoloCommand(
+                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                  ExplorerCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = newArgv();
+                    argv.push(
+                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                      optionFromFlag(Flags.deployment),
+                      config.deployment,
+                      optionFromFlag(Flags.clusterRef),
+                      config.clusterRef,
+                    );
+                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+                    return argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                  this.taskList,
+                ),
+                invokeSoloCommand(
+                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                  RelayCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = newArgv();
+                    argv.push(
+                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                      optionFromFlag(Flags.deployment),
+                      config.deployment,
+                      optionFromFlag(Flags.clusterRef),
+                      config.clusterRef,
+                      optionFromFlag(Flags.nodeAliasesUnparsed),
+                      'node1',
+                    );
+                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
+                    return argvPushGlobalFlags(argv);
+                  },
+                  this.taskList,
+                ),
+              ];
+
+              // set up the sub-tasks
+              return task.newListr(subTasks, {
+                concurrent: false,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
             },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-            RelayCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                optionFromFlag(Flags.nodeAliasesUnparsed),
-                'node1',
-              );
-              this.appendConfigToArgv(argv, config.relayNodeConfiguration);
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
+            skip: (): boolean => config.minimalSetup,
+          },
           {
             title: 'Create Accounts',
             skip: () => config.predefinedAccounts === false,
@@ -784,26 +803,69 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           }
 
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+          await this.remoteConfig.loadAndValidate(argv);
         },
       },
-      invokeSoloCommand(
-        `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
-        ExplorerCommandDefinition.DESTROY_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
-            optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            optionFromFlag(flags.deployment),
-            config.deployment,
-            optionFromFlag(flags.quiet),
-            optionFromFlag(flags.force),
-          );
-          return argvPushGlobalFlags(argv);
+      {
+        title: 'Destroy extended setup',
+        task: async (
+          context_: OneShotSingleDeployContext,
+          task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+        ): Promise<Listr<OneShotSingleDeployContext>> => {
+          const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
+            invokeSoloCommand(
+              `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+              ExplorerCommandDefinition.DESTROY_COMMAND,
+              (): string[] => {
+                const argv: string[] = newArgv();
+                argv.push(
+                  ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
+                  optionFromFlag(flags.clusterRef),
+                  config.clusterRef,
+                  optionFromFlag(flags.deployment),
+                  config.deployment,
+                  optionFromFlag(flags.quiet),
+                  optionFromFlag(flags.force),
+                );
+                return argvPushGlobalFlags(argv);
+              },
+              this.taskList,
+            ),
+            invokeSoloCommand(
+              `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
+              RelayCommandDefinition.DESTROY_COMMAND,
+              (): string[] => {
+                const argv: string[] = newArgv();
+                argv.push(
+                  ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
+                  optionFromFlag(flags.clusterRef),
+                  config.clusterRef,
+                  optionFromFlag(flags.deployment),
+                  config.deployment,
+                  optionFromFlag(flags.nodeAliasesUnparsed),
+                  'node1',
+                  optionFromFlag(flags.quiet),
+                );
+                return argvPushGlobalFlags(argv);
+              },
+              this.taskList,
+            ),
+          ];
+
+          // set up the sub-tasks
+          return task.newListr(subTasks, {
+            concurrent: false,
+            rendererOptions: {
+              collapseSubtasks: false,
+            },
+          });
         },
-        this.taskList,
-      ),
+        skip: (): boolean => {
+          const hasExplorers: boolean = this.remoteConfig.configuration.components.state.explorers.length > 0;
+          const hasRelays: boolean = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
+          return !hasExplorers || !hasRelays;
+        },
+      },
       invokeSoloCommand(
         `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
         MirrorCommandDefinition.DESTROY_COMMAND,
@@ -818,25 +880,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             optionFromFlag(flags.quiet),
             optionFromFlag(flags.force),
             optionFromFlag(flags.devMode),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
-        RelayCommandDefinition.DESTROY_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
-            optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            optionFromFlag(flags.deployment),
-            config.deployment,
-            optionFromFlag(flags.nodeAliasesUnparsed),
-            'node1',
-            optionFromFlag(flags.quiet),
           );
           return argvPushGlobalFlags(argv);
         },

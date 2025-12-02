@@ -644,7 +644,7 @@ export class DeploymentCommand extends BaseCommand {
       .configMaps()
       .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
 
-    if (existingRemoteConfigs) {
+    if (existingRemoteConfigs.length > 0) {
       const messageGroupName: string = 'existing-deployments';
       this.logger.addMessageGroup(messageGroupName, '⚠️ Warning: Existing solo deployment detected in cluster.');
       const existingDeploymentsRows: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);

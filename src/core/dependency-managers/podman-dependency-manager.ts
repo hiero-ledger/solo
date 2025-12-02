@@ -12,7 +12,7 @@ import {SoloError} from '../errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
-import {GitHubRelease, ReleaseInfo} from '../../types/index.js';
+import {GitHubRelease, ReleaseInfo, PodmanMode} from '../../types/index.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 
 const PODMAN_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/podman/releases';
@@ -67,6 +67,10 @@ export class PodmanDependencyManager extends BaseDependencyManager {
    */
   protected getArtifactName(): string {
     return util.format(this.artifactFileName, this.getRequiredVersion(), this.osPlatform, this.osArch);
+  }
+
+  public get mode(): PodmanMode {
+    return this.osPlatform === constants.OS_LINUX ? PodmanMode.ROOTFUL : PodmanMode.VIRTUAL_MACHINE;
   }
 
   public async getVersion(executablePath: string): Promise<string> {
@@ -168,6 +172,11 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
   // Podman should only be installed if Docker is not already present on the client system
   public override async shouldInstall(): Promise<boolean> {
+    // Check if Podman is explicitly requested via environment variable
+    if (process.env.FORCE_PODMAN === 'true') {
+      return true;
+    }
+
     // Determine if Docker is already installed
     try {
       await this.run(`${constants.DOCKER} --version`);
