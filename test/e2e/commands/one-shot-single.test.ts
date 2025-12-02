@@ -21,7 +21,6 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 
 const testName: string = 'one-shot-single';
@@ -59,7 +58,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       after(async (): Promise<void> => {
         const generatedDeploymentName: string = fs.readFileSync(
-          PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
+          PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
           'utf8',
         );
         await main(soloConsenusDiagnosticsLogs(testName, generatedDeploymentName));
