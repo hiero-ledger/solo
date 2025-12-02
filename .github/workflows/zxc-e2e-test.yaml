@@ -408,6 +408,7 @@ jobs:
             }
           else 
             echo "SOLO_ONE_SHOT_MINIMAL_SETUP=true" >> .env
+            echo "FORCE_PODMAN=true" >> .env
           fi
           
           cat .env
