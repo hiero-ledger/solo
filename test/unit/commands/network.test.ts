@@ -309,6 +309,7 @@ describe('NetworkCommand unit tests', (): void => {
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         // @ts-expect-error - to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
+        networkCommand.configManager.update(argv.build());
 
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
