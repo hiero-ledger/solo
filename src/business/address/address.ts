@@ -81,32 +81,38 @@ export class Address {
     port: number,
   ): Promise<Address> {
     const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
-    const serviceList: Service[] = await k8
-      .services()
-      .list(namespace, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
 
-    if (serviceList && serviceList.length > 0) {
-      const svc: Service = serviceList[0];
+    try {
+      const serviceList: Service[] = await k8
+        .services()
+        .list(namespace, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
 
-      if (!svc.metadata.name.startsWith('network-node')) {
-        throw new SoloError(`Service found is not a network node service: ${svc.metadata.name}`);
-      }
+      if (serviceList && serviceList.length > 0) {
+        const svc: Service = serviceList[0];
 
-      if (
-        svc.spec!.type === 'LoadBalancer' &&
-        svc.status?.loadBalancer?.ingress &&
-        svc.status.loadBalancer.ingress.length > 0
-      ) {
-        for (let index: number = 0; index < svc.status.loadBalancer.ingress.length; index++) {
-          const ingress: LoadBalancerIngress = svc.status.loadBalancer.ingress[index];
-          if (ingress.hostname) {
-            return new Address(port, ingress.hostname);
-          } else if (ingress.ip) {
-            return new Address(port, ingress.ip);
+        if (!svc.metadata.name.startsWith('network-node')) {
+          throw new SoloError(`Service found is not a network node service: ${svc.metadata.name}`);
+        }
+
+        if (
+          svc.spec!.type === 'LoadBalancer' &&
+          svc.status?.loadBalancer?.ingress &&
+          svc.status.loadBalancer.ingress.length > 0
+        ) {
+          for (let index: number = 0; index < svc.status.loadBalancer.ingress.length; index++) {
+            const ingress: LoadBalancerIngress = svc.status.loadBalancer.ingress[index];
+            if (ingress.hostname) {
+              return new Address(port, ingress.hostname);
+            } else if (ingress.ip) {
+              return new Address(port, ingress.ip);
+            }
           }
         }
       }
+    } catch {
+      // Ignore and use FQDN
     }
+
     return new Address(port, consensusNode.fullyQualifiedDomainName);
   }
 }
