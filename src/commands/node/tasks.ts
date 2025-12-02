@@ -140,6 +140,7 @@ import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
+import {Address} from '../../business/address/address.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2369,19 +2370,27 @@ export class NodeCommandTasks {
   public prepareGossipEndpoints(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Prepare gossip endpoints',
-      task: context_ => {
-        const config = context_.config;
-        let endpoints = [];
+      task: async context_ => {
+        const config: any = context_.config;
+        let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
-          if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
-            throw new SoloError(`--gossip-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
-          }
+          const context: string = helpers.extractContextFromConsensusNodes(
+            config.nodeAlias,
+            context_.config.consensusNodes,
+          );
+          const k8: K8 = this.k8Factory.getK8(context);
+
+          const externalEndpointAddress: Address = await Address.getExternalAddress(
+            config.consensusNodes.find((node): boolean => node.name === config.nodeAlias),
+            k8,
+            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          );
 
           endpoints = [
             `${helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
-            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT}`,
+            `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
 
