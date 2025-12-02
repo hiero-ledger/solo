@@ -11,6 +11,7 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {ProfileManager} from '../../../src/core/profile-manager.js';
 import {getTemporaryDirectory, getTestCacheDirectory} from '../../test-utility.js';
 import * as version from '../../../version.js';
+import {type NodeAlias} from '../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {Templates} from '../../../src/core/templates.js';
@@ -18,8 +19,10 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {KubeConfig} from '@kubernetes/client-node';
+import {MissingArgumentError} from '../../../src/core/errors/missing-argument-error.js';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {entityId} from '../../../src/core/helpers.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Realm, type Shard} from '../../../src/types/index.js';
 
@@ -258,5 +261,69 @@ describe('ProfileManager', () => {
         expect(valuesYaml.resources.limits.memory).not.to.be.null;
       });
     }
+  });
+
+  describe('prepareConfigText', () => {
+    it('should write and return the path to the config.txt file', async () => {
+      const nodeAccountMap = new Map<NodeAlias, string>([
+        ['node1', entityId(shard, realm, 3)],
+        ['node2', entityId(shard, realm, 4)],
+        ['node3', entityId(shard, realm, 5)],
+      ]);
+      const destinationPath = PathEx.join(temporaryDirectory, 'staging');
+      fs.mkdirSync(destinationPath, {recursive: true});
+      const renderedConfigFile = await profileManager.prepareConfigTxt(
+        nodeAccountMap,
+        consensusNodes,
+        destinationPath,
+        version.HEDERA_PLATFORM_VERSION,
+        {},
+      );
+
+      // expect that the config.txt file was created and exists
+      const configFile = PathEx.join(destinationPath, 'config.txt');
+      expect(renderedConfigFile).to.equal(configFile);
+      expect(fs.existsSync(configFile)).to.be.ok;
+
+      const configText = fs.readFileSync(configFile).toString();
+
+      // expect that the config.txt file contains the namespace
+      expect(configText).to.include(namespace);
+      // expect that the config.txt file contains the node account IDs
+      expect(configText).to.include(entityId(shard, realm, 3));
+      expect(configText).to.include(entityId(shard, realm, 4));
+      expect(configText).to.include(entityId(shard, realm, 5));
+      // expect the config.txt file to contain the node IDs
+      expect(configText).to.include('node1');
+      expect(configText).to.include('node2');
+      expect(configText).to.include('node3');
+    });
+
+    it('should fail when no nodeAliases', async () => {
+      const nodeAccountMap = new Map<NodeAlias, string>();
+      try {
+        await profileManager.prepareConfigTxt(nodeAccountMap, consensusNodes, '', version.HEDERA_PLATFORM_VERSION, {});
+      } catch (error) {
+        expect(error).to.be.instanceOf(MissingArgumentError);
+        expect(error.message).to.include('nodeAccountMap the map of node IDs to account IDs is required');
+      }
+    });
+
+    it('should fail when destPath does not exist', async () => {
+      const nodeAccountMap = new Map<NodeAlias, string>([['node1', entityId(shard, realm, 3)]]);
+      const destinationPath = PathEx.join(temporaryDirectory, 'missing-directory');
+      try {
+        await profileManager.prepareConfigTxt(
+          nodeAccountMap,
+          consensusNodes,
+          destinationPath,
+          version.HEDERA_PLATFORM_VERSION,
+          {},
+        );
+      } catch (error) {
+        expect(error.message).to.contain('config destPath does not exist');
+        expect(error.message).to.contain(destinationPath);
+      }
+    });
   });
 });

@@ -7,6 +7,8 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
+import * as semver from 'semver';
+import {type SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -19,6 +21,8 @@ import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, ty
 import {type Optional} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
+import * as versions from '../../version.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -28,6 +32,7 @@ import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Address} from '../business/address/address.js';
 
 @injectable()
 export class ProfileManager {
@@ -225,6 +230,17 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
+    const configTxtPath = await this.prepareConfigTxt(
+      accountMap,
+      consensusNodes,
+      stagingDirectory,
+      this.configManager.getFlag(flags.releaseTag),
+      domainNamesMapping,
+      this.configManager.getFlag(flags.app),
+      this.configManager.getFlag(flags.chainId),
+      this.configManager.getFlag(flags.loadBalancerEnabled),
+    );
+
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
       applicationPropertiesPath,
@@ -247,6 +263,7 @@ export class ProfileManager {
       fs.cpSync(filePath, destinationPath, {force: true});
     }
 
+    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
     this._setFileContentsAsValue(
       'hedera.configMaps.log4j2Xml',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'log4j2.xml'),
@@ -608,5 +625,94 @@ export class ProfileManager {
   private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject) {
     const fileContents = fs.readFileSync(valueFilePath, 'utf8');
     this._setValue(itemPath, fileContents, yamlRoot);
+  }
+
+  /**
+   * Prepares config.txt file for the node
+   * @param nodeAccountMap - the map of node aliases to account IDs
+   * @param consensusNodes - the list of consensus nodes
+   * @param destPath - path to the destination directory to write the config.txt file
+   * @param releaseTagOverride - release tag override
+   * @param domainNamesMapping
+   * @param [appName] - the app name (default: HederaNode.jar)
+   * @param [chainId] - chain ID (298 for local network)
+   * @param [loadBalancerEnabled] - whether the load balancer is enabled (flag is not set by default)
+   * @returns the config.txt file path
+   */
+  async prepareConfigTxt(
+    nodeAccountMap: Map<NodeAlias, string>,
+    consensusNodes: ConsensusNode[],
+    destinationPath: string,
+    releaseTagOverride: string,
+    domainNamesMapping: Record<NodeAlias, string>,
+    appName = constants.HEDERA_APP_NAME,
+    chainId = constants.HEDERA_CHAIN_ID,
+    loadBalancerEnabled: boolean = false,
+  ) {
+    let releaseTag = releaseTagOverride;
+    if (!nodeAccountMap || nodeAccountMap.size === 0) {
+      throw new MissingArgumentError('nodeAccountMap the map of node IDs to account IDs is required');
+    }
+
+    if (!releaseTag) {
+      releaseTag = versions.HEDERA_PLATFORM_VERSION;
+    }
+
+    if (!fs.existsSync(destinationPath)) {
+      throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
+    }
+
+    const configFilePath = PathEx.join(destinationPath, 'config.txt');
+    if (fs.existsSync(configFilePath)) {
+      fs.unlinkSync(configFilePath);
+    }
+
+    // init variables
+    const internalPort = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
+    const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+    const nodeStakeAmount = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
+
+    // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
+    const releaseVersion = semver.parse(releaseTag, {includePrerelease: true}) as SemVer;
+
+    try {
+      const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
+
+      let nodeSeq = 0;
+      for (const consensusNode of consensusNodes) {
+        const internalIP: string = helpers.getInternalAddress(
+          releaseVersion,
+          NamespaceName.of(consensusNode.namespace),
+          consensusNode.name as NodeAlias,
+        );
+
+        const address: Address = await Address.getExternalAddress(
+          consensusNode,
+          this.k8Factory.getK8(consensusNode.context),
+          externalPort,
+        );
+
+        const account = nodeAccountMap.get(consensusNode.name as NodeAlias);
+
+        configLines.push(
+          `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${address.hostString()}, ${address.port}, ${account}`,
+        );
+
+        nodeSeq += 1;
+      }
+
+      // TODO: remove once we no longer need less than v0.56
+      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
+        configLines.push(`nextNodeId, ${nodeSeq}`);
+      }
+
+      fs.writeFileSync(configFilePath, configLines.join('\n'));
+      return configFilePath;
+    } catch (error: Error | unknown) {
+      throw new SoloError(
+        `failed to generate config.txt, ${error instanceof Error ? (error as Error).message : 'unknown error'}`,
+        error,
+      );
+    }
   }
 }
