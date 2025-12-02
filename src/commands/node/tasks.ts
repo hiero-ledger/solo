@@ -2377,9 +2377,10 @@ export class NodeCommandTasks {
           endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
           const context: string = helpers.extractContextFromConsensusNodes(
-            config.nodeAlias,
+            config.consensusNodes[0].name,
             context_.config.consensusNodes,
           );
+
           const k8: K8 = this.k8Factory.getK8(context);
 
           const externalEndpointAddress: Address = await Address.getExternalAddress(
@@ -2387,7 +2388,7 @@ export class NodeCommandTasks {
               config.nodeAlias,
               Templates.nodeIdFromNodeAlias(config.nodeAlias),
               config.namespace,
-              'n/a',
+              undefined,
               context,
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
