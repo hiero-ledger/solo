@@ -11,7 +11,15 @@ import {type K8} from '../../../src/integration/kube/k8.js';
 import {DEFAULT_LOCAL_CONFIG_FILE, SOLO_CACHE_DIR} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-
+import {
+  Client,
+  AccountId,
+  PrivateKey,
+  Hbar,
+  TransferTransaction,
+  type TransactionReceipt,
+  type TransactionResponse,
+} from '@hiero-ledger/sdk';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
@@ -22,8 +30,12 @@ import {MetricsServerImpl} from '../../../src/business/runtime-state/services/me
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {Flags} from '../../../src/commands/flags.js';
+import {ShellRunner} from '../../../src/core/shell-runner.js';
 
-const testName: string = 'one-shot-single';
+const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
+
+const testName: string = minimalSetup ? 'one-shot-single-minimal' : 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -31,6 +43,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
+  .withMinimalSetup(process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
@@ -70,11 +83,57 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, namespace));
+        await main(soloOneShotDeploy(testName, namespace, options.minimalSetup));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
-      }).timeout(Duration.ofMinutes(15).toMillis());
+      }).timeout(Duration.ofMinutes(20).toMillis());
+
+      it('Should perform a simple TransferTransaction', async (): Promise<void> => {
+        // These should be set in your environment or test config
+        const operatorId: AccountId = AccountId.fromString('0.0.2');
+        const operatorKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+        const recipientId: AccountId = AccountId.fromString('0.0.3');
+        const client: Client = Client.forNetwork({'localhost:50211': '0.0.3'}).setOperator(operatorId, operatorKey);
+
+        const tx: TransactionResponse = await new TransferTransaction()
+          .addHbarTransfer(operatorId, new Hbar(-1))
+          .addHbarTransfer(recipientId, new Hbar(1))
+          .execute(client);
+
+        const receipt: TransactionReceipt = await tx.getReceipt(client);
+        if (receipt.status.toString() !== 'SUCCESS') {
+          throw new Error(`TransferTransaction failed: ${receipt.status}`);
+        }
+      });
 
       it('Should write log metrics', async (): Promise<void> => {
+        if (minimalSetup) {
+          try {
+            await new ShellRunner().run(
+              'helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/',
+              [],
+              true,
+              false,
+            );
+            await new ShellRunner().run('helm repo add metallb https://metallb.github.io/metallb', [], true, false);
+            await new ShellRunner().run(
+              'helm upgrade --install metrics-server metrics-server/metrics-server --namespace kube-system --set "args[0]=--kubelet-insecure-tls"',
+              [],
+              true,
+              false,
+            );
+            await new ShellRunner().run(
+              'helm upgrade --install metallb metallb/metallb --namespace metallb-system --create-namespace --atomic --wait --set speaker.frr.enabled=true',
+              [],
+              true,
+              false,
+            );
+          } catch (error) {
+            throw new Error(
+              `${testName}: failed to install metrics-server or metallb in minimal setup: ${(error as Error).message}`,
+            );
+          }
+        }
+
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
           const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
 
@@ -98,16 +157,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, namespace: NamespaceName): string[] {
-  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+export function soloOneShotDeploy(testName: string, namespace: NamespaceName, minimalSetup: boolean): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
-    '--namespace',
+    optionFromFlag(Flags.namespace),
     namespace.name,
+    optionFromFlag(Flags.minimalSetup),
+    minimalSetup ? 'true' : 'false',
   );
   argvPushGlobalFlags(argv, testName);
   return argv;

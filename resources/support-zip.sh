@@ -20,6 +20,7 @@ readonly CONFIG_DIR=${DATA_DIR}/config
 readonly KEYS_DIR=${DATA_DIR}/keys
 readonly ONBOARD_DIR=${DATA_DIR}/onboard
 readonly UPGRADE_DIR=${DATA_DIR}/upgrade
+readonly STATS_DIR=${DATA_DIR}/stats
 readonly JOURNAL_CTL_LOG=${HAPI_DIR}/${OUTPUT_DIR}/journalctl.log
 readonly LOG_FILE=${HAPI_DIR}/${OUTPUT_DIR}/support-zip.log
 rm ${LOG_FILE} 2>/dev/null || true
@@ -61,6 +62,8 @@ AddToFileList ${CONFIG_DIR}
 AddToFileList ${KEYS_DIR}
 AddToFileList ${ONBOARD_DIR}
 AddToFileList ${UPGRADE_DIR}
+AddToFileList ${STATS_DIR}
+
 echo "creating zip file" | tee -a ${LOG_FILE}
 if [[ "$useZip" = "true" ]]; then
   echo "Using zip" | tee -a ${LOG_FILE}
