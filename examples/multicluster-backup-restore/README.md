@@ -40,7 +40,7 @@ This demonstrates a realistic multi-cluster deployment where components are dist
 * [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
 * [Helm](https://helm.sh/) installed (`brew install helm` on macOS)
 * Node.js 22+ and npm installed
-* Docker Desktop running with sufficient resources (12GB+ RAM recommended for dual clusters)
+* Docker Desktop running with sufficient resources (Memory: 12GB+ recommended for dual clusters)
 
 ## Quick Start
 
