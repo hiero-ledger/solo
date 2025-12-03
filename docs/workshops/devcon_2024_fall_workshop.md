@@ -39,7 +39,7 @@ kind delete cluster -n solo-e2e
 ## 1. Create local kubernetes cluster
 
 <aside>
-💡 You need at least 8 cores and 16GB RAM allocated to Docker for 3 consensus nodes and all other components (mirror-node, relays , proxies etc.). So if you can allocate more CPU and Memory that’s even better. Feel free to update resources to your Docker Desktop (10 CPU, 32 GB) now.
+💡 You need at least 8 cores and 16GB of memory allocated to Docker for 3 consensus nodes and all other components (mirror-node, relays , proxies etc.). So if you can allocate more CPU and Memory that’s even better. Feel free to update resources to your Docker Desktop (10 CPU, 32 GB) now.
 
 If you cannot allocate that much then, please try to deploy one consensus node (in step 3.6 use `-i node0`)
 

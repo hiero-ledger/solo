@@ -63,6 +63,16 @@ on:
         type: string
         required: false
         default: "solo-e2e"
+      install-dependencies:
+        description: "Install Solo Dependencies:"
+        type: boolean
+        required: false
+        default: true
+      runner:
+        description: "Runner Label:"
+        type: string
+        required: false
+        default: "hiero-solo-linux-large"
   workflow_call:
     inputs:
       node-version:
@@ -105,6 +115,16 @@ on:
         type: string
         required: false
         default: "solo-e2e"
+      install-dependencies:
+        description: "Install Solo Dependencies:"
+        type: boolean
+        required: false
+        default: false
+      runner:
+        description: "Runner Label:"
+        type: string
+        required: false
+        default: "hiero-solo-linux-large"
 
 defaults:
   run:
@@ -126,7 +146,7 @@ env:
 jobs:
   e2e-test:
     name: ${{ inputs.custom-job-label || 'E2E Test' }}
-    runs-on: hiero-solo-linux-large
+    runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
@@ -196,12 +216,14 @@ jobs:
           fi
 
       - name: Install Kubectl
+        if: ${{ inputs.install-dependencies == true }}
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
           version: 'v1.27.3'
         id: install
 
       - name: Setup Kind
+        if: ${{ inputs.install-dependencies == true }}
         uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
         with:
           install_only: true
@@ -212,6 +234,7 @@ jobs:
           wait: 120s
 
       - name: Setup Helm
+        if: ${{ inputs.install-dependencies == true }}
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: "v3.17.1" # helm version
@@ -244,6 +267,7 @@ jobs:
         run: task build
 
       - name: Pull Kind Docker Image
+        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
@@ -306,7 +330,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
+        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -372,16 +396,22 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
-          cat .env
           
-          # Verify cluster connectivity before running tests
-          echo "Verifying cluster connectivity..."
-          kubectl cluster-info || {
-            echo "Error: Cannot connect to cluster"
-            echo "KUBECONFIG: ${KUBECONFIG:-default}"
-            kubectl config get-contexts || true
-            exit 1
-          }
+          if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
+            # Verify cluster connectivity before running tests
+            echo "Verifying cluster connectivity..."
+            kubectl cluster-info || {
+              echo "Error: Cannot connect to cluster"
+              echo "KUBECONFIG: ${KUBECONFIG:-default}"
+              kubectl config get-contexts || true
+              exit 1
+            }
+          else 
+            echo "SOLO_ONE_SHOT_MINIMAL_SETUP=true" >> .env
+            echo "FORCE_PODMAN=true" >> .env
+          fi
+          
+          cat .env
           
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 

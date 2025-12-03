@@ -26,8 +26,8 @@ Before we begin, let's ensure your system meets the requirements and has all the
 
 First, check that your computer meets these minimum specifications:
 
-* **Memory**: At least 12GB of RAM (16GB recommended for smoother performance)
-* **CPU**: Minimum 4 cores (8 cores recommended)
+* **Memory**: At least 12GB (16GB recommended for smoother performance)
+* **CPU**: Minimum 6 cores (8 cores recommended)
 * **Storage**: At least 20GB of free disk space
 * **Operating System**: macOS, Linux, or Windows with WSL2
 
@@ -220,7 +220,7 @@ When you're finished with the multiple node network:
 solo one-shot multiple destroy
 ```
 
-> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ RAM, 8+ CPU cores).
+> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ of memory, 8+ CPU cores).
 
 ### Falcon Deployment (Advanced Configuration)
 
