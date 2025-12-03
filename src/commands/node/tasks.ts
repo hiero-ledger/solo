@@ -3295,7 +3295,7 @@ export class NodeCommandTasks {
         }
 
         this.logger.info(`Logs will be saved to: ${outputDirectory}`);
-        this.logger.info(`Found ${allPods.length} non-consensus node pods`);
+        this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
           await this.downloadPodLogs(podInfo, outputDirectory);
