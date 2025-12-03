@@ -87,6 +87,10 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
+import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
+import {OsPackageManager} from '../package-managers/os-package-manager.js';
+import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
+import {ClusterTaskManager} from '../cluster-task-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -170,6 +174,10 @@ export class Container {
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
+      new SingletonContainer(InjectTokens.BrewPackageManager, BrewPackageManager),
+      new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
+      new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
+      new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),

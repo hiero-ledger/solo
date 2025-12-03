@@ -1955,10 +1955,8 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Get consensus node logs and configs',
-      task: async context_ => {
-        await container
-          .resolve<NetworkNodes>(NetworkNodes)
-          .getLogs(context_.config.namespace, context_.config.contexts);
+      task: async ({config: {namespace, contexts}}): Promise<void> => {
+        await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
       },
     };
   }
