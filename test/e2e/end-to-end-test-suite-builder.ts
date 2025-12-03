@@ -3,6 +3,12 @@
 import {EndToEndTestSuite} from './end-to-end-test-suite.js';
 import {NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type DeploymentName} from '../../src/types/index.js';
+import {InitTest} from './commands/tests/init-test.js';
+import {ClusterReferenceTest} from './commands/tests/cluster-reference-test.js';
+import {DeploymentTest} from './commands/tests/deployment-test.js';
+import {NodeTest} from './commands/tests/node-test.js';
+import {BlockNodeTest} from './commands/tests/block-node-test.js';
+import {NetworkTest} from './commands/tests/network-test.js';
 
 export class EndToEndTestSuiteBuilder {
   private testName: string;
@@ -17,6 +23,7 @@ export class EndToEndTestSuiteBuilder {
   private shard: number;
   private serviceMonitor: boolean;
   private podLog: boolean;
+  private releaseTag?: string;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -60,23 +67,28 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
-  withRealm(realm: number): this {
+  public withRealm(realm: number): this {
     this.realm = realm;
     return this;
   }
 
-  withShard(shard: number): this {
+  public withShard(shard: number): this {
     this.shard = shard;
     return this;
   }
 
-  withServiceMonitor(serviceMonitor: boolean): this {
+  public withServiceMonitor(serviceMonitor: boolean): this {
     this.serviceMonitor = serviceMonitor;
     return this;
   }
 
-  withPodLog(podLog: boolean): this {
+  public withPodLog(podLog: boolean): this {
     this.podLog = podLog;
+    return this;
+  }
+
+  public withReleaseTag(releaseTag: string): this {
+    this.releaseTag = releaseTag;
     return this;
   }
 
@@ -102,6 +114,7 @@ export class EndToEndTestSuiteBuilder {
       this.shard || 0,
       this.serviceMonitor || false,
       this.podLog || false,
+      this.releaseTag,
       this.testSuiteCallback,
     );
   }
