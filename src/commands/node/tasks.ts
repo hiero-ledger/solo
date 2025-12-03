@@ -3269,7 +3269,7 @@ export class NodeCommandTasks {
           const k8: K8 = this.k8Factory.getK8(context);
 
           try {
-            this.logger.info(`Discovering non-consensus node pods in context: ${context}...`);
+            this.logger.info(`Discovering Hiero component pods in context: ${context}...`);
 
             // Iterate through each component type and discover pods
             for (const config of componentLabelConfigs) {
