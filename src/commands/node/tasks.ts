@@ -3260,7 +3260,7 @@ export class NodeCommandTasks {
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
           ? path.resolve(customOutputDirectory)
-          : path.join(constants.SOLO_LOGS_DIR, 'non-consensus-logs');
+          : path.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
@@ -3269,7 +3269,7 @@ export class NodeCommandTasks {
           const k8: K8 = this.k8Factory.getK8(context);
 
           try {
-            this.logger.info(`Discovering non-consensus node pods in context: ${context}...`);
+            this.logger.info(`Discovering Hiero component pods in context: ${context}...`);
 
             // Iterate through each component type and discover pods
             for (const config of componentLabelConfigs) {
@@ -3295,13 +3295,13 @@ export class NodeCommandTasks {
         }
 
         this.logger.info(`Logs will be saved to: ${outputDirectory}`);
-        this.logger.info(`Found ${allPods.length} non-consensus node pods`);
+        this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
           await this.downloadPodLogs(podInfo, outputDirectory);
         }
 
-        task.title = `Downloaded logs from ${allPods.length} non-consensus node pods`;
+        task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },
     };
   }
