@@ -3260,7 +3260,7 @@ export class NodeCommandTasks {
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
           ? path.resolve(customOutputDirectory)
-          : path.join(constants.SOLO_LOGS_DIR, 'non-consensus-logs');
+          : path.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
