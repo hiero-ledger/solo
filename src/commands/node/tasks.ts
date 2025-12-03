@@ -3301,7 +3301,7 @@ export class NodeCommandTasks {
           await this.downloadPodLogs(podInfo, outputDirectory);
         }
 
-        task.title = `Downloaded logs from ${allPods.length} non-consensus node pods`;
+        task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },
     };
   }
