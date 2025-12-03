@@ -1736,6 +1736,29 @@ export class Flags {
     },
   };
 
+  public static readonly optionsFile: CommandFlag = {
+    constName: 'optionsFile',
+    name: 'options-file',
+    definition: {
+      describe:
+        'Path to YAML file containing component-specific deployment options (consensus, block, mirror, relay, explorer)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly metallbConfig: CommandFlag = {
+    constName: 'metallbConfig',
+    name: 'metallb-config',
+    definition: {
+      describe: 'Path pattern for MetalLB configuration YAML files (supports {index} placeholder for cluster number)',
+      defaultValue: 'metallb-cluster-{index}.yaml',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',
@@ -2711,6 +2734,21 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- One Shot --------------- //
+
+  // A minimal setup deployment with 1 consensus node and 1 mirror node
+  // Using this flag will enable one-shot to be used in a test workflow running on a default linux GitHub runner
+  public static readonly minimalSetup: CommandFlag = {
+    constName: 'minimalSetup',
+    name: 'minimal-setup',
+    definition: {
+      describe: 'Create a deployment with minimal setup. Only includes a single consensus node and mirror node',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -2779,6 +2817,7 @@ export class Flags {
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
     Flags.log4j2Xml,
+    Flags.metallbConfig,
     Flags.mirrorNodeVersion,
     Flags.mirrorStaticIp,
     Flags.mirrorNamespace,
@@ -2790,6 +2829,7 @@ export class Flags {
     Flags.nodeAliasesUnparsed,
     Flags.operatorId,
     Flags.operatorKey,
+    Flags.optionsFile,
     Flags.outputDir,
     Flags.persistentVolumeClaims,
     Flags.pinger,
@@ -2865,6 +2905,7 @@ export class Flags {
     Flags.javaHeap,
     Flags.performanceTest,
     Flags.packageName,
+    Flags.minimalSetup,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

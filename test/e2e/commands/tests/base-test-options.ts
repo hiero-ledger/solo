@@ -24,4 +24,5 @@ export interface BaseTestOptions {
   readonly shard: number;
   readonly serviceMonitor: boolean;
   readonly podLog: boolean;
+  readonly minimalSetup: boolean;
 }
