@@ -619,7 +619,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
-        this.tasks.downloadNonConsensusNodeLogs(outputDirectory),
+        this.tasks.downloadHieroComponentLogs(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
