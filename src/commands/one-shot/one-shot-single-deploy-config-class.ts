@@ -19,5 +19,6 @@ export interface OneShotSingleDeployConfigClass {
   numberOfConsensusNodes: number;
   cacheDir: string;
   predefinedAccounts: boolean;
+  minimalSetup: boolean;
   force: boolean;
 }

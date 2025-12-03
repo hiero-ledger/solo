@@ -23,6 +23,7 @@ export class EndToEndTestSuiteBuilder {
   private shard: number;
   private serviceMonitor: boolean;
   private podLog: boolean;
+  private minimalSetup: boolean;
   private releaseTag?: string;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
@@ -87,6 +88,11 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withMinimalSetup(minimalSetup: boolean): this {
+    this.minimalSetup = minimalSetup;
+    return this;
+  }
+
   public withReleaseTag(releaseTag: string): this {
     this.releaseTag = releaseTag;
     return this;
@@ -114,6 +120,7 @@ export class EndToEndTestSuiteBuilder {
       this.shard || 0,
       this.serviceMonitor || false,
       this.podLog || false,
+      this.minimalSetup || false,
       this.releaseTag,
       this.testSuiteCallback,
     );

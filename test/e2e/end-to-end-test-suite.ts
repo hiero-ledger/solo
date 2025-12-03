@@ -38,6 +38,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly shard: number = 0,
     public readonly serviceMonitor: boolean = false,
     public readonly podLog: boolean = false,
+    public readonly minimalSetup: boolean = false,
     public readonly releaseTag: string = HEDERA_PLATFORM_VERSION_TAG,
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
@@ -89,6 +90,9 @@ export class EndToEndTestSuite extends Suite {
       pinger: this.pinger,
       realm: this.realm,
       shard: this.shard,
+      serviceMonitor: this.serviceMonitor,
+      podLog: this.podLog,
+      minimalSetup: this.minimalSetup,
       releaseTag: this.releaseTag,
     } as BaseTestOptions;
   }
