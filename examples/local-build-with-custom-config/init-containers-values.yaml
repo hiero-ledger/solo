@@ -30,17 +30,6 @@ hedera:
           limits:
             cpu: 4
             memory: 2Gi
-    - name: node3
-      nodeId: 2
-      accountId: 0.0.5
-      root:
-        resources:
-          requests:
-            cpu: 4
-            memory: 2Gi
-          limits:
-            cpu: 4
-            memory: 2Gi
 defaults:
   sidecars:
     recordStreamUploader:
@@ -79,9 +68,9 @@ defaults:
       - name: JAVA_OPTS
         value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=128g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
       - name: JAVA_HEAP_MIN
-        value: "32g"
+        value: "256m"
       - name: JAVA_HEAP_MAX
-        value: "118g"
+        value: "2g"
 minio-server:
   tenant:
     pools:

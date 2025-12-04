@@ -16,6 +16,7 @@ import * as constants from '../constants.js';
 
 @injectable()
 export class Subcommand {
+  // TODO: Subcommand should have its own class file
   public constructor(
     public readonly name: string,
     public readonly description: string,
@@ -54,6 +55,7 @@ export class Subcommand {
   }
 }
 
+// TODO: CommandGroup should have its own class file
 export class CommandGroup {
   public readonly subcommands: Subcommand[] = [];
 
@@ -68,6 +70,7 @@ export class CommandGroup {
   }
 }
 
+// TODO: CommandBuilder should have its own class file
 export class CommandBuilder {
   private readonly commandGroups: CommandGroup[] = [];
 

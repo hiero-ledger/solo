@@ -10,8 +10,8 @@ env:
       fi
 
 vars:
-  NODE_IDENTIFIERS: "node1,node2,node3"
-  SOLO_NETWORK_SIZE: "3"
+  NODE_IDENTIFIERS: "node1,node2"
+  SOLO_NETWORK_SIZE: "2"
   DEPLOYMENT: "deployment-localbuild-with-custom-config"
   NAMESPACE: "namespace-localbuild-with-custom-config"
   CLUSTER_NAME: "localbuild-with-custom-config-cluster"

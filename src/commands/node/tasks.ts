@@ -140,6 +140,7 @@ import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
+import {Address} from '../../business/address/address.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1653,7 +1654,11 @@ export class NodeCommandTasks {
               await k8
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['systemctl', 'restart', 'network-node']);
+                .execContainer([
+                  'bash',
+                  '-c',
+                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                ]);
             },
           });
         }
@@ -1894,7 +1899,7 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer('systemctl stop network-node'),
+                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
             });
           }
         }
@@ -2365,19 +2370,37 @@ export class NodeCommandTasks {
   public prepareGossipEndpoints(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Prepare gossip endpoints',
-      task: context_ => {
-        const config = context_.config;
-        let endpoints = [];
+      task: async context_ => {
+        const config: any = context_.config;
+        let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
-          if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
-            throw new SoloError(`--gossip-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
-          }
+          const context: string = helpers.extractContextFromConsensusNodes(
+            config.consensusNodes[0].name,
+            context_.config.consensusNodes,
+          );
+
+          const k8: K8 = this.k8Factory.getK8(context);
+
+          const externalEndpointAddress: Address = await Address.getExternalAddress(
+            new ConsensusNode(
+              config.nodeAlias,
+              Templates.nodeIdFromNodeAlias(config.nodeAlias),
+              config.namespace,
+              undefined,
+              context,
+              config.consensusNodes[0].dnsBaseDomain,
+              config.consensusNodes[0].dnsConsensusNodePattern,
+              Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+            ),
+            k8,
+            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          );
 
           endpoints = [
             `${helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
-            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT}`,
+            `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
 
@@ -2968,13 +2991,14 @@ export class NodeCommandTasks {
       title: 'Download last state from an existing node',
       task: async context_ => {
         const config = context_.config;
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
+        // TODO: currently only supports downloading from the first existing node
+        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.consensusNodes[0].name);
         const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
         const context = helpers.extractContextFromConsensusNodes(
-          config.existingNodeAliases[0],
+          config.consensusNodes[0].name,
           context_.config.consensusNodes,
         );
 
@@ -2988,7 +3012,7 @@ export class NodeCommandTasks {
         const zipFileName = await container.execContainer([
           'bash',
           '-c',
-          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
         this.logger.debug(`state zip file to download is = ${zipFileName}`);
@@ -3006,14 +3030,15 @@ export class NodeCommandTasks {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
         const config = context_.config;
-        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const nodeAlias = config.nodeAlias || config.nodeAliases[0];
+        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const savedStateDirectory = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
-        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
 
         const container = k8.containers().readByRef(containerReference);
@@ -3038,7 +3063,7 @@ export class NodeCommandTasks {
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${path.basename(config.lastStateZipPath)}`,
           ]);
       },
     };

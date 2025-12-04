@@ -571,12 +571,22 @@ export class DeploymentCommand extends BaseCommand {
   public addClusterRefToDeployments(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'add cluster-ref in local config deployments',
-      task: async (context_, task): Promise<void> => {
-        const {clusterRef, deployment} = context_.config;
-
+      task: async ({config: {clusterRef, deployment}}, task): Promise<void> => {
         task.title = `add cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`;
 
-        this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
+        const existsInLocalConfig: boolean = this.localConfig.configuration
+          .deploymentByName(deployment)
+          .clusters.some((cluster): boolean => cluster.toString() === clusterRef);
+
+        if (existsInLocalConfig) {
+          this.logger.showUser(
+            `Cluster-ref: ${clusterRef} already exists for deployment: ${deployment} in local config`,
+          );
+        } else {
+          this.logger.showUser(`Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`);
+          this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
+        }
+
         await this.localConfig.persist();
       },
     };
@@ -608,6 +618,11 @@ export class DeploymentCommand extends BaseCommand {
 
         if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
           await this.k8Factory.getK8(context).namespaces().create(namespace);
+        }
+
+        if (await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME)) {
+          this.logger.showUser(`Remote config already exists for deployment: ${deployment} in cluster: ${clusterRef}`);
+          return;
         }
 
         await (existingClusterContext
