@@ -1,9 +1,12 @@
 local: # 3 nodes, ~850 TPS (Docker Desktop 8 cores, 16 GB RAM)
   consensus: # use chart defaults
+    sidecars:
+      blockstreamUploader:
+        enabled: false
     root:
       extraEnv:
         - name: JAVA_HEAP_MIN
-          value: 256m
+          value: 257m
         - name: JAVA_HEAP_MAX
           value: 6g
         - name: JAVA_OPTS
