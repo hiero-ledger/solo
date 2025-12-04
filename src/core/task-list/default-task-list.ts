@@ -23,8 +23,7 @@ export class DefaultTaskList<
   ListrContext,
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
-> implements TaskList<ListrContext, Renderer, FallbackRenderer>
-{
+> implements TaskList<ListrContext, Renderer, FallbackRenderer> {
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: any) {
     this.logger = patchInject(InjectTokens.SoloLogger, this.logger, this.constructor.name);
   }
