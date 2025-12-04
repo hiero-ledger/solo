@@ -16,8 +16,7 @@ import {type Duration} from './time/duration.js';
 import {type NodeAddConfigClass} from '../commands/node/config-interfaces/node-add-config-class.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type Optional, type ReleaseNameData} from '../types/index.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type K8} from '../integration/kube/k8.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
@@ -25,8 +24,6 @@ import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
 import {execSync} from 'node:child_process';
-import {type Service} from '../integration/kube/resources/service/service.js';
-import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import yaml from 'yaml';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -40,46 +37,6 @@ export function getInternalAddress(
   return semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})
     ? '127.0.0.1'
     : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-}
-
-export async function getExternalAddress(
-  consensusNode: ConsensusNode,
-  k8: K8,
-  useLoadBalancer: boolean,
-): Promise<string> {
-  if (useLoadBalancer) {
-    return resolveLoadBalancerAddress(consensusNode, k8);
-  }
-
-  return consensusNode.fullyQualifiedDomainName;
-}
-
-async function resolveLoadBalancerAddress(consensusNode: ConsensusNode, k8: K8): Promise<string> {
-  const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
-  const serviceList: Service[] = await k8
-    .services()
-    .list(namespace, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
-
-  if (serviceList && serviceList.length > 0) {
-    const svc: Service = serviceList[0];
-
-    if (!svc.metadata.name.startsWith('network-node')) {
-      throw new SoloError(`Service found is not a network node service: ${svc.metadata.name}`);
-    }
-
-    if (svc.status?.loadBalancer?.ingress && svc.status.loadBalancer.ingress.length > 0) {
-      for (let index: number = 0; index < svc.status.loadBalancer.ingress.length; index++) {
-        const ingress: LoadBalancerIngress = svc.status.loadBalancer.ingress[index];
-        if (ingress.hostname) {
-          return ingress.hostname;
-        } else if (ingress.ip) {
-          return ingress.ip;
-        }
-      }
-    }
-  }
-
-  return consensusNode.fullyQualifiedDomainName;
 }
 
 export function sleep(duration: Duration): Promise<void> {
@@ -522,8 +479,8 @@ export function showVersionBanner(
  * @param input
  * @returns true if the input is a valid IPv4 address, false otherwise
  */
-export function isIPv4Address(input: string): boolean {
-  const ipv4Regex =
+export function isIpV4Address(input: string): boolean {
+  const ipv4Regex: RegExp =
     /^(25[0-5]|2[0-4][0-9]|1?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|1?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|1?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|1?[0-9][0-9]?)$/;
   return ipv4Regex.test(input);
 }
@@ -533,7 +490,7 @@ export function isIPv4Address(input: string): boolean {
  * @param ipv4 The IPv4 address to convert
  * @returns The base64 encoded string representation of the IPv4 address
  */
-export function ipv4ToBase64(ipv4: string): string {
+export function ipV4ToBase64(ipv4: string): string {
   // Split the IPv4 address into its octets
   const octets: number[] = ipv4.split('.').map(octet => {
     const number_: number = Number.parseInt(octet, 10);

@@ -268,7 +268,10 @@ export class MirrorNodeCommand extends BaseCommand {
     config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
-    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
+    // TODO: re-enable block node integration when supported in mirror node: https://github.com/hiero-ledger/hiero-mirror-node/issues/12192
+    // const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
+    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = [];
+
     const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
 
     if (blockNodeSchemas.length === 0) {

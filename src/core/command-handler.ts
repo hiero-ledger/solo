@@ -36,8 +36,11 @@ export class CommandHandler {
     options: any,
     errorString: string,
     lease: Lock | null,
-    commandName: string = 'command',
+    commandName?: string,
   ): Promise<void> {
+    if (!commandName) {
+      commandName = argv._.slice(0, 3).join(' ');
+    }
     const tasks = this.taskList.newTaskList([...actionTasks], options, undefined, commandName);
     if (tasks.isRoot()) {
       try {
