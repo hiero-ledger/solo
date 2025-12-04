@@ -197,7 +197,7 @@ export const ADD_EXECUTE_FLAGS = {
 
 export const LOGS_FLAGS = {
   required: [flags.deployment],
-  optional: [flags.quiet],
+  optional: [flags.quiet, flags.outputDir],
 };
 
 export const STATES_FLAGS = {
