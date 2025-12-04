@@ -39,7 +39,6 @@ export class EndToEndTestSuite extends Suite {
     public readonly serviceMonitor: boolean = false,
     public readonly podLog: boolean = false,
     public readonly minimalSetup: boolean = false,
-    public readonly releaseTag: string = HEDERA_PLATFORM_VERSION_TAG,
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -93,7 +92,6 @@ export class EndToEndTestSuite extends Suite {
       serviceMonitor: this.serviceMonitor,
       podLog: this.podLog,
       minimalSetup: this.minimalSetup,
-      releaseTag: this.releaseTag,
     } as BaseTestOptions;
   }
 

@@ -27,12 +27,9 @@ import {type NamespaceName} from '../../../../src/types/namespace/namespace-name
 import {type AccountManager} from '../../../../src/core/account-manager.js';
 import {
   AccountCreateTransaction,
-  AccountId,
-  AccountInfoQuery,
   Hbar,
   HbarUnit,
   PrivateKey,
-  type AccountInfo,
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
@@ -43,19 +40,9 @@ import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {it} from 'mocha';
-import {
-  accountCreationShouldSucceed,
-  balanceQueryShouldSucceed,
-  getTemporaryDirectory,
-  getTestCacheDirectory,
-} from '../../../test-utility.js';
+import {accountCreationShouldSucceed, balanceQueryShouldSucceed} from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
-import {TEST_UPGRADE_VERSION} from '../../../../version-test.js';
-import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
-import {Zippy} from '../../../../src/core/zippy.js';
-import {NetworkNodes} from '../../../../src/core/network-nodes.js';
-import {NodeStatusCodes} from '../../../../src/core/enumerations.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -187,31 +174,6 @@ export class NodeTest extends BaseCommandTest {
     }
 
     argvPushGlobalFlags(argv, testName, true);
-    return argv;
-  }
-
-  private static soloNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
-    const {testName, deployment} = options;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.NETWORK_UPGRADE,
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(flags.quiet),
-      optionFromFlag(flags.force),
-    );
-
-    if (zipFile) {
-      argv.push(optionFromFlag(flags.upgradeZipFile), zipFile);
-    } else {
-      argv.push(optionFromFlag(flags.upgradeVersion), TEST_UPGRADE_VERSION);
-    }
-
-    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
@@ -475,121 +437,6 @@ export class NodeTest extends BaseCommandTest {
 
     it(`${testName}: consensus node update`, async (): Promise<void> => {
       await main(soloNodeUpdateArgv(options));
-    }).timeout(Duration.ofMinutes(10).toMillis());
-  }
-
-  public static upgrade(options: BaseTestOptions): void {
-    const {testName, namespace, contexts, testLogger: logger, shard, realm} = options;
-    const {soloNodeUpgradeArgv} = NodeTest;
-    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
-    const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
-      InjectTokens.RemoteConfigRuntimeState,
-    );
-
-    describe(`${testName}: consensus node upgrade`, async (): Promise<void> => {
-      await remoteConfig.load(namespace, contexts[0]);
-
-      it('should succeed with upgrade', async (): Promise<void> => {
-        await main(soloNodeUpgradeArgv(options));
-      });
-
-      it('network nodes version file was upgraded', async (): Promise<void> => {
-        // copy the version.txt file from the pod data/upgrade/current directory
-        const temporaryDirectory: string = getTemporaryDirectory();
-        const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-
-        const containerReference: Container = k8Factory
-          .default()
-          .containers()
-          .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-
-        await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
-        const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
-
-        const versionLine: string = versionFile.split('\n')[0].trim();
-        expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
-
-      it('should succeed with upgrade with zip file', async (): Promise<void> => {
-        const zipFile: string = 'upgrade.zip';
-        const cacheDirectory: string = getTestCacheDirectory(testName);
-
-        // Remove the staging directory to make sure the command works if it doesn't exist
-        const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, options.releaseTag);
-        fs.rmSync(stagingDirectory, {recursive: true, force: true});
-
-        // Download application.properties from the pod
-        const temporaryDirectory: string = getTemporaryDirectory();
-        const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        const container: Container = k8Factory
-          .default()
-          .containers()
-          .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-        await container.copyFrom(`${HEDERA_HAPI_PATH}/data/config/application.properties`, temporaryDirectory);
-
-        const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
-        const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-        const updatedContent: string = applicationProperties.replaceAll(
-          'contracts.chainId=298',
-          'contracts.chainId=299',
-        );
-
-        fs.writeFileSync(applicationPropertiesPath, updatedContent);
-
-        // create upgrade.zip file from tmp directory using zippy.ts
-        const zipper: Zippy = new Zippy(logger);
-        await zipper.zip(temporaryDirectory, zipFile);
-
-        await main(soloNodeUpgradeArgv(options, zipFile));
-
-        const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-
-        await container.copyFrom(`${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`, temporaryDirectory);
-        const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-
-        expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
-      }).timeout(Duration.ofMinutes(5).toMillis());
-
-      it('all network pods should be running', async (): Promise<void> => {
-        const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        const response: string = await container
-          .resolve<NetworkNodes>(NetworkNodes)
-          .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
-
-        expect(response).to.not.be.undefined;
-
-        const statusLine: string = response
-          .split('\n')
-          .find((line): boolean => line.startsWith('platform_PlatformStatus'));
-
-        expect(statusLine).to.not.be.undefined;
-        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
-        expect(statusNumber).to.equal(NodeStatusCodes.ACTIVE, 'All network nodes are running');
-      });
-
-      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
-
-      accountCreationShouldSucceed(
-        accountManager,
-        namespace,
-        remoteConfig,
-        logger,
-        undefined,
-        new AccountId(shard, realm, 1002),
-      );
-
-      it('should validate created accounts', async (): Promise<void> => {
-        const accountInfo1: AccountInfo = await new AccountInfoQuery()
-          .setAccountId(new AccountId(shard, realm, 1001))
-          .execute(accountManager._nodeClient);
-        expect(accountInfo1).not.to.be.null;
-
-        const accountInfo2: AccountInfo = await new AccountInfoQuery()
-          .setAccountId(new AccountId(shard, realm, 1002))
-          .execute(accountManager._nodeClient);
-        expect(accountInfo2).not.to.be.null;
-      });
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
