@@ -74,6 +74,7 @@ export class DeploymentTest extends BaseCommandTest {
       numberOfNodes.toString(),
     );
     argvPushGlobalFlags(argv, testName);
+    console.log({argv});
     return argv;
   }
 
@@ -90,6 +91,13 @@ export class DeploymentTest extends BaseCommandTest {
       expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
       const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
         remoteConfig.configuration.components.state.consensusNodes;
+
+      console.log({
+        clusters: remoteConfig.configuration.clusters,
+        states: remoteConfig.configuration.state,
+        deployment: remoteConfig.configuration.metadata,
+      });
+
       expect(Object.entries(consensusNodes).length, `consensus node count should be ${consensusNodesCount}`).to.equal(
         consensusNodesCount,
       );

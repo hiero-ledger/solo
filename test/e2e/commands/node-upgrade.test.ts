@@ -1,180 +1,108 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {after, describe, it} from 'mocha';
-import {expect} from 'chai';
+import {hederaPlatformSupportsNonZeroRealms} from '../../test-utility.js';
 
-import {Flags as flags} from '../../../src/commands/flags.js';
-import {
-  accountCreationShouldSucceed,
-  balanceQueryShouldSucceed,
-  endToEndTestSuite,
-  getTemporaryDirectory,
-  HEDERA_PLATFORM_VERSION_TAG,
-  hederaPlatformSupportsNonZeroRealms,
-} from '../../test-utility.js';
-import {Duration} from '../../../src/core/time/duration.js';
-import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
-import fs from 'node:fs';
-import {Zippy} from '../../../src/core/zippy.js';
-import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
-import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
-import {NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {Argv} from '../../helpers/argv-wrapper.js';
-import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
-import {AccountId, AccountInfoQuery} from '@hiero-ledger/sdk';
-import {type Container} from '../../../src/integration/kube/resources/container/container.js';
+import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {Templates} from '../../../src/core/templates.js';
-import {NodeStatusCodes} from '../../../src/core/enumerations.js';
-import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
+import {InitTest} from './tests/init-test.js';
+import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
+import {DeploymentTest} from './tests/deployment-test.js';
+import {NodeTest} from './tests/node-test.js';
+import {NetworkTest} from './tests/network-test.js';
+import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import {AccountTest} from './tests/account-test.js';
+import * as constants from '../../../src/core/constants.js';
 
-const namespace = NamespaceName.of('node-upgrade');
-const realm = 0;
-const shard = hederaPlatformSupportsNonZeroRealms() ? 1 : 0;
-const argv = Argv.getDefaultArgv(namespace);
-argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
-argv.setArg(flags.generateGossipKeys, true);
-argv.setArg(flags.generateTlsKeys, true);
-argv.setArg(flags.persistentVolumeClaims, true);
-argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
-argv.setArg(flags.namespace, namespace.name);
-argv.setArg(flags.realm, realm);
-argv.setArg(flags.shard, shard);
-const zipFile = 'upgrade.zip';
+import {type NetworkNodes} from '../../../src/core/network-nodes.js';
+import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {type BaseTestOptions} from './tests/base-test-options.js';
+import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import fs from 'node:fs';
+import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
+import {resetForTest} from '../../test-container.js';
+import {type K8} from '../../../src/integration/kube/k8.js';
+import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
-  const {
-    opts: {k8Factory, commandInvoker, logger, accountManager, remoteConfig, cacheDir},
-    cmd: {nodeCmd, accountCmd},
-  } = bootstrapResp;
+const testName: string = 'node-upgrade-test';
 
-  describe('Node upgrade', async () => {
-    after(async function () {
-      this.timeout(Duration.ofMinutes(10).toMillis());
+const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
+  .withTestName(testName)
+  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withNamespace(testName)
+  .withDeployment(`${testName}-deployment`)
+  .withClusterCount(1)
+  .withConsensusNodesCount(2)
+  .withLoadBalancerEnabled(false)
+  .withPinger(false)
+  .withRealm(0)
+  .withShard(0)
+  .withServiceMonitor(true)
+  .withPodLog(true)
+  .withTestSuiteCallback((options: BaseTestOptions): void => {
+    describe('Dual Cluster Full E2E Test', (): void => {
+      const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-      await k8Factory.default().namespaces().delete(namespace);
-    });
+      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
+      before(async (): Promise<void> => {
+        fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+        try {
+          fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+            force: true,
+          });
+        } catch {
+          // allowed to fail if the file doesn't exist
+        }
+        resetForTest(namespace.name, testCacheDirectory, false);
+        for (const item of contexts) {
+          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
+          await k8Client.namespaces().delete(namespace);
+        }
+        testLogger.info(`${testName}: starting ${testName} e2e test`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
-    accountCreationShouldSucceed(
-      accountManager,
-      namespace,
-      remoteConfig,
-      logger,
-      undefined,
-      new AccountId(shard, realm, 1001),
-    );
-
-    it('should succeed with upgrade with new version', async () => {
-      const upgradeWithVersionArgv: Argv = argv.clone();
-      upgradeWithVersionArgv.setArg(flags.upgradeVersion, TEST_UPGRADE_VERSION);
-      await commandInvoker.invoke({
-        argv: upgradeWithVersionArgv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_UPGRADE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
-      });
-    }).timeout(Duration.ofMinutes(5).toMillis());
-
-    it('network nodes version file was upgraded', async () => {
-      // copy the version.txt file from the pod data/upgrade/current directory
-      const temporaryDirectory = getTemporaryDirectory();
-      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-
-      const container: Container = k8Factory
-        .default()
-        .containers()
-        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
-      const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
-
-      const versionLine: string = versionFile.split('\n')[0].trim();
-      expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
-    }).timeout(Duration.ofMinutes(5).toMillis());
-
-    it('should succeed with upgrade with zip file', async () => {
-      // Remove the staging directory to make sure the command works if it doesn't exist
-      const stagingDirectory = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
-      fs.rmSync(stagingDirectory, {recursive: true, force: true});
-
-      const upgradeWithZipArgv: Argv = argv.clone();
-
-      // Download application.properties from the pod
-      const temporaryDirectory = getTemporaryDirectory();
-      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-      const container: Container = k8Factory
-        .default()
-        .containers()
-        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/config/application.properties`, temporaryDirectory);
-
-      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
-      const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
-      fs.writeFileSync(applicationPropertiesPath, updatedContent);
-
-      // create upgrade.zip file from tmp directory using zippy.ts
-      const zipper: Zippy = new Zippy(logger);
-      await zipper.zip(temporaryDirectory, zipFile);
-
-      upgradeWithZipArgv.setArg(flags.upgradeZipFile, zipFile);
-
-      await commandInvoker.invoke({
-        argv: upgradeWithZipArgv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_UPGRADE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
+      beforeEach(async (): Promise<void> => {
+        testLogger.info(`${testName}: resetting containers for each test`);
+        resetForTest(namespace.name, testCacheDirectory, false);
+        testLogger.info(`${testName}: finished resetting containers for each test`);
       });
 
-      const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      // after(async function (): Promise<void> {
+      //   this.timeout(Duration.ofMinutes(10).toMillis());
+      //
+      //   await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+      //   await container.resolve<K8Factory>(InjectTokens.K8Factory).getK8(contexts[0]).namespaces().delete(namespace);
+      // });
 
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`, temporaryDirectory);
-      const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      console.log({options});
 
-      expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
-    }).timeout(Duration.ofMinutes(5).toMillis());
+      InitTest.init(options);
+      ClusterReferenceTest.connect(options);
+      DeploymentTest.create(options);
+      DeploymentTest.addCluster(options);
+      NodeTest.keys(options);
 
-    it('all network pods should be running', async () => {
-      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-      const response: string = await container
-        .resolve<NetworkNodes>(NetworkNodes)
-        .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
+      NetworkTest.deploy(options);
+      NodeTest.setup(options);
+      NodeTest.start(options);
 
-      expect(response).to.not.be.undefined;
-      const statusLine = response.split('\n').find(line => line.startsWith('platform_PlatformStatus'));
-      expect(statusLine).to.not.be.undefined;
-      const statusNumber = Number.parseInt(statusLine.split(' ').pop());
-      expect(statusNumber).to.equal(NodeStatusCodes.ACTIVE, 'All network nodes are running');
-    });
+      // AccountTest.accountCreationShouldSucceed(options);
 
-    balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
+      NodeTest.upgrade(options);
 
-    accountCreationShouldSucceed(
-      accountManager,
-      namespace,
-      remoteConfig,
-      logger,
-      undefined,
-      new AccountId(shard, realm, 1002),
-    );
-
-    it('should validate created accounts', async () => {
-      const accountInfo1 = await new AccountInfoQuery()
-        .setAccountId(new AccountId(shard, realm, 1001))
-        .execute(accountManager._nodeClient);
-      expect(accountInfo1).not.to.be.null;
-
-      const accountInfo2 = await new AccountInfoQuery()
-        .setAccountId(new AccountId(shard, realm, 1002))
-        .execute(accountManager._nodeClient);
-      expect(accountInfo2).not.to.be.null;
-    });
-  });
-});
+      describe('Should write log metrics', async (): Promise<void> => {
+        await new MetricsServerImpl().logMetrics(
+          testName,
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+          undefined,
+          undefined,
+          options.contexts,
+        );
+      });
+    }).timeout(Duration.ofMinutes(30).toMillis());
+  })
+  .build();
+endToEndTestSuite.runTestSuite();

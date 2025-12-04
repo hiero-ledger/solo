@@ -36,6 +36,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
     context.logger = logger;
   }
   process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise) => {
+    console.error(reason);
     logger.showUserError(
       new SoloError(
         `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
@@ -44,6 +45,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
     );
   });
   process.on('uncaughtException', (error, origin) => {
+    console.error(error);
     logger.showUserError(new SoloError(`Uncaught Exception: ${error}, origin: ${origin}`, error));
   });
 
