@@ -119,7 +119,7 @@ on:
         description: "Install Solo Dependencies:"
         type: boolean
         required: false
-        default: false
+        default: true
       runner:
         description: "Runner Label:"
         type: string
