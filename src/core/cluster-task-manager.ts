@@ -227,7 +227,7 @@ export class ClusterTaskManager extends ShellRunner {
     return {
       title: 'Creating local cluster...',
       task: async context_ => {
-        const kindExecutable: string = await this.podmanDependencyManager.getExecutablePath();
+        const kindExecutable: string = await this.kindDependencyManager.getExecutablePath();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
 

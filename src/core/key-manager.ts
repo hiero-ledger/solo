@@ -599,19 +599,29 @@ export class KeyManager {
     const keyPath: string = PathEx.join(directory, `${name}.key`);
 
     // Generate the certificate and key
-    return new Promise((resolve, reject) => {
-      selfsigned.generate(attributes, {days: expireDays}, (error, pems) => {
-        if (error) {
-          reject(new SoloError(`Error generating TLS keys: ${error.message}`));
-          return;
-        }
-        fs.writeFileSync(certificatePath, pems.cert);
-        fs.writeFileSync(keyPath, pems.private);
-        resolve({
-          certificatePath,
-          keyPath,
-        });
-      });
-    });
+    try {
+      const notBeforeDate: Date = new Date();
+      const notAfterDate: Date = new Date(notBeforeDate);
+      notAfterDate.setDate(notAfterDate.getDate() + expireDays);
+
+      const pems: {private: string; public: string; cert: string; fingerprint: string} = await selfsigned.generate(
+        attributes,
+        {
+          keySize: 2048,
+          algorithm: 'sha256',
+          notBeforeDate,
+          notAfterDate,
+        },
+      );
+      fs.writeFileSync(certificatePath, pems.cert);
+      fs.writeFileSync(keyPath, pems.private);
+      return {
+        certificatePath,
+        keyPath,
+      };
+    } catch (error: Error | unknown) {
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      throw new SoloError(`Error generating TLS keys: ${errorMessage}`);
+    }
   }
 }
