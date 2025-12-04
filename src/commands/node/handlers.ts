@@ -611,14 +611,18 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+
+    const outputDirectory: string = (argv.outputDir as string) || '';
+
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
+        this.tasks.downloadHieroComponentLogs(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-      'Error in downloading log from nodes',
+      'Error in downloading logs from nodes',
       null,
     );
 
