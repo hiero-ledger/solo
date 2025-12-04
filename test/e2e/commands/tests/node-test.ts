@@ -203,12 +203,12 @@ export class NodeTest extends BaseCommandTest {
       deployment,
       optionFromFlag(flags.quiet),
       optionFromFlag(flags.force),
+      optionFromFlag(flags.upgradeVersion),
+      TEST_UPGRADE_VERSION,
     );
 
     if (zipFile) {
       argv.push(optionFromFlag(flags.upgradeZipFile), zipFile);
-    } else {
-      argv.push(optionFromFlag(flags.upgradeVersion), TEST_UPGRADE_VERSION);
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
@@ -332,6 +332,7 @@ export class NodeTest extends BaseCommandTest {
       enableLocalBuildPathTesting,
       localBuildPath,
       localBuildReleaseTag,
+      consensusNodesCount,
     } = options;
     const {soloNodeSetupArgv} = NodeTest;
 
@@ -340,28 +341,45 @@ export class NodeTest extends BaseCommandTest {
         soloNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      for (const context_ of contexts) {
+
+      const clusterCount: number = contexts.length;
+      const base: number = Math.floor(consensusNodesCount / clusterCount);
+      const remainder: number = consensusNodesCount % clusterCount;
+
+      for (const [index, context_] of contexts.entries()) {
+        const expectedNodeCount: number = index < remainder ? base + 1 : base;
+
         const k8: K8 = k8Factory.getK8(context_);
+
         const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        expect(pods, 'expect this cluster to have one network node').to.have.lengthOf(1);
+
+        expect(
+          pods.length,
+          `expect this cluster (${context_}) to have ${expectedNodeCount} network node(s) in namespace ${namespace}`,
+        ).to.equal(expectedNodeCount);
+
         const rootContainer: ContainerReference = ContainerReference.of(
           PodReference.of(namespace, pods[0].podReference.name),
           ROOT_CONTAINER,
         );
+
         if (!enableLocalBuildPathTesting) {
           expect(
             await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_USER_HOME_DIR}/extract-platform.sh`),
             'expect extract-platform.sh to be present on the pods',
           ).to.be.true;
         }
+
         expect(await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/apps/HederaNode.jar`))
           .to.be.true;
+
         expect(
           await k8
             .containers()
             .readByRef(rootContainer)
             .hasFile(`${HEDERA_HAPI_PATH}/data/config/genesis-network.json`),
         ).to.be.true;
+
         expect(
           await k8
             .containers()
@@ -428,28 +446,43 @@ export class NodeTest extends BaseCommandTest {
   }
 
   public static start(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences} = options;
+    const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences, consensusNodesCount} =
+      options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
 
     it(`${testName}: consensus node start`, async (): Promise<void> => {
       await main(soloNodeStartArgv(testName, deployment));
-      for (const context_ of contexts) {
-        const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const clusterCount: number = contexts.length;
+      const base: number = Math.floor(consensusNodesCount / clusterCount);
+      const remainder: number = consensusNodesCount % clusterCount;
+
+      for (const [index, context_] of contexts.entries()) {
         const k8: K8 = k8Factory.getK8(context_);
-        const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        expect(networkNodePod).to.have.lengthOf(1);
+        const expectedNodeCount: number = index < remainder ? base + 1 : base;
+
+        const networkNodePods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+        expect(
+          networkNodePods.length,
+          `expected ${expectedNodeCount} network-node pod(s) in namespace ${namespace} for context ${context_}`,
+        ).to.equal(expectedNodeCount);
+
         const haProxyPod: Pod[] = await k8
           .pods()
           .waitForReadyStatus(
             namespace,
             [
-              `app=haproxy-${Templates.extractNodeAliasFromPodName(networkNodePod[0].podReference.name)}`,
+              `app=haproxy-${Templates.extractNodeAliasFromPodName(networkNodePods[0].podReference.name)}`,
               'solo.hedera.com/type=haproxy',
             ],
             constants.NETWORK_PROXY_MAX_ATTEMPTS,
             constants.NETWORK_PROXY_DELAY,
           );
         expect(haProxyPod).to.have.lengthOf(1);
+
         createdAccountIds.push(
           await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment),
           await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment),
@@ -487,14 +520,12 @@ export class NodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    describe(`${testName}: consensus node upgrade`, async (): Promise<void> => {
+    it(`${testName}: consensus node upgrade`, async (): Promise<void> => {
       await remoteConfig.load(namespace, contexts[0]);
 
-      it('should succeed with upgrade', async (): Promise<void> => {
-        await main(soloNodeUpgradeArgv(options));
-      });
+      await main(soloNodeUpgradeArgv(options));
 
-      it('network nodes version file was upgraded', async (): Promise<void> => {
+      {
         // copy the version.txt file from the pod data/upgrade/current directory
         const temporaryDirectory: string = getTemporaryDirectory();
         const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
@@ -509,9 +540,9 @@ export class NodeTest extends BaseCommandTest {
 
         const versionLine: string = versionFile.split('\n')[0].trim();
         expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
+      }
 
-      it('should succeed with upgrade with zip file', async (): Promise<void> => {
+      {
         const zipFile: string = 'upgrade.zip';
         const cacheDirectory: string = getTestCacheDirectory(testName);
 
@@ -549,9 +580,9 @@ export class NodeTest extends BaseCommandTest {
         const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
         expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
-      }).timeout(Duration.ofMinutes(5).toMillis());
+      }
 
-      it('all network pods should be running', async (): Promise<void> => {
+      {
         const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
         const response: string = await container
           .resolve<NetworkNodes>(NetworkNodes)
@@ -566,7 +597,7 @@ export class NodeTest extends BaseCommandTest {
         expect(statusLine).to.not.be.undefined;
         const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
         expect(statusNumber).to.equal(NodeStatusCodes.ACTIVE, 'All network nodes are running');
-      });
+      }
 
       balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
@@ -579,7 +610,7 @@ export class NodeTest extends BaseCommandTest {
         new AccountId(shard, realm, 1002),
       );
 
-      it('should validate created accounts', async (): Promise<void> => {
+      {
         const accountInfo1: AccountInfo = await new AccountInfoQuery()
           .setAccountId(new AccountId(shard, realm, 1001))
           .execute(accountManager._nodeClient);
@@ -589,7 +620,7 @@ export class NodeTest extends BaseCommandTest {
           .setAccountId(new AccountId(shard, realm, 1002))
           .execute(accountManager._nodeClient);
         expect(accountInfo2).not.to.be.null;
-      });
+      }
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

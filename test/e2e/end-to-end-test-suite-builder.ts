@@ -3,12 +3,6 @@
 import {EndToEndTestSuite} from './end-to-end-test-suite.js';
 import {NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type DeploymentName} from '../../src/types/index.js';
-import {InitTest} from './commands/tests/init-test.js';
-import {ClusterReferenceTest} from './commands/tests/cluster-reference-test.js';
-import {DeploymentTest} from './commands/tests/deployment-test.js';
-import {NodeTest} from './commands/tests/node-test.js';
-import {BlockNodeTest} from './commands/tests/block-node-test.js';
-import {NetworkTest} from './commands/tests/network-test.js';
 
 export class EndToEndTestSuiteBuilder {
   private testName: string;

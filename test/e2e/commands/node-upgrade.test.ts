@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {after, describe, it} from 'mocha';
-import {hederaPlatformSupportsNonZeroRealms} from '../../test-utility.js';
+import {describe} from 'mocha';
 
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
@@ -17,19 +16,15 @@ import {MetricsServerImpl} from '../../../src/business/runtime-state/services/me
 import {AccountTest} from './tests/account-test.js';
 import * as constants from '../../../src/core/constants.js';
 
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
-import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
-import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import fs from 'node:fs';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
-import {type K8} from '../../../src/integration/kube/k8.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 
 const testName: string = 'node-upgrade-test';
 
-const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
+new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Dual Cluster Full E2E Test Suite')
   .withNamespace(testName)
@@ -58,8 +53,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }
         resetForTest(namespace.name, testCacheDirectory, false);
         for (const item of contexts) {
-          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          await k8Client.namespaces().delete(namespace);
+          await container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item).namespaces().delete(namespace);
         }
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
@@ -69,15 +63,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         resetForTest(namespace.name, testCacheDirectory, false);
         testLogger.info(`${testName}: finished resetting containers for each test`);
       });
-
-      // after(async function (): Promise<void> {
-      //   this.timeout(Duration.ofMinutes(10).toMillis());
-      //
-      //   await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-      //   await container.resolve<K8Factory>(InjectTokens.K8Factory).getK8(contexts[0]).namespaces().delete(namespace);
-      // });
-
-      console.log({options});
 
       InitTest.init(options);
       ClusterReferenceTest.connect(options);
@@ -89,7 +74,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
-      // AccountTest.accountCreationShouldSucceed(options);
+      AccountTest.accountCreationShouldSucceed(options);
 
       NodeTest.upgrade(options);
 
@@ -104,5 +89,5 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       });
     }).timeout(Duration.ofMinutes(30).toMillis());
   })
-  .build();
-endToEndTestSuite.runTestSuite();
+  .build()
+  .runTestSuite();
