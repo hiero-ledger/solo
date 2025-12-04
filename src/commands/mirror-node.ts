@@ -481,6 +481,7 @@ export class MirrorNodeCommand extends BaseCommand {
       config.mirrorNodeVersion,
       config.valuesArg,
       config.clusterContext,
+      false, // if set true, RegularExpression rules from old version would cause relay node requests to fail
     );
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
