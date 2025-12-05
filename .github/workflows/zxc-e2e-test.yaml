@@ -415,7 +415,17 @@ jobs:
           
           cat .env
           
-          ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
+          # Start resource monitoring in background
+          ./.github/workflows/script/monitor-resources.sh start
+          
+          # Run the test
+          TEST_EXIT_CODE=0
+          ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
+          
+          # Stop resource monitoring and display summary
+          ./.github/workflows/script/monitor-resources.sh stop
+          
+          exit $TEST_EXIT_CODE
 
       - name: Log Metrics
         id: log-metrics
@@ -436,15 +446,78 @@ jobs:
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
+      - name: Generate and Upload Resource Metrics Chart
+        id: generate-upload-chart
+        if: ${{ always() }}
+        run: |
+          # Generate chart
+          ./.github/workflows/script/monitor-resources.sh generate-chart
+          
+          # Upload to GitHub CDN if chart was generated
+          if [[ "${{ steps.generate-upload-chart.outputs.chart_generated }}" == "true" ]]; then
+            # For PRs, upload to PR; for workflow_dispatch, create a temporary issue
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              ISSUE_NUMBER="${{ github.event.pull_request.number }}"
+            else
+              # For workflow_dispatch, use run_id as issue identifier (upload to repo issues)
+              # Note: This requires an issue to exist. We'll use a workaround with gist or just log locally
+              echo "::warning::Chart generated but not uploaded (no PR context). Chart available in workflow logs."
+              CHART_FILE="${{ steps.generate-upload-chart.outputs.chart_file }}"
+              if [[ -f "$CHART_FILE" ]]; then
+                echo "::group::Chart File Location"
+                echo "Chart saved to: $CHART_FILE"
+                echo "To view the chart, download the workflow logs artifact or run this workflow from a PR."
+                echo "::endgroup::"
+              fi
+              # Skip upload for non-PR events
+              exit 0
+            fi
+            
+            ./.github/workflows/script/monitor-resources.sh upload-chart \
+              "${{ steps.generate-upload-chart.outputs.chart_file }}" \
+              "${ISSUE_NUMBER}" \
+              "${{ github.repository }}" \
+              "${{ secrets.GITHUB_TOKEN }}"
+            
+            # Log the chart URL for easy access
+            if [[ "${{ steps.generate-upload-chart.outputs.upload_success }}" == "true" ]]; then
+              echo "::notice title=Chart URL::${{ steps.generate-upload-chart.outputs.image_url }}"
+            fi
+          fi
+
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
+        if: ${{ always() && !cancelled() && (steps.log-metrics.outputs.json_log != '{}' || steps.generate-upload-chart.outputs.chart_generated == 'true') }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
+          
+          # Add resource metrics chart if available
+          if [[ "${{ steps.generate-upload-chart.outputs.chart_generated }}" == "true" ]]; then
+            echo "### 📊 Runner Resource Usage" >> $LOG_FILE
+            echo "" >> $LOG_FILE
+            
+            # Embed chart image if uploaded successfully
+            if [[ "${{ steps.generate-upload-chart.outputs.upload_success }}" == "true" ]]; then
+              echo "![Runner Resource Metrics](${{ steps.generate-upload-chart.outputs.image_url }})" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+            else
+              # Show text summary only if image upload failed
+              METRICS_CSV="${HOME}/.solo/logs/runner-metrics.csv"
+              if [[ -f "$METRICS_CSV" ]]; then
+                PEAK_CPU=$(tail -n +2 "$METRICS_CSV" | cut -d',' -f2 | sort -rn | head -1)
+                PEAK_MEM=$(tail -n +2 "$METRICS_CSV" | cut -d',' -f5 | sort -rn | head -1)
+                echo "**Peak Usage:** CPU: ${PEAK_CPU}% | Memory: ${PEAK_MEM}%" >> $LOG_FILE
+                echo "" >> $LOG_FILE
+              fi
+              echo "⚠️ Chart upload failed. Full metrics available in workflow logs." >> $LOG_FILE
+              echo "" >> $LOG_FILE
+            fi
+          fi
+          
           echo "<details>" >> $LOG_FILE
           echo "<summary>" >> $LOG_FILE
           echo "JSON Log Metrics" >> $LOG_FILE
@@ -457,8 +530,8 @@ jobs:
 
       - name: Comment PR with Log Metrics
         if: >-
-          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && 
-          steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
+          ${{ always() && !cancelled() && github.event_name == 'pull_request' && 
+          steps.log-metrics-file.conclusion == 'success' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
@@ -466,7 +539,7 @@ jobs:
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: solo-${{ inputs.test-script }}.log
