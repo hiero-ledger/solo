@@ -46,10 +46,9 @@ import {it} from 'mocha';
 import {
   createAccount,
   queryBalance,
-  accountCreationShouldSucceed,
-  balanceQueryShouldSucceed,
   getTemporaryDirectory,
   getTestCacheDirectory,
+  HEDERA_PLATFORM_VERSION_TAG,
 } from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
@@ -523,18 +522,23 @@ export class NodeTest extends BaseCommandTest {
   }
 
   public static upgrade(options: BaseTestOptions): void {
-    const {testName, namespace, contexts, testLogger: logger, shard, realm} = options;
+    const {testName, namespace, contexts, testLogger: logger, shard, realm, clusterReferences, deployment} = options;
     const {soloNodeUpgradeArgv} = NodeTest;
-    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
-    const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
-      InjectTokens.RemoteConfigRuntimeState,
-    );
 
     it(`${testName}: consensus node upgrade`, async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+        InjectTokens.LocalConfigRuntimeState,
+      );
+      await localConfig.load();
+
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
       await remoteConfig.load(namespace, contexts[0]);
 
       await main(soloNodeUpgradeArgv(options));
+
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
       {
         // copy the version.txt file from the pod data/upgrade/current directory
@@ -558,7 +562,7 @@ export class NodeTest extends BaseCommandTest {
         const cacheDirectory: string = getTestCacheDirectory(testName);
 
         // Remove the staging directory to make sure the command works if it doesn't exist
-        const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, options.releaseTag);
+        const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, HEDERA_PLATFORM_VERSION_TAG);
         fs.rmSync(stagingDirectory, {recursive: true, force: true});
 
         // Download application.properties from the pod
@@ -610,28 +614,28 @@ export class NodeTest extends BaseCommandTest {
         expect(statusNumber).to.equal(NodeStatusCodes.ACTIVE, 'All network nodes are running');
       }
 
-      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
+      const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
 
-      accountCreationShouldSucceed(
+      await queryBalance(accountManager, namespace, remoteConfig, logger);
+
+      await createAccount(
         accountManager,
         namespace,
         remoteConfig,
         logger,
         undefined,
-        new AccountId(shard, realm, 1002),
+        new AccountId(shard, realm, 1004),
       );
 
-      {
-        const accountInfo1: AccountInfo = await new AccountInfoQuery()
-          .setAccountId(new AccountId(shard, realm, 1001))
-          .execute(accountManager._nodeClient);
-        expect(accountInfo1).not.to.be.null;
+      const accountInfo1: AccountInfo = await new AccountInfoQuery()
+        .setAccountId(new AccountId(shard, realm, 1001))
+        .execute(accountManager._nodeClient);
+      expect(accountInfo1).not.to.be.null;
 
-        const accountInfo2: AccountInfo = await new AccountInfoQuery()
-          .setAccountId(new AccountId(shard, realm, 1002))
-          .execute(accountManager._nodeClient);
-        expect(accountInfo2).not.to.be.null;
-      }
+      const accountInfo2: AccountInfo = await new AccountInfoQuery()
+        .setAccountId(new AccountId(shard, realm, 1002))
+        .execute(accountManager._nodeClient);
+      expect(accountInfo2).not.to.be.null;
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

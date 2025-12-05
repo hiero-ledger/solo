@@ -18,7 +18,6 @@ export class EndToEndTestSuiteBuilder {
   private serviceMonitor: boolean;
   private podLog: boolean;
   private minimalSetup: boolean;
-  private releaseTag?: string;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -87,11 +86,6 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
-  public withReleaseTag(releaseTag: string): this {
-    this.releaseTag = releaseTag;
-    return this;
-  }
-
   public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
@@ -115,7 +109,6 @@ export class EndToEndTestSuiteBuilder {
       this.serviceMonitor || false,
       this.podLog || false,
       this.minimalSetup || false,
-      this.releaseTag,
       this.testSuiteCallback,
     );
   }
