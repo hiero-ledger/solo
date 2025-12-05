@@ -536,8 +536,16 @@ jobs:
             
             # Embed chart image using base64 data URL (WebP format)
             if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
-              BASE64_CHART="${{ steps.upload-chart.outputs.chart_base64 }}"
-              echo "![Runner Resource Metrics](data:image/webp;base64,${BASE64_CHART})" >> $LOG_FILE
+              # Read base64 from file instead of output variable to avoid size limits
+              BASE64_FILE="$HOME/.solo/logs/chart_base64.txt"
+              if [[ -f "$BASE64_FILE" ]]; then
+                BASE64_CHART=$(cat "$BASE64_FILE")
+                BASE64_SIZE=$(echo -n "$BASE64_CHART" | wc -c)
+                echo "::notice::Embedding chart image (base64 size: ${BASE64_SIZE} bytes)"
+                echo "![Runner Resource Metrics](data:image/webp;base64,${BASE64_CHART})" >> $LOG_FILE
+              else
+                echo "::warning::Base64 file not found: $BASE64_FILE"
+              fi
               echo "" >> $LOG_FILE
               echo "_View in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
               echo "" >> $LOG_FILE
