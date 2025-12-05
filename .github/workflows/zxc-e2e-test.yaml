@@ -463,27 +463,35 @@ jobs:
             echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Chart as Step Summary
+      - name: Upload Chart as Artifact
         id: upload-chart
         if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: runner-metrics-chart-${{ inputs.test-script }}
+          path: ${{ steps.generate-chart.outputs.chart_file }}
+          retention-days: 14
+          if-no-files-found: warn
+      
+      - name: Get Chart Artifact URL
+        id: chart-url
+        if: ${{ always() && steps.upload-chart.conclusion == 'success' && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+          # Find the artifact ID of the chart we just uploaded
+          ARTIFACT_ID=$(gh api "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+            --jq '.artifacts[] | select(.name == "runner-metrics-chart-${{ inputs.test-script }}") | .id')
           
-          if [[ -f "$CHART_FILE" ]]; then
-            # Convert to base64 for embedding
-            BASE64_CHART=$(base64 "$CHART_FILE" | tr -d '\n')
-            
-            # Add to GitHub Step Summary (visible in workflow run)
-            echo "### 📊 Runner Resource Metrics" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "![Runner Metrics](data:image/png;base64,${BASE64_CHART})" >> $GITHUB_STEP_SUMMARY
-            
-            # Also save base64 for PR comment
-            echo "$BASE64_CHART" > "$HOME/.solo/logs/chart_base64.txt"
+          if [[ -n "$ARTIFACT_ID" ]]; then
+            # This URL is publicly viewable and embeddable in Markdown
+            IMAGE_URL="https://github.com/${{ github.repository }}/suites/${{ github.run_id }}/artifacts/${ARTIFACT_ID}"
+            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
             echo "upload_success=true" >> $GITHUB_OUTPUT
-            echo "chart_base64=$BASE64_CHART" >> $GITHUB_OUTPUT
+            echo "Chart artifact URL: $IMAGE_URL"
           else
             echo "upload_success=false" >> $GITHUB_OUTPUT
+            echo "::warning::Could not find artifact ID for chart"
           fi
 
       - name: Write Log Metrics Message File
@@ -501,12 +509,12 @@ jobs:
             echo "### 📊 Runner Resource Usage" >> $LOG_FILE
             echo "" >> $LOG_FILE
             
-            # Embed chart image using base64 data URL
-            if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
-              BASE64_CHART="${{ steps.upload-chart.outputs.chart_base64 }}"
-              echo "![Runner Resource Metrics](data:image/png;base64,${BASE64_CHART})" >> $LOG_FILE
+            # Embed chart image using artifact URL
+            if [[ "${{ steps.chart-url.outputs.upload_success }}" == "true" ]]; then
+              IMAGE_URL="${{ steps.chart-url.outputs.image_url }}"
+              echo "![Runner Resource Metrics]($IMAGE_URL)" >> $LOG_FILE
               echo "" >> $LOG_FILE
-              echo "_Chart is also visible in the [workflow run summary](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
+              echo "_View in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
               echo "" >> $LOG_FILE
             else
               # Show text summary if chart embedding failed
