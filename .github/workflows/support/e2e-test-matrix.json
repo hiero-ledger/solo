@@ -7,5 +7,14 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large"
+  },
+  {
+    "name": "Node Upgrade",
+    "test-script": "test-e2e-node-upgrade",
+    "coverage-subdirectory": "e2e-node-upgrade",
+    "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
+    "local-java-build": false,
+    "install-dependencies": true,
+    "runner": "hiero-solo-linux-large"
   }
 ]
