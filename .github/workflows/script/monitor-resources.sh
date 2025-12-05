@@ -34,7 +34,7 @@ start_monitoring() {
       MEM_PERCENT=$(echo $MEM_INFO | awk '{printf "%.1f", ($3/$2)*100}')
       
       echo "$TIMESTAMP,$CPU_PERCENT,$MEM_USED,$MEM_TOTAL,$MEM_PERCENT" >> "$METRICS_FILE"
-      sleep 30
+      sleep 90
     done
   ) &
   
@@ -100,7 +100,7 @@ generate_chart() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     "$PYTHON_BIN" "${SCRIPT_DIR}/plot-runner-metrics.py" "$metrics_file"
     
-    CHART_FILE="${metrics_file%.csv}.png"
+    CHART_FILE="${metrics_file%.csv}.webp"
     if [[ -f "$CHART_FILE" ]]; then
       echo "true" > "$CHART_STATUS_FILE"
       echo "$CHART_FILE" > "$CHART_PATH_FILE"

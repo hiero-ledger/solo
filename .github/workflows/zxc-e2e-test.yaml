@@ -432,8 +432,21 @@ jobs:
         if: always()
         run: |
           echo "json_log={}" >> $GITHUB_OUTPUT
-          for logFile in ~/.solo/logs/*.json; do 
-            if [[ -f "$logFile" ]]; then
+          
+          # Check if logs directory exists
+          if [[ ! -d ~/.solo/logs ]]; then
+            echo "::warning::No logs directory found at ~/.solo/logs"
+            echo "solo_log_dir=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if any JSON files exist
+          shopt -s nullglob
+          json_files=(~/.solo/logs/*.json)
+          if [[ ${#json_files[@]} -eq 0 ]]; then
+            echo "::notice::No JSON log files found"
+          else
+            for logFile in "${json_files[@]}"; do
               echo "::group::JSON Format"
               cat $logFile | jq
               echo "::endgroup::" 
@@ -442,8 +455,9 @@ jobs:
               echo "logFile=$logFile"
               JSON_FILENAME=$logFile ./.github/workflows/script/metrics.sh
               echo "::endgroup::"
-            fi
-          done
+            done
+          fi
+          
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
       - name: Generate Resource Metrics Chart
@@ -476,7 +490,7 @@ jobs:
 
       - name: Encode Chart as Base64
         id: upload-chart
-        if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' }}
+        if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' && steps.generate-chart.outputs.chart_file != '' }}
         run: |
           CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
           
@@ -484,6 +498,13 @@ jobs:
             echo "Encoding chart as base64..."
             # Convert to base64 for embedding (remove line breaks)
             BASE64_CHART=$(base64 "$CHART_FILE" | tr -d '\n')
+            
+            # Check if base64 encoding succeeded and is not empty
+            if [[ -z "$BASE64_CHART" ]]; then
+              echo "::error::Base64 encoding failed or produced empty output"
+              echo "upload_success=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
             
             # Save to file to avoid output size limits
             echo "$BASE64_CHART" > "$HOME/.solo/logs/chart_base64.txt"
@@ -513,10 +534,10 @@ jobs:
             echo "### 📊 Runner Resource Usage" >> $LOG_FILE
             echo "" >> $LOG_FILE
             
-            # Embed chart image using base64 data URL
+            # Embed chart image using base64 data URL (WebP format)
             if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
               BASE64_CHART="${{ steps.upload-chart.outputs.chart_base64 }}"
-              echo "![Runner Resource Metrics](data:image/png;base64,${BASE64_CHART})" >> $LOG_FILE
+              echo "![Runner Resource Metrics](data:image/webp;base64,${BASE64_CHART})" >> $LOG_FILE
               echo "" >> $LOG_FILE
               echo "_View in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
               echo "" >> $LOG_FILE
@@ -534,14 +555,18 @@ jobs:
             fi
           fi
           
-          echo "<details>" >> $LOG_FILE
-          echo "<summary>" >> $LOG_FILE
-          echo "JSON Log Metrics" >> $LOG_FILE
-          echo "</summary>" >> $LOG_FILE
-          echo '<pre><code class="JSON">' >> $LOG_FILE
-          echo "$JSON_INPUT" >> $LOG_FILE
-          echo "</code></pre>" >> $LOG_FILE
-          echo "</details>" >> $LOG_FILE
+          # Only add JSON log details if there's actual data
+          if [[ -n "$JSON_INPUT" && "$JSON_INPUT" != "{}" ]]; then
+            echo "<details>" >> $LOG_FILE
+            echo "<summary>" >> $LOG_FILE
+            echo "JSON Log Metrics" >> $LOG_FILE
+            echo "</summary>" >> $LOG_FILE
+            echo '<pre><code class="JSON">' >> $LOG_FILE
+            echo "$JSON_INPUT" >> $LOG_FILE
+            echo "</code></pre>" >> $LOG_FILE
+            echo "</details>" >> $LOG_FILE
+          fi
+          
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with Log Metrics
@@ -555,13 +580,13 @@ jobs:
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: solo-${{ inputs.test-script }}.log
           path: ~/.solo/logs/*
           overwrite: true
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

@@ -40,30 +40,36 @@ def plot_metrics(csv_file: str) -> None:
     if len(timestamps) < 2:
         print("Warning: Only 1 data point found, duration will be 0")
     
-    # Create figure with 2 subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-    fig.suptitle('GitHub Runner Resource Usage', fontsize=12, fontweight='bold')
+    # Create figure with 2 subplots - smaller size for reduced file size
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 5))
+    fig.suptitle('GitHub Runner Resource Usage', fontsize=11, fontweight='bold')
+    
+    # Use grayscale colors for smaller file size
+    line_color = '#000000'      # Black
+    fill_color = '#666666'      # Dark gray
+    threshold_80 = '#999999'    # Light gray
+    threshold_95 = '#333333'    # Dark gray
     
     # CPU Usage
-    ax1.plot(timestamps, cpu_percent, color='#2E86AB', linewidth=2)
-    ax1.fill_between(timestamps, cpu_percent, alpha=0.3, color='#2E86AB')
-    ax1.set_ylabel('CPU Usage (%)', fontsize=10)
+    ax1.plot(timestamps, cpu_percent, color=line_color, linewidth=1.5)
+    ax1.fill_between(timestamps, cpu_percent, alpha=0.2, color=fill_color)
+    ax1.set_ylabel('CPU Usage (%)', fontsize=9)
     ax1.set_ylim(0, 100)
-    ax1.grid(True, alpha=0.3)
-    ax1.axhline(y=80, color='orange', linestyle='--', alpha=0.5, label='80% threshold')
-    ax1.axhline(y=95, color='red', linestyle='--', alpha=0.5, label='95% threshold')
-    ax1.legend(loc='upper right')
+    ax1.grid(True, alpha=0.3, linewidth=0.5)
+    ax1.axhline(y=80, color=threshold_80, linestyle='--', alpha=0.6, linewidth=1, label='80%')
+    ax1.axhline(y=95, color=threshold_95, linestyle='--', alpha=0.6, linewidth=1, label='95%')
+    ax1.legend(loc='upper right', fontsize=8)
     
     # Memory Usage
-    ax2.plot(timestamps, mem_percent, color='#A23B72', linewidth=2)
-    ax2.fill_between(timestamps, mem_percent, alpha=0.3, color='#A23B72')
-    ax2.set_ylabel('Memory Usage (%)', fontsize=10)
-    ax2.set_xlabel('Time (UTC)', fontsize=10)
+    ax2.plot(timestamps, mem_percent, color=line_color, linewidth=1.5)
+    ax2.fill_between(timestamps, mem_percent, alpha=0.2, color=fill_color)
+    ax2.set_ylabel('Memory Usage (%)', fontsize=9)
+    ax2.set_xlabel('Time (UTC)', fontsize=9)
     ax2.set_ylim(0, 100)
-    ax2.grid(True, alpha=0.3)
-    ax2.axhline(y=80, color='orange', linestyle='--', alpha=0.5, label='80% threshold')
-    ax2.axhline(y=95, color='red', linestyle='--', alpha=0.5, label='95% threshold')
-    ax2.legend(loc='upper right')
+    ax2.grid(True, alpha=0.3, linewidth=0.5)
+    ax2.axhline(y=80, color=threshold_80, linestyle='--', alpha=0.6, linewidth=1, label='80%')
+    ax2.axhline(y=95, color=threshold_95, linestyle='--', alpha=0.6, linewidth=1, label='95%')
+    ax2.legend(loc='upper right', fontsize=8)
     
     # Format x-axis for all subplots
     for ax in [ax1, ax2]:
@@ -73,9 +79,17 @@ def plot_metrics(csv_file: str) -> None:
     
     plt.tight_layout(rect=[0, 0.0, 1, 0.96])
     
-    # Save figure
-    output_file: str = csv_file.replace('.csv', '.png')
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
+    # Save figure as WebP with high compression for smallest file size
+    output_file: str = csv_file.replace('.csv', '.webp')
+    plt.savefig(
+        output_file,
+        format='webp',
+        dpi=72,              # Lower DPI for smaller file
+        bbox_inches='tight',
+        facecolor='white',   # White background
+        edgecolor='none',
+        pil_kwargs={'quality': 75}  # WebP quality passed to Pillow
+    )
     print(f"Chart saved to: {output_file}")
     
     # Print summary
