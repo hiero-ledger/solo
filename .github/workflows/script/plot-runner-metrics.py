@@ -40,9 +40,9 @@ def plot_metrics(csv_file: str) -> None:
     if len(timestamps) < 2:
         print("Warning: Only 1 data point found, duration will be 0")
     
-    # Create figure with 2 subplots - smaller size for reduced file size
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 5))
-    fig.suptitle('GitHub Runner Resource Usage', fontsize=11, fontweight='bold')
+    # Create figure with 2 subplots - very small size for embedding
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 4))
+    fig.suptitle('GitHub Runner Resource Usage', fontsize=10, fontweight='bold')
     
     # Use grayscale colors for smaller file size
     line_color = '#000000'      # Black
@@ -79,16 +79,16 @@ def plot_metrics(csv_file: str) -> None:
     
     plt.tight_layout(rect=[0, 0.0, 1, 0.96])
     
-    # Save figure as WebP with high compression for smallest file size
+    # Save figure as WebP with maximum compression for embedding
     output_file: str = csv_file.replace('.csv', '.webp')
     plt.savefig(
         output_file,
         format='webp',
-        dpi=72,              # Lower DPI for smaller file
+        dpi=60,              # Very low DPI for smallest file
         bbox_inches='tight',
         facecolor='white',   # White background
         edgecolor='none',
-        pil_kwargs={'quality': 75}  # WebP quality passed to Pillow
+        pil_kwargs={'quality': 60, 'method': 6}  # Lower quality, best compression method
     )
     print(f"Chart saved to: {output_file}")
     

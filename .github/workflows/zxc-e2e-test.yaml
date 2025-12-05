@@ -542,7 +542,15 @@ jobs:
                 BASE64_CHART=$(cat "$BASE64_FILE")
                 BASE64_SIZE=$(echo -n "$BASE64_CHART" | wc -c)
                 echo "::notice::Embedding chart image (base64 size: ${BASE64_SIZE} bytes)"
-                echo "![Runner Resource Metrics](data:image/webp;base64,${BASE64_CHART})" >> $LOG_FILE
+                # Try HTML img tag with explicit width for better compatibility
+                echo "<details open>" >> $LOG_FILE
+                echo "<summary>📈 Resource Usage Chart</summary>" >> $LOG_FILE
+                echo "" >> $LOG_FILE
+                echo "<img src=\"data:image/webp;base64,${BASE64_CHART}\" alt=\"Runner Resource Metrics\" width=\"800\" />" >> $LOG_FILE
+                echo "" >> $LOG_FILE
+                echo "_If the chart doesn't display, download it from [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})._" >> $LOG_FILE
+                echo "" >> $LOG_FILE
+                echo "</details>" >> $LOG_FILE
               else
                 echo "::warning::Base64 file not found: $BASE64_FILE"
               fi
