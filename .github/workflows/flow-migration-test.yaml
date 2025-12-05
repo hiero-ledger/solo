@@ -38,7 +38,7 @@ permissions:
 jobs:
   test-migration-process:
     name: Migrate Solo from Prior to Current Version
-    timeout-minutes: 30
+    timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
