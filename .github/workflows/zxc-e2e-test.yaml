@@ -454,44 +454,48 @@ jobs:
           
           CHART_STATUS_FILE="$HOME/.solo/logs/chart_status"
           CHART_PATH_FILE="$HOME/.solo/logs/chart_path"
+          
+          echo "::group::Chart Generation Status"
+          echo "Status file: $CHART_STATUS_FILE"
+          echo "Path file: $CHART_PATH_FILE"
+          ls -la "$HOME/.solo/logs/" || true
+          echo "::endgroup::"
+          
           CHART_GENERATED="false"
           [[ -f "$CHART_STATUS_FILE" ]] && CHART_GENERATED=$(cat "$CHART_STATUS_FILE")
           CHART_FILE=""
           [[ -f "$CHART_PATH_FILE" ]] && CHART_FILE=$(cat "$CHART_PATH_FILE")
+          
+          echo "Chart generated: $CHART_GENERATED"
+          echo "Chart file: $CHART_FILE"
+          
           echo "chart_generated=$CHART_GENERATED" >> $GITHUB_OUTPUT
           if [[ -n "$CHART_FILE" ]]; then
             echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Chart as Artifact
+      - name: Encode Chart as Base64
         id: upload-chart
         if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' }}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: runner-metrics-chart-${{ inputs.test-script }}
-          path: ${{ steps.generate-chart.outputs.chart_file }}
-          retention-days: 14
-          if-no-files-found: warn
-      
-      - name: Get Chart Artifact URL
-        id: chart-url
-        if: ${{ always() && steps.upload-chart.conclusion == 'success' && github.event_name == 'pull_request' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Find the artifact ID of the chart we just uploaded
-          ARTIFACT_ID=$(gh api "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-            --jq '.artifacts[] | select(.name == "runner-metrics-chart-${{ inputs.test-script }}") | .id')
+          CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
           
-          if [[ -n "$ARTIFACT_ID" ]]; then
-            # This URL is publicly viewable and embeddable in Markdown
-            IMAGE_URL="https://github.com/${{ github.repository }}/suites/${{ github.run_id }}/artifacts/${ARTIFACT_ID}"
-            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+          if [[ -f "$CHART_FILE" ]]; then
+            echo "Encoding chart as base64..."
+            # Convert to base64 for embedding (remove line breaks)
+            BASE64_CHART=$(base64 "$CHART_FILE" | tr -d '\n')
+            
+            # Save to file to avoid output size limits
+            echo "$BASE64_CHART" > "$HOME/.solo/logs/chart_base64.txt"
+            
+            # Set outputs
             echo "upload_success=true" >> $GITHUB_OUTPUT
-            echo "Chart artifact URL: $IMAGE_URL"
+            echo "chart_base64=$BASE64_CHART" >> $GITHUB_OUTPUT
+            
+            echo "Chart encoded successfully ($(echo -n "$BASE64_CHART" | wc -c) bytes)"
           else
+            echo "::warning::Chart file not found: $CHART_FILE"
             echo "upload_success=false" >> $GITHUB_OUTPUT
-            echo "::warning::Could not find artifact ID for chart"
           fi
 
       - name: Write Log Metrics Message File
@@ -509,10 +513,10 @@ jobs:
             echo "### 📊 Runner Resource Usage" >> $LOG_FILE
             echo "" >> $LOG_FILE
             
-            # Embed chart image using artifact URL
-            if [[ "${{ steps.chart-url.outputs.upload_success }}" == "true" ]]; then
-              IMAGE_URL="${{ steps.chart-url.outputs.image_url }}"
-              echo "![Runner Resource Metrics]($IMAGE_URL)" >> $LOG_FILE
+            # Embed chart image using base64 data URL
+            if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
+              BASE64_CHART="${{ steps.upload-chart.outputs.chart_base64 }}"
+              echo "![Runner Resource Metrics](data:image/png;base64,${BASE64_CHART})" >> $LOG_FILE
               echo "" >> $LOG_FILE
               echo "_View in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
               echo "" >> $LOG_FILE

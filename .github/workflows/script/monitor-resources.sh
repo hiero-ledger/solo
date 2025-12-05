@@ -79,8 +79,13 @@ stop_monitoring() {
 generate_chart() {
   local metrics_file="${1:-$METRICS_FILE}"
   echo "Generating resource metrics chart..."
+  echo "Metrics file: $metrics_file"
+  echo "File exists: $([ -f "$metrics_file" ] && echo "yes" || echo "no")"
   
   if [[ -f "$metrics_file" ]]; then
+    echo "Metrics CSV found, proceeding with chart generation..."
+    echo "CSV contents (first 5 lines):"
+    head -5 "$metrics_file" || true
     PYTHON_BIN=$(command -v python3 || command -v python || true)
     if [[ -z "$PYTHON_BIN" ]]; then
       echo "::error::Python interpreter not found on runner"
