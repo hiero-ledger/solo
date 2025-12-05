@@ -496,14 +496,14 @@ jobs:
           github.event.pull_request.head.repo.fork == false }}
         uses: opengisch/comment-pr-with-images@501ce2dabd4744c4ccfad563f6af7b33d5a0779a # v0.0.5
         with:
-          files: ${{ steps.generate-chart.outputs.chart_file }}
-          message: |
+          images: ${{ steps.generate-chart.outputs.chart_file }}
+          upload_to: github_branch
+          custom_attachment_msg: |
             ### 📊 Runner Resource Usage - ${{ inputs.custom-job-label }}
             
-            ![Resource Usage Chart]({{IMAGE_URL}})
-            
             _View full logs in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_
-          header: resource-metrics-${{ inputs.test-script }}
+          edit_previous_comment: true
+          github_token: ${{ github.token }}
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
