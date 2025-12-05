@@ -122,8 +122,41 @@ upload_chart() {
   REPO="${3}"
   GITHUB_TOKEN="${4}"
   
+  # Validate required parameters
+  if [[ -z "$CHART_FILE" ]]; then
+    echo "::error::Chart file path not provided"
+    echo "upload_success=false" >> $GITHUB_OUTPUT
+    echo "false" > "$UPLOAD_STATUS_FILE"
+    : > "$UPLOAD_URL_FILE"
+    return 1
+  fi
+  
+  if [[ -z "$PR_NUMBER" ]]; then
+    echo "::error::PR number not provided"
+    echo "upload_success=false" >> $GITHUB_OUTPUT
+    echo "false" > "$UPLOAD_STATUS_FILE"
+    : > "$UPLOAD_URL_FILE"
+    return 1
+  fi
+  
+  if [[ -z "$REPO" ]]; then
+    echo "::error::Repository name not provided"
+    echo "upload_success=false" >> $GITHUB_OUTPUT
+    echo "false" > "$UPLOAD_STATUS_FILE"
+    : > "$UPLOAD_URL_FILE"
+    return 1
+  fi
+  
+  if [[ -z "$GITHUB_TOKEN" ]]; then
+    echo "::error::GitHub token not provided"
+    echo "upload_success=false" >> $GITHUB_OUTPUT
+    echo "false" > "$UPLOAD_STATUS_FILE"
+    : > "$UPLOAD_URL_FILE"
+    return 1
+  fi
+  
   if [[ ! -f "$CHART_FILE" ]]; then
-    echo "Chart file not found: $CHART_FILE"
+    echo "::error::Chart file not found: $CHART_FILE"
     echo "upload_success=false" >> $GITHUB_OUTPUT
     echo "false" > "$UPLOAD_STATUS_FILE"
     : > "$UPLOAD_URL_FILE"
@@ -131,27 +164,47 @@ upload_chart() {
   fi
   
   echo "Uploading chart to GitHub CDN..."
+  echo "  Chart file: $CHART_FILE"
+  echo "  Chart size: $(du -h "$CHART_FILE" | cut -f1)"
+  echo "  PR number: $PR_NUMBER"
+  echo "  Repository: $REPO"
   
   # Upload image to GitHub's CDN using the issue attachments API
-  RESPONSE=$(curl -s -X POST \
+  HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/upload_response.json -X POST \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3+json" \
     -H "Content-Type: image/png" \
     --data-binary "@${CHART_FILE}" \
     "https://uploads.github.com/repos/${REPO}/issues/${PR_NUMBER}/assets?name=runner-metrics.png")
   
+  RESPONSE=$(cat /tmp/upload_response.json)
+  
+  echo "  HTTP Status: $HTTP_CODE"
+  
   # Extract image URL from response
   IMAGE_URL=$(echo "$RESPONSE" | grep -o '"url":"https://user-images.githubusercontent.com[^"]*"' | sed 's/"url":"//;s/"$//')
   
   if [[ -n "$IMAGE_URL" ]]; then
-    echo "Chart uploaded successfully to GitHub: $IMAGE_URL"
+    echo "✅ Chart uploaded successfully to GitHub CDN"
+    echo "  Image URL: $IMAGE_URL"
     echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
     echo "upload_success=true" >> $GITHUB_OUTPUT
     echo "true" > "$UPLOAD_STATUS_FILE"
     echo "$IMAGE_URL" > "$UPLOAD_URL_FILE"
   else
-    echo "Failed to upload chart to GitHub"
-    echo "Response: $RESPONSE"
+    echo "::error::Failed to upload chart to GitHub CDN"
+    echo "::group::API Response Details"
+    echo "HTTP Status Code: $HTTP_CODE"
+    echo "Response Body:"
+    echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+    
+    # Parse common error messages
+    ERROR_MSG=$(echo "$RESPONSE" | grep -o '"message":"[^"]*"' | sed 's/"message":"//;s/"$//' | head -1)
+    if [[ -n "$ERROR_MSG" ]]; then
+      echo "Error Message: $ERROR_MSG"
+    fi
+    echo "::endgroup::"
+    
     echo "upload_success=false" >> $GITHUB_OUTPUT
     echo "false" > "$UPLOAD_STATUS_FILE"
     : > "$UPLOAD_URL_FILE"

@@ -42,12 +42,12 @@ def plot_metrics(csv_file: str) -> None:
     
     # Create figure with 2 subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-    fig.suptitle('GitHub Runner Resource Usage', fontsize=16, fontweight='bold')
+    fig.suptitle('GitHub Runner Resource Usage', fontsize=12, fontweight='bold')
     
     # CPU Usage
     ax1.plot(timestamps, cpu_percent, color='#2E86AB', linewidth=2)
     ax1.fill_between(timestamps, cpu_percent, alpha=0.3, color='#2E86AB')
-    ax1.set_ylabel('CPU Usage (%)', fontsize=12)
+    ax1.set_ylabel('CPU Usage (%)', fontsize=10)
     ax1.set_ylim(0, 100)
     ax1.grid(True, alpha=0.3)
     ax1.axhline(y=80, color='orange', linestyle='--', alpha=0.5, label='80% threshold')
@@ -57,8 +57,8 @@ def plot_metrics(csv_file: str) -> None:
     # Memory Usage
     ax2.plot(timestamps, mem_percent, color='#A23B72', linewidth=2)
     ax2.fill_between(timestamps, mem_percent, alpha=0.3, color='#A23B72')
-    ax2.set_ylabel('Memory Usage (%)', fontsize=12)
-    ax2.set_xlabel('Time (UTC)', fontsize=12)
+    ax2.set_ylabel('Memory Usage (%)', fontsize=10)
+    ax2.set_xlabel('Time (UTC)', fontsize=10)
     ax2.set_ylim(0, 100)
     ax2.grid(True, alpha=0.3)
     ax2.axhline(y=80, color='orange', linestyle='--', alpha=0.5, label='80% threshold')

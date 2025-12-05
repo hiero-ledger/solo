@@ -493,11 +493,12 @@ jobs:
             exit 0
           fi
           
+          # Upload chart (allow failure)
           ./.github/workflows/script/monitor-resources.sh upload_chart \
             "$CHART_FILE" \
             "$PR_NUMBER" \
             "$REPO_NAME" \
-            "$GH_TOKEN"
+            "$GH_TOKEN" || true
           
           UPLOAD_SUCCESS="false"
           [[ -f "$UPLOAD_STATUS_FILE" ]] && UPLOAD_SUCCESS=$(cat "$UPLOAD_STATUS_FILE")
