@@ -539,25 +539,6 @@ jobs:
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-${{ inputs.test-script }}
 
-      - name: Upload Resource Chart as Artifact
-        if: ${{ always() && !cancelled() && steps.generate-chart.outputs.chart_generated == 'true' && steps.generate-chart.outputs.chart_file != '' }}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: resource-chart-${{ inputs.test-script }}
-          path: ${{ steps.generate-chart.outputs.chart_file }}
-          overwrite: true
-          if-no-files-found: warn
-
-      - name: Comment PR with Chart from Artifact (Alternative Method)
-        if: >-
-          ${{ always() && !cancelled() && github.event_name == 'pull_request' &&
-          steps.generate-chart.outputs.chart_generated == 'true' &&
-          github.event.pull_request.head.repo.fork == false }}
-        uses: live-codes/pr-comment-from-artifact@15cb31a249e2336571f5d8cc244f6132b7d90ead # v1.0.1
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          artifact: resource-chart-${{ inputs.test-script }}
-
       - name: Upload E2E Logs to GitHub
         if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
