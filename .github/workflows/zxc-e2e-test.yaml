@@ -433,12 +433,8 @@ jobs:
         run: |
           echo "json_log={}" >> $GITHUB_OUTPUT
           
-          # Check if logs directory exists
-          if [[ ! -d ~/.solo/logs ]]; then
-            echo "::warning::No logs directory found at ~/.solo/logs"
-            echo "solo_log_dir=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+          # Ensure logs directory exists
+          mkdir -p ~/.solo/logs
           
           # Check if any JSON files exist
           shopt -s nullglob
