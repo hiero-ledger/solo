@@ -39,6 +39,7 @@ import {MissingArgumentError} from '../../core/errors/missing-argument-error.js'
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import {execSync} from 'node:child_process';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
@@ -140,6 +141,7 @@ import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
+import {Address} from '../../business/address/address.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1653,7 +1655,11 @@ export class NodeCommandTasks {
               await k8
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['systemctl', 'restart', 'network-node']);
+                .execContainer([
+                  'bash',
+                  '-c',
+                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                ]);
             },
           });
         }
@@ -1894,7 +1900,7 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer('systemctl stop network-node'),
+                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
             });
           }
         }
@@ -2365,19 +2371,37 @@ export class NodeCommandTasks {
   public prepareGossipEndpoints(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Prepare gossip endpoints',
-      task: context_ => {
-        const config = context_.config;
-        let endpoints = [];
+      task: async context_ => {
+        const config: any = context_.config;
+        let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
-          if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
-            throw new SoloError(`--gossip-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
-          }
+          const context: string = helpers.extractContextFromConsensusNodes(
+            config.consensusNodes[0].name,
+            context_.config.consensusNodes,
+          );
+
+          const k8: K8 = this.k8Factory.getK8(context);
+
+          const externalEndpointAddress: Address = await Address.getExternalAddress(
+            new ConsensusNode(
+              config.nodeAlias,
+              Templates.nodeIdFromNodeAlias(config.nodeAlias),
+              config.namespace,
+              undefined,
+              context,
+              config.consensusNodes[0].dnsBaseDomain,
+              config.consensusNodes[0].dnsConsensusNodePattern,
+              Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+            ),
+            k8,
+            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          );
 
           endpoints = [
             `${helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
-            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT}`,
+            `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
 
@@ -2968,13 +2992,14 @@ export class NodeCommandTasks {
       title: 'Download last state from an existing node',
       task: async context_ => {
         const config = context_.config;
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
+        // TODO: currently only supports downloading from the first existing node
+        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.consensusNodes[0].name);
         const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
         const context = helpers.extractContextFromConsensusNodes(
-          config.existingNodeAliases[0],
+          config.consensusNodes[0].name,
           context_.config.consensusNodes,
         );
 
@@ -2988,7 +3013,7 @@ export class NodeCommandTasks {
         const zipFileName = await container.execContainer([
           'bash',
           '-c',
-          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
         this.logger.debug(`state zip file to download is = ${zipFileName}`);
@@ -3006,14 +3031,15 @@ export class NodeCommandTasks {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
         const config = context_.config;
-        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const nodeAlias = config.nodeAlias || config.nodeAliases[0];
+        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const savedStateDirectory = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
-        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
 
         const container = k8.containers().readByRef(containerReference);
@@ -3038,7 +3064,7 @@ export class NodeCommandTasks {
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${path.basename(config.lastStateZipPath)}`,
           ]);
       },
     };
@@ -3227,5 +3253,149 @@ export class NodeCommandTasks {
         }
       },
     };
+  }
+
+  public downloadHieroComponentLogs(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Download logs from Hiero components',
+      task: async (context_, task) => {
+        // Iterate all k8 contexts to find solo-remote-config configmaps
+        this.logger.info('Discovering Hiero components from remote configuration...');
+        const contexts: ReturnType<ReturnType<typeof this.k8Factory.default>['contexts']> = this.k8Factory
+          .default()
+          .contexts();
+        const allPods: Array<{pod: Pod; context: string; namespace: NamespaceName}> = [];
+
+        // Define component types and their label selectors
+        const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
+          {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+          {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
+          {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
+          {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},
+          {name: 'mirror web3', labels: [constants.SOLO_MIRROR_WEB3_NAME_LABEL]},
+          {name: 'mirror postgres', labels: [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]},
+          {name: 'mirror redis', labels: [constants.SOLO_MIRROR_REDIS_NAME_LABEL]},
+          {name: 'mirror rest-java', labels: [constants.SOLO_MIRROR_RESTJAVA_NAME_LABEL]},
+          {name: 'relay node', labels: [constants.SOLO_RELAY_NAME_LABEL]},
+          {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
+          {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
+          {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+        ];
+
+        // Create output directory structure - use custom dir if provided, otherwise use default
+        const outputDirectory: string = customOutputDirectory
+          ? path.resolve(customOutputDirectory)
+          : path.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
+        if (!fs.existsSync(outputDirectory)) {
+          fs.mkdirSync(outputDirectory, {recursive: true});
+        }
+
+        for (const context of contexts.list()) {
+          const k8: K8 = this.k8Factory.getK8(context);
+
+          try {
+            this.logger.info(`Discovering Hiero component pods in context: ${context}...`);
+
+            // Iterate through each component type and discover pods
+            for (const config of componentLabelConfigs) {
+              const pods: Pod[] = await k8.pods().listForAllNamespaces(config.labels);
+              this.logger.info(`Found ${pods.length} ${config.name} pod(s) in context ${context}`);
+
+              for (const pod of pods) {
+                const newPodInfo: {pod: Pod; context: string; namespace: NamespaceName} = {
+                  pod,
+                  context: context,
+                  namespace: pod.podReference.namespace,
+                };
+                allPods.push(newPodInfo);
+                // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
+                if ('block node' === config.name) {
+                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                }
+              }
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to discover pods in context ${context}: ${error}`);
+          }
+        }
+
+        this.logger.info(`Logs will be saved to: ${outputDirectory}`);
+        this.logger.info(`Found ${allPods.length} Hiero component pods`);
+        // Download logs from each pod
+        for (const podInfo of allPods) {
+          await this.downloadPodLogs(podInfo, outputDirectory);
+        }
+
+        task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
+      },
+    };
+  }
+
+  private async downloadPodLogs(
+    podInfo: {pod: Pod; context: string; namespace: NamespaceName},
+    outputDirectory: string,
+  ): Promise<void> {
+    const {pod, context, namespace}: {pod: Pod; context: string; namespace: NamespaceName} = podInfo;
+    const podName: string = pod.podReference.name.name;
+
+    this.logger.info(`Downloading logs from pod: ${podName} (cluster: ${context})`);
+
+    try {
+      // Create directory for this pod's logs
+      const podLogDirectory: string = path.join(outputDirectory, context);
+      if (!fs.existsSync(podLogDirectory)) {
+        fs.mkdirSync(podLogDirectory, {recursive: true});
+      }
+
+      // Get logs using kubectl with output to file (avoids buffer issues)
+      const logFile: string = path.join(podLogDirectory, `${podName}.log`);
+      const logCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
+
+      this.logger.info(`Downloading logs for pod ${podName}...`);
+
+      try {
+        execSync(logCommand, {encoding: 'utf8', cwd: process.cwd(), shell: '/bin/bash', maxBuffer: 1024 * 1024 * 100}); // 100MB buffer
+        this.logger.info(`Saved logs to ${logFile}`);
+      } catch {
+        // Try without all-containers flag if that fails
+        const simpleLogCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --timestamps=true > "${logFile}" 2>&1`;
+        execSync(simpleLogCommand, {
+          encoding: 'utf8',
+          cwd: process.cwd(),
+          shell: '/bin/bash',
+          maxBuffer: 1024 * 1024 * 100,
+        });
+        this.logger.info(`Saved logs to ${logFile}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);
+      // Continue with other pods even if one fails
+    }
+  }
+
+  private async downloadBlockNodeLogFiles(
+    podInfo: {pod: Pod; context: string; namespace: NamespaceName},
+    outputDirectory: string,
+  ): Promise<void> {
+    const {pod, context}: {pod: Pod; context: string; namespace: NamespaceName} = podInfo;
+    const podName: string = pod.podReference.name.name;
+
+    this.logger.info(`Downloading block node log files from ${podName}...`);
+
+    try {
+      const k8: K8 = this.k8Factory.getK8(context);
+      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      // Create directory for block node log files
+      const blockNodeLogDirectory: string = path.join(outputDirectory, context, `${podName}-block-logs`);
+      if (!fs.existsSync(blockNodeLogDirectory)) {
+        fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
+      }
+
+      await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
+    } catch (error) {
+      this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
+    }
   }
 }

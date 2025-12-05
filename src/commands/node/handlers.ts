@@ -611,14 +611,18 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+
+    const outputDirectory: string = (argv.outputDir as string) || '';
+
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
+        this.tasks.downloadHieroComponentLogs(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-      'Error in downloading log from nodes',
+      'Error in downloading logs from nodes',
       null,
     );
 
@@ -700,6 +704,8 @@ export class NodeCommandHandlers extends CommandHandler {
         }),
         this.tasks.identifyNetworkPods(),
         this.tasks.dumpNetworkNodesSaveState(),
+        this.tasks.downloadLastState(),
+        this.tasks.uploadStateToNewNode(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
         this.tasks.startNodes('nodeAliases'),
@@ -748,7 +754,7 @@ export class NodeCommandHandlers extends CommandHandler {
         }),
         this.tasks.identifyNetworkPods(1),
         this.tasks.stopNodes('nodeAliases'),
-        this.changeAllNodePhases(DeploymentPhase.STARTED),
+        this.changeAllNodePhases(DeploymentPhase.STOPPED),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error stopping node',

@@ -26,8 +26,8 @@ Before we begin, let's ensure your system meets the requirements and has all the
 
 First, check that your computer meets these minimum specifications:
 
-* **Memory**: At least 12GB of RAM (16GB recommended for smoother performance)
-* **CPU**: Minimum 4 cores (8 cores recommended)
+* **Memory**: At least 12GB (16GB recommended for smoother performance)
+* **CPU**: Minimum 6 cores (8 cores recommended)
 * **Storage**: At least 20GB of free disk space
 * **Operating System**: macOS, Linux, or Windows with WSL2
 
@@ -220,7 +220,7 @@ When you're finished with the multiple node network:
 solo one-shot multiple destroy
 ```
 
-> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ RAM, 8+ CPU cores).
+> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ of memory, 8+ CPU cores).
 
 ### Falcon Deployment (Advanced Configuration)
 
@@ -611,7 +611,7 @@ Access Solo and Consensus Node logs for troubleshooting:
 # Download logs from all nodes
 
 # Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
-solo consensus diagnostics all --deployment solo-deployment
+solo deployment diagnostics all --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>
@@ -746,7 +746,7 @@ solo consensus node refresh --node-aliases node1 --deployment solo-deployment
 
 When you need assistance:
 
-1. **Check the logs**: Use `solo consensus diagnostics all --deployment solo-deployment` and examine `~/.solo/logs/`
+1. **Check the logs**: Use `solo deployment diagnostics all --deployment solo-deployment` and examine `~/.solo/logs/`
 2. **Documentation**: Visit [https://solo.hiero.org/main/docs/](docs/_index.md)
 3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
 4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q

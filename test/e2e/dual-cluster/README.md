@@ -5,8 +5,8 @@ This document describes how to test the dual cluster setup locally.
 ## Prerequisites
 
 * Make sure you give your Docker sufficient resources
-  * ? CPUs
-  * ? GB RAM
+  * ? CPU cores
+  * ? GB memory
   * ? GB Swap
   * ? GB Disk Space
 * If you are tight on resources you might want to make sure that no other Kind clusters are running or anything that is resource heavy on your machine.

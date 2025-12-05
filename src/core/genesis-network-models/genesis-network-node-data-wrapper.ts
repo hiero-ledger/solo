@@ -8,7 +8,7 @@ import {
   type ToObject,
 } from '../../types/index.js';
 import {GenesisNetworkDataWrapper} from './genesis-network-data-wrapper.js';
-import {ipv4ToBase64, isIPv4Address} from '../helpers.js';
+import {Address} from '../../business/address/address.js';
 
 export class GenesisNetworkNodeDataWrapper
   extends GenesisNetworkDataWrapper
@@ -28,15 +28,15 @@ export class GenesisNetworkNodeDataWrapper
   }
 
   /**
-   * @param address - a fully qualified domain name or an IPv4 address
+   * @param fqdnOrIpAddress - a fully qualified domain name or an IPv4 address
    * @param port
    */
-  public addServiceEndpoint(address: string, port: number): void {
-    const isIpV4Address: boolean = isIPv4Address(address);
+  public addServiceEndpoint(fqdnOrIpAddress: string, port: number): void {
+    const address: Address = new Address(port, fqdnOrIpAddress);
     this.serviceEndpoint.push({
-      domainName: isIpV4Address ? '' : address,
+      domainName: address.domainName,
       port,
-      ipAddressV4: isIpV4Address ? ipv4ToBase64(address) : undefined,
+      ipAddressV4: address.ipAddressV4Base64,
     });
   }
 
