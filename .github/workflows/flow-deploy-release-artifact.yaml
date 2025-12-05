@@ -36,6 +36,8 @@ permissions:
   packages: write
   pages: write
   id-token: write
+  issues: write
+  pull-requests: write
 
 jobs:
   prepare-release:
@@ -61,9 +63,9 @@ jobs:
 
       - name: Install Semantic Release
         run: |
-          npm install -g semantic-release@21.0.7 @semantic-release/git@10.0.1 @semantic-release/exec@6.0.3 gradle-semantic-release-plugin@1.7.6
-          npm install -g conventional-changelog-conventionalcommits@6.1.0 @commitlint/cli@17.6.6 @commitlint/config-conventional@17.6.6
-          npm install -g marked-mangle@1.0.1 marked-gfm-heading-id@3.0.4 semantic-release-conventional-commits@3.0.0
+          npm install -g semantic-release@23.1.1 @semantic-release/git@10.0.1 @semantic-release/exec@6.0.3 gradle-semantic-release-plugin@1.7.6
+          npm install -g conventional-changelog-conventionalcommits@7.0.2 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
+          npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
 
       - name: Calculate Next Version
         env:
@@ -177,9 +179,9 @@ jobs:
 
       - name: Install Semantic Release
         run: |
-          npm install -g semantic-release@21.0.7 @semantic-release/git@10.0.1 @semantic-release/exec@6.0.3 gradle-semantic-release-plugin@1.7.6
-          npm install -g conventional-changelog-conventionalcommits@6.1.0 @commitlint/cli@17.6.6 @commitlint/config-conventional@17.6.6
-          npm install -g marked-mangle@1.0.1 marked-gfm-heading-id@3.0.4 semantic-release-conventional-commits@3.0.0
+          npm install -g semantic-release@23.1.1 @semantic-release/git@10.0.1 @semantic-release/exec@6.0.3 gradle-semantic-release-plugin@1.7.6
+          npm install -g conventional-changelog-conventionalcommits@7.0.2 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
+          npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
 
       - name: Install Dependencies
         run: jf npm ci
