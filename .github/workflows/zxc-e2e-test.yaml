@@ -417,7 +417,9 @@ jobs:
 
       - name: Log Metrics
         id: log-metrics
+        if: always()
         run: |
+          echo "json_log={}" >> $GITHUB_OUTPUT
           for logFile in ~/.solo/logs/*.json; do 
             if [[ -f "$logFile" ]]; then
               echo "::group::JSON Format"
@@ -428,8 +430,6 @@ jobs:
               echo "logFile=$logFile"
               JSON_FILENAME=$logFile ./.github/workflows/script/metrics.sh
               echo "::endgroup::"
-            else
-              echo "json_log={}" >> $GITHUB_OUTPUT
             fi
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
