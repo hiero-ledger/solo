@@ -74,7 +74,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
           'utf8',
         );
-        await main(soloConsenusDiagnosticsLogs(testName, generatedDeploymentName));
+        await main(soloDeploymentDiagnosticsLogs(testName, generatedDeploymentName));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
@@ -183,10 +183,10 @@ export function soloOneShotDestroy(testName: string): string[] {
   return argv;
 }
 
-export function soloConsenusDiagnosticsLogs(testName: string, deployment: string): string[] {
+export function soloDeploymentDiagnosticsLogs(testName: string, deployment: string): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
   const argv: string[] = newArgv();
-  argv.push('consensus', 'diagnostics', 'logs', '--deployment', deployment);
+  argv.push('deployment', 'diagnostics', 'logs', '--deployment', deployment);
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
