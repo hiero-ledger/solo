@@ -59,7 +59,12 @@ stop_monitoring() {
     echo "Peak Memory: $(tail -n +2 "$METRICS_FILE" | cut -d',' -f5 | sort -rn | head -1)%"
     echo ""
     echo "Last 10 measurements:"
-    tail -10 "$METRICS_FILE" | column -t -s','
+    if command -v column >/dev/null 2>&1; then
+      tail -10 "$METRICS_FILE" | column -t -s','
+    else
+      echo "(Install 'column' to view table formatting)"
+      tail -10 "$METRICS_FILE"
+    fi
     echo "::endgroup::"
   else
     echo "No metrics file found at $METRICS_FILE"
@@ -67,9 +72,10 @@ stop_monitoring() {
 }
 
 generate_chart() {
+  local metrics_file="${1:-$METRICS_FILE}"
   echo "Generating resource metrics chart..."
   
-  if [[ -f "$METRICS_FILE" ]]; then
+  if [[ -f "$metrics_file" ]]; then
     PYTHON_BIN=$(command -v python3 || command -v python || true)
     if [[ -z "$PYTHON_BIN" ]]; then
       echo "::error::Python interpreter not found on runner"
@@ -82,9 +88,9 @@ generate_chart() {
     
     echo "Generating chart..."
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    "$PYTHON_BIN" "${SCRIPT_DIR}/plot-runner-metrics.py" "$METRICS_FILE"
+    "$PYTHON_BIN" "${SCRIPT_DIR}/plot-runner-metrics.py" "$metrics_file"
     
-    CHART_FILE="${METRICS_FILE%.csv}.png"
+    CHART_FILE="${metrics_file%.csv}.png"
     if [[ -f "$CHART_FILE" ]]; then
       echo "chart_generated=true" >> $GITHUB_OUTPUT
       echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
@@ -94,7 +100,7 @@ generate_chart() {
       echo "Failed to generate chart"
     fi
   else
-    echo "No metrics CSV found, skipping chart generation"
+    echo "No metrics CSV found at $metrics_file, skipping chart generation"
     echo "chart_generated=false" >> $GITHUB_OUTPUT
   fi
 }
@@ -144,14 +150,14 @@ case "${1:-}" in
   stop)
     stop_monitoring
     ;;
-  generate-chart)
-    generate_chart
+  generate_chart)
+    generate_chart "${2:-}"
     ;;
-  upload-chart)
+  upload_chart)
     upload_chart "${2}" "${3}" "${4}" "${5}"
     ;;
   *)
-    echo "Usage: $0 {start|stop|generate-chart|upload-chart <chart_file> <pr_number> <repo> <token>}"
+    echo "Usage: $0 {start|stop|generate-chart [csv]|upload-chart <chart_file> <pr_number> <repo> <token>}"
     exit 1
     ;;
 esac

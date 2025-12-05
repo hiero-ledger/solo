@@ -71,23 +71,7 @@ def plot_metrics(csv_file: str) -> None:
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
     
-    # Add statistics text
-    duration_minutes: float = (timestamps[-1] - timestamps[0]).total_seconds() / 60 if len(timestamps) > 1 else 0.0
-    stats_text = f"""
-    Peak CPU: {max(cpu_percent):.1f}%
-    Peak Memory: {max(mem_percent):.1f}%
-    
-    Avg CPU: {sum(cpu_percent)/len(cpu_percent):.1f}%
-    Avg Memory: {sum(mem_percent)/len(mem_percent):.1f}%
-    
-    Duration: {duration_minutes:.1f} minutes
-    Data Points: {len(timestamps)}
-    """
-    
-    fig.text(0.02, 0.02, stats_text, fontsize=9, family='monospace',
-             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
-    
-    plt.tight_layout(rect=[0, 0.08, 1, 0.96])
+    plt.tight_layout(rect=[0, 0.0, 1, 0.96])
     
     # Save figure
     output_file: str = csv_file.replace('.csv', '.png')
