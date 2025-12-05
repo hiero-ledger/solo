@@ -4,10 +4,7 @@ import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
-import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
-import {type NodeAlias} from '../../../../src/types/aliases.js';
-import {Templates} from '../../../../src/core/templates.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
@@ -63,6 +60,8 @@ export class NetworkTest extends BaseCommandTest {
       enableLocalBuildPathTesting,
       localBuildReleaseTag,
       loadBalancerEnabled,
+      clusterReferenceNameArray,
+      consensusNodesCount,
     } = options;
     const {soloNetworkDeployArgv} = NetworkTest;
 
@@ -77,13 +76,30 @@ export class NetworkTest extends BaseCommandTest {
         ),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const clusterCount: number = clusterReferenceNameArray.length;
+      const base: number = Math.floor(consensusNodesCount / clusterCount);
+      const remainder: number = consensusNodesCount % clusterCount;
+
+      const nodeCountsPerCluster: number[] = clusterReferenceNameArray.map((_, index): number =>
+        index < remainder ? base + 1 : base,
+      );
+
       for (const [index, context_] of contexts.entries()) {
-        const k8: K8 = k8Factory.getK8(context_);
-        expect(await k8.namespaces().has(namespace), `namespace ${namespace} should exist in ${context}`).to.be.true;
-        const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        expect(pods).to.have.lengthOf(1);
-        const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
-        expect(pods[0].labels['solo.hedera.com/node-name']).to.equal(nodeAlias);
+        const nodeCount: number = nodeCountsPerCluster[index];
+
+        const namespaceExists: boolean = await k8Factory.getK8(context_).namespaces().has(namespace);
+        expect(namespaceExists, `namespace ${namespace} should exist in ${context_}`).to.be.true;
+
+        const pods: Pod[] = await k8Factory
+          .getK8(context_)
+          .pods()
+          .list(namespace, ['solo.hedera.com/type=network-node']);
+
+        expect(
+          pods.length,
+          `expected exactly ${nodeCount} network-node pod in namespace ${namespace} for context ${context_}`,
+        ).to.equal(nodeCount);
       }
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
