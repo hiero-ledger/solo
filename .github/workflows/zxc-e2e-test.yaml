@@ -460,60 +460,55 @@ jobs:
           
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
-      - name: Generate Resource Metrics Chart
+      - name: Generate ASCII Resource Chart
         id: generate-chart
         if: ${{ always() }}
         run: |
-          ./.github/workflows/script/monitor-resources.sh generate_chart
+          METRICS_CSV="$HOME/.solo/logs/runner-metrics.csv"
+          CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
           
-          CHART_STATUS_FILE="$HOME/.solo/logs/chart_status"
-          CHART_PATH_FILE="$HOME/.solo/logs/chart_path"
-          
-          echo "::group::Chart Generation Status"
-          echo "Status file: $CHART_STATUS_FILE"
-          echo "Path file: $CHART_PATH_FILE"
-          ls -la "$HOME/.solo/logs/" || true
-          echo "::endgroup::"
-          
-          CHART_GENERATED="false"
-          [[ -f "$CHART_STATUS_FILE" ]] && CHART_GENERATED=$(cat "$CHART_STATUS_FILE")
-          CHART_FILE=""
-          [[ -f "$CHART_PATH_FILE" ]] && CHART_FILE=$(cat "$CHART_PATH_FILE")
-          
-          echo "Chart generated: $CHART_GENERATED"
-          echo "Chart file: $CHART_FILE"
-          
-          echo "chart_generated=$CHART_GENERATED" >> $GITHUB_OUTPUT
-          if [[ -n "$CHART_FILE" ]]; then
-            echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Comment PR with Resource Chart
-        if: >-
-          ${{ always() && !cancelled() && github.event_name == 'pull_request' &&
-          steps.generate-chart.outputs.chart_generated == 'true' &&
-          steps.generate-chart.outputs.chart_file != '' &&
-          github.event.pull_request.head.repo.fork == false }}
-        uses: opengisch/comment-pr-with-images@501ce2dabd4744c4ccfad563f6af7b33d5a0779a # v0.0.5
-        with:
-          images: ${{ steps.generate-chart.outputs.chart_file }}
-          upload_to: github_branch
-          custom_attachment_msg: |
-            ### 📊 Runner Resource Usage - ${{ inputs.custom-job-label }}
+          if [[ -f "$METRICS_CSV" ]]; then
+            echo "Generating ASCII chart from metrics..."
+            python3 ./.github/workflows/script/plot-runner-metrics-ascii.py "$METRICS_CSV"
             
-            _View full logs in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_
-          edit_previous_comment: true
-          github_token: ${{ github.token }}
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "chart_generated=true" >> $GITHUB_OUTPUT
+              echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+              echo "✅ ASCII chart generated successfully"
+            else
+              echo "chart_generated=false" >> $GITHUB_OUTPUT
+              echo "⚠️  ASCII chart generation failed"
+            fi
+          else
+            echo "chart_generated=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No metrics CSV found, skipping chart generation"
+          fi
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ always() && !cancelled() && steps.log-metrics.outputs.json_log != '{}' }}
+        if: ${{ always() && !cancelled() }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
+          
+          # Add ASCII resource chart if available
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "<details open>" >> $LOG_FILE
+              echo "<summary>📊 Runner Resource Usage</summary>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              cat "$CHART_FILE" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo "</details>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+            fi
+          fi
           
           # Add JSON log details if there's actual data
           if [[ -n "$JSON_INPUT" && "$JSON_INPUT" != "{}" ]]; then
