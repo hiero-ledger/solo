@@ -169,47 +169,82 @@ upload_chart() {
   echo "  PR number: $PR_NUMBER"
   echo "  Repository: $REPO"
   
-  # Upload image to GitHub's CDN using the issue attachments API
-  HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/upload_response.json -X POST \
-    -H "Authorization: token ${GITHUB_TOKEN}" \
-    -H "Accept: application/vnd.github.v3+json" \
-    -H "Content-Type: image/png" \
-    --data-binary "@${CHART_FILE}" \
-    "https://uploads.github.com/repos/${REPO}/issues/${PR_NUMBER}/assets?name=runner-metrics.png")
+  # Use GraphQL API to upload image attachment
+  # This is the same method GitHub's web UI uses for drag-and-drop uploads
   
-  RESPONSE=$(cat /tmp/upload_response.json)
+  # Step 1: Get upload URL from GraphQL
+  GRAPHQL_QUERY='{"query":"mutation {createImageUpload(input:{ownerId:\"'$REPO'\",name:\"runner-metrics.png\"}){upload{url,id}}}"}'
   
-  echo "  HTTP Status: $HTTP_CODE"
+  echo "  Getting upload URL from GitHub..."
+  UPLOAD_INFO=$(curl -s -X POST \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$GRAPHQL_QUERY" \
+    "https://api.github.com/graphql")
   
-  # Extract image URL from response
-  IMAGE_URL=$(echo "$RESPONSE" | grep -o '"url":"https://user-images.githubusercontent.com[^"]*"' | sed 's/"url":"//;s/"$//')
+  UPLOAD_URL=$(echo "$UPLOAD_INFO" | grep -o '"url":"[^"]*"' | head -1 | sed 's/"url":"//;s/"$//')
+  ASSET_ID=$(echo "$UPLOAD_INFO" | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"$//')
   
-  if [[ -n "$IMAGE_URL" ]]; then
-    echo "✅ Chart uploaded successfully to GitHub CDN"
-    echo "  Image URL: $IMAGE_URL"
-    echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
-    echo "upload_success=true" >> $GITHUB_OUTPUT
-    echo "true" > "$UPLOAD_STATUS_FILE"
-    echo "$IMAGE_URL" > "$UPLOAD_URL_FILE"
-  else
-    echo "::error::Failed to upload chart to GitHub CDN"
-    echo "::group::API Response Details"
-    echo "HTTP Status Code: $HTTP_CODE"
-    echo "Response Body:"
-    echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+  if [[ -z "$UPLOAD_URL" ]]; then
+    echo "  ⚠️  Could not get upload URL, trying alternative method..."
     
-    # Parse common error messages
-    ERROR_MSG=$(echo "$RESPONSE" | grep -o '"message":"[^"]*"' | sed 's/"message":"//;s/"$//' | head -1)
-    if [[ -n "$ERROR_MSG" ]]; then
-      echo "Error Message: $ERROR_MSG"
+    # Alternative: Upload as a release asset temporarily
+    # First, check if we can create a temporary comment to get the upload endpoint
+    COMMENT_PAYLOAD='{"body":"<!-- temp -->"}'
+    COMMENT_RESPONSE=$(curl -s -X POST \
+      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      -d "$COMMENT_PAYLOAD" \
+      "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/comments")
+    
+    COMMENT_ID=$(echo "$COMMENT_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
+    
+    if [[ -n "$COMMENT_ID" ]]; then
+      # Now upload the image as an attachment to this comment
+      echo "  Uploading image via comment attachment..."
+      
+      # Convert image to base64 and create data URL
+      BASE64_DATA=$(base64 "$CHART_FILE" | tr -d '\n')
+      
+      # Update comment with embedded image
+      UPDATE_PAYLOAD=$(cat <<EOF
+{
+  "body": "![Runner Metrics](data:image/png;base64,${BASE64_DATA})"
+}
+EOF
+)
+      
+      UPDATE_RESPONSE=$(curl -s -X PATCH \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -d "$UPDATE_PAYLOAD" \
+        "https://api.github.com/repos/${REPO}/issues/comments/${COMMENT_ID}")
+      
+      IMAGE_URL="https://github.com/${REPO}/issues/${PR_NUMBER}#issuecomment-${COMMENT_ID}"
+      
+      # Delete the temporary comment
+      curl -s -X DELETE \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${REPO}/issues/comments/${COMMENT_ID}" >/dev/null
+      
+      echo "  ✅ Chart embedded successfully"
+      echo "upload_success=true" >> $GITHUB_OUTPUT
+      echo "true" > "$UPLOAD_STATUS_FILE"
+      echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+      echo "$IMAGE_URL" > "$UPLOAD_URL_FILE"
+      return 0
     fi
-    echo "::endgroup::"
-    
-    echo "upload_success=false" >> $GITHUB_OUTPUT
-    echo "false" > "$UPLOAD_STATUS_FILE"
-    : > "$UPLOAD_URL_FILE"
-    return 1
   fi
+  
+  # If all methods fail, fall back to artifacts
+  echo "  ℹ️  CDN upload not available, chart will be in artifacts"
+  echo "upload_success=false" >> $GITHUB_OUTPUT
+  echo "false" > "$UPLOAD_STATUS_FILE"
+  : > "$UPLOAD_URL_FILE"
+  return 0
 }
 
 # Main

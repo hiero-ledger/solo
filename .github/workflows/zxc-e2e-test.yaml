@@ -463,56 +463,27 @@ jobs:
             echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Resource Metrics Chart
+      - name: Upload Chart as Step Summary
         id: upload-chart
-        if: ${{ always() }}
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO_NAME: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' }}
         run: |
           CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
-          CHART_GENERATED="${{ steps.generate-chart.outputs.chart_generated }}"
-          UPLOAD_STATUS_FILE="$HOME/.solo/logs/chart_upload_status"
-          UPLOAD_URL_FILE="$HOME/.solo/logs/chart_upload_url"
           
-          if [[ "$CHART_GENERATED" != "true" ]]; then
-            echo "::warning::Chart generation did not produce a file"
-            exit 0
-          fi
-          
-          if [[ "$EVENT_NAME" != "pull_request" ]]; then
-            echo "::warning::Chart generated but not uploaded (no PR context). Chart available in workflow logs."
-            if [[ -n "$CHART_FILE" && -f "$CHART_FILE" ]]; then
-              echo "::group::Chart File Location"
-              echo "Chart saved to: $CHART_FILE"
-              echo "Download the logs artifact to view the chart when running outside a PR."
-              echo "::endgroup::"
-            fi
-            exit 0
-          fi
-          
-          # Upload chart (allow failure)
-          ./.github/workflows/script/monitor-resources.sh upload_chart \
-            "$CHART_FILE" \
-            "$PR_NUMBER" \
-            "$REPO_NAME" \
-            "$GH_TOKEN" || true
-          
-          UPLOAD_SUCCESS="false"
-          [[ -f "$UPLOAD_STATUS_FILE" ]] && UPLOAD_SUCCESS=$(cat "$UPLOAD_STATUS_FILE")
-          IMAGE_URL=""
-          [[ -f "$UPLOAD_URL_FILE" ]] && IMAGE_URL=$(cat "$UPLOAD_URL_FILE")
-          echo "upload_success=$UPLOAD_SUCCESS" >> $GITHUB_OUTPUT
-          if [[ -n "$IMAGE_URL" ]]; then
-            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
-          fi
-          
-          if [[ "$UPLOAD_SUCCESS" == "true" && -n "$IMAGE_URL" ]]; then
-            echo "::notice title=Chart URL::$IMAGE_URL"
+          if [[ -f "$CHART_FILE" ]]; then
+            # Convert to base64 for embedding
+            BASE64_CHART=$(base64 "$CHART_FILE" | tr -d '\n')
+            
+            # Add to GitHub Step Summary (visible in workflow run)
+            echo "### 📊 Runner Resource Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "![Runner Metrics](data:image/png;base64,${BASE64_CHART})" >> $GITHUB_STEP_SUMMARY
+            
+            # Also save base64 for PR comment
+            echo "$BASE64_CHART" > "$HOME/.solo/logs/chart_base64.txt"
+            echo "upload_success=true" >> $GITHUB_OUTPUT
+            echo "chart_base64=$BASE64_CHART" >> $GITHUB_OUTPUT
           else
-            echo "::warning::Chart upload failed; metrics are still available in artifacts."
+            echo "upload_success=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Write Log Metrics Message File
@@ -530,12 +501,15 @@ jobs:
             echo "### 📊 Runner Resource Usage" >> $LOG_FILE
             echo "" >> $LOG_FILE
             
-            # Embed chart image if uploaded successfully
+            # Embed chart image using base64 data URL
             if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
-              echo "![Runner Resource Metrics](${{ steps.upload-chart.outputs.image_url }})" >> $LOG_FILE
+              BASE64_CHART="${{ steps.upload-chart.outputs.chart_base64 }}"
+              echo "![Runner Resource Metrics](data:image/png;base64,${BASE64_CHART})" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo "_Chart is also visible in the [workflow run summary](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
               echo "" >> $LOG_FILE
             else
-              # Show text summary only if image upload failed
+              # Show text summary if chart embedding failed
               METRICS_CSV="${HOME}/.solo/logs/runner-metrics.csv"
               if [[ -f "$METRICS_CSV" ]]; then
                 PEAK_CPU=$(tail -n +2 "$METRICS_CSV" | cut -d',' -f2 | sort -rn | head -1)
@@ -543,7 +517,7 @@ jobs:
                 echo "**Peak Usage:** CPU: ${PEAK_CPU}% | Memory: ${PEAK_MEM}%" >> $LOG_FILE
                 echo "" >> $LOG_FILE
               fi
-              echo "⚠️ Chart upload failed. Full metrics available in workflow logs." >> $LOG_FILE
+              echo "⚠️ Chart available in [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})." >> $LOG_FILE
               echo "" >> $LOG_FILE
             fi
           fi
