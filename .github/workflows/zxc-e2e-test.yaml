@@ -488,40 +488,26 @@ jobs:
             echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
           fi
 
-      - name: Encode Chart as Base64
-        id: upload-chart
-        if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' && steps.generate-chart.outputs.chart_file != '' }}
-        run: |
-          CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
-          
-          if [[ -f "$CHART_FILE" ]]; then
-            echo "Encoding chart as base64..."
-            # Convert to base64 for embedding (remove line breaks)
-            BASE64_CHART=$(base64 "$CHART_FILE" | tr -d '\n')
+      - name: Comment PR with Resource Chart
+        if: >-
+          ${{ always() && !cancelled() && github.event_name == 'pull_request' &&
+          steps.generate-chart.outputs.chart_generated == 'true' &&
+          steps.generate-chart.outputs.chart_file != '' &&
+          github.event.pull_request.head.repo.fork == false }}
+        uses: opengisch/comment-pr-with-images@501ce2dabd4744c4ccfad563f6af7b33d5a0779a # v0.0.5
+        with:
+          files: ${{ steps.generate-chart.outputs.chart_file }}
+          message: |
+            ### 📊 Runner Resource Usage - ${{ inputs.custom-job-label }}
             
-            # Check if base64 encoding succeeded and is not empty
-            if [[ -z "$BASE64_CHART" ]]; then
-              echo "::error::Base64 encoding failed or produced empty output"
-              echo "upload_success=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+            ![Resource Usage Chart]({{IMAGE_URL}})
             
-            # Save to file to avoid output size limits
-            echo "$BASE64_CHART" > "$HOME/.solo/logs/chart_base64.txt"
-            
-            # Set outputs
-            echo "upload_success=true" >> $GITHUB_OUTPUT
-            echo "chart_base64=$BASE64_CHART" >> $GITHUB_OUTPUT
-            
-            echo "Chart encoded successfully ($(echo -n "$BASE64_CHART" | wc -c) bytes)"
-          else
-            echo "::warning::Chart file not found: $CHART_FILE"
-            echo "upload_success=false" >> $GITHUB_OUTPUT
-          fi
+            _View full logs in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_
+          header: resource-metrics-${{ inputs.test-script }}
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ always() && !cancelled() && (steps.log-metrics.outputs.json_log != '{}' || steps.generate-chart.outputs.chart_generated == 'true') }}
+        if: ${{ always() && !cancelled() && steps.log-metrics.outputs.json_log != '{}' }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -529,49 +515,7 @@ jobs:
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
           
-          # Add resource metrics chart if available
-          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
-            echo "### 📊 Runner Resource Usage" >> $LOG_FILE
-            echo "" >> $LOG_FILE
-            
-            # Embed chart image using base64 data URL (WebP format)
-            if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
-              # Read base64 from file instead of output variable to avoid size limits
-              BASE64_FILE="$HOME/.solo/logs/chart_base64.txt"
-              if [[ -f "$BASE64_FILE" ]]; then
-                BASE64_CHART=$(cat "$BASE64_FILE")
-                BASE64_SIZE=$(echo -n "$BASE64_CHART" | wc -c)
-                echo "::notice::Embedding chart image (base64 size: ${BASE64_SIZE} bytes)"
-                # Try HTML img tag with explicit width for better compatibility
-                echo "<details open>" >> $LOG_FILE
-                echo "<summary>📈 Resource Usage Chart</summary>" >> $LOG_FILE
-                echo "" >> $LOG_FILE
-                echo "<img src=\"data:image/webp;base64,${BASE64_CHART}\" alt=\"Runner Resource Metrics\" width=\"800\" />" >> $LOG_FILE
-                echo "" >> $LOG_FILE
-                echo "_If the chart doesn't display, download it from [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})._" >> $LOG_FILE
-                echo "" >> $LOG_FILE
-                echo "</details>" >> $LOG_FILE
-              else
-                echo "::warning::Base64 file not found: $BASE64_FILE"
-              fi
-              echo "" >> $LOG_FILE
-              echo "_View in [workflow run #${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})_" >> $LOG_FILE
-              echo "" >> $LOG_FILE
-            else
-              # Show text summary if chart embedding failed
-              METRICS_CSV="${HOME}/.solo/logs/runner-metrics.csv"
-              if [[ -f "$METRICS_CSV" ]]; then
-                PEAK_CPU=$(tail -n +2 "$METRICS_CSV" | cut -d',' -f2 | sort -rn | head -1)
-                PEAK_MEM=$(tail -n +2 "$METRICS_CSV" | cut -d',' -f5 | sort -rn | head -1)
-                echo "**Peak Usage:** CPU: ${PEAK_CPU}% | Memory: ${PEAK_MEM}%" >> $LOG_FILE
-                echo "" >> $LOG_FILE
-              fi
-              echo "⚠️ Chart available in [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})." >> $LOG_FILE
-              echo "" >> $LOG_FILE
-            fi
-          fi
-          
-          # Only add JSON log details if there's actual data
+          # Add JSON log details if there's actual data
           if [[ -n "$JSON_INPUT" && "$JSON_INPUT" != "{}" ]]; then
             echo "<details>" >> $LOG_FILE
             echo "<summary>" >> $LOG_FILE
@@ -594,6 +538,25 @@ jobs:
           mode: recreate
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-${{ inputs.test-script }}
+
+      - name: Upload Resource Chart as Artifact
+        if: ${{ always() && !cancelled() && steps.generate-chart.outputs.chart_generated == 'true' && steps.generate-chart.outputs.chart_file != '' }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: resource-chart-${{ inputs.test-script }}
+          path: ${{ steps.generate-chart.outputs.chart_file }}
+          overwrite: true
+          if-no-files-found: warn
+
+      - name: Comment PR with Chart from Artifact (Alternative Method)
+        if: >-
+          ${{ always() && !cancelled() && github.event_name == 'pull_request' &&
+          steps.generate-chart.outputs.chart_generated == 'true' &&
+          github.event.pull_request.head.repo.fork == false }}
+        uses: live-codes/pr-comment-from-artifact@b2ba4d27503c3c4f9884a1d6b5f6b3c5e6f7a8b9 # v1.0.1
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          artifact: resource-chart-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
         if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
