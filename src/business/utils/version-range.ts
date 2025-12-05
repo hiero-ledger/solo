@@ -90,7 +90,7 @@ export class VersionRange<T extends SemVer | number> {
       throw new RangeError('Invalid version range');
     }
 
-    const beginComparison = this.begin.compare(other.begin);
+    const beginComparison: number = this.begin.compare(other.begin);
     if (beginComparison !== 0) {
       return beginComparison;
     }

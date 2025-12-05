@@ -8,7 +8,7 @@ export class Comparators {
     throw new Error('Cannot instantiate utility class');
   }
 
-  public static readonly number = (l: number, r: number): number => {
+  public static readonly number: (l: number, r: number) => number = (l: number, r: number): number => {
     if (l < r) {
       return -1;
     } else if (l > r) {
@@ -18,7 +18,10 @@ export class Comparators {
     return 0;
   };
 
-  public static readonly configSource = (l: ConfigSource, r: ConfigSource): number => {
+  public static readonly configSource: (l: ConfigSource, r: ConfigSource) => number = (
+    l: ConfigSource,
+    r: ConfigSource,
+  ): number => {
     return Comparators.number(l.ordinal, r.ordinal);
   };
 }

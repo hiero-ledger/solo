@@ -14,14 +14,14 @@ export class PortUtilities {
    * @returns Promise that resolves to true if port is available, false otherwise
    */
   public static async isPortAvailable(port: number): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject): void => {
       const server: net.Server = net.createServer();
-      const timeout = setTimeout(() => {
+      const timeout: NodeJS.Timeout = setTimeout((): void => {
         server.close();
         reject(new Error(`Timeout while checking port ${port}`));
       }, 5000); // 5-second timeout
 
-      server.once('error', error => {
+      server.once('error', (error): void => {
         clearTimeout(timeout);
         if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
           // Port is in use
@@ -32,10 +32,10 @@ export class PortUtilities {
         }
       });
 
-      server.once('listening', () => {
+      server.once('listening', (): void => {
         clearTimeout(timeout);
         // Port is available
-        server.close(() => {
+        server.close((): void => {
           resolve(true);
         });
       });
@@ -60,13 +60,11 @@ export class PortUtilities {
       throw new Error(`Invalid startPort: ${startPort}. Must be an integer between 1 and 65535.`);
     }
     let port: number = startPort;
-    let attempts: number = 0;
     const startTime: number = Date.now();
 
     while (!(await this.isPortAvailable(port))) {
       logger.debug(`Port ${port} is not available, trying ${port + 1}`);
       port++;
-      attempts++;
 
       if (Date.now() - startTime > timeoutMs) {
         const errorMessage: string = `Failed to find an available port after ${timeoutMs}ms timeout, starting from port ${startPort}`;
