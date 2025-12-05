@@ -604,13 +604,12 @@ export class KeyManager {
       const notAfterDate: Date = new Date(notBeforeDate);
       notAfterDate.setDate(notAfterDate.getDate() + expireDays);
 
-      const pems: {private: string; public: string; cert: string; fingerprint: string} = selfsigned.generate(
+      const pems: {private: string; public: string; cert: string; fingerprint: string} = await selfsigned.generate(
         attributes,
         {
           keySize: 2048,
           algorithm: 'sha256',
           notBeforeDate,
-          // @ts-expect-error
           notAfterDate,
         },
       );
