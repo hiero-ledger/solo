@@ -70,12 +70,19 @@ generate_chart() {
   echo "Generating resource metrics chart..."
   
   if [[ -f "$METRICS_FILE" ]]; then
+    PYTHON_BIN=$(command -v python3 || command -v python || true)
+    if [[ -z "$PYTHON_BIN" ]]; then
+      echo "::error::Python interpreter not found on runner"
+      echo "chart_generated=false" >> $GITHUB_OUTPUT
+      return 1
+    fi
+
     echo "Installing matplotlib..."
-    pip install matplotlib --quiet
+    "$PYTHON_BIN" -m pip install matplotlib --quiet
     
     echo "Generating chart..."
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    python "${SCRIPT_DIR}/plot-runner-metrics.py" "$METRICS_FILE"
+    "$PYTHON_BIN" "${SCRIPT_DIR}/plot-runner-metrics.py" "$METRICS_FILE"
     
     CHART_FILE="${METRICS_FILE%.csv}.png"
     if [[ -f "$CHART_FILE" ]]; then
