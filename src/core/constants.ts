@@ -157,6 +157,19 @@ export const SOLO_HEDERA_MIRROR_IMPORTER = [
   'app.kubernetes.io/instance=mirror',
 ];
 
+// Component label selectors for pod discovery
+export const SOLO_RELAY_NAME_LABEL = 'app.kubernetes.io/name=relay';
+export const SOLO_MIRROR_IMPORTER_NAME_LABEL = 'app.kubernetes.io/name=importer';
+export const SOLO_MIRROR_GRPC_NAME_LABEL = 'app.kubernetes.io/name=grpc';
+export const SOLO_MIRROR_MONITOR_NAME_LABEL = 'app.kubernetes.io/name=monitor';
+export const SOLO_MIRROR_REST_NAME_LABEL = 'app.kubernetes.io/name=rest';
+export const SOLO_MIRROR_WEB3_NAME_LABEL = 'app.kubernetes.io/name=web3';
+export const SOLO_MIRROR_POSTGRES_NAME_LABEL = 'app.kubernetes.io/name=postgres';
+export const SOLO_MIRROR_REDIS_NAME_LABEL = 'app.kubernetes.io/name=redis';
+export const SOLO_MIRROR_RESTJAVA_NAME_LABEL = 'app.kubernetes.io/name=rest-java';
+export const SOLO_BLOCK_NODE_NAME_LABEL = 'app.kubernetes.io/name=block-node-1';
+export const SOLO_INGRESS_CONTROLLER_NAME_LABEL = 'app.kubernetes.io/name=haproxy-ingress';
+
 export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(JSON_RPC_RELAY_CHART, JSON_RPC_RELAY_CHART_URL)
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)

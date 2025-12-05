@@ -39,7 +39,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, getExternalAddress, isNumeric, sleep} from './helpers.js';
+import {entityId, isNumeric, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -58,6 +58,7 @@ import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {Address} from '../business/address/address.js';
 
 const REASON_FAILED_TO_GET_KEYS: string = 'failed to get keys for accountId';
 const REASON_SKIPPED: string = 'skipped since it does not have a genesis key';
@@ -484,7 +485,6 @@ export class AccountManager {
 
       // retrieve the list of services and build custom objects for the attributes we need
       for (const service of services) {
-        let loadBalancerEnabled: boolean = false;
         let nodeId: NodeId;
         const clusterReference: ClusterReferenceName = service.clusterReference;
 
@@ -538,7 +538,6 @@ export class AccountManager {
           }
           // solo.hedera.com/type: network-node-svc
           case 'network-node-svc': {
-            loadBalancerEnabled = service.spec!.type === 'LoadBalancer';
             if (
               service.metadata!.labels!['solo.hedera.com/node-id'] !== '' &&
               isNumeric(service.metadata!.labels!['solo.hedera.com/node-id'])
@@ -573,9 +572,13 @@ export class AccountManager {
         const consensusNode: ConsensusNode = this.remoteConfig
           .getConsensusNodes()
           .find((node): boolean => node.name === serviceBuilder.nodeAlias);
-        serviceBuilder.withExternalAddress(
-          await getExternalAddress(consensusNode, this.k8Factory.getK8(serviceBuilder.context), loadBalancerEnabled),
+
+        const address: Address = await Address.getExternalAddress(
+          consensusNode,
+          this.k8Factory.getK8(serviceBuilder.context),
+          0,
         );
+        serviceBuilder.withExternalAddress(address.hostString());
         serviceBuilderMap.set(serviceBuilder.key(), serviceBuilder);
       }
 

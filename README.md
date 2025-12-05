@@ -23,16 +23,17 @@ Every quarter a version will be designated as LTS (Long-Term Support) and will b
 
 ### Current Releases
 
-| Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
-|--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
-| 0.50.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-11-13   | 2026-02-13     |
-| 0.49.0       | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-11-06   | 2025-12-06     |
+| Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
+|--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
+| 0.51.0       | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-05   | 2026-01-05     |
+| 0.50.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-11-13   | 2026-02-13     |
+
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
 ### Hardware Requirements
 
-To run a one-node network, you will need to set up Docker Desktop with at least 12GB of memory and 4 CPUs.
+To run a one-node network, you will need to set up Docker Desktop with at least 12GB of memory and 6 CPU cores.
 
 ![alt text](images/docker-desktop.png)
 

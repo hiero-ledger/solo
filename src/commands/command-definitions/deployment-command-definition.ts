@@ -9,15 +9,19 @@ import {DeploymentCommand} from '../deployment.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as constants from '../../core/constants.js';
+import {NodeCommand} from '../node/index.js';
+import * as NodeFlags from '../node/flags.js';
 
 @injectable()
 export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.DeploymentCommand) public readonly deploymentCommand?: DeploymentCommand,
+    @inject(InjectTokens.NodeCommand) public readonly nodeCommand?: NodeCommand,
   ) {
     super();
     this.deploymentCommand = patchInject(deploymentCommand, InjectTokens.DeploymentCommand, this.constructor.name);
+    this.nodeCommand = patchInject(nodeCommand, InjectTokens.NodeCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -39,11 +43,19 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
+  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostics';
+  private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION =
+    'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
+
   public static readonly CLUSTER_ATTACH = 'attach';
 
   public static readonly CONFIG_LIST = 'list';
   public static readonly CONFIG_CREATE = 'create';
   public static readonly CONFIG_DELETE = 'delete';
+
+  public static readonly DIAGNOSTIC_ALL = 'all';
+  public static readonly DIAGNOSTIC_LOGS = 'logs';
+  public static readonly DIAGNOSTIC_CONNECTIONS = 'connections';
 
   public static readonly CREATE_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
@@ -53,6 +65,9 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
 
   public static readonly DELETE_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
+
+  public static readonly CONNECTIONS_COMMAND =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -108,6 +123,39 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand.delete,
               DeploymentCommand.DESTROY_FLAGS_LIST,
               [],
+            ),
+          ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_DESCRIPTION,
+        )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTIC_ALL,
+              'Captures logs, configs, and diagnostic artifacts from all consensus nodes and test connections.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.all,
+              NodeFlags.DIAGNOSTICS_CONNECTIONS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+              'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.connections,
+              NodeFlags.DIAGNOSTICS_CONNECTIONS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
+              'Get logs and configuration files from consensus node/nodes.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.logs,
+              NodeFlags.LOGS_FLAGS,
             ),
           ),
       )
