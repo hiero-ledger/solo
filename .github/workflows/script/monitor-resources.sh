@@ -8,6 +8,11 @@ set -eo pipefail
 
 METRICS_FILE="${HOME}/.solo/logs/runner-metrics.csv"
 PID_FILE="${HOME}/.solo/logs/monitor.pid"
+STATUS_DIR="${HOME}/.solo/logs"
+CHART_STATUS_FILE="$STATUS_DIR/chart_status"
+CHART_PATH_FILE="$STATUS_DIR/chart_path"
+UPLOAD_STATUS_FILE="$STATUS_DIR/chart_upload_status"
+UPLOAD_URL_FILE="$STATUS_DIR/chart_upload_url"
 
 start_monitoring() {
   echo "Starting resource monitoring..."
@@ -92,15 +97,21 @@ generate_chart() {
     
     CHART_FILE="${metrics_file%.csv}.png"
     if [[ -f "$CHART_FILE" ]]; then
+      echo "true" > "$CHART_STATUS_FILE"
+      echo "$CHART_FILE" > "$CHART_PATH_FILE"
       echo "chart_generated=true" >> $GITHUB_OUTPUT
       echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
       echo "Chart generated successfully: $CHART_FILE"
     else
+      echo "false" > "$CHART_STATUS_FILE"
+      : > "$CHART_PATH_FILE"
       echo "chart_generated=false" >> $GITHUB_OUTPUT
       echo "Failed to generate chart"
     fi
   else
     echo "No metrics CSV found at $metrics_file, skipping chart generation"
+    echo "false" > "$CHART_STATUS_FILE"
+    : > "$CHART_PATH_FILE"
     echo "chart_generated=false" >> $GITHUB_OUTPUT
   fi
 }
@@ -114,6 +125,8 @@ upload_chart() {
   if [[ ! -f "$CHART_FILE" ]]; then
     echo "Chart file not found: $CHART_FILE"
     echo "upload_success=false" >> $GITHUB_OUTPUT
+    echo "false" > "$UPLOAD_STATUS_FILE"
+    : > "$UPLOAD_URL_FILE"
     return 1
   fi
   
@@ -134,10 +147,14 @@ upload_chart() {
     echo "Chart uploaded successfully to GitHub: $IMAGE_URL"
     echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
     echo "upload_success=true" >> $GITHUB_OUTPUT
+    echo "true" > "$UPLOAD_STATUS_FILE"
+    echo "$IMAGE_URL" > "$UPLOAD_URL_FILE"
   else
     echo "Failed to upload chart to GitHub"
     echo "Response: $RESPONSE"
     echo "upload_success=false" >> $GITHUB_OUTPUT
+    echo "false" > "$UPLOAD_STATUS_FILE"
+    : > "$UPLOAD_URL_FILE"
     return 1
   fi
 }

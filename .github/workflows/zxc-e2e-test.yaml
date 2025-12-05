@@ -446,48 +446,77 @@ jobs:
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
-      - name: Generate and Upload Resource Metrics Chart
-        id: generate-upload-chart
+      - name: Generate Resource Metrics Chart
+        id: generate-chart
         if: ${{ always() }}
         run: |
-          # Generate chart
           ./.github/workflows/script/monitor-resources.sh generate_chart
           
-          # Upload to GitHub CDN if chart was generated
-          if [[ "${{ steps.generate-upload-chart.outputs.chart_generated }}" == "true" ]]; then
-            # For PRs, upload to PR; for workflow_dispatch, create a temporary issue
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              ISSUE_NUMBER="${{ github.event.pull_request.number }}"
-            else
-              # For workflow_dispatch, use run_id as issue identifier (upload to repo issues)
-              # Note: This requires an issue to exist. We'll use a workaround with gist or just log locally
-              echo "::warning::Chart generated but not uploaded (no PR context). Chart available in workflow logs."
-              CHART_FILE="${{ steps.generate-upload-chart.outputs.chart_file }}"
-              if [[ -f "$CHART_FILE" ]]; then
-                echo "::group::Chart File Location"
-                echo "Chart saved to: $CHART_FILE"
-                echo "To view the chart, download the workflow logs artifact or run this workflow from a PR."
-                echo "::endgroup::"
-              fi
-              # Skip upload for non-PR events
-              exit 0
+          CHART_STATUS_FILE="$HOME/.solo/logs/chart_status"
+          CHART_PATH_FILE="$HOME/.solo/logs/chart_path"
+          CHART_GENERATED="false"
+          [[ -f "$CHART_STATUS_FILE" ]] && CHART_GENERATED=$(cat "$CHART_STATUS_FILE")
+          CHART_FILE=""
+          [[ -f "$CHART_PATH_FILE" ]] && CHART_FILE=$(cat "$CHART_PATH_FILE")
+          echo "chart_generated=$CHART_GENERATED" >> $GITHUB_OUTPUT
+          if [[ -n "$CHART_FILE" ]]; then
+            echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Resource Metrics Chart
+        id: upload-chart
+        if: ${{ always() }}
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+          CHART_GENERATED="${{ steps.generate-chart.outputs.chart_generated }}"
+          UPLOAD_STATUS_FILE="$HOME/.solo/logs/chart_upload_status"
+          UPLOAD_URL_FILE="$HOME/.solo/logs/chart_upload_url"
+          
+          if [[ "$CHART_GENERATED" != "true" ]]; then
+            echo "::warning::Chart generation did not produce a file"
+            exit 0
+          fi
+          
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "::warning::Chart generated but not uploaded (no PR context). Chart available in workflow logs."
+            if [[ -n "$CHART_FILE" && -f "$CHART_FILE" ]]; then
+              echo "::group::Chart File Location"
+              echo "Chart saved to: $CHART_FILE"
+              echo "Download the logs artifact to view the chart when running outside a PR."
+              echo "::endgroup::"
             fi
-            
-            ./.github/workflows/script/monitor-resources.sh upload_chart \
-              "${{ steps.generate-upload-chart.outputs.chart_file }}" \
-              "${ISSUE_NUMBER}" \
-              "${{ github.repository }}" \
-              "${{ secrets.GITHUB_TOKEN }}"
-            
-            # Log the chart URL for easy access
-            if [[ "${{ steps.generate-upload-chart.outputs.upload_success }}" == "true" ]]; then
-              echo "::notice title=Chart URL::${{ steps.generate-upload-chart.outputs.image_url }}"
-            fi
+            exit 0
+          fi
+          
+          ./.github/workflows/script/monitor-resources.sh upload_chart \
+            "$CHART_FILE" \
+            "$PR_NUMBER" \
+            "$REPO_NAME" \
+            "$GH_TOKEN"
+          
+          UPLOAD_SUCCESS="false"
+          [[ -f "$UPLOAD_STATUS_FILE" ]] && UPLOAD_SUCCESS=$(cat "$UPLOAD_STATUS_FILE")
+          IMAGE_URL=""
+          [[ -f "$UPLOAD_URL_FILE" ]] && IMAGE_URL=$(cat "$UPLOAD_URL_FILE")
+          echo "upload_success=$UPLOAD_SUCCESS" >> $GITHUB_OUTPUT
+          if [[ -n "$IMAGE_URL" ]]; then
+            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+          fi
+          
+          if [[ "$UPLOAD_SUCCESS" == "true" && -n "$IMAGE_URL" ]]; then
+            echo "::notice title=Chart URL::$IMAGE_URL"
+          else
+            echo "::warning::Chart upload failed; metrics are still available in artifacts."
           fi
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ always() && !cancelled() && (steps.log-metrics.outputs.json_log != '{}' || steps.generate-upload-chart.outputs.chart_generated == 'true') }}
+        if: ${{ always() && !cancelled() && (steps.log-metrics.outputs.json_log != '{}' || steps.generate-chart.outputs.chart_generated == 'true') }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -496,13 +525,13 @@ jobs:
           echo "" >> $LOG_FILE
           
           # Add resource metrics chart if available
-          if [[ "${{ steps.generate-upload-chart.outputs.chart_generated }}" == "true" ]]; then
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
             echo "### 📊 Runner Resource Usage" >> $LOG_FILE
             echo "" >> $LOG_FILE
             
             # Embed chart image if uploaded successfully
-            if [[ "${{ steps.generate-upload-chart.outputs.upload_success }}" == "true" ]]; then
-              echo "![Runner Resource Metrics](${{ steps.generate-upload-chart.outputs.image_url }})" >> $LOG_FILE
+            if [[ "${{ steps.upload-chart.outputs.upload_success }}" == "true" ]]; then
+              echo "![Runner Resource Metrics](${{ steps.upload-chart.outputs.image_url }})" >> $LOG_FILE
               echo "" >> $LOG_FILE
             else
               # Show text summary only if image upload failed
