@@ -157,7 +157,7 @@ case "${1:-}" in
     upload_chart "${2}" "${3}" "${4}" "${5}"
     ;;
   *)
-    echo "Usage: $0 {start|stop|generate-chart [csv]|upload-chart <chart_file> <pr_number> <repo> <token>}"
+    echo "Usage: $0 {start|stop|generate_chart [csv]|upload_chart <chart_file> <pr_number> <repo> <token>}"
     exit 1
     ;;
 esac

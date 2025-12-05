@@ -451,7 +451,7 @@ jobs:
         if: ${{ always() }}
         run: |
           # Generate chart
-          ./.github/workflows/script/monitor-resources.sh generate-chart
+          ./.github/workflows/script/monitor-resources.sh generate_chart
           
           # Upload to GitHub CDN if chart was generated
           if [[ "${{ steps.generate-upload-chart.outputs.chart_generated }}" == "true" ]]; then
@@ -473,7 +473,7 @@ jobs:
               exit 0
             fi
             
-            ./.github/workflows/script/monitor-resources.sh upload-chart \
+            ./.github/workflows/script/monitor-resources.sh upload_chart \
               "${{ steps.generate-upload-chart.outputs.chart_file }}" \
               "${ISSUE_NUMBER}" \
               "${{ github.repository }}" \
