@@ -474,9 +474,9 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // Determine if we should reuse values based on the default MIRROR_NODE_VERSION
-    // If upgrading from a version < v0.143.0, we need to skip reuseValues to avoid
-    // RegularExpression rules from old version causing relay node request failures
-    const shouldReuseValues: boolean = semver.gt(MIRROR_NODE_VERSION, 'v0.143.0');
+    // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
+    // to avoid RegularExpression rules from old version causing relay node request failures
+    const shouldReuseValues: boolean = semver.gt(MIRROR_NODE_VERSION, constants.MIRROR_NODE_VERSION_BOUNDARY);
 
     await this.chartManager.upgrade(
       config.namespace,
