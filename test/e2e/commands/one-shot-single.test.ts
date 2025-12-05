@@ -8,7 +8,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
-import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
+import {DEFAULT_LOCAL_CONFIG_FILE, SOLO_CACHE_DIR} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {
@@ -29,6 +29,7 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
+import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {ShellRunner} from '../../../src/core/shell-runner.js';
 
@@ -69,6 +70,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
+        const generatedDeploymentName: string = fs.readFileSync(
+          PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
+          'utf8',
+        );
+        await main(soloDeploymentDiagnosticsLogs(testName, generatedDeploymentName));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
@@ -77,7 +83,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, options.minimalSetup));
+        await main(soloOneShotDeploy(testName, namespace, options.minimalSetup));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
@@ -151,7 +157,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, minimalSetup: boolean): string[] {
+export function soloOneShotDeploy(testName: string, namespace: NamespaceName, minimalSetup: boolean): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -159,6 +165,8 @@ export function soloOneShotDeploy(testName: string, minimalSetup: boolean): stri
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
+    optionFromFlag(Flags.namespace),
+    namespace.name,
     optionFromFlag(Flags.minimalSetup),
     minimalSetup ? 'true' : 'false',
   );
@@ -171,6 +179,14 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloDeploymentDiagnosticsLogs(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push('deployment', 'diagnostics', 'logs', '--deployment', deployment);
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
