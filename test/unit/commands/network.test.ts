@@ -230,6 +230,10 @@ describe('NetworkCommand unit tests', (): void => {
         options.remoteConfig.updateComponentVersion = sinon.stub();
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
 
         // @ts-expect-error - TS2341: to mock
         networkCommand.componentFactory = {
@@ -260,6 +264,10 @@ describe('NetworkCommand unit tests', (): void => {
         const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
@@ -301,6 +309,7 @@ describe('NetworkCommand unit tests', (): void => {
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         // @ts-expect-error - to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
+        networkCommand.configManager.update(argv.build());
 
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());

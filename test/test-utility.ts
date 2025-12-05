@@ -421,7 +421,7 @@ export function endToEndTestSuite(
         deployNetworkTest(argv, commandInvoker, networkCmd);
       }
 
-      if (startNodes) {
+      if (deployNetwork && startNodes) {
         startNodesTest(argv, commandInvoker, nodeCmd);
       }
     });

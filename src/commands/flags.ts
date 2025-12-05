@@ -1066,6 +1066,17 @@ export class Flags {
     },
   };
 
+  public static readonly enableMonitoringSupport: CommandFlag = {
+    constName: 'enableMonitoringSupport',
+    name: 'enable-monitoring-support',
+    definition: {
+      describe: 'Enables CRDs for Prometheus and Grafana.',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly deletePvcs: CommandFlag = {
     constName: 'deletePvcs',
     name: 'delete-pvcs',
@@ -2906,6 +2917,7 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.enableMonitoringSupport,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

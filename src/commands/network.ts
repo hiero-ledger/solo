@@ -29,15 +29,15 @@ import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
+  type ComponentId,
   type Context,
   type DeploymentName,
+  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
-  type PrivateKeyAndCertificateObject,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
-  type ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -66,6 +66,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Version} from '../business/utils/version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import * as versions from '../../version.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -129,6 +130,7 @@ export interface NetworkDeployConfigClass {
   podLog: string;
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
+  enableMonitoringSupport: boolean;
 }
 
 interface NetworkDeployContext {
@@ -225,6 +227,7 @@ export class NetworkCommand extends BaseCommand {
       flags.blockNodeCfg,
       flags.serviceMonitor,
       flags.podLog,
+      flags.enableMonitoringSupport,
     ],
   };
 
@@ -392,7 +395,7 @@ export class NetworkCommand extends BaseCommand {
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
     const profileName: string = this.configManager.getFlag(flags.profileName);
-    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
       'templates',
@@ -454,7 +457,7 @@ export class NetworkCommand extends BaseCommand {
     }
 
     // add debug options to the debug node
-    config.consensusNodes.filter(consensusNode => {
+    config.consensusNodes.filter((consensusNode): void => {
       if (consensusNode.name === config.debugNodeAlias) {
         valuesArguments[consensusNode.cluster] = addDebugOptions(
           valuesArguments[consensusNode.cluster],
@@ -635,7 +638,7 @@ export class NetworkCommand extends BaseCommand {
           const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
           // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), null, 2);
+          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);
 
           this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNodeId}`);
@@ -654,7 +657,7 @@ export class NetworkCommand extends BaseCommand {
 
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
           // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), null, 2);
+          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);
 
           valuesArguments[clusterReference] += ` --set-file "hedera.configMaps.blockNodesJson=${blockNodesJsonPath}"`;
@@ -663,6 +666,12 @@ export class NetworkCommand extends BaseCommand {
         this.logger.debug(
           'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeConfiguration',
         );
+      }
+    }
+
+    if (config.enableMonitoringSupport) {
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ' --set "crs.podLog.enabled=true" --set "crs.serviceMonitor.enabled=true"';
       }
     }
 
@@ -715,8 +724,6 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
-    this.configManager.update(argv);
-
     const flagsWithDisabledPrompts: CommandFlag[] = [
       flags.apiPermissionProperties,
       flags.app,
@@ -788,8 +795,8 @@ export class NetworkCommand extends BaseCommand {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-    const networkNodeVersion = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
+    const networkNodeVersion: SemVer = new SemVer(config.releaseTag);
+    const minimumVersionForNonZeroRealms: SemVer = new SemVer('0.60.0');
     if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
@@ -937,19 +944,118 @@ export class NetworkCommand extends BaseCommand {
     await Promise.all(promises);
   }
 
+  private async crdExists(context: string, crdName: string): Promise<boolean> {
+    return await this.k8Factory.getK8(context).crds().ifExists(crdName);
+  }
+
+  /**
+   * Ensure the PodLogs CRD from Grafana Alloy is installed
+   */
+  private async ensurePodLogsCrd({contexts}: NetworkDeployConfigClass): Promise<void> {
+    const PODLOGS_CRD: string = 'podlogs.monitoring.grafana.com';
+    const CRD_URL: string = `https://raw.githubusercontent.com/grafana/alloy/${versions.GRAFANA_PODLOGS_CRD_VERSION}/operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml`;
+
+    for (const context of contexts as string[]) {
+      const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
+      if (exists) {
+        this.logger.debug(`CRD ${PODLOGS_CRD} already exists in context ${context}`);
+        continue;
+      }
+
+      this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
+
+      const temporaryFile: string = PathEx.join(path.sep, 'tmp', 'podlogs-crd.yaml');
+
+      // download YAML from GitHub
+      if (!fs.existsSync(temporaryFile)) {
+        const response: Response = await fetch(CRD_URL);
+        if (!response.ok) {
+          throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
+        }
+
+        const yamlContent: string = await response.text();
+        fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
+      }
+
+      await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
+    }
+  }
+
+  /**
+   * Ensure all Prometheus Operator CRDs exist; install chart only if needed.
+   * If all CRDs are already present or monitoring support is disabled, skip installation.
+   */
+  /** Ensure Prometheus Operator CRDs are present; install missing ones via the chart */
+  private async ensurePrometheusOperatorCrds({clusterRefs, namespace}: NetworkDeployConfigClass): Promise<void> {
+    const CRDS: {key: string; crd: string}[] = [
+      {key: 'alertmanagerconfigs', crd: 'alertmanagerconfigs.monitoring.coreos.com'},
+      {key: 'alertmanagers', crd: 'alertmanagers.monitoring.coreos.com'},
+      {key: 'podmonitors', crd: 'podmonitors.monitoring.coreos.com'},
+      {key: 'probes', crd: 'probes.monitoring.coreos.com'},
+      {key: 'prometheusagents', crd: 'prometheusagents.monitoring.coreos.com'},
+      {key: 'prometheuses', crd: 'prometheuses.monitoring.coreos.com'},
+      {key: 'prometheusrules', crd: 'prometheusrules.monitoring.coreos.com'},
+      {key: 'scrapeconfigs', crd: 'scrapeconfigs.monitoring.coreos.com'},
+      {key: 'servicemonitors', crd: 'servicemonitors.monitoring.coreos.com'},
+      {key: 'thanosrulers', crd: 'thanosrulers.monitoring.coreos.com'},
+    ];
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for (const [_, context] of clusterRefs) {
+      let valuesArgument: string = '';
+      let missingCount: number = 0;
+
+      for (const {key, crd} of CRDS) {
+        const exists: boolean = await this.crdExists(context, crd);
+        if (exists) {
+          valuesArgument += ` --set "${key}.enabled=false"`;
+        } else {
+          missingCount++;
+        }
+      }
+
+      if (missingCount === 0) {
+        this.logger.info(`All Prometheus Operator CRDs already present in context ${context}; skipping installation.`);
+        continue;
+      }
+
+      const setupMap: Map<string, string> = new Map([
+        [constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL],
+      ]);
+
+      await this.chartManager.setup(setupMap);
+
+      await this.chartManager.install(
+        namespace,
+        constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
+        valuesArgument,
+        context,
+      );
+
+      showVersionBanner(
+        this.logger,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
+      );
+    }
+  }
+
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListr<NetworkDeployContext> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv, true, true);
+            this.configManager.update(argv);
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv, true, true);
             lease = await this.leaseManager.create();
 
             context_.config = await this.prepareConfig(task, argv);
@@ -1013,6 +1119,24 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
+          title: 'Install monitoring CRDs',
+          skip: ({config: {enableMonitoringSupport}}): boolean => !enableMonitoringSupport,
+          task: (_, task): SoloListr<NetworkDeployContext> => {
+            const tasks: SoloListrTask<NetworkDeployContext>[] = [
+              {
+                title: 'Pod Logs CRDs',
+                task: async ({config}): Promise<void> => await this.ensurePodLogsCrd(config),
+              },
+              {
+                title: 'Prometheus Operator CRDs',
+                task: async ({config}): Promise<void> => await this.ensurePrometheusOperatorCrds(config),
+              },
+            ];
+
+            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+          },
+        },
+        {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
@@ -1053,7 +1177,7 @@ export class NetworkCommand extends BaseCommand {
         // TODO: Move the check for load balancer logic to a utility method or class
         {
           title: 'Check for load balancer',
-          skip: context_ => context_.config.loadBalancerEnabled === false,
+          skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
           task: (context_, task): SoloListr<NetworkDeployContext> => {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
             const config: NetworkDeployConfigClass = context_.config;
@@ -1064,7 +1188,7 @@ export class NetworkCommand extends BaseCommand {
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
                   let attempts: number = 0;
-                  let svc: Service[] | null = null;
+                  let svc: Service[];
 
                   while (attempts < constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS) {
                     svc = await this.k8Factory
@@ -1109,7 +1233,7 @@ export class NetworkCommand extends BaseCommand {
         // TODO: find a better solution to avoid the need to redeploy the chart
         {
           title: 'Redeploy chart with external IP address config',
-          skip: context_ => context_.config.loadBalancerEnabled === false,
+          skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
             // Update the valuesArgMap with the external IP addresses
             // This regenerates the config.txt and genesis-network.json files with the external IP addresses
@@ -1168,7 +1292,7 @@ export class NetworkCommand extends BaseCommand {
             for (const consensusNode of config.consensusNodes) {
               subTasks.push({
                 title: `Check HAProxy for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
-                task: async () =>
+                task: async (): Promise<Pod[]> =>
                   await this.k8Factory
                     .getK8(consensusNode.context)
                     .pods()
@@ -1185,7 +1309,7 @@ export class NetworkCommand extends BaseCommand {
             for (const consensusNode of config.consensusNodes) {
               subTasks.push({
                 title: `Check Envoy Proxy for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
-                task: async () =>
+                task: async (): Promise<Pod[]> =>
                   await this.k8Factory
                     .getK8(consensusNode.context)
                     .pods()
@@ -1213,13 +1337,13 @@ export class NetworkCommand extends BaseCommand {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [
               {
                 title: 'Check MinIO',
-                task: async context_ => {
-                  for (const context of context_.config.contexts) {
+                task: async ({config: {contexts, namespace}}): Promise<void> => {
+                  for (const context of contexts) {
                     await this.k8Factory
                       .getK8(context)
                       .pods()
                       .waitForReadyStatus(
-                        context_.config.namespace,
+                        namespace,
                         ['v1.min.io/tenant=minio'],
                         constants.PODS_RUNNING_MAX_ATTEMPTS,
                         constants.PODS_RUNNING_DELAY,
@@ -1227,10 +1351,10 @@ export class NetworkCommand extends BaseCommand {
                   }
                 },
                 // skip if only cloud storage is/are used
-                skip: context_ =>
-                  context_.config.storageType === constants.StorageType.GCS_ONLY ||
-                  context_.config.storageType === constants.StorageType.AWS_ONLY ||
-                  context_.config.storageType === constants.StorageType.AWS_AND_GCS,
+                skip: ({config: {storageType}}): boolean =>
+                  storageType === constants.StorageType.GCS_ONLY ||
+                  storageType === constants.StorageType.AWS_ONLY ||
+                  storageType === constants.StorageType.AWS_AND_GCS,
               },
             ];
 

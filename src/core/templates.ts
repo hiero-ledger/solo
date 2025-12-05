@@ -156,7 +156,7 @@ export class Templates {
     dep: string,
     osPlatform: NodeJS.Platform | string = os.platform(),
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
-  ) {
+  ): string {
     switch (dep) {
       case constants.HELM:
       case constants.KIND:
