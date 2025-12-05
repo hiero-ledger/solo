@@ -61,7 +61,7 @@ export class K8Client implements K8 {
   private k8IngressClasses: IngressClasses;
   private k8Secrets: Secrets;
   private k8Ingresses: Ingresses;
-  private k8CRDs: Crds;
+  private k8Crds: Crds;
   private k8Manifests: K8ClientManifests;
 
   /**
@@ -103,7 +103,7 @@ export class K8Client implements K8 {
     this.k8IngressClasses = new K8ClientIngressClasses(this.networkingApi);
     this.k8Secrets = new K8ClientSecrets(this.kubeClient);
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
-    this.k8CRDs = new K8ClientCrds(this.extensionApi);
+    this.k8Crds = new K8ClientCrds(this.extensionApi);
     this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
 
     return this;
@@ -181,7 +181,7 @@ export class K8Client implements K8 {
   }
 
   public crds(): Crds {
-    return this.k8CRDs;
+    return this.k8Crds;
   }
 
   public rbac(): k8s.RbacAuthorizationV1Api {

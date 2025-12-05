@@ -964,7 +964,7 @@ export class NetworkCommand extends BaseCommand {
 
       this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
 
-      const temporaryFile: string = PathEx.join('/tmp', 'podlogs-crd.yaml');
+      const temporaryFile: string = PathEx.join(path.sep, 'tmp', 'podlogs-crd.yaml');
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
