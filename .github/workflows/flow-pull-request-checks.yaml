@@ -151,9 +151,3 @@ jobs:
     secrets:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
-  hugo-docs-build:
-    name: Hugo Docs Build
-    uses: ./.github/workflows/zxc-hugo-build.yaml
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) }}
-    with:
-      ref: ${{ github.ref }}
