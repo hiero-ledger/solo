@@ -30,7 +30,7 @@ import {
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
-import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import {INGRESS_CONTROLLER_VERSION, MIRROR_NODE_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -473,6 +473,11 @@ export class MirrorNodeCommand extends BaseCommand {
       }
     }
 
+    // Determine if we should reuse values based on the default MIRROR_NODE_VERSION
+    // If upgrading from a version < v0.143.0, we need to skip reuseValues to avoid
+    // RegularExpression rules from old version causing relay node request failures
+    const shouldReuseValues: boolean = semver.gt(MIRROR_NODE_VERSION, 'v0.143.0');
+
     await this.chartManager.upgrade(
       config.namespace,
       config.releaseName,
@@ -481,7 +486,7 @@ export class MirrorNodeCommand extends BaseCommand {
       config.mirrorNodeVersion,
       config.valuesArg,
       config.clusterContext,
-      false, // if set true, RegularExpression rules from old version would cause relay node requests to fail
+      shouldReuseValues,
     );
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
