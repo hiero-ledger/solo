@@ -248,7 +248,42 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   protected getClusterReference(): ClusterReferenceName {
-    return this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+    const flagValue: ClusterReferenceName = this.configManager.getFlag(flags.clusterRef);
+    
+    // If flag is provided, use it
+    if (flagValue) {
+      return flagValue;
+    }
+    
+    // Try to auto-select if only one cluster exists in the deployment
+    try {
+      if (this.remoteConfig?.isLoaded()) {
+        const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
+        
+        if (clusterRefs.size === 1) {
+          // Auto-select the only available cluster
+          const clusterRef: ClusterReferenceName = Array.from(clusterRefs.keys())[0];
+          this.logger.debug(`Auto-selected cluster reference: ${clusterRef} (only cluster in deployment)`);
+          return clusterRef;
+        } else if (clusterRefs.size > 1) {
+          // Multiple clusters exist - list them in error message
+          const clusterList: string = Array.from(clusterRefs.keys()).join(', ');
+          throw new SoloError(
+            `Multiple clusters found (${clusterList}). Please specify --cluster-ref to select one.`
+          );
+        }
+      }
+    } catch (error) {
+      // If it's our SoloError about multiple clusters, re-throw it
+      if (error instanceof SoloError && error.message.includes('Multiple clusters found')) {
+        throw error;
+      }
+      // Otherwise, fall through to default behavior
+      this.logger.debug(`Could not auto-select cluster: ${error.message}`);
+    }
+    
+    // Fall back to current cluster from kubeconfig
+    return this.k8Factory.default().clusters().readCurrent();
   }
 
   protected getClusterContext(clusterReference: ClusterReferenceName): Context {
