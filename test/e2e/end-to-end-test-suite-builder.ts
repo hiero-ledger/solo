@@ -87,11 +87,6 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
-  public withCollectDiagnosticLogs(collectDiagnosticLogs: boolean): this {
-    this.collectDiagnosticLogs = collectDiagnosticLogs;
-    return this;
-  }
-
   public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
