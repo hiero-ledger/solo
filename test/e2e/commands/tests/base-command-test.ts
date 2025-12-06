@@ -10,6 +10,7 @@ import {type NodeCommand} from '../../../../src/commands/node/index.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {Argv} from '../../../helpers/argv-wrapper.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
+import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 export class BaseCommandTest {
   public static newArgv(): string[] {
@@ -43,7 +44,7 @@ export class BaseCommandTest {
    * Collects diagnostic logs using the deployment diagnostics command.
    * This is a shared helper used by both test patterns.
    */
-  public static async collectDiagnosticLogs(testName: string, testLogger: any, deployment: string): Promise<void> {
+  public static async collectDiagnosticLogs(testName: string, testLogger: SoloLogger, deployment: string): Promise<void> {
     try {
       testLogger.info(`${testName}: Collecting diagnostic logs...`);
 

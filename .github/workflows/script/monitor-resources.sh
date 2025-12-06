@@ -24,9 +24,9 @@ start_monitoring() {
       TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
       CPU_PERCENT=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
       MEM_INFO=$(free -g | grep Mem)
-      MEM_TOTAL=$(echo $MEM_INFO | awk '{print $2}')
-      MEM_USED=$(echo $MEM_INFO | awk '{print $3}')
-      MEM_PERCENT=$(echo $MEM_INFO | awk '{printf "%.1f", ($3/$2)*100}')
+      MEM_TOTAL=$(echo "$MEM_INFO" | awk '{print $2}')
+      MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
+      MEM_PERCENT=$(echo "$MEM_INFO" | awk '{if ($2 > 0) printf "%.1f", ($3/$2)*100; else print "0.0"}')
 
       echo "$TIMESTAMP,$CPU_PERCENT,$MEM_USED,$MEM_TOTAL,$MEM_PERCENT" >> "$METRICS_FILE"
       sleep 60
@@ -34,7 +34,7 @@ start_monitoring() {
   ) &
 
   MONITOR_PID=$!
-  echo $MONITOR_PID > "$PID_FILE"
+  echo "$MONITOR_PID" > "$PID_FILE"
   echo "Started resource monitoring (PID: $MONITOR_PID)"
 }
 
@@ -43,7 +43,7 @@ stop_monitoring() {
 
   if [[ -f "$PID_FILE" ]]; then
     MONITOR_PID=$(cat "$PID_FILE")
-    kill $MONITOR_PID 2>/dev/null || true
+    kill "$MONITOR_PID" 2>/dev/null || true
     rm -f "$PID_FILE"
     echo "Stopped resource monitoring (PID: $MONITOR_PID)"
   else

@@ -21,7 +21,6 @@ import {PodReference} from '../../../src/integration/kube/resources/pod/pod-refe
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';

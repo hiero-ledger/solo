@@ -7,8 +7,6 @@ import {endToEndTestSuite, getTestCluster} from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import fs from 'node:fs';

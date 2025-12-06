@@ -20,6 +20,14 @@ def create_ascii_chart(values: List[float], height: int = 15, width: int = 60,
     if not values:
         return "No data"
 
+    # Validate parameters to prevent division by zero
+    if height <= 0:
+        raise ValueError("height must be greater than 0")
+    if max_val <= 0:
+        raise ValueError("max_val must be greater than 0")
+    if width <= 0:
+        raise ValueError("width must be greater than 0")
+
     # Normalize values to chart height
     normalized: List[int] = [int((v / max_val) * height) for v in values]
 
@@ -125,14 +133,31 @@ if __name__ == '__main__':
         sys.exit(1)
 
     csv_file: str = sys.argv[1]
-    ascii_chart: str = plot_metrics_ascii(csv_file)
+
+    try:
+        ascii_chart: str = plot_metrics_ascii(csv_file)
+    except FileNotFoundError:
+        print(f"Error: CSV file not found: {csv_file}", file=sys.stderr)
+        sys.exit(1)
+    except PermissionError:
+        print(f"Error: Permission denied reading file: {csv_file}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading CSV file: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Print to stdout
     print(ascii_chart)
 
     # Save to file
     output_file: str = csv_file.replace('.csv', '-ascii.txt')
-    with open(output_file, 'w') as f:
-        f.write(ascii_chart)
-
-    print(f"\nASCII chart saved to: {output_file}", file=sys.stderr)
+    try:
+        with open(output_file, 'w') as f:
+            f.write(ascii_chart)
+        print(f"\nASCII chart saved to: {output_file}", file=sys.stderr)
+    except PermissionError:
+        print(f"Error: Permission denied writing to file: {output_file}", file=sys.stderr)
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error writing output file: {e}", file=sys.stderr)
+        sys.exit(1)
