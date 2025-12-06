@@ -24,6 +24,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - ready_for_review
   push:
     branches:
       - main
@@ -38,6 +39,7 @@ permissions:
 
 jobs:
   performance-test:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 90
     runs-on: hiero-solo-linux-large
     steps:
@@ -52,6 +54,8 @@ jobs:
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
         run: |
+          # Configure APT to use main Ubuntu archive (disable mirror rotation)
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
 

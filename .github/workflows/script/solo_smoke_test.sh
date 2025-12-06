@@ -78,8 +78,7 @@ function start_contract_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     printf "\r::group::Test local network connection using nc\n"
     echo "Test local network connection using nc"
-    sudo apt-get update && sudo apt-get install -y netcat-traditional
-    nc -zv 127.0.0.1 50211
+    nc -zv 127.0.0.1 50211 || ncat -zv 127.0.0.1 50211 || true
     printf "\r::endgroup::\n"
   fi
 

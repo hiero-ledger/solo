@@ -50,7 +50,6 @@ import {resetForTest} from './test-container.js';
 import {NamespaceName} from '../src/types/namespace/namespace-name.js';
 import {PodReference} from '../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../src/integration/kube/resources/container/container-reference.js';
-import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {type DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
@@ -70,6 +69,7 @@ import {ClusterReferenceCommandDefinition} from '../src/commands/command-definit
 import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
+import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -341,7 +341,11 @@ export function endToEndTestSuite(
 
       after(async function (): Promise<void> {
         this.timeout(Duration.ofMinutes(5).toMillis());
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+
+        // Use shared diagnostic log collection helper
+        const deployment: string = argv.getArg(flags.deployment) as string;
+        await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
+
         testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
       });
 

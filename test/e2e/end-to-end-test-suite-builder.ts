@@ -18,6 +18,7 @@ export class EndToEndTestSuiteBuilder {
   private serviceMonitor: boolean;
   private podLog: boolean;
   private minimalSetup: boolean;
+  private collectDiagnosticLogs: boolean = true; // Default to true
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -109,6 +110,7 @@ export class EndToEndTestSuiteBuilder {
       this.serviceMonitor || false,
       this.podLog || false,
       this.minimalSetup || false,
+      this.collectDiagnosticLogs,
       this.testSuiteCallback,
     );
   }
