@@ -24,9 +24,9 @@ start_monitoring() {
       TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
       CPU_PERCENT=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
       MEM_INFO=$(free -g | grep Mem)
-      MEM_TOTAL=$(echo $MEM_INFO | awk '{print $2}')
-      MEM_USED=$(echo $MEM_INFO | awk '{print $3}')
-      MEM_PERCENT=$(echo $MEM_INFO | awk '{printf "%.1f", ($3/$2)*100}')
+      MEM_TOTAL=$(echo "$MEM_INFO" | awk '{print $2}')
+      MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
+      MEM_PERCENT=$(echo "$MEM_INFO" | awk '{printf "%.1f", ($3/$2)*100}')
 
       echo "$TIMESTAMP,$CPU_PERCENT,$MEM_USED,$MEM_TOTAL,$MEM_PERCENT" >> "$METRICS_FILE"
       sleep 60
