@@ -18,6 +18,7 @@ export class EndToEndTestSuiteBuilder {
   private serviceMonitor: boolean;
   private podLog: boolean;
   private minimalSetup: boolean;
+  private collectDiagnosticLogs: boolean = true; // Default to true
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -86,6 +87,11 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withCollectDiagnosticLogs(collectDiagnosticLogs: boolean): this {
+    this.collectDiagnosticLogs = collectDiagnosticLogs;
+    return this;
+  }
+
   public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
@@ -109,6 +115,7 @@ export class EndToEndTestSuiteBuilder {
       this.serviceMonitor || false,
       this.podLog || false,
       this.minimalSetup || false,
+      this.collectDiagnosticLogs,
       this.testSuiteCallback,
     );
   }

@@ -7,7 +7,6 @@ import {endToEndTestSuite, getTestCluster} from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -80,8 +79,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await main(restoreArguments);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('get the logs and delete the namespace', async () => {
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+    it('delete the namespace', async () => {
       await k8Factory.default().namespaces().delete(namespace);
     }).timeout(Duration.ofMinutes(2).toMillis());
   });

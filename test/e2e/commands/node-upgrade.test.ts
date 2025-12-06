@@ -56,7 +56,6 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     after(async function () {
       this.timeout(Duration.ofMinutes(10).toMillis());
 
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
       await k8Factory.default().namespaces().delete(namespace);
     });
 

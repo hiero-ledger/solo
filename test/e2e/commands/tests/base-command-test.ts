@@ -3,6 +3,13 @@
 import {type CommandFlag} from '../../../../src/types/flag-types.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
+import {type BaseTestOptions} from './base-test-options.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
+import {type NodeCommand} from '../../../../src/commands/node/index.js';
+import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
+import {Argv} from '../../../helpers/argv-wrapper.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 
 export class BaseCommandTest {
   public static newArgv(): string[] {
@@ -30,5 +37,46 @@ export class BaseCommandTest {
     }
 
     return argv;
+  }
+
+  /**
+   * Collects diagnostic logs using the deployment diagnostics command.
+   * This is a shared helper used by both test patterns.
+   */
+  public static async collectDiagnosticLogs(testName: string, testLogger: any, deployment: string): Promise<void> {
+    try {
+      testLogger.info(`${testName}: Collecting diagnostic logs...`);
+
+      // Create proper Argv object
+      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName));
+      argv.setArg(Flags.deployment, deployment);
+      argv.setCommand(
+        DeploymentCommandDefinition.COMMAND_NAME,
+        DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+        DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
+      );
+
+      const nodeCmd: NodeCommand = container.resolve<NodeCommand>(InjectTokens.NodeCommand);
+      await nodeCmd.handlers.logs(argv.build());
+
+      testLogger.info(`${testName}: Diagnostic logs collected successfully`);
+    } catch (error: unknown) {
+      testLogger.error(`${testName}: Error collecting diagnostic logs: ${error}`);
+      if (error instanceof Error && error.stack) {
+        testLogger.error(`${testName}: Stack trace:\n${error.stack}`);
+      }
+    }
+  }
+
+  /**
+   * Sets up an after() hook for diagnostic log collection in E2E tests.
+   * Call this within your test suite describe block.
+   */
+  public static setupDiagnosticLogCollection(options: BaseTestOptions): void {
+    const {testName, testLogger, deployment} = options;
+
+    after(async (): Promise<void> => {
+      await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
+    });
   }
 }
