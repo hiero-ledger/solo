@@ -44,7 +44,11 @@ export class BaseCommandTest {
    * Collects diagnostic logs using the deployment diagnostics command.
    * This is a shared helper used by both test patterns.
    */
-  public static async collectDiagnosticLogs(testName: string, testLogger: SoloLogger, deployment: string): Promise<void> {
+  public static async collectDiagnosticLogs(
+    testName: string,
+    testLogger: SoloLogger,
+    deployment: string,
+  ): Promise<void> {
     try {
       testLogger.info(`${testName}: Collecting diagnostic logs...`);
 
