@@ -16,6 +16,8 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import path from 'node:path';
+import {K8} from '../integration/kube/k8.js';
+import {Container} from '../integration/kube/resources/container/container.js';
 
 /**
  * Class to manage network nodes
@@ -37,7 +39,7 @@ export class NetworkNodes {
    * @param [baseDirectory] - optional base directory to save logs, defaults to SOLO_LOGS_DIR
    * @returns a promise that resolves when the logs are downloaded
    */
-  public async getLogs(namespace: NamespaceName, contexts?: string[], baseDirectory?: string) {
+  public async getLogs(namespace: NamespaceName, contexts?: string[], baseDirectory?: string): Promise<void[]> {
     const podsData: {pod: Pod; context?: string}[] = [];
 
     if (contexts) {
@@ -51,15 +53,15 @@ export class NetworkNodes {
         }
       }
     } else {
-      const pods = await this.k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const pods: Pod[] = await this.k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
       for (const pod of pods) {
         podsData.push({pod});
       }
     }
 
-    const logBaseDirectory = baseDirectory || SOLO_LOGS_DIR;
+    const logBaseDirectory: string = baseDirectory || SOLO_LOGS_DIR;
 
-    const promises = [];
+    const promises: Promise<void>[] = [];
     for (const podData of podsData) {
       promises.push(this.getLog(podData.pod, namespace, logBaseDirectory, podData.context));
     }
@@ -67,41 +69,33 @@ export class NetworkNodes {
     return await Promise.all(promises);
   }
 
-  private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
+  private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = path.join(baseDirectory, namespace.toString());
+    const targetDirectory: string = path.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
-      const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
-      const scriptName = 'support-zip.sh';
-      const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
-      const k8 = this.k8Factory.getK8(context);
-      const container = k8.containers().readByRef(containerReference);
+      const containerReference: ContainerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
+      const scriptName: string = 'support-zip.sh';
+      const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
+      const k8: K8 = this.k8Factory.getK8(context);
+      const container: Container = k8.containers().readByRef(containerReference);
 
       await container.copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
 
       await sleep(Duration.ofSeconds(3)); // wait for the script to sync to the file system
 
-      await k8
-        .containers()
-        .readByRef(containerReference)
-        .execContainer([
-          'bash',
-          '-c',
-          `sync ${HEDERA_HAPI_PATH} && sudo chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
-        ]);
-      await k8
-        .containers()
-        .readByRef(containerReference)
-        .execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await k8.containers().readByRef(containerReference).execContainer(`${HEDERA_HAPI_PATH}/${scriptName}`);
-      await k8
-        .containers()
-        .readByRef(containerReference)
-        .copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
+      await container.execContainer([
+        'bash',
+        '-c',
+        `sync ${HEDERA_HAPI_PATH} && sudo chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
+      ]);
+
+      await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
+      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
+      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
       // and also delete namespace in the end
@@ -144,7 +138,8 @@ export class NetworkNodes {
       // Use zip for compression, similar to tar -czf with -C flag
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
-      const k8 = this.k8Factory.getK8(context);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
       await k8
@@ -153,12 +148,10 @@ export class NetworkNodes {
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .)`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipFileName} . && sync && test -f ${zipFileName})`,
         ]);
-      await k8
-        .containers()
-        .readByRef(containerReference)
-        .copyFrom(`${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`, targetDirectory);
+      await sleep(Duration.ofSeconds(1));
+      await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
     } catch (error: Error | unknown) {
       this.logger.error(`failed to download state from pod ${podReference.name}`, error);
       this.logger.showUser(`Failed to download state from pod ${podReference.name}` + error);

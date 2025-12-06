@@ -20,10 +20,11 @@ import {spawn} from 'child_process';
 // Override console.log and console.error to include timestamps
 const originalLog = console.log;
 const originalError = console.error;
-const RETRY_DELAY_MS = 5000; // 5 seconds
+const RETRY_DELAY_MS = 500; // 0.5 seconds
 const CONSENSUS_DELAY_MS = 4000; // 4 seconds
 const MAX_RETRY_COUNT = 90;
 const MIRROR_NETWORK = '127.0.0.1:8081';
+const NETWORK = '127.0.0.1:50211';
 
 console.log = function (...args) {
   originalLog(`[${new Date().toISOString()}]`, ...args);
@@ -37,48 +38,6 @@ dotenv.config();
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Starts a gRPC subscription to the specified topic
- * @param {string} topicId - The topic ID to subscribe to
- */
-// TODO take an extra parameter for where grpcurl was called from
-// TODO take context.grpcurlActive so that we aren't running more than one at a time
-function startGrpcSubscription(topicId) {
-  // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
-  const topicNum = topicId.split('.').pop();
-
-  // Build the command with properly formatted JSON
-  const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
-
-  console.log(`Executing command: ${command}`);
-
-  const grpcurl = spawn(command, {
-    shell: true,
-    detached: true,
-  });
-
-  // Log stdout
-  grpcurl.stdout?.on('data', data => {
-    console.log(`gRPC topic subscription: stdout: ${data}`);
-  });
-
-  // Log stderr
-  grpcurl.stderr?.on('data', data => {
-    console.error(`gRPC topic subscription: stderr: ${data}`);
-  });
-
-  grpcurl.on('error', error => {
-    console.error(`gRPC topic subscription: Error starting grpcurl: ${error.message}`, error);
-  });
-
-  grpcurl.on('close', code => {
-    console.log(`gRPC topic subscription: grpcurl process exited with code ${code}`);
-  });
-
-  // Don't unref immediately, let's see the output first
-  // grpcurl.unref();
 }
 
 async function accountCreate(wallet) {
@@ -101,8 +60,14 @@ async function initialize() {
 
   try {
     console.log(`Hedera network = ${process.env.HEDERA_NETWORK}`);
-    const provider = new LocalProvider();
-    provider._client.setMirrorNetwork(MIRROR_NETWORK);
+    const shard = process.env.OPERATOR_ID.split('.')[0];
+    const realm = process.env.OPERATOR_ID.split('.')[1];
+    console.log(`Operator account = ${process.env.OPERATOR_ID} (shard: ${shard}, realm: ${realm})`);
+    const network = {};
+    network[`${NETWORK}`] = `${shard}.${realm}.3`;
+    const nodeClient = Client.fromConfig({network});
+    nodeClient.setMirrorNetwork(MIRROR_NETWORK);
+    const provider = new LocalProvider({client: nodeClient});
 
     // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
     const operatorKeySize = process.env.OPERATOR_KEY.length;
@@ -115,7 +80,7 @@ async function initialize() {
 
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
-      provider._client.setNetwork({
+      nodeClient.setNetwork({
         '127.0.0.1:50211': AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
       });
     }
@@ -150,17 +115,16 @@ async function initialize() {
 
 async function createTopic(operatorKey, wallet) {
   try {
-    // create topic
+    console.log('Creating topic...');
     let transaction = await new TopicCreateTransaction().setAdminKey(operatorKey).freezeWithSigner(wallet);
     transaction = await transaction.signWithSigner(wallet);
     const createResponse = await transaction.executeWithSigner(wallet);
     await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
-
+    console.log(`Topic creation transaction submitted, waiting for receipt...`);
     const createReceipt = await createResponse.getReceiptWithSigner(wallet);
 
     const topicIdString = createReceipt.topicId.toString();
-    console.log(`topic id = ${topicIdString.toString()}`);
-    console.log('Wait for topic creation to reach consensus...');
+    console.log(`[topicId: ${topicIdString.toString()}] Waiting for topic creation to reach consensus...`);
     await sleep(CONSENSUS_DELAY_MS);
 
     return topicIdString;
@@ -180,8 +144,6 @@ function subscribeToTopic(context) {
         // ERROR: Error: 14 UNAVAILABLE: Received HTTP status code 504
         if (!'Error: 14'.includes(error.toString())) {
           context.topicSubscriptionResponseReceived = true;
-          // Start gRPC subscription in a separate process for debugging purposes
-          startGrpcSubscription(context.topicIdString.toString());
         }
       }
     },
@@ -243,11 +205,8 @@ async function queryMirrorNodeApiForTopic(context) {
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(context.wallet);
 
-    // Start gRPC subscription in a separate process for debugging purposes
-    startGrpcSubscription(context.topicIdString.toString());
-
     console.log(
-      `Mirror Node API query did not detect topic creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}, queryUrl: ${queryUrl}]`,
+      `Mirror Node API query did not detect topic ${context.topicIdString} creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}, queryUrl: ${queryUrl}]`,
     );
     await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
     retry++;
@@ -300,9 +259,6 @@ async function queryExplorerApiForTopicMessage(context) {
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(context.wallet);
 
-    // Start gRPC subscription in a separate process for debugging purposes
-    startGrpcSubscription(context.topicIdString.toString());
-
     await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
     retry++;
   }
@@ -345,10 +301,6 @@ async function main() {
 
     await sleep(5_000); // give a moment for mirror node to be ready
 
-    // Start gRPC subscription in a separate process for debugging purposes
-    // TODO is the grpcurl leaving connections open? if so, it might be causing issues with too many open connections
-    startGrpcSubscription(context.topicIdString.toString());
-
     context.subscribeTopicStart = subscribeToTopic(context);
 
     // TODO figure out how to detect that subscription is fully established
@@ -369,9 +321,6 @@ async function main() {
       console.log(
         `Waiting for subscription to receive message... (${((Date.now() - context.subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
       );
-
-      // Start gRPC subscription in a separate process for debugging purposes
-      startGrpcSubscription(context.topicIdString.toString());
 
       // send a create account transaction to push record stream files to mirror node
       await accountCreate(context.wallet);

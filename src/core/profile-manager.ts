@@ -32,6 +32,7 @@ import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Address} from '../business/address/address.js';
 
 @injectable()
 export class ProfileManager {
@@ -685,19 +686,16 @@ export class ProfileManager {
           consensusNode.name as NodeAlias,
         );
 
-        const domainName: Optional<string> = domainNamesMapping?.[consensusNode.name];
-        const externalIP: string = domainName
-          ? domainName
-          : await helpers.getExternalAddress(
-              consensusNode,
-              this.k8Factory.getK8(consensusNode.context),
-              loadBalancerEnabled,
-            );
+        const address: Address = await Address.getExternalAddress(
+          consensusNode,
+          this.k8Factory.getK8(consensusNode.context),
+          externalPort,
+        );
 
         const account = nodeAccountMap.get(consensusNode.name as NodeAlias);
 
         configLines.push(
-          `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${externalIP}, ${externalPort}, ${account}`,
+          `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${address.hostString()}, ${address.port}, ${account}`,
         );
 
         nodeSeq += 1;

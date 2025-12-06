@@ -527,7 +527,7 @@ export class DeploymentCommand extends BaseCommand {
    */
   public testClusterConnection(): SoloListrTask<DeploymentAddClusterContext> {
     return {
-      title: 'Test cluster connection',
+      title: 'Test cluster reference connection',
       task: async (context_, task): Promise<void> => {
         const {clusterRef, context} = context_.config;
 
@@ -571,12 +571,22 @@ export class DeploymentCommand extends BaseCommand {
   public addClusterRefToDeployments(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'add cluster-ref in local config deployments',
-      task: async (context_, task): Promise<void> => {
-        const {clusterRef, deployment} = context_.config;
-
+      task: async ({config: {clusterRef, deployment}}, task): Promise<void> => {
         task.title = `add cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`;
 
-        this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
+        const existsInLocalConfig: boolean = this.localConfig.configuration
+          .deploymentByName(deployment)
+          .clusters.some((cluster): boolean => cluster.toString() === clusterRef);
+
+        if (existsInLocalConfig) {
+          this.logger.showUser(
+            `Cluster-ref: ${clusterRef} already exists for deployment: ${deployment} in local config`,
+          );
+        } else {
+          this.logger.showUser(`Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`);
+          this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
+        }
+
         await this.localConfig.persist();
       },
     };
@@ -604,10 +614,15 @@ export class DeploymentCommand extends BaseCommand {
 
         argv[flags.nodeAliasesUnparsed.name] = nodeAliases.join(',');
 
-        task.title += `: ${deployment} in cluster: ${clusterRef}`;
+        task.title += `: ${deployment} in cluster reference: ${clusterRef}`;
 
         if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
           await this.k8Factory.getK8(context).namespaces().create(namespace);
+        }
+
+        if (await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME)) {
+          this.logger.showUser(`Remote config already exists for deployment: ${deployment} in cluster: ${clusterRef}`);
+          return;
         }
 
         await (existingClusterContext
@@ -644,7 +659,7 @@ export class DeploymentCommand extends BaseCommand {
       .configMaps()
       .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
 
-    if (existingRemoteConfigs) {
+    if (existingRemoteConfigs.length > 0) {
       const messageGroupName: string = 'existing-deployments';
       this.logger.addMessageGroup(messageGroupName, '⚠️ Warning: Existing solo deployment detected in cluster.');
       const existingDeploymentsRows: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);

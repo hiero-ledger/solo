@@ -133,12 +133,12 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     });
   }).timeout(Duration.ofMinutes(30).toMillis());
 
-  it('consensus diagnostics logs command should work', async (): Promise<void> => {
+  it('deployment diagnostics logs command should work', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
-      command: ConsensusCommandDefinition.COMMAND_NAME,
-      subcommand: ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
-      action: ConsensusCommandDefinition.DIAGNOSTIC_LOGS,
+      command: DeploymentCommandDefinition.COMMAND_NAME,
+      subcommand: DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      action: DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
     });
 
@@ -432,6 +432,37 @@ export function endToEndTestSuite(
   });
 }
 
+export async function queryBalance(
+  accountManager: AccountManager,
+  namespace: NamespaceName,
+  remoteConfig: RemoteConfigRuntimeStateApi,
+  logger: SoloLogger,
+  skipNodeAlias?: NodeAlias,
+): Promise<void> {
+  try {
+    const argv: Argv = Argv.getDefaultArgv(namespace);
+    expect(accountManager._nodeClient).to.be.null;
+
+    await accountManager.refreshNodeClient(
+      namespace,
+      remoteConfig.getClusterRefs(),
+      skipNodeAlias,
+      argv.getArg<DeploymentName>(flags.deployment),
+    );
+    expect(accountManager._nodeClient).not.to.be.null;
+
+    const balance: AccountBalance = await new AccountBalanceQuery()
+      .setAccountId(accountManager._nodeClient.getOperator().accountId)
+      .execute(accountManager._nodeClient);
+
+    expect(balance.hbars).not.be.null;
+  } catch (error) {
+    logger.showUserError(error);
+    expect.fail();
+  }
+  await sleep(Duration.ofSeconds(1));
+}
+
 export function balanceQueryShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
@@ -440,29 +471,53 @@ export function balanceQueryShouldSucceed(
   skipNodeAlias?: NodeAlias,
 ): void {
   it('Balance query should succeed', async (): Promise<void> => {
-    try {
-      const argv: Argv = Argv.getDefaultArgv(namespace);
-      expect(accountManager._nodeClient).to.be.null;
-
-      await accountManager.refreshNodeClient(
-        namespace,
-        remoteConfig.getClusterRefs(),
-        skipNodeAlias,
-        argv.getArg<DeploymentName>(flags.deployment),
-      );
-      expect(accountManager._nodeClient).not.to.be.null;
-
-      const balance: AccountBalance = await new AccountBalanceQuery()
-        .setAccountId(accountManager._nodeClient.getOperator().accountId)
-        .execute(accountManager._nodeClient);
-
-      expect(balance.hbars).not.be.null;
-    } catch (error) {
-      logger.showUserError(error);
-      expect.fail();
-    }
-    await sleep(Duration.ofSeconds(1));
+    await queryBalance(accountManager, namespace, remoteConfig, logger, skipNodeAlias);
   }).timeout(Duration.ofMinutes(2).toMillis());
+}
+
+export async function createAccount(
+  accountManager: AccountManager,
+  namespace: NamespaceName,
+  remoteConfig: RemoteConfigRuntimeStateApi,
+  logger: SoloLogger,
+  skipNodeAlias?: NodeAlias,
+  expectedAccountId?: AccountId,
+): Promise<void> {
+  try {
+    const argv: Argv = Argv.getDefaultArgv(namespace);
+    await accountManager.refreshNodeClient(
+      namespace,
+      remoteConfig.getClusterRefs(),
+      skipNodeAlias,
+      argv.getArg<DeploymentName>(flags.deployment),
+    );
+    expect(accountManager._nodeClient).not.to.be.null;
+    const privateKey: PrivateKey = PrivateKey.generate();
+    const amount: number = 100;
+
+    const newAccount: TransactionResponse = await new AccountCreateTransaction()
+      .setKey(privateKey)
+      .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+      .execute(accountManager._nodeClient);
+
+    // Get the new account ID
+    const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+    const accountInfo = {
+      accountId: getReceipt.accountId.toString(),
+      privateKey: privateKey.toString(),
+      publicKey: privateKey.publicKey.toString(),
+      balance: amount,
+    };
+
+    expect(accountInfo.accountId).not.to.be.null;
+    if (expectedAccountId) {
+      expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
+    }
+    expect(accountInfo.balance).to.equal(amount);
+  } catch (error) {
+    logger.showUserError(error);
+    expect.fail();
+  }
 }
 
 export function accountCreationShouldSucceed(
@@ -477,41 +532,7 @@ export function accountCreationShouldSucceed(
     'Account creation should succeed' +
       (expectedAccountId ? ` with expected AccountId: ${expectedAccountId.toString()}` : ''),
     async (): Promise<void> => {
-      try {
-        const argv: Argv = Argv.getDefaultArgv(namespace);
-        await accountManager.refreshNodeClient(
-          namespace,
-          remoteConfig.getClusterRefs(),
-          skipNodeAlias,
-          argv.getArg<DeploymentName>(flags.deployment),
-        );
-        expect(accountManager._nodeClient).not.to.be.null;
-        const privateKey: PrivateKey = PrivateKey.generate();
-        const amount: number = 100;
-
-        const newAccount: TransactionResponse = await new AccountCreateTransaction()
-          .setKey(privateKey)
-          .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-          .execute(accountManager._nodeClient);
-
-        // Get the new account ID
-        const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-        const accountInfo = {
-          accountId: getReceipt.accountId.toString(),
-          privateKey: privateKey.toString(),
-          publicKey: privateKey.publicKey.toString(),
-          balance: amount,
-        };
-
-        expect(accountInfo.accountId).not.to.be.null;
-        if (expectedAccountId) {
-          expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
-        }
-        expect(accountInfo.balance).to.equal(amount);
-      } catch (error) {
-        logger.showUserError(error);
-        expect.fail();
-      }
+      await createAccount(accountManager, namespace, remoteConfig, logger, skipNodeAlias, expectedAccountId);
     },
   ).timeout(Duration.ofMinutes(2).toMillis());
 }

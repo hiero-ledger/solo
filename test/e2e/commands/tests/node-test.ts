@@ -35,14 +35,16 @@ import {
 } from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {it} from 'mocha';
-import {accountCreationShouldSucceed, balanceQueryShouldSucceed} from '../../../test-utility.js';
+import {createAccount, queryBalance} from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -107,7 +109,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeAddArgv(options: BaseTestOptions): string[] {
+  private static soloNodeAddArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName} = options;
 
@@ -136,11 +138,15 @@ export class NodeTest extends BaseCommandTest {
       );
     }
 
+    if (!useFqdn) {
+      argv.push(optionFromFlag(Flags.endpointType), constants.ENDPOINT_TYPE_IP);
+    }
+
     argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  private static soloNodeUpdateArgv(options: BaseTestOptions): string[] {
+  private static soloNodeUpdateArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {
       testName,
@@ -171,6 +177,10 @@ export class NodeTest extends BaseCommandTest {
         optionFromFlag(Flags.releaseTag),
         localBuildReleaseTag,
       );
+    }
+
+    if (!useFqdn) {
+      argv.push(optionFromFlag(Flags.endpointType), constants.ENDPOINT_TYPE_IP);
     }
 
     argvPushGlobalFlags(argv, testName, true);
@@ -222,9 +232,9 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),
@@ -422,21 +432,21 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
-  public static add(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions, useFqdn: boolean = true): void {
     const {testName} = options;
     const {soloNodeAddArgv} = NodeTest;
 
     it(`${testName}: consensus node add`, async (): Promise<void> => {
-      await main(soloNodeAddArgv(options));
+      await main(soloNodeAddArgv(options, useFqdn));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
-  public static update(options: BaseTestOptions): void {
+  public static update(options: BaseTestOptions, useFqdn: boolean = true): void {
     const {testName} = options;
     const {soloNodeUpdateArgv} = NodeTest;
 
     it(`${testName}: consensus node update`, async (): Promise<void> => {
-      await main(soloNodeUpdateArgv(options));
+      await main(soloNodeUpdateArgv(options, useFqdn));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
@@ -449,49 +459,58 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
-  public static refresh(options: BaseTestOptions): void {
-    const {testName} = options;
+  public static async refresh(options: BaseTestOptions): Promise<void> {
     const {soloNodeRefreshArgv} = NodeTest;
 
-    it(`${testName}: consensus node refresh`, async (): Promise<void> => {
-      await main(soloNodeRefreshArgv(options));
+    await main(soloNodeRefreshArgv(options));
 
-      await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
-    }).timeout(Duration.ofMinutes(10).toMillis());
+    await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
   }
 
-  private static verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): void {
-    it(`${nodeAlias} should be running`, async (): Promise<void> => {
-      const podName: string = await container
+  private static async verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
+    await localConfig.load();
+
+    const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+      InjectTokens.RemoteConfigRuntimeState,
+    );
+
+    await remoteConfig.load(namespace);
+
+    const podName: string = await container
+      .resolve(NodeCommandTasks)
+      // @ts-expect-error - TS2341: to access private property
+      .checkNetworkNodePod(namespace, nodeAlias)
+      .then((pod): string => pod.name.toString());
+
+    expect(podName).to.equal(`network-${nodeAlias}-0`);
+  }
+
+  private static async verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
+    await localConfig.load();
+
+    const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+      InjectTokens.RemoteConfigRuntimeState,
+    );
+
+    await remoteConfig.load(namespace);
+
+    await expect(
+      container
         .resolve(NodeCommandTasks)
         // @ts-expect-error - TS2341: to access private property
-        .checkNetworkNodePod(namespace, nodeAlias)
-        .then((pod): string => pod.name.toString());
-
-      expect(podName).to.equal(`network-${nodeAlias}-0`);
-    }).timeout(Duration.ofMinutes(5).toMillis());
-  }
-
-  private static verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): void {
-    it(`${nodeAlias} should not be ACTIVE`, async (): Promise<void> => {
-      await expect(
-        container
-          .resolve(NodeCommandTasks)
-          // @ts-expect-error - TS2341: to access private property
-          ._checkNetworkNodeActiveness(
-            namespace,
-            nodeAlias,
-            {title: ''} as SoloListrTaskWrapper<any>,
-            '',
-            undefined,
-            15,
-          ),
-      ).to.be.rejected;
-    }).timeout(Duration.ofMinutes(2).toMillis());
+        ._checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
+    ).to.be.rejected;
   }
 
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
+    const {checkNetwork, soloNodeStopArgv, refresh, verifyPodShouldBeRunning, verifyPodShouldNotBeActive} = NodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
@@ -514,59 +533,71 @@ export class NodeTest extends BaseCommandTest {
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      this.verifyPodShouldBeRunning(namespace, nodeAlias);
-      this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+      await verifyPodShouldBeRunning(namespace, nodeAlias);
+      await verifyPodShouldNotBeActive(namespace, nodeAlias);
+      // stop the node to shut off the auto-restart
+      await main(soloNodeStopArgv(options, nodeAlias));
 
-      this.refresh(options);
+      await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      this.checkNetwork(testName, namespace, testLogger);
+      await refresh(options);
+
+      await checkNetwork(testName, namespace, testLogger);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
   public static PemStop(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger, consensusNodesCount} = options;
-    const {soloNodeStopArgv} = NodeTest;
+    const {namespace, testName, testLogger, consensusNodesCount, deployment} = options;
+    const {
+      checkNetwork,
+      refresh,
+      verifyPodShouldNotBeActive,
+      verifyPodShouldBeRunning,
+      soloNodeStartArgv,
+      soloNodeStopArgv,
+    } = NodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
     it(`${testName}: perform PEM stop`, async (): Promise<void> => {
       await main(soloNodeStopArgv(options, nodeAlias));
 
-      await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
+      await sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
 
       for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
-        this.verifyPodShouldBeRunning(namespace, nodeAlias);
-        this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+        await verifyPodShouldBeRunning(namespace, nodeAlias);
+        await verifyPodShouldNotBeActive(namespace, nodeAlias);
       }
 
-      this.refresh(options);
+      await refresh(options);
 
-      this.checkNetwork(testName, namespace, testLogger);
+      await checkNetwork(testName, namespace, testLogger);
+
+      await main(soloNodeStartArgv(testName, deployment));
 
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
-  private static checkNetwork(testName: string, namespace: NamespaceName, logger: SoloLogger): void {
-    it(`${testName}: check network`, async (): Promise<void> => {
-      const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
-      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
-        InjectTokens.RemoteConfigRuntimeState,
-      );
+  private static async checkNetwork(testName: string, namespace: NamespaceName, logger: SoloLogger): Promise<void> {
+    const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
+    const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+      InjectTokens.RemoteConfigRuntimeState,
+    );
 
-      await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace);
 
-      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
-      accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
-    });
+    await queryBalance(accountManager, namespace, remoteConfig, logger);
+    await createAccount(accountManager, namespace, remoteConfig, logger);
   }
 
+  // TODO: I think this should be used, but it isn't being called
   public static connections(options: BaseTestOptions): void {
     const {testName} = options;
     const {soloDiagnosticsConnectionsArgv} = NodeTest;
 
-    it(`${testName}: consensus diagnostics connections`, async (): Promise<void> => {
+    it(`${testName}: deployment diagnostics connections`, async (): Promise<void> => {
       await main(soloDiagnosticsConnectionsArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }

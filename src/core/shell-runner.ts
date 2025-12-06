@@ -95,4 +95,32 @@ export class ShellRunner {
       });
     });
   }
+
+  public async sudoRun(
+    sudoRequested: (message: string) => void,
+    sudoGranted: (message: string) => void,
+    cmd: string,
+    arguments_: string[] = [],
+    verbose: boolean = false,
+    detached: boolean = false,
+  ): Promise<string[]> {
+    // Use Promise.race to handle sudo whoami and timeout
+    let whoamiResolved: boolean = false;
+    const whoamiPromise: Promise<string[]> = this.run('sudo whoami').then(async result => {
+      whoamiResolved = true;
+      sudoGranted('Root access granted.');
+      return result;
+    });
+    // eslint-disable-next-line no-async-promise-executor
+    const timeoutPromise = new Promise<string[]>(async resolve => {
+      await new Promise(callback => setTimeout(callback, 500));
+      if (!whoamiResolved) {
+        sudoRequested('Please provide root permissions to proceed...');
+      }
+      resolve([]);
+    });
+    await Promise.race([whoamiPromise, timeoutPromise]);
+
+    return this.run(`sudo ${cmd}`, arguments_, verbose, detached);
+  }
 }
