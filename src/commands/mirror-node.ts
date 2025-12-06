@@ -30,7 +30,7 @@ import {
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
-import {INGRESS_CONTROLLER_VERSION, MIRROR_NODE_VERSION} from '../../version.js';
+import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -473,10 +473,13 @@ export class MirrorNodeCommand extends BaseCommand {
       }
     }
 
-    // Determine if we should reuse values based on the default MIRROR_NODE_VERSION
+    // Determine if we should reuse values based on the currently deployed version from remote config
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
-    const shouldReuseValues: boolean = semver.gt(MIRROR_NODE_VERSION, constants.MIRROR_NODE_VERSION_BOUNDARY);
+    const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
+    const shouldReuseValues: boolean = currentVersion
+      ? semver.gt(currentVersion, constants.MIRROR_NODE_VERSION_BOUNDARY)
+      : false; // If no current version (first install), don't reuse values
 
     await this.chartManager.upgrade(
       config.namespace,
