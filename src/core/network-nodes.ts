@@ -142,13 +142,14 @@ export class NetworkNodes {
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
+      // Use the -X to archive for cross-platform compatibility
       await k8
         .containers()
         .readByRef(containerReference)
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipFileName} . && sync && test -f ${zipFileName})`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -rX ${zipFileName} . && sync && test -f ${zipFileName})`,
         ]);
       await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
