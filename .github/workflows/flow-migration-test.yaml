@@ -90,9 +90,12 @@ jobs:
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
           
           echo "Install yq..."
-          sudo add-apt-repository ppa:rmescandon/yq -y
-          sudo apt update
-          sudo apt install yq -y
+          YQ_VERSION="v4.44.1"
+          YQ_BINARY="yq_linux_amd64"
+          wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}" -O /tmp/yq
+          sudo chmod +x /tmp/yq
+          sudo mv /tmp/yq /usr/local/bin/yq
+          yq --version
           
           npm install
           task build

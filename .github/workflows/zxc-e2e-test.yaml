@@ -494,7 +494,7 @@ jobs:
           if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
             CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
             if [[ -f "$CHART_FILE" ]]; then
-              echo "<details open>" >> $LOG_FILE
+              echo "<details>" >> $LOG_FILE
               echo "<summary>📊 Runner Resource Usage</summary>" >> $LOG_FILE
               echo "" >> $LOG_FILE
               echo '```' >> $LOG_FILE
