@@ -98,6 +98,7 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
+import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS} from '../../../version.js';
@@ -757,7 +758,7 @@ export class NodeCommandTasks {
                 config.namespace,
                 Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias),
               );
-            const privateKey = Base64.decode(keyFromK8.data.privateKey);
+            const privateKey: string = Base64.decode(keyFromK8.data.privateKey);
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
           } catch (error) {
             this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
@@ -2521,6 +2522,36 @@ export class NodeCommandTasks {
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
           self.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+
+          // If admin key was updated, save the new key to k8s secret
+          if (config.newAdminKey) {
+            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+            const data: {privateKey: string; publicKey: string} = {
+              privateKey: Base64.encode(parsedNewKey.toString()),
+              publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
+            };
+
+            // Delete old secret and create new one with updated key
+            try {
+              await self.k8Factory
+                .getK8(context)
+                .secrets()
+                .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
+            } catch (deleteError) {
+              self.logger.debug(
+                `No existing admin key secret to delete for ${config.nodeAlias}: ${deleteError.message}`,
+              );
+            }
+
+            await self.k8Factory
+              .getK8(context)
+              .secrets()
+              .create(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias), SecretType.OPAQUE, data, {
+                'solo.hedera.com/node-admin-key': 'true',
+              });
+
+            self.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
+          }
         } catch (error) {
           throw new SoloError(`Error updating node to network: ${error.message}`, error);
         }
@@ -3097,6 +3128,19 @@ export class NodeCommandTasks {
           if (nodeDeleteReceipt.status !== Status.Success) {
             throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
           }
+
+          // Delete admin key secret from k8s after successful node deletion
+          try {
+            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+            await this.k8Factory
+              .getK8(context)
+              .secrets()
+              .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
+            this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
+          } catch (deleteError) {
+            // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
+            this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
+          }
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
@@ -3129,6 +3173,23 @@ export class NodeCommandTasks {
           if (nodeCreateReceipt.status !== Status.Success) {
             throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
           }
+
+          // Save admin key to k8s secret after successful node creation
+          const nodeAlias: NodeAlias = config.nodeAliases[0];
+          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const data: {privateKey: string; publicKey: string} = {
+            privateKey: Base64.encode(context_.adminKey.toString()),
+            publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
+          };
+
+          await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .create(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+              'solo.hedera.com/node-admin-key': 'true',
+            });
+
+          this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
         } catch (error) {
           throw new SoloError(`Error adding node to network: ${error.message}`, error);
         }
