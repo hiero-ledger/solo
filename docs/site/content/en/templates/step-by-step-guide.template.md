@@ -31,6 +31,15 @@ First, check that your computer meets these minimum specifications:
 * **Storage**: At least 20GB of free disk space
 * **Operating System**: macOS, Linux, or Windows with WSL2
 
+{{< details summary="Platform notes (click to expand)" open=true >}}
+
+- **Windows (WSL2)** – Enable **Virtual Machine Platform** and **Windows Subsystem for Linux** from **Turn Windows features on or off**, reboot, then run `wsl --install Ubuntu` in PowerShell. For the rest of this guide, run all commands from the Ubuntu (WSL2) terminal so Docker and Kubernetes share the same Linux environment.
+- **Linux** – Use a recent LTS distribution (for example Ubuntu 22.04+, Debian 12, or Fedora 40+) with cgroup v2 enabled.
+- **macOS** – Apple silicon is fully supported. Intel-based Macs should use macOS 12 or later.
+
+{{< /details >}}
+
+
 ### Required Software
 
 You'll need to install a few tools before we can set up Solo. Here's what you need and how to get it:
@@ -73,6 +82,26 @@ docker ps
 ```
 
 {{< /details >}}<br/>
+
+### 3. kubectl (Linux & WSL2)
+
+{{< details summary="Details (click to expand)" open=true >}}
+
+On macOS, Docker Desktop already ships a `kubectl` client, so you usually don’t need to install it separately. On Linux and inside WSL2 you must install `kubectl` yourself.
+
+For Ubuntu/Debian-based shells (including Ubuntu on WSL2):
+
+```bash
+sudo apt update && sudo apt install -y ca-certificates curl
+ARCH="$(dpkg --print-architecture)"
+curl -fsSLo kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/kubectl
+
+kubectl version --client
+
+{{< /details >}}<br/>
+
 
 ## Preparing Your Environment
 
