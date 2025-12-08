@@ -85,7 +85,7 @@ docker ps
 
 ### 3. kubectl (Linux & WSL2)
 
-{{< details summary="Details (click to expand)" open=true >}}
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 On macOS, Docker Desktop already ships a `kubectl` client, so you usually don’t need to install it separately. On Linux and inside WSL2 you must install `kubectl` yourself.
 
