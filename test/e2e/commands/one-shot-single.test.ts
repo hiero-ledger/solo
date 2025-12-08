@@ -29,7 +29,6 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
-import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {ShellRunner} from '../../../src/core/shell-runner.js';
 
