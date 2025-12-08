@@ -83,7 +83,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, namespace, options.minimalSetup));
+        await main(soloOneShotDeploy(testName, options.minimalSetup));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
@@ -157,7 +157,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, namespace: NamespaceName, minimalSetup: boolean): string[] {
+export function soloOneShotDeploy(testName: string, minimalSetup: boolean): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -165,8 +165,6 @@ export function soloOneShotDeploy(testName: string, namespace: NamespaceName, mi
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
-    optionFromFlag(Flags.namespace),
-    namespace.name,
     optionFromFlag(Flags.minimalSetup),
     minimalSetup ? 'true' : 'false',
   );
