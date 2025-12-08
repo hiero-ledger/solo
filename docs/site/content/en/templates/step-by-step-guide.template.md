@@ -37,7 +37,7 @@ First, check that your computer meets these minimum specifications:
 - **Linux** – Use a recent LTS distribution (for example Ubuntu 22.04+, Debian 12, or Fedora 40+) with cgroup v2 enabled.
 - **macOS** – Apple silicon is fully supported. Intel-based Macs should use macOS 12 or later.
 
-{{< /details >}}
+{{< /details >}}<br/>
 
 
 ### Required Software
