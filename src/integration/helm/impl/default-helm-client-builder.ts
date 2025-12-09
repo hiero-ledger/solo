@@ -65,55 +65,55 @@ export class DefaultHelmClientBuilder implements HelmClientBuilder {
   /**
    * Constructs a new builder instance and initializes it with the default configuration.
    */
-  constructor() {}
+  public constructor() {}
 
-  defaultNamespace(namespace: string): HelmClientBuilder {
+  public defaultNamespace(namespace: string): HelmClientBuilder {
     this._defaultNamespace = namespace;
     return this;
   }
 
-  workingDirectory(workingDirectory: string): HelmClientBuilder {
+  public workingDirectory(workingDirectory: string): HelmClientBuilder {
     this._workingDirectory = workingDirectory;
     return this;
   }
 
-  kubeApiServer(kubeApiServer: string): HelmClientBuilder {
+  public kubeApiServer(kubeApiServer: string): HelmClientBuilder {
     this._kubeApiServer = kubeApiServer;
     return this;
   }
 
-  kubeCAFile(kubeCAFile: string): HelmClientBuilder {
+  public kubeCAFile(kubeCAFile: string): HelmClientBuilder {
     this._kubeCAFile = kubeCAFile;
     return this;
   }
 
-  kubeContext(kubeContext: string): HelmClientBuilder {
+  public kubeContext(kubeContext: string): HelmClientBuilder {
     this._kubeContext = kubeContext;
     return this;
   }
 
-  kubeSkipTlsVerification(kubeSkipTlsVerification: boolean): HelmClientBuilder {
+  public kubeSkipTlsVerification(kubeSkipTlsVerification: boolean): HelmClientBuilder {
     this._kubeSkipTlsVerification = kubeSkipTlsVerification;
     return this;
   }
 
-  kubeTlsServerName(kubeTlsServerName: string): HelmClientBuilder {
+  public kubeTlsServerName(kubeTlsServerName: string): HelmClientBuilder {
     this._kubeTlsServerName = kubeTlsServerName;
     return this;
   }
 
-  kubeToken(kubeToken: string): HelmClientBuilder {
+  public kubeToken(kubeToken: string): HelmClientBuilder {
     this._kubeToken = kubeToken;
     return this;
   }
 
-  kubeConfig(kubeConfig: string): HelmClientBuilder {
+  public kubeConfig(kubeConfig: string): HelmClientBuilder {
     this._kubeConfig = kubeConfig;
     return this;
   }
 
-  build(): HelmClient {
-    const authentication = new KubeAuthentication(
+  public async build(): Promise<HelmClient> {
+    const authentication: KubeAuthentication = new KubeAuthentication(
       this._kubeApiServer,
       this._kubeCAFile,
       this._kubeContext,
@@ -123,6 +123,8 @@ export class DefaultHelmClientBuilder implements HelmClientBuilder {
       this._kubeConfig,
     );
 
-    return new DefaultHelmClient();
+    const client: DefaultHelmClient = new DefaultHelmClient();
+    await client.version();
+    return client;
   }
 }
