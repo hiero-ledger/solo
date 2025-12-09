@@ -45,7 +45,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withMinimalSetup(process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts} = options;
+      const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
@@ -69,6 +69,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
+        await main(soloDeploymentDiagnosticsLogs(testName, deployment));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
@@ -77,7 +78,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, options.minimalSetup));
+        await main(soloOneShotDeploy(testName, deployment, options.minimalSetup));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
@@ -151,7 +152,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, minimalSetup: boolean): string[] {
+export function soloOneShotDeploy(testName: string, deployment: string, minimalSetup: boolean): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -159,6 +160,8 @@ export function soloOneShotDeploy(testName: string, minimalSetup: boolean): stri
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
+    optionFromFlag(Flags.deployment),
+    deployment,
     optionFromFlag(Flags.minimalSetup),
     minimalSetup ? 'true' : 'false',
   );
@@ -171,6 +174,14 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloDeploymentDiagnosticsLogs(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push('deployment', 'diagnostics', 'logs', '--deployment', deployment);
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

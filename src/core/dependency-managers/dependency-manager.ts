@@ -36,41 +36,36 @@ export class DependencyManager extends ShellRunner {
   ) {
     super();
     this.dependancyManagerMap = new Map();
-    if (helmDepManager) {
-      this.dependancyManagerMap.set(constants.HELM, helmDepManager);
-    } else {
-      this.dependancyManagerMap.set(constants.HELM, container.resolve(InjectTokens.HelmDependencyManager));
-    }
 
-    if (kindDepManager) {
-      this.dependancyManagerMap.set(constants.KIND, kindDepManager);
-    } else {
-      this.dependancyManagerMap.set(constants.KIND, container.resolve(InjectTokens.KindDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.HELM,
+      helmDepManager || container.resolve(InjectTokens.HelmDependencyManager),
+    );
 
-    if (kubectlDependencyManager) {
-      this.dependancyManagerMap.set(constants.KUBECTL, kubectlDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(InjectTokens.KubectlDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.KIND,
+      kindDepManager || container.resolve(InjectTokens.KindDependencyManager),
+    );
 
-    if (podmanDependencyManager) {
-      this.dependancyManagerMap.set(constants.PODMAN, podmanDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.PODMAN, container.resolve(InjectTokens.PodmanDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.KUBECTL,
+      kubectlDependencyManager || container.resolve(InjectTokens.KubectlDependencyManager),
+    );
 
-    if (vfkitDependencyManager) {
-      this.dependancyManagerMap.set(constants.VFKIT, vfkitDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.VFKIT, container.resolve(InjectTokens.VfkitDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.PODMAN,
+      podmanDependencyManager || container.resolve(InjectTokens.PodmanDependencyManager),
+    );
 
-    if (gvproxyDependencyManager) {
-      this.dependancyManagerMap.set(constants.GVPROXY, gvproxyDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.GVPROXY, container.resolve(InjectTokens.GvproxyDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.VFKIT,
+      vfkitDependencyManager || container.resolve(InjectTokens.VfkitDependencyManager),
+    );
+
+    this.dependancyManagerMap.set(
+      constants.GVPROXY,
+      gvproxyDependencyManager || container.resolve(InjectTokens.GvproxyDependencyManager),
+    );
   }
 
   public async getDependency(dep: string): Promise<DependencyManagerType> {
