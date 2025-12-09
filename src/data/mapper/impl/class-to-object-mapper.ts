@@ -74,7 +74,7 @@ export class ClassToObjectMapper implements ObjectMapper {
     const components: string[] = this.formatter.split(normalizedKey);
 
     let currentObject: object = object;
-    for (let index = 0; index < components.length - 1; index++) {
+    for (let index: number = 0; index < components.length - 1; index++) {
       const keyComponent: string = components[index];
 
       // If the property is not found, we cannot proceed.

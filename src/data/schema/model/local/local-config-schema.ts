@@ -22,19 +22,19 @@ export class LocalConfigSchema {
   public schemaVersion: number;
 
   @Expose()
-  @Type(() => ApplicationVersionsSchema)
+  @Type((): typeof ApplicationVersionsSchema => ApplicationVersionsSchema)
   public versions: ApplicationVersionsSchema;
 
   @Expose()
-  @Type(() => UserIdentitySchema)
+  @Type((): typeof UserIdentitySchema => UserIdentitySchema)
   public userIdentity: UserIdentitySchema;
 
   @Expose()
-  @Type(() => DeploymentSchema)
+  @Type((): typeof DeploymentSchema => DeploymentSchema)
   public deployments: DeploymentSchema[];
 
   @Expose()
-  @Type(() => Map)
+  @Type((): MapConstructor => Map)
   public clusterRefs: ClusterReferences;
 
   public constructor(

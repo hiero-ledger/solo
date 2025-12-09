@@ -46,17 +46,25 @@ import {LoadImageArchiveResponse} from '../model/load-image-archive/load-image-a
 import {LoadImageArchiveRequest} from '../request/load/image-archive-request.js';
 import {KIND_VERSION} from '../../../../version.js';
 import {KindVersionRequirementException} from '../errors/kind-version-requirement-exception.js';
+import {inject} from 'tsyringe-neo';
+import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
+import {type SoloLogger} from '../../../core/logging/solo-logger.js';
+import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
 export class DefaultKindClient implements KindClient {
   private static minimumVersion: SemVer = new SemVer(KIND_VERSION);
 
-  public constructor(private readonly executable: string) {
+  public constructor(
+    private readonly executable: string,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+  ) {
     if (!executable || !executable.trim()) {
       throw new Error('executable must not be blank');
     }
     this.executable = executable;
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   public async checkVersion(): Promise<void> {
@@ -83,7 +91,11 @@ export class DefaultKindClient implements KindClient {
       throw new TypeError('Unexpected response type');
     }
 
-    return result.getVersion();
+    const semver: SemVer = result.getVersion();
+
+    this.logger?.info?.(`kind version: ${semver.version ?? semver.toString()}`);
+
+    return semver;
   }
 
   public async createCluster(clusterName: string, options?: ClusterCreateOptions): Promise<ClusterCreateResponse> {

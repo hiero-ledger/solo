@@ -65,7 +65,12 @@ export class DefaultHelmClient implements HelmClient {
     if (!(result instanceof Version)) {
       throw new TypeError('Unexpected response type');
     }
-    return result.asSemanticVersion();
+
+    const semanticVersion: SemanticVersion = result.asSemanticVersion();
+
+    this.logger.showUser(`helm version: ${semanticVersion.toString()}`);
+
+    return semanticVersion;
   }
 
   public async listRepositories(): Promise<Repository[]> {
@@ -134,8 +139,7 @@ export class DefaultHelmClient implements HelmClient {
     responseClass?: new (...arguments_: any[]) => R,
   ): Promise<R> {
     return this.executeInternal(undefined, request, responseClass, async (b): Promise<R> => {
-      const response: Awaited<R> = await b.responseAs(responseClass);
-      return response as R;
+      return await b.responseAs(responseClass);
     });
   }
 
