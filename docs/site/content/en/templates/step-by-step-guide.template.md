@@ -6,15 +6,15 @@ description: >
 type: docs
 ---
 
-> 📝 For less than 16 GB of memory to dedicate to Docker please skip the block node add and destroy steps.
+> 📝 If you have **less than 16 GB of memory** available for Docker, **skip the Block Node add/destroy steps** in this guide.
 
-> 📝 There should be a table of contents on the right side of your screen if your browser width is large enough
+> 📝 There should be a **table of contents** on the right side of your screen if your browser width is large enough.
 
 ## Introduction
 
 Welcome to the world of Hedera development! If you're looking to build and test applications on the Hedera network but don't want to spend HBAR on testnet or mainnet transactions, you've come to the right place. Solo is your gateway to running your own local Hedera test network, giving you complete control over your development environment.
 
-Solo is an opinionated command-line interface (CLI) tool designed to deploy and manage standalone Hedera test networks. Think of it as your personal Hedera sandbox where you can experiment, test features, and develop applications without any external dependencies or costs. Whether you're building smart contracts, testing consensus mechanisms, or developing DApps, Solo provides the infrastructure you need.
+Solo is an opinionated command-line interface (CLI) tool designed to deploy and manage standalone Hedera test networks. Think of it as your personal Hedera sandbox where you can experiment, test features, and develop applications without any external dependencies or costs. Whether you're building smart contracts, testing consensus mechanisms, or developing dApps, Solo provides the infrastructure you need.
 
 By the end of this tutorial, you'll have your own Hedera test network running locally, complete with consensus nodes, mirror nodes, and all the infrastructure needed to submit transactions and test your applications. Let's dive in!
 
@@ -22,14 +22,14 @@ By the end of this tutorial, you'll have your own Hedera test network running lo
 
 Before we begin, let's ensure your system meets the requirements and has all the necessary software installed. Don't worry if this seems like a lot – we'll walk through each step together.
 
-### System Requirements(for a bare minimum install running 1 node)
+### System Requirements (for a bare minimum install running 1 node)
 
 First, check that your computer meets these minimum specifications:
 
-* **Memory**: At least 12GB (16GB recommended for smoother performance)
-* **CPU**: Minimum 6 cores (8 cores recommended)
-* **Storage**: At least 20GB of free disk space
-* **Operating System**: macOS, Linux, or Windows with WSL2
+- **Memory**: At least **12 GB** (16 GB recommended for smoother performance)
+- **CPU**: Minimum **6 cores** (8 cores recommended)
+- **Storage**: At least **20 GB of free disk space**
+- **Operating System**: macOS, Linux, or Windows with WSL2
 
 {{< details summary="Platform notes (click to expand)" open=true >}}
 
@@ -39,55 +39,75 @@ First, check that your computer meets these minimum specifications:
 
 {{< /details >}}<br/>
 
-
 ### Required Software
 
 You'll need to install a few tools before we can set up Solo. Here's what you need and how to get it:
 
-### 1. Node.js (≥22.0.0)
+### 1. Node.js (≥ 22.0.0)
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Solo is built on Node.js, so you'll need version 22.0.0 or higher. We recommend using Node Version Manager (nvm) for easy version management:
+Solo is built on Node.js, so you'll need version **22.0.0 or higher**. We recommend using Node Version Manager (nvm) for easy version management.
+
+**macOS / Linux (nvm):**
 
 ```bash
 # Install nvm (macOS/Linux)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 
-# Install nvm (Windows - use nvm-windows)# Download from: https://github.com/coreybutler/nvm-windows# Install Node.js
+# Restart your shell, then:
 nvm install 22.0.0
 nvm use 22.0.0
 
 # Verify installation
 node --version
-
 ```
 
-{{< /details >}}<br/>
+**Windows (WSL2 + nvm in Ubuntu):**
+
+In your Ubuntu (WSL2) terminal:
+
+```bash
+# Install nvm in WSL2 (Ubuntu)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Restart your shell, then:
+nvm install 22.0.0
+nvm use 22.0.0
+
+# Verify installation
+node --version
+```
+
+If you prefer to install Node.js directly in **Windows (outside WSL2)**, you can use **nvm-windows**. See: https://github.com/coreybutler/nvm-windows  
+In that case, run Solo commands from the same environment where Node.js is installed.
+
+{{< /details >}}
 
 ### 2. Docker Desktop
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 Docker is essential for running the containerized Hedera network components:
 
-* **macOS/Windows**: Download Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop)
-* **Linux**: Follow the installation guide for your distribution at [docs.docker.com](https://docs.docker.com/engine/install/)
+- **macOS/Windows**: Download Docker Desktop from https://www.docker.com/products/docker-desktop  
+- **Linux**: Follow the installation guide for your distribution at https://docs.docker.com/engine/install/
 
-After installation, ensure Docker is running:
+After installation, ensure Docker is running and reachable:
 
 ```bash
 docker --version
 docker ps
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 3. kubectl (Linux & WSL2)
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-On macOS, Docker Desktop already ships a `kubectl` client, so you usually don’t need to install it separately. On Linux and inside WSL2 you must install `kubectl` yourself.
+On **macOS**, Docker Desktop already ships a `kubectl` client, so you usually don’t need to install it separately.  
+On **Linux** and inside **WSL2**, you must install `kubectl` yourself.
 
 For Ubuntu/Debian-based shells (including Ubuntu on WSL2):
 
@@ -99,21 +119,21 @@ chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
 kubectl version --client
+```
 
-{{< /details >}}<br/>
-
+{{< /details >}}
 
 ## Preparing Your Environment
 
 Now that we have all prerequisites in place, let's install Solo and set up our environment.
 
-One thing to consider, old installs can really hamper your ability to get a new install up and running. If you have an old install of Solo, or if you are having issues with the install, please run the following commands to clean up your environment before proceeding.
+One thing to consider: old installs can really hamper your ability to get a new install up and running. If you have an old install of Solo, or if you are having issues with the install, please run the following commands to clean up your environment before proceeding.
 
 ### 1. Installing Solo
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Open your terminal and install Solo globally using npm:
+Open your terminal and install Solo using `npx`:
 
 ```bash
 npx @hashgraph/solo
@@ -127,32 +147,41 @@ solo --version -o yaml    # YAML format: version: 0.46.1
 solo --version -o wide    # Plain text: 0.46.1
 ```
 
-You should see output showing the latest version which should match our NPM package version: <https://www.npmjs.com/package/@hashgraph/solo>
+You should see output showing the latest version which should match our NPM package version: https://www.npmjs.com/package/@hashgraph/solo
 
 The `--output` (or `-o`) flag can be used with various Solo commands to produce machine-readable output in formats like `json`, `yaml`, or `wide`.
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### \*Cleaning up an old install
+### *Cleaning up an old install
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-The team is presently working on a number of fixes and automation that will relegate the need for this, but currently as deployed Solo can be finnicky with artifacts from prior installs. A quick command to prep your station for a new install is a good idea.
+> ⚠️ **Warning:** The commands below will:
+> >
+> > - **Delete all Kind clusters** on your machine (`kind delete cluster` for every cluster returned by `kind get clusters`), and  
+> > - **Remove your Solo home directory** (`~/.solo`), including cached charts, logs, keys, and configuration.
+> >
+> > Only run this if you are sure you no longer need any existing Solo or Kind environments.
+
+The team is presently working on a number of fixes and automation that will relegate the need for this, but currently Solo can be finicky with artifacts from prior installs. A quick command to prep your station for a new install is a good idea:
 
 ```bash
-for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
-rm -Rf ~/.solo
+for cluster in $(kind get clusters); do
+  kind delete cluster -n "$cluster"
+done
+rm -rf ~/.solo
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### 2. Setting up your environmental variables
+### 2. Setting up your environment variables
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-You need to declare some environmental variables. Keep note that unless you intentionally include these in your zsh config when you close your terminal you may lose them.
+You need to declare some environment variables. Unless you intentionally include these in your shell config (for example, `.zshrc` or `.bashrc`), you will lose them when you close your terminal.
 
-\*throughout the remainder of this walkthrough for simplicity sake I will assume in commands these are the values in your .env
+Throughout the remainder of this walkthrough, we’ll assume these values:
 
 ```bash
 export SOLO_CLUSTER_NAME=solo
@@ -161,11 +190,11 @@ export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
 export SOLO_DEPLOYMENT=solo-deployment
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 3. Create a cluster
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 ```bash
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -173,19 +202,19 @@ kind create cluster -n "${SOLO_CLUSTER_NAME}"
 
 Example output:
 
-```
+```text
 Creating cluster "solo-e2e" ...
- • Ensuring node image (kindest/node:v1.32.2) 🖼  ...
+  Ensuring node image (kindest/node:v1.32.2) 🖼  ...
  ✓ Ensuring node image (kindest/node:v1.32.2) 🖼
- • Preparing nodes 📦   ...
+  Preparing nodes 📦   ...
  ✓ Preparing nodes 📦
- • Writing configuration 📜  ...
+  Writing configuration 📜  ...
  ✓ Writing configuration 📜
- • Starting control-plane 🕹️  ...
+  Starting control-plane 🕹️  ...
  ✓ Starting control-plane 🕹️
- • Installing CNI 🔌  ...
+  Installing CNI 🔌  ...
  ✓ Installing CNI 🔌
- • Installing StorageClass 💾  ...
+  Installing StorageClass 💾  ...
  ✓ Installing StorageClass 💾
 Set kubectl context to "kind-solo-e2e"
 You can now use your cluster with:
@@ -195,20 +224,20 @@ kubectl cluster-info --context kind-solo-e2e
 Have a nice day! 👋
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### \*Connecting to a remote cluster
+### *Connecting to a remote cluster
 
-{{< details summary="Details \<click to expand/collapse>" >}}<br/>
+{{< details summary="Details (click to expand/collapse)" >}}
 
-* You may use a remote Kubernetes cluster. In this case, ensure Kubernetes context is set up correctly.
+You may use a remote Kubernetes cluster. In this case, ensure the Kubernetes context is set up correctly.
 
 ```bash
 kubectl config get-contexts
 kubectl config use-context <context-name>
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## One Shot Deployment
 
@@ -216,7 +245,7 @@ Solo provides three one-shot deployment options to quickly set up your Hedera te
 
 ### Single Node Deployment (Recommended for Development)
 
-For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
+For a simple setup with a single node plus mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
 
 ```bash
 solo one-shot single deploy
@@ -233,40 +262,40 @@ solo one-shot single destroy
 For testing consensus scenarios or multi-node behavior, you can deploy a network with multiple consensus nodes. This setup includes all the same components as the single node deployment but with multiple consensus nodes for testing consensus mechanisms.
 
 ```bash
-solo one-shot multiple deploy --num-consensus-nodes 2
+solo one-shot multi deploy 
 ```
 
 This command will:
 
-* Deploy multiple consensus nodes (configurable number)
-* Set up mirror node, explorer, and JSON RPC relay
-* Generate appropriate keys for all nodes
-* Create predefined accounts for testing
+- Deploy multiple consensus nodes 
+- Set up mirror node, explorer, and JSON RPC relay
+- Generate appropriate keys for all nodes
+- Create predefined accounts for testing
 
 When you're finished with the multiple node network:
 
 ```bash
-solo one-shot multiple destroy
+solo one-shot multi destroy
 ```
 
-> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ of memory, 8+ CPU cores).
+> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16 GB+ of memory, 8+ CPU cores).
 
 ### Falcon Deployment (Advanced Configuration)
 
-For advanced users who need fine-grained control over all network components, the falcon deployment uses a YAML configuration file to customize every aspect of the network.
+For advanced users who need fine-grained control over all network components, the Falcon deployment uses a YAML configuration file to customize every aspect of the network.
 
 ```bash
 solo one-shot falcon deploy --values-file falcon-values.yaml
 ```
 
-The falcon deployment allows you to:
+The Falcon deployment allows you to:
 
-* Configure all network components through a single YAML file
-* Customize consensus nodes, mirror node, explorer, relay, and block node settings
-* Set specific versions, resource allocations, and feature flags
-* Perfect for CI/CD pipelines and automated testing scenarios
+- Configure all network components through a single YAML file
+- Customize consensus nodes, mirror node, explorer, relay, and block node settings
+- Set specific versions, resource allocations, and feature flags
+- Integrate cleanly into CI/CD pipelines and automated testing scenarios
 
-**Example Configuration File** (`falcon-values.yaml`):
+**Example configuration file** (`falcon-values.yaml`):
 
 ```yaml
 network:
@@ -294,25 +323,25 @@ relayNode:
   --node-aliases: "node1"
 ```
 
-See the [falcon example](https://github.com/hiero-ledger/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
+See the Falcon example in the repository for a complete configuration template.
 
-When you're finished with the falcon deployment:
+When you're finished with the Falcon deployment:
 
 ```bash
 solo one-shot falcon destroy
 ```
 
-> 📝 **Note**: The falcon deployment reads deployment name and other shared settings from the values file, so you don't need to specify `--deployment` on the command line.
+> 📝 **Note**: The Falcon deployment reads deployment name and other shared settings from the values file, so you don't need to specify `--deployment` on the command line.
 
 ## Step-by-Step Solo Network Deployment
 
 If you have a more complex setup in mind, such as multiple nodes or specific configurations, follow these detailed steps to deploy your Solo network.
 
-### 1. Initialize solo:
+### 1. Initialize Solo
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Reset the `.solo` directory before initializing Solo. This step is crucial to ensure a clean setup without any leftover artifacts from previous installations. See: [\*Cleaning up an old install](#cleaning-up-an-old-install)
+Reset the `.solo` directory before initializing Solo. This step is crucial to ensure a clean setup without any leftover artifacts from previous installations. See: [*Cleaning up an old install](#cleaning-up-an-old-install)
 
 ```bash
 solo init
@@ -320,73 +349,114 @@ solo init
 
 Example output:
 
-```
-$SOLO_INIT_OUTPUT
+```text
+>> environment variable 'SOLO_HOME' exists, using its value
+
+******************************* Solo *********************************************
+Version                 : 0.50.0
+Kubernetes Context      : kind-solo
+Kubernetes Cluster      : kind-solo
+Current Command         : init
+**********************************************************************************
+
+***************************************************************************************
+Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: /Users/torfinn/.solo
+If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.
+***************************************************************************************
+**********************************************************************************
+'solo init' is now deprecated, you don't need to run it anymore.
+**********************************************************************************
+
+ Setup home directory and cache
+✔ Setup home directory and cache
+ Create local configuration
+ Create local configuration [SKIPPED: Create local configuration]
+ Copy templates in '/Users/torfinn/.solo/cache'
+✔ Copy templates in '/Users/torfinn/.solo/cache'
+ Check dependencies
+ Check dependency: helm [OS: darwin, Release: 24.4.0, Arch: arm64]
+ Check dependency: kubectl [OS: darwin, Release: 24.4.0, Arch: arm64]
+✔ Check dependency: helm [OS: darwin, Release: 24.4.0, Arch: arm64] [0.2s]
+✔ Check dependency: kubectl [OS: darwin, Release: 24.4.0, Arch: arm64] [0.3s]
+✔ Check dependencies [0.3s]
+ Setup chart manager
+✔ Setup chart manager [5s]
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 2. Connect the cluster and create a deployment
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-This command will create a deployment in the specified clusters, and generate the LocalConfig and RemoteConfig used by k8s.
+This command will create a deployment in the specified clusters, and generate the `LocalConfig` and `RemoteConfig` used by Kubernetes.
 
 The deployment will:
 
-* Create a namespace (usually matching the deployment name)
-* Set up ConfigMaps and secrets
-* Deploy network infrastructure
-* Create persistent volumes if needed
+- Create a namespace (usually matching the deployment name)
+- Set up ConfigMaps and secrets
+- Deploy network infrastructure
+- Create persistent volumes if needed
 
-> 📝 notice that the `--cluster-ref` value is `kind-solo`, when you created the Kind cluster it created a cluster reference in the Kubernetes config with the name `kind-solo`. If you used a different name, replace `kind-solo` with your cluster name, but prefixing with `kind-`.  If you are working with a remote cluster, you can use the name of your cluster reference which can be gathered with the command: `kubectl config get-contexts`.
-> 📝 Note: Solo stores various artifacts (config, logs, keys etc.) in its home directory: ~/.solo. If you need a full reset, delete this directory before running solo init ag
+> 📝 Notice that the `--cluster-ref` value is `kind-solo`. When you created the Kind cluster it created a cluster reference in the Kubernetes config with the name `kind-solo`. If you used a different name, replace `kind-solo` with your cluster name, but prefix it with `kind-`.  
+> 📝 Solo stores various artifacts (config, logs, keys etc.) in its home directory: `~/.solo`. If you need a full reset, delete this directory before running `solo init` again.
 
 ```bash
-# connect to the cluster you created in a previous command
+# Connect to the cluster you created in a previous command
 solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
-#create the deployment
+# Create the deployment
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
 
-```
-$SOLO_CLUSTER_REF_CONNECT_OUTPUT
+```text
+>> environment variable 'SOLO_HOME' exists, using its value
+
+******************************* Solo *********************************************
+Version                 : 0.50.0
+Kubernetes Context      : kind-solo
+Kubernetes Cluster      : kind-solo
+Current Command         : cluster-ref config connect --cluster-ref kind-solo --context kind-solo
+**********************************************************************************
+ Initialize
+✔ Initialize
+ Validating cluster ref:
+✔ kind-solo
+ Test connection to cluster:
+✔ Test connection to cluster: kind-solo
+ Associate a context with a cluster reference:
+✔ Associate a context with a cluster reference: kind-solo
 ```
 
-```
-$SOLO_DEPLOYMENT_CREATE_OUTPUT
-```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 3. Add a cluster to the deployment you created
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-\*This command is the first command that will specify how many nodes you want to add to your deployment. For the sake of resource
+This command is the first time you specify how many consensus nodes you want to add to your deployment. For the sake of resource usage in this guide, we’ll use **1 consensus node**.
 
 ```bash
 # Add a cluster to the deployment you created
 solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
-# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment cluster attach` without any arguments to get a guided setup.
+
+# Tip: if the CLI is unresponsive, there’s a guided mode:
+# solo deployment cluster attach
 ```
 
 Example output:
 
-```
-$SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
-```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 4. Generate keys
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-You need to generate keys for your nodes, or in this case single node.
+You need to generate keys for your nodes — in this example, a single node.
 
 ```bash
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
@@ -394,24 +464,47 @@ solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLO
 
 Example output:
 
-```
-$SOLO_NODE_KEY_PEM_OUTPUT
+```text
+>> environment variable 'SOLO_HOME' exists, using its value
+
+******************************* Solo *********************************************
+Version                 : 0.50.0
+Kubernetes Context      : kind-solo
+Kubernetes Cluster      : kind-solo
+Current Command         : keys consensus generate --gossip-keys --tls-keys --deployment solo-deployment
+**********************************************************************************
+ Initialize
+✔ Initialize
+ Generate gossip keys
+ Backup old files
+✔ Backup old files
+ Gossip key for node: node1
+✔ Gossip key for node: node1 [0.1s]
+✔ Generate gossip keys [0.1s]
+ Generate gRPC TLS Keys
+ Backup old files
+ TLS key for node: node1
+✔ Backup old files
+✔ TLS key for node: node1 [0.2s]
+✔ Generate gRPC TLS Keys [0.2s]
+ Finalize
+✔ Finalize
 ```
 
-PEM key files are generated in `~/.solo/cache/keys` directory.
+PEM key files are generated in the `~/.solo/cache/keys` directory:
 
-```
+```text
 hedera-node1.crt    hedera-node3.crt    s-private-node1.pem s-public-node1.pem  unused-gossip-pem
 hedera-node1.key    hedera-node3.key    s-private-node2.pem s-public-node2.pem  unused-tls
 hedera-node2.crt    hedera-node4.crt    s-private-node3.pem s-public-node3.pem
 hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### 5. Setup cluster with shared components
+### 5. Set up cluster with shared components
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 ```bash
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
@@ -419,41 +512,66 @@ solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
 Example output:
 
-```
-$SOLO_CLUSTER_SETUP_OUTPUT
+```text
+>> environment variable 'SOLO_HOME' exists, using its value
+
+******************************* Solo *********************************************
+Version                 : 0.50.0
+Kubernetes Context      : kind-solo
+Kubernetes Cluster      : kind-solo
+Current Command         : cluster-ref config setup --cluster-setup-namespace solo-cluster
+**********************************************************************************
+ Check dependencies
+ Check dependency: helm [OS: darwin, Release: 24.4.0, Arch: arm64]
+✔ Check dependency: helm [OS: darwin, Release: 24.4.0, Arch: arm64]
+✔ Check dependencies
+ Setup chart manager
+✔ Setup chart manager [5s]
+ Initialize
+✔ Initialize
+ Install cluster charts
+Skipping Grafana Agent chart installation
+ Install pod-monitor-role ClusterRole
+✅ ClusterRole pod-monitor-role installed successfully
+✔ Install pod-monitor-role ClusterRole
+ Install MinIO Operator chart
+✅ MinIO Operator chart installed successfully
+✔ Install MinIO Operator chart [0.8s]
+✔ Install cluster charts [0.9s]
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## Deploying Helm chart with network components
 
 Now comes the exciting part – deploying your Hedera test network!
 
-### \*Deploy a block node (experimental)
+### *Deploy a Block Node (experimental)
 
-{{< details summary="Details \<click to expand/collapse>" >}}<br/>
+{{< details summary="Details (click to expand/collapse)" >}}
 
-> ⚠️ Block Node is experimental in Solo.  It requires a minimum of 16 GB of memory allocated to Docker. If you have less than 16 GB of memory, skip this step.
+> ⚠️ Block Node is **experimental** in Solo. It requires a minimum of **16 GB of memory** allocated to Docker. If you have less than 16 GB of memory, **skip this step**.
 
-As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo consensus network deploy` & `solo consensus node setup` command with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version. \*note: v0.62.6 is the latest patch for v0.62
+Block Node uses a lot of memory. In addition, it requires a version of Consensus Node to be at least **v0.62.3**. You will need to augment the `solo consensus network deploy` and `solo consensus node setup` commands with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version.  
+Note: `v0.62.6` is the latest patch for `v0.62`.
 
-```
+```bash
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" --release-tag v0.62.6
 ```
 
 Example output:
 
-```
+```text
 $SOLO_BLOCK_NODE_ADD_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 1. Deploy the network
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Deploying the network runs risks of timeouts as images are downloaded, and pods are starting. If you experience a failure double check the resources you've allocated in docker engine and give it another try.
+Deploying the network can sometimes time out as images are downloaded and pods start. If you experience a failure, double-check the resources you've allocated in Docker and try again.
 
 ```bash
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
@@ -461,56 +579,55 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
 
 Example output:
 
-```
+```text
 $SOLO_NETWORK_DEPLOY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 2. Set up a node with Hedera platform software
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-This step downloads the hedera platform code and sets up your node/nodes.
+This step downloads the Hedera platform code and sets up your node(s).
 
 ```bash
-# consensus node setup
-export CONSENSUS_NODE_VERSION=v0.66.0 # or whatever version you are trying to deploy starting with a `v`
+# Consensus node setup
+export CONSENSUS_NODE_VERSION=v0.66.0  # or whatever version you are trying to deploy, starting with a `v`
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 
 Example output:
 
-```
+```text
 $SOLO_NODE_SETUP_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### 3. Start the nodes up!
+### 3. Start the nodes
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Now that everything is set up you need to start them.
+Now that everything is set up, start your consensus node(s):
 
 ```bash
-# start your node/nodes
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
 
-```
+```text
 $SOLO_NODE_START_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 4. Deploy a mirror node
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-This is the most memory intensive step from a resource perspective. If you have issues at this step try checking your local resource utilization and make sure there's memory available for docker (close all unessential applications). Likewise, you can consider lowering your swap in docker settings to ease the swap demand, and try again.
+This is the most memory-intensive step from a resource perspective. If you have issues here, check your local resource utilization and make sure there's memory available for Docker (close all non-essential applications). You can also reduce Docker's swap usage in settings to ease memory pressure.
 
 The `--pinger` flag starts a pinging service that sends transactions to the network at regular intervals. This is needed because the record file is not imported into the mirror node until the next one is created.
 
@@ -521,185 +638,192 @@ solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO
 
 Example output:
 
-```
+```text
 $SOLO_MIRROR_NODE_DEPLOY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 5. Deploy the explorer
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Watch the deployment progress:
+The explorer gives you a UI to inspect accounts, transactions, and network status.
 
 ```bash
-# deploy explorer
+# Deploy explorer
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
 
-```
+```text
 $SOLO_EXPLORER_DEPLOY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 6. Deploy a JSON RPC relay
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 The JSON RPC relay allows you to interact with your Hedera network using standard JSON RPC calls. This is useful for integrating with existing tools and libraries.
 
 ```bash
-#deploy a solo JSON RPC relay
+# Deploy a Solo JSON RPC relay
 solo relay node add -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
 
-```
+```text
 $SOLO_RELAY_DEPLOY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### \*Check Pod Status
+### *Check pod status
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Here is a command if you want to check the status of your Solo Kubernetes pods:
+To check the status of your Solo Kubernetes pods:
 
 ```bash
-# Check pod status
-kubectl get pods -n solo
+kubectl get pods -n "${SOLO_NAMESPACE}"
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## Working with Your Network
 
 ### Network Endpoints
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-At this time Solo doesn't automatically set up port forwarding for you, so you'll need to do that manually.
-
-The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command:
+Some port forwarding is automatic, but in other cases you may want to configure your own using `kubectl port-forward`.
 
 ```bash
 # Consensus Service for node1 (node ID = 0): localhost:50211
-# should be automatic: kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# (Usually automatic)
+# kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+
 # Explorer UI: http://localhost:8080
-# should be automatic: kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
-# Mirror Node gRPC, REST, REST Java, Web3 will be automatic on `localhost:8081` if you passed `--enable-ingress` to the `solo mirror node add` command
+# (Usually automatic)
+# kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
+
+# Mirror Node gRPC, REST, REST Java, Web3 are usually exposed on `localhost:8081`
+# when you passed `--enable-ingress` to the `solo mirror node add` command.
+
 # Mirror Node gRPC: localhost:5600
 kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 > /dev/null 2>&1 &
+
 # Mirror Node REST API: http://localhost:5551
 kubectl port-forward svc/mirror-1-rest -n "${SOLO_NAMESPACE}" 5551:80 > /dev/null 2>&1 &
-# Mirror Node REST Java API http://localhost:8084
+
+# Mirror Node REST Java API: http://localhost:8084
 kubectl port-forward svc/mirror-1-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /dev/null 2>&1 &
+
 # JSON RPC Relay: localhost:7546
-# should be automatic: kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+# (Usually automatic)
+# kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## Managing Your Network
 
-### Stopping and Starting Nodes
+### Stopping and starting nodes
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 You can control individual nodes or the entire network:
 
 ```bash
 # Stop all nodes
-solo consensus node stop --deployment solo-deployment
+solo consensus node stop --deployment "${SOLO_DEPLOYMENT}"
 
 # Stop a specific node
-solo consensus node stop --node-id node-0 --deployment solo-deployment
+solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases node1
 
 # Restart nodes
-solo consensus node restart --deployment solo-deployment
+solo consensus node restart --deployment "${SOLO_DEPLOYMENT}"
 
 # Start nodes again
-solo consensus node start --deployment solo-deployment
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### Viewing Logs
+### Viewing logs
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 Access Solo and Consensus Node logs for troubleshooting:
 
 ```bash
-# Download logs from all nodes
-
-# Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
-solo deployment diagnostics all --deployment solo-deployment
+# Capture logs, configs, and diagnostic artifacts from all consensus nodes and test connections
+solo consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-{{< /details >}}<br/>
+You can also use `kubectl logs` directly if you prefer.
 
-### Updating the Network
+{{< /details >}}
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+### Updating the network
 
-To update nodes to a new Hedera version, you need to upgrade by one minor version higher at a time:
+{{< details summary="Details (click to expand/collapse)" open=true >}}
+
+To update nodes to a new Hedera version, you typically upgrade one minor version at a time:
 
 ```bash
-solo consensus network upgrade --deployment solo-deployment --upgrade-version v0.62.6
+solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.62.6
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### Updating a single node
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-To update a single node to a new Hedera version, you need to update by one minor version higher at a time:
-
-```bash
-solo consensus node update --deployment solo-deployment --node-alias node1 --release-tag v0.62.6
-```
-
-It is possible to update a single node to a new Hedera version through a process with separated steps. This is only useful in very specific cases, such as when testing the updating process.
+To update a single node to a new Hedera version (again, usually one minor version at a time):
 
 ```bash
-solo consensus dev-node-update prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
-solo consensus dev-node-update submit-transaction --deployment solo-deployment --input-dir context
-solo consensus dev-node-update execute --deployment solo-deployment --input-dir context
+solo consensus node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node1 --release-tag v0.62.6
 ```
 
-{{< /details >}}<br/>
+It is also possible to update a single node through a process with separated steps. This is only useful in very specific cases, such as when testing the update process itself:
+
+```bash
+solo consensus dev-node-update prepare --deployment "${SOLO_DEPLOYMENT}" --node-alias node1 --release-tag v0.62.6 --output-dir context
+solo consensus dev-node-update submit-transaction --deployment "${SOLO_DEPLOYMENT}" --input-dir context
+solo consensus dev-node-update execute --deployment "${SOLO_DEPLOYMENT}" --input-dir context
+```
+
+{{< /details >}}
 
 ### Adding a new node to the network
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Adding a new node to an existing Solo network:
+Adding a new node to an existing Solo network (high-level overview):
 
 ```bash
 TODO solo consensus node add
 ```
 
-It is possible to add a new node through a process with separated steps. This is only useful in very specific cases, such as when testing the node adding process.
+It is possible to add a new node through a process with separated steps. This is only useful in very specific cases, such as when testing the node-adding process:
 
 ```bash
-solo consensus dev-node-add prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
-solo consensus dev-node-add submit-transaction --deployment solo-deployment --input-dir context
-solo consensus dev-node-add execute --deployment solo-deployment --input-dir context
+solo consensus dev-node-add prepare --gossip-keys true --tls-keys true --deployment "${SOLO_DEPLOYMENT}" --pvcs true --admin-key ***** --node-alias node1 --output-dir context
+solo consensus dev-node-add submit-transaction --deployment "${SOLO_DEPLOYMENT}" --input-dir context
+solo consensus dev-node-add execute --deployment "${SOLO_DEPLOYMENT}" --input-dir context
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### Deleting a node from the network
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 This command is used to delete a node from an existing Solo network:
 
@@ -707,198 +831,215 @@ This command is used to delete a node from an existing Solo network:
 TODO solo consensus node destroy
 ```
 
-It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process.
+It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process:
 
 ```bash
-solo consensus dev-node-delete prepare --deployment solo-deployment --node-alias node1 --output-dir context
-solo consensus dev-node-delete submit-transaction --deployment solo-deployment --input-dir context
-solo consensus dev-node-delete execute --deployment solo-deployment --input-dir context
+solo consensus dev-node-delete prepare --deployment "${SOLO_DEPLOYMENT}" --node-alias node1 --output-dir context
+solo consensus dev-node-delete submit-transaction --deployment "${SOLO_DEPLOYMENT}" --input-dir context
+solo consensus dev-node-delete execute --deployment "${SOLO_DEPLOYMENT}" --input-dir context
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## Troubleshooting: Common Issues and Solutions
 
-### 1. Pods Not Starting
+### 1. Pods not starting
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 If pods remain in `Pending` or `CrashLoopBackOff` state:
 
 ```bash
 # Check pod events
-kubectl describe pod -n solo network-node-0
-
-# Common fixes:# - Increase Docker resources (memory/CPU)# - Check disk space# - Restart Docker and kind cluster
+kubectl describe pod -n "${SOLO_NAMESPACE}" <pod-name>
 ```
 
-{{< /details >}}<br/>
+Common fixes:
 
-### 2. Connection Refused Errors
+- Increase Docker resources (memory/CPU)
+- Check disk space
+- Restart Docker and the Kind cluster
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< /details >}}
+
+### 2. Connection refused errors
+
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 If you can't connect to network endpoints:
 
 ```bash
 # Check service endpoints
-kubectl get svc -n solo
+kubectl get svc -n "${SOLO_NAMESPACE}"
 
-# Manually forward ports if needed
-kubectl port-forward -n solo svc/network-node-0 50211:50211
+# Manually forward ports if needed (example)
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/network-node-0 50211:50211
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### 3. Node Synchronization Issues
+### 3. Node synchronization issues
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 If nodes aren't forming consensus:
 
 ```bash
 # Check node status
-solo consensus state download --deployment solo-deployment --node-aliases node1
+solo consensus state download --deployment "${SOLO_DEPLOYMENT}" --node-aliases node1
 
 # Look for gossip connectivity issues
-kubectl logs -n solo network-node-0 | grep -i gossip
+kubectl logs -n "${SOLO_NAMESPACE}" network-node-0 | grep -i gossip
 
 # Restart problematic nodes
-solo consensus node refresh --node-aliases node1 --deployment solo-deployment
+solo consensus node refresh --node-aliases node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## Getting Help
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 When you need assistance:
 
-1. **Check the logs**: Use `solo deployment diagnostics all --deployment solo-deployment` and examine `~/.solo/logs/`
-2. **Documentation**: Visit [https://solo.hiero.org/main/docs/](docs/_index.md)
-3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
-4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
+1. **Check the logs**  
+   Use:
+   ```bash
+   solo consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}"
+   ```
+   Then examine `~/.solo/logs/`.
 
-{{< /details >}}<br/>
+2. **Documentation**  
+   Visit the Solo docs site (linked from the repository README).
+
+3. **GitHub Issues**  
+   Report bugs at: https://github.com/hiero-ledger/solo/issues
+
+4. **Community Support**  
+   Join the Hedera Discord community (linked from the Hedera docs / website).
+
+{{< /details >}}
 
 ## Cleanup
 
-{{< details summary="Details \<click to expand/collapse>" >}}<br/>
+{{< details summary="Details (click to expand/collapse)" >}}
 
-When you're done with your test network:
+When you're done with your test network, you can clean up resources.
 
-### \*Fast clean up
+### *Fast clean up
 
-{{< details summary="Details \<click to expand/collapse>" >}}<br/>
+{{< details summary="Details (click to expand/collapse)" >}}
 
-To quickly clean up your Solo network and remove all resources (all Kind clusters!), you can use the following commands, be aware you will lose all your logs and data from prior runs:
+To quickly clean up your Solo network and remove all resources (all Kind clusters!), you can use the following commands. Be aware you will lose all your logs and data from prior runs:
 
 ```bash
-for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
-rm -Rf ~/.solo
+for cluster in $(kind get clusters); do
+  kind delete cluster -n "$cluster"
+done
+rm -rf ~/.solo
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 1. Destroy relay node
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-```
-solo relay node destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}"
+```bash
+solo relay node destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
 
-```
+```text
 $SOLO_RELAY_DESTROY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 2. Destroy mirror node
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-```
+```bash
 solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:
 
-```
+```text
 $SOLO_MIRROR_NODE_DESTROY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 3. Destroy explorer node
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-```
+```bash
 solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:
 
-```
+```text
 $SOLO_EXPLORER_DESTROY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-### \*Destroy block node (Experimental)
+### *Destroy block node (experimental)
 
-{{< details summary="Details \<click to expand/collapse>" >}}<br/>
+{{< details summary="Details (click to expand/collapse)" >}}
 
-Block Node destroy should run prior to consensus network destroy, since consensus network destroy removes the remote config.  To destroy the block node (if you deployed it), you can use the following command:
+Block Node destroy should run **before** consensus network destroy, since consensus network destroy removes the remote config. To destroy the block node (if you deployed it):
 
-```
-solo block node destroy --deployment "${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME}"
+```bash
+solo block node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
 
-```
+```text
 $SOLO_BLOCK_NODE_DESTROY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ### 4. Destroy network
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
-```
+```bash
 solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:
 
-```
+```text
 $SOLO_NETWORK_DESTROY_OUTPUT
 ```
 
-{{< /details >}}<br/>
+{{< /details >}}
 
-{{< /details >}}<br/>
+{{< /details >}}
 
 ## Next Steps
 
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Details (click to expand/collapse)" open=true >}}
 
 Congratulations! You now have a working Hedera test network. Here are some suggestions for what to explore next:
 
-1. **Deploy Smart Contracts**: Test your Solidity contracts on the local network
-2. **Mirror Node Queries**: Explore the REST API at `http://localhost:5551`
-3. **Multi-Node Testing**: Add more nodes to test scalability
-4. **Network Upgrades**: Practice upgrading the Hedera platform version
-5. **Integration Testing**: Connect your applications to the local network
+1. **Deploy Smart Contracts** – Test your Solidity contracts on the local network.
+2. **Mirror Node Queries** – Explore the REST API at `http://localhost:5551` (or your configured port).
+3. **Multi-Node Testing** – Add more nodes to test scalability and consensus behavior.
+4. **Network Upgrades** – Practice upgrading the Hedera platform version using Solo’s upgrade commands.
+5. **Integration Testing** – Connect your applications to the local network and build end-to-end tests.
 
 Remember, this is your personal Hedera playground. Experiment freely, break things, learn, and have fun building on Hedera!
 
 Happy coding with Solo! 🚀
 
-{{< /details >}}<br/>
+{{< /details >}}
