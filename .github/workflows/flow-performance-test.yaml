@@ -124,7 +124,7 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_SLEEP_MINUTES=30 >> .env
           cat .env
-          task test-e2e-one-shot-single
+          task test-e2e-performance
 
       - name: Log Metrics
         id: log-metrics
