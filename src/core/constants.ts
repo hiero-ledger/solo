@@ -196,7 +196,12 @@ export const DEFAULT_GENESIS_KEY =
   '302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137';
 export const GENESIS_KEY = getEnvironmentVariable('GENESIS_KEY') || DEFAULT_GENESIS_KEY;
 export const GENESIS_PUBLIC_KEY = PrivateKey.fromStringED25519(GENESIS_KEY).publicKey;
-export const SYSTEM_ACCOUNTS = [[3, 20]]; // do account 0.0.2 last and outside the loop
+export const SYSTEM_ACCOUNTS = [
+  [3, 100],
+  [200, 349],
+  [400, 750],
+  [900, 1000],
+]; // do account 0.0.2 last and outside the loop
 export const SHORTER_SYSTEM_ACCOUNTS = [[3, 60]];
 export const TREASURY_ACCOUNT = 2;
 export const LOCAL_NODE_START_PORT = +getEnvironmentVariable('LOCAL_NODE_START_PORT') || 30_212;

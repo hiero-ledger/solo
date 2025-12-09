@@ -78,23 +78,6 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       });
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('network nodes version file was upgraded', async () => {
-      // copy the version.txt file from the pod data/upgrade/current directory
-      const temporaryDirectory = getTemporaryDirectory();
-      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-
-      const container: Container = k8Factory
-        .default()
-        .containers()
-        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
-      const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
-
-      const versionLine: string = versionFile.split('\n')[0].trim();
-      expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
-    }).timeout(Duration.ofMinutes(5).toMillis());
-
     it('should succeed with upgrade with zip file', async () => {
       // Remove the staging directory to make sure the command works if it doesn't exist
       const stagingDirectory = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));

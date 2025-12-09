@@ -321,7 +321,7 @@ export class ProfileManager {
 
     if (profile.consensus) {
       // set default for consensus pod
-      this._setChartItems('defaults', profile.consensus, yamlRoot);
+      this._setChartItems('defaults.root', profile.consensus.root, yamlRoot);
 
       // set sidecar resources
       for (const sidecar of constants.HEDERA_NODE_SIDECARS) {
