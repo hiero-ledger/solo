@@ -3,16 +3,8 @@
 import {describe} from 'mocha';
 
 import {container} from 'tsyringe-neo';
-<<<<<<< HEAD
-import {Argv} from '../../helpers/argv-wrapper.js';
-import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
-import {AccountId, AccountInfoQuery} from '@hiero-ledger/sdk';
-import {type Container} from '../../../src/integration/kube/resources/container/container.js';
-=======
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Duration} from '../../../src/core/time/duration.js';
->>>>>>> e35c98fc4a3e8ecd8efe2ceccee15cd05b65b49e
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {InitTest} from './tests/init-test.js';
