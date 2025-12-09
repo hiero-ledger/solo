@@ -59,7 +59,7 @@ export class Version<T extends SemVer | number> {
   /**
    * Validates if a string is a valid semantic version and handles the 'v' prefix
    *
-   * @param versionStr - The version string to validate
+   * @param versionString - The version string to validate
    * @param isNeedPrefix - If true, adds 'v' prefix if missing; if false, removes 'v' prefix if present
    * @param label - Label to use in error messages (e.g., 'Release tag', 'Version')
    * @returns The processed version string with proper prefix handling
@@ -75,7 +75,7 @@ export class Version<T extends SemVer | number> {
     }
 
     // Handle 'v' prefix based on isNeedPrefix parameter
-    let processedVersion = versionString;
+    let processedVersion: string = versionString;
     if (isNeedPrefix && !versionString.startsWith('v')) {
       processedVersion = `v${versionString}`;
     } else if (!isNeedPrefix && versionString.startsWith('v')) {
