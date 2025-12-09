@@ -35,7 +35,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
     // save the logger so that solo.ts can use it to properly flush the logs and exit
     context.logger = logger;
   }
-  process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise) => {
+  process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise): void => {
     logger.showUserError(
       new SoloError(
         `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
@@ -43,7 +43,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
       ),
     );
   });
-  process.on('uncaughtException', (error, origin) => {
+  process.on('uncaughtException', (error, origin): void => {
     logger.showUserError(new SoloError(`Uncaught Exception: ${error}, origin: ${origin}`, error));
   });
 
@@ -51,13 +51,13 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
   constants.LISTR_DEFAULT_RENDERER_OPTION.logger = new ListrLogger({processOutput: new CustomProcessOutput(logger)});
   if (argv.length >= 3 && ['-version', '--version', '-v', '--v'].includes(argv[2])) {
     // Check for --output flag (K8s ecosystem standard)
-    const outputFlagIndex = argv.findIndex(
-      argument => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
+    const outputFlagIndex: number = argv.findIndex(
+      (argument): boolean => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
     );
-    let outputFormat = '';
+    let outputFormat: string = '';
 
     if (outputFlagIndex !== -1) {
-      const outputArgument = argv[outputFlagIndex];
+      const outputArgument: string = argv[outputFlagIndex];
       if (outputArgument.startsWith('--output=')) {
         outputFormat = outputArgument.split('=')[1];
       } else if (outputFlagIndex + 1 < argv.length) {
@@ -65,12 +65,12 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
       }
     }
 
-    const version = getSoloVersion();
+    const version: string = getSoloVersion();
 
     // Handle different output formats
     switch (outputFormat) {
       case 'json': {
-        logger.showUser(JSON.stringify({version}, null, 2));
+        logger.showUser(JSON.stringify({version}, undefined, 2));
         break;
       }
       case 'yaml': {
