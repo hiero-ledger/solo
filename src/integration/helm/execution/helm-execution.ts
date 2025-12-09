@@ -4,6 +4,7 @@ import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
 import {HelmExecutionException} from '../helm-execution-exception.js';
 import {HelmParserException} from '../helm-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
+import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 
 /**
  * Represents the execution of a helm command and is responsible for parsing the response.
@@ -25,6 +26,7 @@ export class HelmExecution {
 
   private readonly process: ChildProcessWithoutNullStreams;
   private readonly commandLine: string;
+  private readonly logger?: SoloLogger;
 
   private output: string[] = [];
   private errOutput: string[] = [];
@@ -35,9 +37,21 @@ export class HelmExecution {
    * @param command The command array to execute
    * @param workingDirectory The working directory for the process
    * @param environmentVariables The environment variables to set
+   * @param logger Optional logger for command output
    */
-  constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+  constructor(
+    command: string[],
+    workingDirectory: string,
+    environmentVariables: Record<string, string>,
+    logger?: SoloLogger,
+  ) {
+    this.logger = logger;
     this.commandLine = command.join(' ');
+
+    if (this.logger) {
+      this.logger.info(`Executing helm command: ${this.commandLine}`);
+    }
+
     this.process = spawn(command.join(' '), {
       shell: true,
       cwd: workingDirectory,
