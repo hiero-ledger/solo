@@ -26,7 +26,14 @@ import {type Deployment} from '../../../src/business/runtime-state/config/local/
 
 const testName: string = 'performance-tests';
 const testTitle: string = 'E2E Performance Tests';
-const duration: number = 60;
+
+const duration: number = 300; // 5 minutes
+const clients: number = 5;
+const accounts: number = 20;
+const tokens: number = 1;
+const nfts: number = 2;
+const percent: number = 50;
+
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName(`${testTitle} Suite`)
@@ -69,21 +76,35 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
-        await main(soloRapidFire(testName, 'CryptoTransferLoadTest', `-c 5 -a 10 -R -t ${duration}`));
+        await main(soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('HCSLoadTest', async (): Promise<void> => {
+        await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('NftTransferLoadTest', async (): Promise<void> => {
         await main(
-          soloRapidFire(testName, 'NftTransferLoadTest', `-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -R -t ${duration}`),
+          soloRapidFire(
+            testName,
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+          ),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('TokenTransferLoadTest', async (): Promise<void> => {
+        await main(
+          soloRapidFire(
+            testName,
+            'TokenTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${accounts} -R -t ${duration}`,
+          ),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('SmartContractLoadTest', async (): Promise<void> => {
-        await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c 5 -a 10 -R -t 10 ${duration}`));
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-
-      it('SmartContractLoadTest', async (): Promise<void> => {
-        await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c 5 -a 10 -R -t 10 ${duration}`));
+        await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
