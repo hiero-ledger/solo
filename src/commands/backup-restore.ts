@@ -64,7 +64,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static BACKUP_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.outputDir],
+    optional: [flags.quiet, flags.outputDir, flags.zipPassword],
   };
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
@@ -74,7 +74,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig],
+    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig, flags.zipPassword, flags.zipInputFile],
   };
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
@@ -279,6 +279,24 @@ export class BackupRestoreCommand extends BaseCommand {
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
+          },
+        },
+        {
+          title: 'Compress backup directory',
+          skip: () => {
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            return !zipPassword;
+          },
+          task: async (_, task) => {
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            const absoluteOutputDirectory: string = path.resolve(outputDirectory);
+            const outputArchivePath: string = `${absoluteOutputDirectory}.zip`;
+            const compressionCommand: string = `cd "${absoluteOutputDirectory}" && zip -rX -P "${zipPassword}" "${outputArchivePath}" .`;
+            await this.run(compressionCommand, [], true, false);
+
+            task.title = `Compress backup directory: created ${outputArchivePath}`;
+            //use log.ShowUser to tell where the output zip file location
+            this.logger.showUser(chalk.green(`Backup compressed to ${outputArchivePath}`));
           },
         },
       ],
@@ -1284,6 +1302,52 @@ export class BackupRestoreCommand extends BaseCommand {
     };
   }
 
+  private async extractEncryptedBackup(targetDirectory: string, task: any): Promise<void> {
+    const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+    if (!zipPassword) {
+      return;
+    }
+
+    const zipInputFile: string = this.configManager.getFlag<string>(flags.zipInputFile);
+    if (!zipInputFile) {
+      throw new SoloError('--zip-input-file is required when using --zip-password.');
+    }
+
+    const inputPath: string = path.resolve(zipInputFile);
+    if (!fs.existsSync(inputPath)) {
+      throw new SoloError(`Input path does not exist: ${inputPath}`);
+    }
+
+    const inputStats: fs.Stats = fs.statSync(inputPath);
+    if (!inputStats.isFile()) {
+      this.logger.showUser(chalk.yellow('Provided zip input path points to a directory; skipping extraction.'));
+      return;
+    }
+
+    if (path.extname(inputPath).toLowerCase() !== '.zip') {
+      throw new SoloError('Input path must be a .zip file when using --zip-password.');
+    }
+
+    if (!fs.existsSync(targetDirectory)) {
+      fs.mkdirSync(targetDirectory, {recursive: true});
+    }
+
+    const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
+    await this.run(unzipCommand, [], true, false);
+
+    this.configManager.setFlag(flags.inputDir, targetDirectory);
+
+    if (task) {
+      task.title = `Extract backup archive: ${targetDirectory}`;
+    }
+
+    this.logger.showUser(
+      chalk.green(
+        `\n✓ Backup archive extracted to ${targetDirectory}\nUse this directory for subsequent restore commands.`,
+      ),
+    );
+  }
+
   /**
    * Build create Kind clusters tasks
    */
@@ -1563,6 +1627,16 @@ export class BackupRestoreCommand extends BaseCommand {
     const tasks = new Listr<RestoreClustersContext>(
       [
         self.buildInitializationTask(argv),
+        {
+          title: 'Extract backup archive',
+          skip: () => {
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            return !zipPassword;
+          },
+          task: async (context_: RestoreClustersContext, task): Promise<void> => {
+            await self.extractEncryptedBackup(context_.inputDirectory, task);
+          },
+        },
         // Flatten scan backup directory task
         self.buildScanBackupDirectoryTask(),
         ...self.buildKindNetworkTask(),

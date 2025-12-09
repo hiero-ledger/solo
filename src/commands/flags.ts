@@ -1713,6 +1713,28 @@ export class Flags {
     },
   };
 
+  public static readonly zipPassword: CommandFlag = {
+    constName: 'zipPassword',
+    name: 'zip-password',
+    definition: {
+      describe: 'Password to encrypt generated backup ZIP archives',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly zipInputFile: CommandFlag = {
+    constName: 'zipInputFile',
+    name: 'zip-input-file',
+    definition: {
+      describe: 'Path to the encrypted backup ZIP archive used during restore',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly inputDir: CommandFlag = {
     constName: 'inputDir',
     name: 'input-dir',
