@@ -9,7 +9,7 @@ export class RemoteConfigMetadataSchema {
   public lastUpdatedAt: Date;
 
   @Expose()
-  @Type(() => UserIdentitySchema)
+  @Type((): typeof UserIdentitySchema => UserIdentitySchema)
   public lastUpdatedBy: UserIdentitySchema;
 
   public constructor(lastUpdatedAt?: Date, lastUpdatedBy?: UserIdentitySchema) {

@@ -14,14 +14,14 @@ export class PortUtilities {
    * @returns Promise that resolves to true if port is available, false otherwise
    */
   public static async isPortAvailable(port: number): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject): void => {
       const server: net.Server = net.createServer();
-      const timeout = setTimeout(() => {
+      const timeout: NodeJS.Timeout = setTimeout((): void => {
         server.close();
         reject(new Error(`Timeout while checking port ${port}`));
       }, 5000); // 5-second timeout
 
-      server.once('error', error => {
+      server.once('error', (error): void => {
         clearTimeout(timeout);
         if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
           // Port is in use
@@ -32,10 +32,10 @@ export class PortUtilities {
         }
       });
 
-      server.once('listening', () => {
+      server.once('listening', (): void => {
         clearTimeout(timeout);
         // Port is available
-        server.close(() => {
+        server.close((): void => {
           resolve(true);
         });
       });
