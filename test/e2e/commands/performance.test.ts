@@ -62,29 +62,29 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(25).toMillis());
 
-      // after(async (): Promise<void> => {
-      //   testLogger.info(`${testName}: beginning ${testName}: destroy`);
-      //   await main(soloOneShotDestroy(testName));
-      //   testLogger.info(`${testName}: finished ${testName}: destroy`);
-      // }).timeout(Duration.ofMinutes(5).toMillis());
+      after(async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloOneShotDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
         await main(soloRapidFire(testName, 'CryptoTransferLoadTest', `-c 5 -a 10 -R -t ${duration}`));
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
-      // it('NftTransferLoadTest', async (): Promise<void> => {
-      //   await main(
-      //     soloRapidFire(testName, 'NftTransferLoadTest', `-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -R -t ${duration}`),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
-      // it('SmartContractLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c 5 -a 10 -R -t 10 ${duration}`));
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
-      // it('SmartContractLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c 5 -a 10 -R -t 10 ${duration}`));
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('NftTransferLoadTest', async (): Promise<void> => {
+        await main(
+          soloRapidFire(testName, 'NftTransferLoadTest', `-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -R -t ${duration}`),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('SmartContractLoadTest', async (): Promise<void> => {
+        await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c 5 -a 10 -R -t 10 ${duration}`));
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('SmartContractLoadTest', async (): Promise<void> => {
+        await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c 5 -a 10 -R -t 10 ${duration}`));
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
