@@ -4,7 +4,7 @@ import {type ChartInfo} from './chart-info.js';
 import {type ReleaseInfo} from './release-info.js';
 
 export class Release {
-  constructor(
+  public constructor(
     public readonly name: string,
     public readonly info: ReleaseInfo,
     public readonly chart: ChartInfo,

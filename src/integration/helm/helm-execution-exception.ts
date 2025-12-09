@@ -7,7 +7,7 @@ export class HelmExecutionException extends Error {
   /**
    * The default message to use when no message is provided
    */
-  private static readonly DEFAULT_MESSAGE = 'Execution of the Helm command failed with exit code: %d';
+  private static readonly DEFAULT_MESSAGE: string = 'Execution of the Helm command failed with exit code: %d';
 
   /**
    * The non-zero system exit code returned by the Helm executable or the operating system
@@ -24,7 +24,7 @@ export class HelmExecutionException extends Error {
    */
   private readonly stdErr: string;
 
-  constructor(
+  public constructor(
     exitCode: number,
     messageOrStdOutOrCause?: string | Error,
     stdErrorOrCause?: string | Error,
@@ -32,8 +32,8 @@ export class HelmExecutionException extends Error {
   ) {
     let message: string;
     let cause: Error | undefined;
-    let stdOut = '';
-    let stdError = '';
+    let stdOut: string = '';
+    let stdError: string = '';
 
     if (messageOrStdOutOrCause instanceof Error) {
       // Constructor with exitCode and cause
@@ -79,7 +79,7 @@ export class HelmExecutionException extends Error {
    * Returns the exit code returned by the Helm executable or the operating system.
    * @returns The exit code returned by the Helm executable or the operating system
    */
-  getExitCode(): number {
+  public getExitCode(): number {
     return this.exitCode;
   }
 
@@ -87,7 +87,7 @@ export class HelmExecutionException extends Error {
    * Returns the standard output of the Helm executable.
    * @returns The standard output of the Helm executable
    */
-  getStdOut(): string {
+  public getStdOut(): string {
     return this.stdOut;
   }
 
@@ -95,7 +95,7 @@ export class HelmExecutionException extends Error {
    * Returns the standard error of the Helm executable.
    * @returns The standard error of the Helm executable
    */
-  getStdErr(): string {
+  public getStdErr(): string {
     return this.stdErr;
   }
 
@@ -103,7 +103,7 @@ export class HelmExecutionException extends Error {
    * Returns a string representation of the exception.
    * @returns A string representation of the exception
    */
-  override toString(): string {
+  public override toString(): string {
     return `HelmExecutionException{message=${this.message}, exitCode=${this.getExitCode()}, stdOut='${this.getStdOut()}', stdErr='${this.getStdErr()}'}`;
   }
 }

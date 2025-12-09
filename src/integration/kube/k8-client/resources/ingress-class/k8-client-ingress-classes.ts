@@ -2,18 +2,20 @@
 
 import {type IngressClasses} from '../../../resources/ingress-class/ingress-classes.js';
 import {type IngressClass} from '../../../resources/ingress-class/ingress-class.js';
-import {type NetworkingV1Api} from '@kubernetes/client-node';
+import {type NetworkingV1Api, type V1IngressClass, type V1IngressClassList} from '@kubernetes/client-node';
 import {K8ClientIngressClass} from './k8-client-ingress-class.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {ResourceCreateError, ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
+import {type IncomingMessage} from 'node:http';
 
 export class K8ClientIngressClasses implements IngressClasses {
-  constructor(private readonly networkingApi: NetworkingV1Api) {}
+  public constructor(private readonly networkingApi: NetworkingV1Api) {}
 
   public async list(): Promise<IngressClass[]> {
     try {
-      const response = await this.networkingApi.listIngressClass();
+      const response: {response: IncomingMessage; body: V1IngressClassList} =
+        await this.networkingApi.listIngressClass();
       const ingressClasses: IngressClass[] = [];
 
       if (response?.body?.items?.length > 0) {
@@ -28,8 +30,8 @@ export class K8ClientIngressClasses implements IngressClasses {
     }
   }
 
-  public async create(ingressClassName: string, controllerName: string) {
-    const ingressClass = {
+  public async create(ingressClassName: string, controllerName: string): Promise<void> {
+    const ingressClass: V1IngressClass = {
       apiVersion: 'networking.k8s.io/v1',
       kind: 'IngressClass',
       metadata: {
@@ -46,7 +48,7 @@ export class K8ClientIngressClasses implements IngressClasses {
     }
   }
 
-  public async delete(ingressClassName: string) {
+  public async delete(ingressClassName: string): Promise<void> {
     try {
       await this.networkingApi.deleteIngressClass(ingressClassName);
     } catch (error) {

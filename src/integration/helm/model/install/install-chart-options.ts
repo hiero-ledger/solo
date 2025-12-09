@@ -138,7 +138,7 @@ export class InstallChartOptions implements Options {
    */
   private readonly _extraArgs: string | null;
 
-  constructor(
+  public constructor(
     atomic: boolean,
     createNamespace: boolean,
     dependencyUpdate: boolean,

@@ -7,7 +7,7 @@ import {type PvcReference} from './pvc-reference.js';
 export interface Pvcs {
   /**
    * Delete a persistent volume claim
-   * @param pvcRef - the persistent volume claim reference
+   * @param pvcReference - the persistent volume claim reference
    * @returns true if the persistent volume claim was deleted
    * @throws {SoloError} if the persistent volume claim could not be deleted
    */
@@ -24,7 +24,7 @@ export interface Pvcs {
 
   /**
    * Create a persistent volume claim
-   * @param pvcRef - the persistent volume claim reference
+   * @param pvcReference - the persistent volume claim reference
    * @param labels - the labels to apply to the persistent volume claim
    * @param accessModes - the access modes for the persistent volume claim
    * @returns the persistent volume claim

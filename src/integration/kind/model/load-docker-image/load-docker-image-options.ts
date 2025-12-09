@@ -22,7 +22,7 @@ export class LoadDockerImageOptions implements Options {
    */
   private readonly _imageName: string;
 
-  constructor(imageName: string, name?: string, nodes?: string) {
+  public constructor(imageName: string, name?: string, nodes?: string) {
     this._imageName = imageName;
     if (name) {
       this._name = name;
@@ -49,14 +49,14 @@ export class LoadDockerImageOptions implements Options {
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
   /**
    * The nodes to load images into.
    */
-  get nodes(): string {
+  public get nodes(): string {
     return this._nodes;
   }
 }

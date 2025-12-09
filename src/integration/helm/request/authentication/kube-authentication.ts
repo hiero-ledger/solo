@@ -11,39 +11,39 @@ export class KubeAuthentication implements HelmRequest {
   /**
    * The name of the Helm argument for the Kubernetes API server address and port number.
    */
-  private static readonly API_SERVER_ARG_NAME = 'kube-apiserver';
+  private static readonly API_SERVER_ARG_NAME: string = 'kube-apiserver';
 
   /**
    * The name of the Helm argument for the Kubernetes CA certificate file.
    */
-  private static readonly CA_FILE_ARG_NAME = 'kube-ca-file';
+  private static readonly CA_FILE_ARG_NAME: string = 'kube-ca-file';
 
   /**
    * The name of the Helm argument for the Kubernetes context.
    */
-  private static readonly CONTEXT_ARG_NAME = 'kube-context';
+  private static readonly CONTEXT_ARG_NAME: string = 'kube-context';
 
   /**
    * The name of the Helm argument for whether to skip TLS verification.
    */
-  private static readonly SKIP_TLS_VERIFICATION_ARG_NAME = 'kube-insecure-skip-tls-verify';
+  private static readonly SKIP_TLS_VERIFICATION_ARG_NAME: string = 'kube-insecure-skip-tls-verify';
 
   /**
    * The name of the Helm argument for the TLS server name.
    */
-  private static readonly TLS_SERVER_NAME_ARG_NAME = 'kube-tls-server-name';
+  private static readonly TLS_SERVER_NAME_ARG_NAME: string = 'kube-tls-server-name';
 
   /**
    * The name of the Helm argument for the bearer token.
    */
-  private static readonly TOKEN_ARG_NAME = 'kube-token';
+  private static readonly TOKEN_ARG_NAME: string = 'kube-token';
 
   /**
    * The name of the Helm argument for the Kubernetes config file.
    */
-  private static readonly CONFIG_FILE_ARG_NAME = 'kubeconfig';
+  private static readonly CONFIG_FILE_ARG_NAME: string = 'kubeconfig';
 
-  constructor(
+  public constructor(
     public readonly apiServer?: string,
     public readonly caFile?: string,
     public readonly context?: string,
@@ -53,7 +53,7 @@ export class KubeAuthentication implements HelmRequest {
     public readonly configFile?: string,
   ) {}
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     if (this.apiServer?.trim()) {
       builder.argument(KubeAuthentication.API_SERVER_ARG_NAME, this.apiServer);
     }

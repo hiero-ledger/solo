@@ -15,19 +15,19 @@ const [, , NAMESPACE, POD, CONTEXT, PORT_MAP] = process.argv;
 
 if (!NAMESPACE || !POD || !PORT_MAP) {
   console.error('Usage: persist-port-forward <namespace> <pod> <local> <remote> [context]');
-  // eslint-disable-next-line unicorn/no-process-exit
+  // eslint-disable-next-line unicorn/no-process-exit,n/no-process-exit
   process.exit(2);
 }
 
-const MIN_BACKOFF = 1; // seconds
-const MAX_BACKOFF = 60; // seconds
-let backoff = MIN_BACKOFF;
+const MIN_BACKOFF: number = 1; // seconds
+const MAX_BACKOFF: number = 60; // seconds
+let backoff: number = MIN_BACKOFF;
 let child: ChildProcessWithoutNullStreams | null = null;
-let stopping = false;
+let stopping: boolean = false;
 
 function runKubectl(): Promise<number> {
-  return new Promise(resolve => {
-    const arguments_ = ['port-forward', '-n', NAMESPACE];
+  return new Promise((resolve): void => {
+    const arguments_: string[] = ['port-forward', '-n', NAMESPACE];
     if (CONTEXT) {
       arguments_.push('--context', CONTEXT);
     }
@@ -38,13 +38,13 @@ function runKubectl(): Promise<number> {
 
     child = spawn('kubectl', arguments_, {stdio: 'inherit'});
 
-    child.on('error', error => {
+    child.on('error', (error): void => {
       console.error('Failed to start kubectl:', error);
       // Treat spawn error like non-zero exit so we will backoff and retry
       resolve(1);
     });
 
-    child.on('close', code => {
+    child.on('close', (code): void => {
       // Ensure child reference cleared
       child = null;
       resolve(typeof code === 'number' ? code : 0);
@@ -52,14 +52,14 @@ function runKubectl(): Promise<number> {
   });
 }
 
-function sleepSeconds(s: number) {
+function sleepSeconds(s: number): Promise<void> {
   // eslint-disable-next-line unicorn/prevent-abbreviations
-  return new Promise(res => setTimeout(res, s * 1000));
+  return new Promise((res): NodeJS.Timeout => setTimeout(res, s * 1000));
 }
 
-async function main() {
+async function main(): Promise<void> {
   while (!stopping) {
-    const rc = await runKubectl();
+    const rc: number = await runKubectl();
     if (stopping) {
       break;
     }
@@ -69,7 +69,7 @@ async function main() {
   }
 }
 
-function shutdown(signal: string) {
+function shutdown(signal: string): void {
   stopping = true;
   console.error(`Received ${signal}, shutting down`);
   if (child) {
@@ -80,16 +80,16 @@ function shutdown(signal: string) {
     }
   }
   // give processes a moment to terminate gracefully
-  // eslint-disable-next-line unicorn/no-process-exit
-  setTimeout(() => process.exit(0), 500);
+  // eslint-disable-next-line unicorn/no-process-exit,n/no-process-exit
+  setTimeout((): never => process.exit(0), 500);
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', (): void => shutdown('SIGINT'));
+process.on('SIGTERM', (): void => shutdown('SIGTERM'));
 
 // eslint-disable-next-line unicorn/prefer-top-level-await
-main().catch(error => {
+main().catch((error): never => {
   console.error('Unhandled error in persist-port-forward:', error);
-  // eslint-disable-next-line unicorn/no-process-exit
+  // eslint-disable-next-line unicorn/no-process-exit,n/no-process-exit
   process.exit(1);
 });

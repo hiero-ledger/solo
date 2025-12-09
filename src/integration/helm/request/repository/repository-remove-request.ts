@@ -8,13 +8,13 @@ import {type Repository} from '../../model/repository.js';
  * A request to remove a Helm repository.
  */
 export class RepositoryRemoveRequest implements HelmRequest {
-  constructor(private readonly repository: Repository) {
+  public constructor(private readonly repository: Repository) {
     if (!repository) {
       throw new Error('repository must not be null');
     }
   }
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('repo', 'remove').positional(this.repository.name);
   }
 }

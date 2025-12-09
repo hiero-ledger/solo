@@ -5,7 +5,7 @@ export class LoadDockerImageResponse {
   private readonly _imageId: string;
 
   public constructor(protected readonly _rawOutput: string) {
-    const imageMatch = this._rawOutput.match(/Image:\s*"([^"]+)"\s+with\s+ID\s*"([^"]+)"/);
+    const imageMatch: RegExpMatchArray = this._rawOutput.match(/Image:\s*"([^"]+)"\s+with\s+ID\s*"([^"]+)"/);
     this._imageName = imageMatch?.[1];
     this._imageId = imageMatch?.[2];
   }

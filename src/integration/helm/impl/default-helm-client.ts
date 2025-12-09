@@ -2,9 +2,6 @@
 
 // Define BiFunction type for TypeScript
 import {type UnInstallChartOptions} from '../model/install/un-install-chart-options.js';
-
-type BiFunction<T, U, R> = (t: T, u: U) => R;
-
 import {type HelmClient} from '../helm-client.js';
 import {type HelmExecution} from '../execution/helm-execution.js';
 import {HelmExecutionBuilder} from '../execution/helm-execution-builder.js';
@@ -35,6 +32,8 @@ import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {AddRepoOptions} from '../model/add/add-repo-options.js';
 import {SoloError} from '../../../core/errors/solo-error.js';
 
+type BiFunction<T, U, R> = (t: T, u: U) => R;
+
 @injectable()
 /**
  * The default implementation of the HelmClient interface.
@@ -43,9 +42,9 @@ export class DefaultHelmClient implements HelmClient {
   /**
    * The name of the namespace argument.
    */
-  private static readonly NAMESPACE_ARG_NAME = 'namespace';
+  private static readonly NAMESPACE_ARG_NAME: string = 'namespace';
 
-  constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -53,16 +52,16 @@ export class DefaultHelmClient implements HelmClient {
   private readonly ERROR_403_REGEX: RegExp = /\b401\b.*\bunauthorized\b/i;
 
   public async version(): Promise<SemanticVersion> {
-    const request = new VersionRequest();
-    const builder = new HelmExecutionBuilder();
+    const request: VersionRequest = new VersionRequest();
+    const builder: HelmExecutionBuilder = new HelmExecutionBuilder();
     this.applyBuilderDefaults(builder);
     request.apply(builder);
-    const execution = builder.build();
+    const execution: HelmExecution = builder.build();
     if (execution instanceof Promise) {
       throw new TypeError('Unexpected async execution');
     }
-    const versionClass = Version as unknown as new () => Version;
-    const result = await execution.responseAs(versionClass);
+    const versionClass: typeof Version = Version;
+    const result: Version = await execution.responseAs(versionClass);
     if (!(result instanceof Version)) {
       throw new TypeError('Unexpected response type');
     }
@@ -82,11 +81,10 @@ export class DefaultHelmClient implements HelmClient {
   }
 
   public async installChart(releaseName: string, chart: Chart, options: InstallChartOptions): Promise<Release> {
-    const release = Release as unknown as new () => Release;
-    const request = new ChartInstallRequest(releaseName, chart, options);
-    return this.executeInternal(options.namespace, request, release, async execution => {
-      const response = await execution.responseAs(release);
-      return response as Release;
+    const release: typeof Release = Release;
+    const request: ChartInstallRequest = new ChartInstallRequest(releaseName, chart, options);
+    return this.executeInternal(options.namespace, request, release, async (execution): Promise<Release> => {
+      return await execution.responseAs(release);
     });
   }
 
@@ -107,17 +105,21 @@ export class DefaultHelmClient implements HelmClient {
   }
 
   public async upgradeChart(releaseName: string, chart: Chart, options: UpgradeChartOptions): Promise<Release> {
-    const request = new ChartUpgradeRequest(releaseName, chart, options);
-    return this.executeInternal(options.namespace, request, Release, async (execution: HelmExecution) =>
-      execution.responseAs(Release),
+    const request: ChartUpgradeRequest = new ChartUpgradeRequest(releaseName, chart, options);
+    return this.executeInternal(
+      options.namespace,
+      request,
+      Release,
+      async (execution: HelmExecution): Promise<Release> => execution.responseAs(Release),
     );
   }
 
   /**
    * Applies the default namespace and authentication configuration to the given builder.
-   * @param builder - The builder to apply to which the defaults should be applied
+   * @param _builder - The builder to apply to which the defaults should be applied
    */
-  private applyBuilderDefaults(builder: HelmExecutionBuilder): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private applyBuilderDefaults(_builder: HelmExecutionBuilder): void {}
 
   /**
    * Executes the given request and returns the response as the given class.
@@ -131,8 +133,8 @@ export class DefaultHelmClient implements HelmClient {
     request: T,
     responseClass?: new (...arguments_: any[]) => R,
   ): Promise<R> {
-    return this.executeInternal(undefined, request, responseClass, async b => {
-      const response = await b.responseAs(responseClass);
+    return this.executeInternal(undefined, request, responseClass, async (b): Promise<R> => {
+      const response: Awaited<R> = await b.responseAs(responseClass);
       return response as R;
     });
   }
@@ -149,9 +151,8 @@ export class DefaultHelmClient implements HelmClient {
     request: T,
     responseClass: new (...arguments_: any[]) => R,
   ): Promise<R[]> {
-    return this.executeInternal(undefined, request, responseClass, async b => {
-      const response = await b.responseAsList(responseClass);
-      return response as R[];
+    return this.executeInternal(undefined, request, responseClass, async (b): Promise<R[]> => {
+      return await b.responseAsList(responseClass);
     });
   }
 

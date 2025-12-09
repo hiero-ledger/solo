@@ -7,13 +7,13 @@ import {type HelmRequest} from '../helm-request.js';
  * A request to list all Helm releases.
  */
 export class ReleaseListRequest implements HelmRequest {
-  constructor(
+  public constructor(
     private readonly allNamespaces: boolean,
     private readonly namespace?: string,
     private readonly kubeContext?: string,
   ) {}
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.argument('output', 'json');
 
     if (this.allNamespaces) {

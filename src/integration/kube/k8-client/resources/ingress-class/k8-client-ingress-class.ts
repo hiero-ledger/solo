@@ -3,5 +3,5 @@
 import {type IngressClass} from '../../../resources/ingress-class/ingress-class.js';
 
 export class K8ClientIngressClass implements IngressClass {
-  constructor(public readonly name: string) {}
+  public constructor(public readonly name: string) {}
 }

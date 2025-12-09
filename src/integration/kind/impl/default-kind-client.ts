@@ -52,7 +52,7 @@ type BiFunction<T, U, R> = (t: T, u: U) => R;
 export class DefaultKindClient implements KindClient {
   private static minimumVersion: SemVer = new SemVer(KIND_VERSION);
 
-  public constructor(private executable: string) {
+  public constructor(private readonly executable: string) {
     if (!executable || !executable.trim()) {
       throw new Error('executable must not be blank');
     }
@@ -69,16 +69,16 @@ export class DefaultKindClient implements KindClient {
   }
 
   public async version(): Promise<SemVer> {
-    const request = new VersionRequest();
-    const builder = new KindExecutionBuilder();
+    const request: VersionRequest = new VersionRequest();
+    const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
     request.apply(builder);
-    const execution = builder.build();
+    const execution: KindExecution = builder.build();
     if (execution instanceof Promise) {
       throw new TypeError('Unexpected async execution');
     }
-    const versionClass = KindVersion as unknown as new () => KindVersion;
-    const result = await execution.responseAs(versionClass);
+    const versionClass: typeof KindVersion = KindVersion;
+    const result: KindVersion = await execution.responseAs(versionClass);
     if (!(result instanceof KindVersion)) {
       throw new TypeError('Unexpected response type');
     }
@@ -151,9 +151,8 @@ export class DefaultKindClient implements KindClient {
     request: T,
     responseClass?: new (...arguments_: any[]) => R,
   ): Promise<R> {
-    return this.executeInternal(undefined, request, responseClass, async b => {
-      const response = await b.responseAs(responseClass);
-      return response as R;
+    return this.executeInternal(undefined, request, responseClass, async (b): Promise<R> => {
+      return await b.responseAs(responseClass);
     });
   }
 
@@ -169,9 +168,8 @@ export class DefaultKindClient implements KindClient {
     request: T,
     responseClass: new (...arguments_: any[]) => R,
   ): Promise<R[]> {
-    return this.executeInternal(undefined, request, responseClass, async b => {
-      const response = await b.responseAsList(responseClass);
-      return response as R[];
+    return this.executeInternal(undefined, request, responseClass, async (b): Promise<R[]> => {
+      return await b.responseAsList(responseClass);
     });
   }
 
@@ -185,10 +183,10 @@ export class DefaultKindClient implements KindClient {
       throw new Error('namespace must not be blank');
     }
 
-    const builder = new KindExecutionBuilder();
+    const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
     request.apply(builder);
-    const execution = builder.build();
+    const execution: KindExecution = builder.build();
     return responseFunction(execution, responseClass);
   }
 }

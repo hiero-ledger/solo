@@ -3,7 +3,7 @@
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
 
 export class K8ClientPodCondition implements PodCondition {
-  constructor(
+  public constructor(
     public readonly type: string,
     public readonly status: string,
   ) {}
