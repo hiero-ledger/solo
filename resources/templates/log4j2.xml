@@ -6,20 +6,27 @@
       <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n"/>
     </Console>
 
+    <RollingFile name="GrpcAccessLog" fileName="output/grpc-access.log" filePattern="output/grpc-access.log-%i.log">
+      <PatternLayout>
+        <pattern>%m{nolookups}%n</pattern>
+      </PatternLayout>
+      <SizeBasedTriggeringPolicy size="100 MB" />
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
     <RollingFile name="RollingFile" fileName="output/hgcaa.log"
-                 filePattern="output/hgcaa-%i.log">
+      filePattern="output/hgcaa-%i.log">
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
       </PatternLayout>
       <Policies>
-        <OnStartupTriggeringPolicy/>
         <SizeBasedTriggeringPolicy size="100 MB"/>
       </Policies>
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
     <RollingFile name="QueriesRollingFile" fileName="output/queries.log"
-                 filePattern="output/queries-%i.log">
+      filePattern="output/queries-%i.log">
       <BurstFilter level="INFO" rate="50" maxBurst="500"/>
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
@@ -31,19 +38,18 @@
     </RollingFile>
 
     <RollingFile name="fileLog" fileName="output/swirlds.log"
-                 filePattern="output/swirlds-sdk-%i.log">
+      filePattern="output/swirlds-sdk-%i.log">
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-8sn %-5p %-16marker &lt;%t&gt; %c{1}: %msg{nolookups}%n</pattern>
       </PatternLayout>
       <Policies>
-        <OnStartupTriggeringPolicy/>
         <SizeBasedTriggeringPolicy size="100 MB"/>
       </Policies>
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
     <RollingFile name="vMapLog" fileName="output/swirlds-vmap.log"
-                 filePattern="output/swirlds-vmap-%i.log">
+      filePattern="output/swirlds-vmap-%i.log">
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-8sn %-5p %-16marker &lt;%t&gt; %c{1}: %msg{nolookups}%n</pattern>
       </PatternLayout>
@@ -55,7 +61,7 @@
 
     <!-- Platform hash stream logs -->
     <RollingFile name="swirldsHashStream" fileName="output/swirlds-hashstream/swirlds-hashstream.log"
-                 filePattern="output/swirlds-hashstream/swirlds-hashstream-%i.log">
+      filePattern="output/swirlds-hashstream/swirlds-hashstream-%i.log">
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-8sn %-5p %-16marker &lt;%t&gt; %c{1}: %msg{nolookups}%n</pattern>
       </PatternLayout>
@@ -67,8 +73,8 @@
 
     <!-- Transaction state logs -->
     <RollingFile name="TransactionStateLogs"
-                 fileName="output/transaction-state/state-changes.log"
-                 filePattern="output/transaction-state/state-changes-%i.log">
+      fileName="output/transaction-state/state-changes.log"
+      filePattern="output/transaction-state/state-changes-%i.log">
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} - %m{nolookups}%n</pattern>
       </PatternLayout>
@@ -77,12 +83,23 @@
     </RollingFile>
 
     <RollingFile name="StateLogs"
-                 fileName="output/state/state-changes.log"
-                 filePattern="output/state/state-changes-%i.log">
+      fileName="output/state/state-changes.log"
+      filePattern="output/state/state-changes-%i.log">
       <PatternLayout>
         <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} - %m{nolookups}%n</pattern>
       </PatternLayout>
       <SizeBasedTriggeringPolicy size="50 MB" />
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
+    <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
+      filePattern="output/blocknode-comms-%i.log">
+      <PatternLayout>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
+      </PatternLayout>
+      <Policies>
+        <SizeBasedTriggeringPolicy size="100 MB"/>
+      </Policies>
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
@@ -93,7 +110,7 @@
       <AppenderRef ref="fileLog"/>
     </Root>
 
-    <Logger name="com.swirlds" level="TRACE" additivity="false">
+    <Logger name="com.swirlds" level="INFO" additivity="false">
       <AppenderRef ref="fileLog">
         <Filters>
           <!-- MerkleDb & Virtual Merkle -->
@@ -220,140 +237,17 @@
     </Logger>
 
     <!-- Send state logs to their own appender   -->
-    <Logger name="com.swirlds.platform.state.merkle.logging.StateLogger" level="info" additivity="false">
+    <Logger name="com.swirlds.state.merkle.logging.StateLogger" level="info" additivity="false">
       <AppenderRef ref="StateLogs"/>
     </Logger>
-
 
     <Logger name="com.hedera" level="info" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.services.sigs" level="error" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.queries.answering" level="warn" additivity="false">
-      <AppenderRef ref="QueriesRollingFile"/>
-    </Logger>
-
-    <Logger name="com.hedera.services.legacy" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.netty" level="info" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.service" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.services" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.handler" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.utils.UnzipUtility" level="info" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.utils" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.hgcca.core" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.evm" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.initialization" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.config" level="info" additivity="false">
-      <AppenderRef ref="RollingFile"/>
-      <AppenderRef ref="Console"/>
-    </Logger>
-
-
-    <Logger name="org.springframework" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="state" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="trie" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="net" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="execute" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="VM" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="pending" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="sync" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="wire" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="db" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="general" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="TCK-Test" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="org.hibernate" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="repository" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="blockchain" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="mine" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="blockqueue" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="rlp" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
+      <AppenderRef ref="BlockNodeCommsFile"/>
     </Logger>
     <Logger name="java.nio" level="ERROR" additivity="false">
       <!-- <AppenderRef ref="Console"/> -->
@@ -367,13 +261,8 @@
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="discover" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="hsqldb.db" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
+    <Logger name="grpc-access-log" level="INFO" additivity="false">
+      <AppenderRef ref="GrpcAccessLog" />
     </Logger>
   </Loggers>
 </Configuration>
