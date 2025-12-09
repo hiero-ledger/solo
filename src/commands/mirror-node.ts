@@ -474,6 +474,14 @@ export class MirrorNodeCommand extends BaseCommand {
       }
     }
 
+    // Determine if we should reuse values based on the currently deployed version from remote config
+    // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
+    // to avoid RegularExpression rules from old version causing relay node request failures
+    const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
+    const shouldReuseValues: boolean = currentVersion
+      ? semver.gt(currentVersion, constants.MIRROR_NODE_VERSION_BOUNDARY)
+      : false; // If no current version (first install), don't reuse values
+
     await this.chartManager.upgrade(
       config.namespace,
       config.releaseName,
@@ -482,6 +490,7 @@ export class MirrorNodeCommand extends BaseCommand {
       config.mirrorNodeVersion,
       config.valuesArg,
       config.clusterContext,
+      shouldReuseValues,
     );
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
