@@ -36,8 +36,6 @@ const namespace = NamespaceName.of('node-upgrade');
 const realm = 0;
 const shard = hederaPlatformSupportsNonZeroRealms() ? 1 : 0;
 const argv = Argv.getDefaultArgv(namespace);
-const localBuildPath: string = '../hiero-consensus-node/hedera-node/data';
-argv.setArg(flags.localBuildPath, localBuildPath);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
@@ -55,7 +53,12 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   } = bootstrapResp;
 
   describe('Node upgrade', async () => {
+    after(async function () {
+      this.timeout(Duration.ofMinutes(10).toMillis());
 
+      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+      await k8Factory.default().namespaces().delete(namespace);
+    });
 
     accountCreationShouldSucceed(
       accountManager,
@@ -76,6 +79,23 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         action: ConsensusCommandDefinition.NETWORK_UPGRADE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
       });
+    }).timeout(Duration.ofMinutes(5).toMillis());
+
+    it('network nodes version file was upgraded', async () => {
+      // copy the version.txt file from the pod data/upgrade/current directory
+      const temporaryDirectory = getTemporaryDirectory();
+      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+      const container: Container = k8Factory
+        .default()
+        .containers()
+        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+
+      await container.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
+      const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
+
+      const versionLine: string = versionFile.split('\n')[0].trim();
+      expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
     it('should succeed with upgrade with zip file', async () => {
