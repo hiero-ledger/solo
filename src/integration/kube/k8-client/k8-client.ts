@@ -28,11 +28,12 @@ import {K8ClientSecrets} from './resources/secret/k8-client-secrets.js';
 import {type Ingresses} from '../resources/ingress/ingresses.js';
 import {K8ClientIngresses} from './resources/ingress/k8-client-ingresses.js';
 import {type Crds} from '../resources/crd/crds.js';
-import {K8ClientCRDs} from './resources/crd/k8-clinet-crds.js';
+import {K8ClientCrds} from './resources/crd/k8-client-crds.js';
 import {KubeConfig} from '@kubernetes/client-node';
 import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.js';
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
 import {type Optional} from '../../../types/index.js';
+import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -47,7 +48,7 @@ export class K8Client implements K8 {
   private extensionApi!: k8s.ApiextensionsV1Api;
   private networkingApi!: k8s.NetworkingV1Api;
   private rbacApi!: k8s.RbacAuthorizationV1Api;
-
+  private k8sObjectApi!: k8s.KubernetesObjectApi;
   private k8Leases: Leases;
   private k8Clusters: Clusters;
   private k8ConfigMaps: ConfigMaps;
@@ -60,7 +61,8 @@ export class K8Client implements K8 {
   private k8IngressClasses: IngressClasses;
   private k8Secrets: Secrets;
   private k8Ingresses: Ingresses;
-  private k8CRDs: Crds;
+  private k8Crds: Crds;
+  private k8Manifests: K8ClientManifests;
 
   /**
    * Create a new k8Factory client for the given context, if context is undefined it will use the current context in kubeconfig
@@ -87,6 +89,7 @@ export class K8Client implements K8 {
     this.coordinationApiClient = this.kubeConfig.makeApiClient(k8s.CoordinationV1Api);
     this.extensionApi = this.kubeConfig.makeApiClient(k8s.ApiextensionsV1Api);
     this.rbacApi = this.kubeConfig.makeApiClient(k8s.RbacAuthorizationV1Api);
+    this.k8sObjectApi = this.kubeConfig.makeApiClient(k8s.KubernetesObjectApi);
 
     this.k8Clusters = new K8ClientClusters(this.kubeConfig);
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
@@ -100,7 +103,8 @@ export class K8Client implements K8 {
     this.k8IngressClasses = new K8ClientIngressClasses(this.networkingApi);
     this.k8Secrets = new K8ClientSecrets(this.kubeClient);
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
-    this.k8CRDs = new K8ClientCRDs(this.extensionApi);
+    this.k8Crds = new K8ClientCrds(this.extensionApi);
+    this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
 
     return this;
   }
@@ -177,10 +181,14 @@ export class K8Client implements K8 {
   }
 
   public crds(): Crds {
-    return this.k8CRDs;
+    return this.k8Crds;
   }
 
   public rbac(): k8s.RbacAuthorizationV1Api {
     return this.rbacApi;
+  }
+
+  public manifests(): K8ClientManifests {
+    return this.k8Manifests;
   }
 }
