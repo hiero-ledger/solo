@@ -26,7 +26,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       dataVersion = sourceVersion ? sourceVersion.value : 0;
     }
 
-    const migrated = await this.applyMigrations(clone, new Version(dataVersion));
+    const migrated: object = await this.applyMigrations(clone, new Version(dataVersion));
     return this.mapper.fromObject(this.classConstructor, migrated);
   }
 
@@ -35,9 +35,9 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       return;
     }
     // eslint-disable-next-line unicorn/no-array-sort
-    const versionJumps: number[] = this.migrations.map(value => value.version.value).sort();
+    const versionJumps: number[] = this.migrations.map((value): number => value.version.value).sort();
 
-    for (let index = 1; index < versionJumps.length; index++) {
+    for (let index: number = 1; index < versionJumps.length; index++) {
       if (versionJumps[index] === versionJumps[index - 1]) {
         throw new SchemaValidationError(`Duplicate migration version '${versionJumps[index]}'`);
       }
@@ -81,7 +81,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     let migrations: SchemaMigration[] = this.findMigrations(dataVersion);
 
     while (migrations.length > 0) {
-      const migration = migrations[0];
+      const migration: SchemaMigration = migrations[0];
       data = await migration.migrate(data);
       dataVersion = migration.version;
       migrations = this.findMigrations(dataVersion);
@@ -91,10 +91,12 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
   }
 
   protected findMigrations(dataVersion: Version<number>): SchemaMigration[] {
-    const eligibleMigrations: SchemaMigration[] = this.migrations.filter(value => value.range.contains(dataVersion));
+    const eligibleMigrations: SchemaMigration[] = this.migrations.filter((value): boolean =>
+      value.range.contains(dataVersion),
+    );
 
     if (eligibleMigrations.length > 0) {
-      eligibleMigrations.sort((l, r) => l.version.compare(r.version));
+      eligibleMigrations.sort((l, r): number => l.version.compare(r.version));
     }
 
     return eligibleMigrations;
