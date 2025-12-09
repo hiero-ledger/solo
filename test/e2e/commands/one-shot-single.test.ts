@@ -8,7 +8,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
-import {DEFAULT_LOCAL_CONFIG_FILE, SOLO_CACHE_DIR} from '../../../src/core/constants.js';
+import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {
@@ -45,7 +45,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withMinimalSetup(process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts} = options;
+      const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
@@ -69,11 +69,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
-        const generatedDeploymentName: string = fs.readFileSync(
-          PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
-          'utf8',
-        );
-        await main(soloDeploymentDiagnosticsLogs(testName, generatedDeploymentName));
+        await main(soloDeploymentDiagnosticsLogs(testName, deployment));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
@@ -82,7 +78,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, options.minimalSetup));
+        await main(soloOneShotDeploy(testName, deployment, options.minimalSetup));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
@@ -156,7 +152,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, minimalSetup: boolean): string[] {
+export function soloOneShotDeploy(testName: string, deployment: string, minimalSetup: boolean): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -164,6 +160,8 @@ export function soloOneShotDeploy(testName: string, minimalSetup: boolean): stri
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
+    optionFromFlag(Flags.deployment),
+    deployment,
     optionFromFlag(Flags.minimalSetup),
     minimalSetup ? 'true' : 'false',
   );
