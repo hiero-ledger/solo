@@ -356,17 +356,36 @@ jobs:
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
-        run: |
-          export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")          
-          cd ..
-          git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch v${TEST_LOCAL_BLOCK_NODE_VERSION}
-          cd hiero-block-node
-          ./gradlew :block-node-app:createDockerImage
-          kind get clusters
-
-          kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
-          ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
-          cd ../solo
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 20
+          command: |
+            export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            cd ..
+            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch v${TEST_LOCAL_BLOCK_NODE_VERSION}
+            cd hiero-block-node
+            
+            # Configure apt to use multiple mirror sources with fallback
+            # This adds fallback mirrors while keeping the original sources
+            find . -name "Dockerfile*" -type f | while read dockerfile; do
+              # Create a backup of sources.list configuration in the Dockerfile
+              sed -i '/RUN apt-get update/i \
+            # Add fallback Ubuntu mirrors for reliability\n\
+            RUN echo "deb http://archive.ubuntu.com/ubuntu/ mantic main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-updates main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "deb http://security.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \\\n\
+                echo "Acquire::http::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries && \\\n\
+                echo "Acquire::https::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries\n' "$dockerfile"
+            done
+            
+            ./gradlew :block-node-app:createDockerImage
+            kind get clusters
+            kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
+            ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
+            cd ../solo
 
       - name: Run E2E Tests
         run: |
