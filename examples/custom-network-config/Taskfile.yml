@@ -82,7 +82,7 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger --enable-ingress
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
 
       # Solo relay node add
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
@@ -92,8 +92,7 @@ tasks:
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
-          -n {{ .EXPLORER_NAME_SPACE }} \
-          --cluster-ref {{ .CLUSTER_REFERENCE }}
+          -n {{ .EXPLORER_NAME_SPACE }}
   destroy:
     desc: Destroy the Solo network with block node
     cmds:

@@ -88,7 +88,7 @@ tasks:
       # Must deploy block node before deploying consensus network due to dependency
       - cmd: |
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
-          --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+          --chart-version {{ .PREV_BLOCK_VERSION }}
 
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
@@ -100,7 +100,7 @@ tasks:
 
       # Deploy mirror node with previous version
       - cmd: |
-          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
           --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }}
 
       # Deploy relay with previous version
@@ -110,7 +110,7 @@ tasks:
 
       # Deploy explorer with previous version
       - cmd: |
-          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} \
           --enable-ingress --explorer-version {{ .PREV_EXPLORER_VERSION }}
 
       - echo "All components deployed with previous versions"
@@ -120,13 +120,12 @@ tasks:
     cmds:
       # Upgrade mirror node
       - cmd: |
-          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
           --mirror-node-version v0.139.0
 
       # Upgrade block node
       - cmd: |
-          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}  \
-          --cluster-ref {{ .CLUSTER_REFERENCE }}
+          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
 
       # Upgrade relay
       - cmd: |
@@ -134,7 +133,7 @@ tasks:
 
       # Upgrade explorer
       - cmd: |
-          $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+          $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }}
 
       # Upgrade network to main with local build path
       - cmd: |

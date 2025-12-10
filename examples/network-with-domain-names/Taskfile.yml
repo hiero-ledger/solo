@@ -85,7 +85,7 @@ tasks:
       # Solo mirror node add with domain name
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger \
-          --cluster-ref {{ .CLUSTER_REFERENCE }} --domain-name {{ .MIRROR_NODE_DOMAIN_NAME }} --enable-ingress
+          --domain-name {{ .MIRROR_NODE_DOMAIN_NAME }} --enable-ingress
 
       # Solo relay node add with domain name
       - cmd: |
@@ -94,7 +94,7 @@ tasks:
 
       # Solo explorer node add with domain name
       - cmd: |
-          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} \
           --domain-name {{ .EXPLORER_DOMAIN_NAME }} --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress --namespace {{ .NAMESPACE }} --mirrorNamespace ${NAMESPACE}
 
