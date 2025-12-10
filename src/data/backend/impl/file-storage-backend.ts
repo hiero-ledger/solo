@@ -56,13 +56,13 @@ export class FileStorageBackend implements StorageBackend {
 
   public async list(): Promise<string[]> {
     try {
-      const entries: string[] = readdirSync(this.basePath, {encoding: 'utf-8', recursive: false});
+      const entries: string[] = readdirSync(this.basePath, {encoding: 'utf8', recursive: false});
 
       if (entries.length === 0) {
         return [];
       }
 
-      return entries.filter(item => statSync(PathEx.join(this.basePath, item))?.isFile());
+      return entries.filter((item): boolean => statSync(PathEx.join(this.basePath, item))?.isFile());
     } catch (error) {
       throw new StorageBackendError('Error listing files in base path', error);
     }

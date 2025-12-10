@@ -6,7 +6,7 @@ import {type KeyFormatter} from '../key-formatter.js';
 import {ConfigKeyFormatter} from '../config-key-formatter.js';
 
 export abstract class LexerNode implements Node {
-  public constructor(
+  protected constructor(
     public readonly parent: Node | null,
     public readonly name: string,
     public readonly formatter: KeyFormatter = ConfigKeyFormatter.instance(),
@@ -29,7 +29,7 @@ export abstract class LexerNode implements Node {
   public path(): string {
     const segments: string[] = [];
 
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    // eslint-disable-next-line @typescript-eslint/no-this-alias,unicorn/no-this-assignment
     let node: Node = this;
     while (node) {
       segments.push(node.name);
