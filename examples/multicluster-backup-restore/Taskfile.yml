@@ -47,6 +47,11 @@ tasks:
       - task: restore-config
       - cmd: |
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }}
+          status=$?
+          if [ $status -ne 0 ]; then
+            $SOLO_COMMAND deployment diagnostics logs --deployment {{ .DEPLOYMENT }}
+            exit $status
+          fi       
       - task: verify
 
   initial-deploy:
