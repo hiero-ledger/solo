@@ -6,7 +6,7 @@ set -eo pipefail
 # Usage: ./monitor-resources.sh start|stop
 #
 
-METRICS_FILE="${HOME}/.solo/logs/runner-metrics.csv"
+METRICS_FILE="${HOME}/.solo/logs/runner-metrics.jsonl"
 PID_FILE="${HOME}/.solo/logs/monitor.pid"
 
 start_monitoring() {
@@ -15,8 +15,8 @@ start_monitoring() {
   # Create metrics directory
   mkdir -p "$(dirname "$METRICS_FILE")"
 
-  # Write CSV header
-  echo "timestamp,cpu_percent,mem_used_gb,mem_total_gb,mem_percent" > "$METRICS_FILE"
+  # Initialize metrics file
+  : > "$METRICS_FILE"
 
   # Start monitoring in background
   (
@@ -28,7 +28,7 @@ start_monitoring() {
       MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
       MEM_PERCENT=$(echo "$MEM_INFO" | awk '{if ($2 > 0) printf "%.1f", ($3/$2)*100; else print "0.0"}')
 
-      echo "$TIMESTAMP,$CPU_PERCENT,$MEM_USED,$MEM_TOTAL,$MEM_PERCENT" >> "$METRICS_FILE"
+      echo "{\"timestamp\":\"$TIMESTAMP\",\"cpu_percent\":$CPU_PERCENT,\"mem_used_gb\":$MEM_USED,\"mem_total_gb\":$MEM_TOTAL,\"mem_percent\":$MEM_PERCENT}" >> "$METRICS_FILE"
       sleep 60
     done
   ) &
@@ -55,15 +55,25 @@ stop_monitoring() {
     echo "::group::Resource Metrics Summary"
     echo "Collected $(wc -l < "$METRICS_FILE") data points"
     echo ""
-    echo "Peak CPU: $(tail -n +2 "$METRICS_FILE" | cut -d',' -f2 | sort -rn | head -1)%"
-    echo "Peak Memory: $(tail -n +2 "$METRICS_FILE" | cut -d',' -f5 | sort -rn | head -1)%"
+    PEAK_CPU=$(jq -r '.cpu_percent' "$METRICS_FILE" 2>/dev/null | sort -rn | head -1 || echo "")
+    PEAK_MEM=$(jq -r '.mem_percent' "$METRICS_FILE" 2>/dev/null | sort -rn | head -1 || echo "")
+    if [[ -n "$PEAK_CPU" ]]; then
+      echo "Peak CPU: ${PEAK_CPU}%"
+    else
+      echo "Peak CPU: N/A"
+    fi
+    if [[ -n "$PEAK_MEM" ]]; then
+      echo "Peak Memory: ${PEAK_MEM}%"
+    else
+      echo "Peak Memory: N/A"
+    fi
     echo ""
     echo "Last 10 measurements:"
     if command -v column >/dev/null 2>&1; then
-      tail -10 "$METRICS_FILE" | column -t -s','
+      tail -10 "$METRICS_FILE" | jq -r '"\(.timestamp)\t\(.cpu_percent)\t\(.mem_used_gb)\t\(.mem_total_gb)\t\(.mem_percent)"' | column -t -s$'\t'
     else
       echo "(Install 'column' to view table formatting)"
-      tail -10 "$METRICS_FILE"
+      tail -10 "$METRICS_FILE" | jq -r '"\(.timestamp) CPU=\(.cpu_percent)% MEM=\(.mem_used_gb)/\(.mem_total_gb)GB (\(.mem_percent)%)"'
     fi
     echo "::endgroup::"
   else

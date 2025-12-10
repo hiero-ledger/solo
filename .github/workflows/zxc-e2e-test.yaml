@@ -479,12 +479,12 @@ jobs:
         id: generate-chart
         if: ${{ always() }}
         run: |
-          METRICS_CSV="$HOME/.solo/logs/runner-metrics.csv"
+          METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
           CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
           
-          if [[ -f "$METRICS_CSV" ]]; then
+          if [[ -f "$METRICS_FILE" ]]; then
             echo "Generating ASCII chart from metrics..."
-            python3 ./.github/workflows/script/plot-runner-metrics-ascii.py "$METRICS_CSV"
+            ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
             
             if [[ -f "$CHART_FILE" ]]; then
               echo "chart_generated=true" >> $GITHUB_OUTPUT
@@ -496,7 +496,7 @@ jobs:
             fi
           else
             echo "chart_generated=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No metrics CSV found, skipping chart generation"
+            echo "ℹ️  No metrics file found, skipping chart generation"
           fi
 
       - name: Write Log Metrics Message File
