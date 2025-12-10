@@ -31,7 +31,7 @@ export class LocalConfigV2Migration implements SchemaMigration {
     // Migrate the deployments to an array
     const mdeps: object[] = [];
     for (const k in clone.deployments) {
-      const d = clone.deployments[k];
+      const d: any = clone.deployments[k];
       d.realm = d.realm ?? 0;
       d.shard = d.shard ?? 0;
       mdeps.push(d);

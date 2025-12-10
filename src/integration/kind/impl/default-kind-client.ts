@@ -46,17 +46,25 @@ import {LoadImageArchiveResponse} from '../model/load-image-archive/load-image-a
 import {LoadImageArchiveRequest} from '../request/load/image-archive-request.js';
 import {KIND_VERSION} from '../../../../version.js';
 import {KindVersionRequirementException} from '../errors/kind-version-requirement-exception.js';
+import {inject} from 'tsyringe-neo';
+import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
+import {type SoloLogger} from '../../../core/logging/solo-logger.js';
+import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
 export class DefaultKindClient implements KindClient {
   private static minimumVersion: SemVer = new SemVer(KIND_VERSION);
 
-  public constructor(private executable: string) {
+  public constructor(
+    private readonly executable: string,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+  ) {
     if (!executable || !executable.trim()) {
       throw new Error('executable must not be blank');
     }
     this.executable = executable;
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   public async checkVersion(): Promise<void> {
@@ -69,21 +77,26 @@ export class DefaultKindClient implements KindClient {
   }
 
   public async version(): Promise<SemVer> {
-    const request = new VersionRequest();
-    const builder = new KindExecutionBuilder();
+    const request: VersionRequest = new VersionRequest();
+    const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
     request.apply(builder);
-    const execution = builder.build();
+    const execution: KindExecution = builder.build();
     if (execution instanceof Promise) {
       throw new TypeError('Unexpected async execution');
     }
-    const versionClass = KindVersion as unknown as new () => KindVersion;
-    const result = await execution.responseAs(versionClass);
+    const versionClass: typeof KindVersion = KindVersion;
+    const result: KindVersion = await execution.responseAs(versionClass);
+
     if (!(result instanceof KindVersion)) {
       throw new TypeError('Unexpected response type');
     }
 
-    return result.getVersion();
+    const semver: SemVer = result.getVersion();
+
+    this.logger?.info?.(`kind version: ${semver.version ?? semver.toString()}`);
+
+    return semver;
   }
 
   public async createCluster(clusterName: string, options?: ClusterCreateOptions): Promise<ClusterCreateResponse> {
@@ -151,9 +164,8 @@ export class DefaultKindClient implements KindClient {
     request: T,
     responseClass?: new (...arguments_: any[]) => R,
   ): Promise<R> {
-    return this.executeInternal(undefined, request, responseClass, async b => {
-      const response = await b.responseAs(responseClass);
-      return response as R;
+    return this.executeInternal(undefined, request, responseClass, async (b): Promise<R> => {
+      return await b.responseAs(responseClass);
     });
   }
 
@@ -169,9 +181,8 @@ export class DefaultKindClient implements KindClient {
     request: T,
     responseClass: new (...arguments_: any[]) => R,
   ): Promise<R[]> {
-    return this.executeInternal(undefined, request, responseClass, async b => {
-      const response = await b.responseAsList(responseClass);
-      return response as R[];
+    return this.executeInternal(undefined, request, responseClass, async (b): Promise<R[]> => {
+      return await b.responseAsList(responseClass);
     });
   }
 
@@ -185,10 +196,10 @@ export class DefaultKindClient implements KindClient {
       throw new Error('namespace must not be blank');
     }
 
-    const builder = new KindExecutionBuilder();
+    const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
     request.apply(builder);
-    const execution = builder.build();
+    const execution: KindExecution = builder.build();
     return responseFunction(execution, responseClass);
   }
 }
