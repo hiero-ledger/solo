@@ -46,12 +46,11 @@ tasks:
       - task: restore-network
       - task: restore-config
       - cmd: |
-          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }}
-          status=$?
-          if [ $status -ne 0 ]; then
+          if ! $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }}; then
+            status=$?
             $SOLO_COMMAND deployment diagnostics logs --deployment {{ .DEPLOYMENT }}
             exit $status
-          fi       
+          fi  
       - task: verify
 
   initial-deploy:
