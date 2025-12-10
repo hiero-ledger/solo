@@ -3175,7 +3175,8 @@ export class NodeCommandTasks {
           }
 
           // Save admin key to k8s secret after successful node creation
-          const nodeAlias: NodeAlias = config.nodeAliases[0];
+          // nodeAlias was set in determineNewNodeAccountNumber step
+          const nodeAlias: NodeAlias = config.nodeAlias;
           const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           const data: {privateKey: string; publicKey: string} = {
             privateKey: Base64.encode(context_.adminKey.toString()),
