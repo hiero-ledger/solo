@@ -83,13 +83,27 @@ export class DeploymentTest extends BaseCommandTest {
 
     it(`${testName}: solo deployment cluster attach`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo deployment cluster attach`);
-      for (const element of clusterReferenceNameArray) {
-        await main(soloDeploymentAddClusterArgv(testName, deployment, element, 1));
+
+      // Compute distribution
+      const clusterCount: number = clusterReferenceNameArray.length;
+      const base: number = Math.floor(consensusNodesCount / clusterCount);
+      const remainder: number = consensusNodesCount % clusterCount;
+
+      const nodeCountsPerCluster: number[] = clusterReferenceNameArray.map((_, index): number =>
+        index < remainder ? base + 1 : base,
+      );
+
+      // Now attach clusters with correct node count
+      for (const [index, element] of clusterReferenceNameArray.entries()) {
+        const nodeCount: number = nodeCountsPerCluster[index];
+        await main(soloDeploymentAddClusterArgv(testName, deployment, element, nodeCount));
       }
+
       const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
       expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
       const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
         remoteConfig.configuration.components.state.consensusNodes;
+
       expect(Object.entries(consensusNodes).length, `consensus node count should be ${consensusNodesCount}`).to.equal(
         consensusNodesCount,
       );

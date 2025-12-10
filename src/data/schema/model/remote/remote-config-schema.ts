@@ -17,23 +17,23 @@ export class RemoteConfigSchema implements RemoteConfigStructure {
   public schemaVersion: number;
 
   @Expose()
-  @Type(() => RemoteConfigMetadataSchema)
+  @Type((): typeof RemoteConfigMetadataSchema => RemoteConfigMetadataSchema)
   public metadata: RemoteConfigMetadataSchema;
 
   @Expose()
-  @Type(() => ApplicationVersionsSchema)
+  @Type((): typeof ApplicationVersionsSchema => ApplicationVersionsSchema)
   public versions: ApplicationVersionsSchema;
 
   @Expose()
-  @Type(() => ClusterSchema)
+  @Type((): typeof ClusterSchema => ClusterSchema)
   public clusters: ClusterSchema[];
 
   @Expose()
-  @Type(() => DeploymentStateSchema)
+  @Type((): typeof DeploymentStateSchema => DeploymentStateSchema)
   public state: DeploymentStateSchema;
 
   @Expose()
-  @Type(() => DeploymentHistorySchema)
+  @Type((): typeof DeploymentHistorySchema => DeploymentHistorySchema)
   public history: DeploymentHistorySchema;
 
   public constructor(
