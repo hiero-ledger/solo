@@ -66,13 +66,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await k8Client.namespaces().delete(namespace);
         }
 
+        testLogger.info(`${testName}: starting ${testName} e2e test`);
+
+        testLogger.info(`${testName}: beginning ${testName}: deploy`);
+        await main(soloOneShotDeploy(testName));
+        testLogger.info(`${testName}: finished ${testName}: deploy`);
+
         startTime = new Date();
         metricsInterval = setInterval(async (): Promise<void> => {
           logMetrics(startTime);
         }, Duration.ofSeconds(5).toMillis());
 
-        testLogger.info(`${testName}: starting ${testName} e2e test`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
+      }).timeout(Duration.ofMinutes(25).toMillis());
 
       after(async (): Promise<void> => {
         clearInterval(metricsInterval);
@@ -123,14 +128,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
-
-      it('Initial test setup', async (): Promise<void> => {
-        testLogger.info(`${testName}: starting ${testName} e2e test`);
-
-        testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName));
-        testLogger.info(`${testName}: finished ${testName}: deploy`);
-      }).timeout(Duration.ofMinutes(20).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
         await main(soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
