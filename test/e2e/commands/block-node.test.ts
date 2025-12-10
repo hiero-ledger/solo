@@ -116,7 +116,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bo
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
-      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 10 * 1024 * 1024, encoding: 'utf8'};
+      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 20 * 1024 * 1024, encoding: 'utf8'};
 
       // Make script executable
       await execAsync('chmod +x ./get-block.sh', commandOptions);
