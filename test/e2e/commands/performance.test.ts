@@ -76,7 +76,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         metricsInterval = setInterval(async (): Promise<void> => {
           logMetrics(startTime);
         }, Duration.ofSeconds(5).toMillis());
-
       }).timeout(Duration.ofMinutes(25).toMillis());
 
       after(async (): Promise<void> => {
