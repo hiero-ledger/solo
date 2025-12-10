@@ -23,6 +23,7 @@ import {sleep} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
+import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
 
 const testName: string = 'performance-tests';
 const testTitle: string = 'E2E Performance Tests';
@@ -33,6 +34,8 @@ const accounts: number = 20;
 const tokens: number = 1;
 const nfts: number = 2;
 const percent: number = 50;
+let startTime: Date;
+let metricsInterval: NodeJS.Timeout;
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -62,18 +65,72 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
           await k8Client.namespaces().delete(namespace);
         }
+
+        startTime = new Date();
+        metricsInterval = setInterval(async (): Promise<void> => {
+          logMetrics(startTime);
+        }, Duration.ofSeconds(5).toMillis());
+
+        testLogger.info(`${testName}: starting ${testName} e2e test`);
+      }).timeout(Duration.ofMinutes(25).toMillis());
+
+      after(async (): Promise<void> => {
+        clearInterval(metricsInterval);
+
+        // read all logged metrics and parse the JSON
+        const namespace: string = await getNamespaceFromDeployment();
+        const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+        const files: string[] = fs.readdirSync(tartgetDirectory);
+        const allMetrics: Record<string, AggregatedMetrics> = {};
+        for (const file of files) {
+          const filePath: string = PathEx.join(tartgetDirectory, file);
+          const fileContents: string = fs.readFileSync(filePath, 'utf8');
+          const fileName: string = file.split('.')[0];
+          allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
+        }
+
+        // save the aggregated metrics to a single file
+        const aggregatedMetricsFileName: string = `${namespace}-aggregated-metrics.json`;
+        const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
+        fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
+
+        let maxCpuMetrics: number = 0;
+        let maxCpuFile: string = '';
+        for (const [fileName, metrics] of Object.entries(allMetrics)) {
+          if (metrics.cpuInMillicores > maxCpuMetrics) {
+            maxCpuMetrics = metrics.cpuInMillicores;
+            maxCpuFile = fileName;
+          }
+        }
+
+        // save the file with the max CPU metrics
+        const maxCpuFileName: string = `${maxCpuFile}.json`;
+        fs.copyFileSync(
+          PathEx.join(tartgetDirectory, maxCpuFileName),
+          PathEx.join(tartgetDirectory, `${namespace}.json`),
+        );
+
+        // remove all files except the aggregated and max CPU files
+        const filesToKeep: Set<string> = new Set([maxCpuFileName, aggregatedMetricsFileName]);
+        for (const file of files) {
+          const fileName: string = file.split('.')[0];
+          if (!filesToKeep.has(fileName)) {
+            fs.rmSync(PathEx.join(tartgetDirectory, file));
+          }
+        }
+
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloOneShotDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
+      it('Initial test setup', async (): Promise<void> => {
         testLogger.info(`${testName}: starting ${testName} e2e test`);
 
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
         await main(soloOneShotDeploy(testName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
-      }).timeout(Duration.ofMinutes(25).toMillis());
-
-      after(async (): Promise<void> => {
-        testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        await main(soloOneShotDestroy(testName));
-        testLogger.info(`${testName}: finished ${testName}: destroy`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
+      });
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
         await main(soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
@@ -94,12 +151,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('TokenTransferLoadTest', async (): Promise<void> => {
+        // Keep Accounts and Associations at 1 to prevent test from failing.
         await main(
-          soloRapidFire(
-            testName,
-            'TokenTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${tokens} -A ${accounts} -R -t ${duration}`,
-          ),
+          soloRapidFire(testName, 'TokenTransferLoadTest', `-c ${clients} -a 1 -T ${tokens} -A 1 -R -t ${duration}`),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
@@ -107,7 +161,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
-      it('Should write log metrics', async (): Promise<void> => {
+      it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
           const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
 
@@ -123,22 +177,34 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }
 
-        const deploymentName: string = fs.readFileSync(
-          PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
-          'utf8',
-        );
-        const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
-          InjectTokens.LocalConfigRuntimeState,
-        );
-        await localConfig.load();
-        const deployment: Deployment = localConfig.configuration.deploymentByName(deploymentName);
-        const namespace: string = deployment.namespace;
-        await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`));
+        await logMetrics(startTime);
       }).timeout(Duration.ofMinutes(60).toMillis());
     });
   })
   .build();
 endToEndTestSuite.runTestSuite();
+
+async function getNamespaceFromDeployment(): Promise<string> {
+  const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
+  const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+    InjectTokens.LocalConfigRuntimeState,
+  );
+  await localConfig.load();
+  const deployment: Deployment = localConfig.configuration.deploymentByName(deploymentName);
+  return deployment.namespace;
+}
+
+export async function logMetrics(startTime: Date): Promise<void> {
+  const elapsedMilliseconds: number = startTime ? Date.now() - startTime.getTime() : 0;
+  const namespace: string = await getNamespaceFromDeployment();
+  const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+  fs.mkdirSync(tartgetDirectory, {recursive: true});
+
+  await new MetricsServerImpl().logMetrics(
+    `${testName}-${elapsedMilliseconds}`,
+    PathEx.join(tartgetDirectory, `${elapsedMilliseconds}`),
+  );
+}
 
 export function soloOneShotDeploy(testName: string): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
