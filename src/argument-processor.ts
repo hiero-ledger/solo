@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloError} from './core/errors/solo-error.js';
+import {SilentBreak} from './core/errors/silent-break.js';
 import {Flags as flags} from './commands/flags.js';
 import {type Middlewares} from './core/middlewares.js';
 import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
@@ -47,16 +48,22 @@ export class ArgumentProcessor {
         if (
           message.includes('Unknown argument') ||
           message.includes('Missing required argument') ||
-          message.includes('Select')
+          message.toLowerCase().includes('select')
         ) {
+          if (message.toLowerCase().includes('select')) {
+            // Show what subcommands are available then exit normally
+            rootCmd.showHelp(output => {
+              helpRenderer.render(rootCmd, output);
+            });
+            // Use SilentBreak to exit cleanly without error display
+            throw new SilentBreak('No subcommand provided, help displayed');
+          }
+
+          // For unknown/missing arguments, show message and help
           logger.showUser(message);
           rootCmd.showHelp(output => {
             helpRenderer.render(rootCmd, output);
           });
-          if (message.includes('Select')) {
-            // show use what subcommands are available then exit normally
-            rootCmd.exit(0, error);
-          }
           // Set exit code but don't exit immediately - allows I/O buffers to flush
           process.exitCode = 1;
           // Throw error to propagate through async call chains if given unknown argument

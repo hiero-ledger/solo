@@ -121,5 +121,5 @@ export interface HelmClientBuilder {
    * temporary working directory. The temporary working directory should be supplied to the HelmClient instance.
    * @see HelmClient
    */
-  build(): HelmClient;
+  build(): Promise<HelmClient>;
 }

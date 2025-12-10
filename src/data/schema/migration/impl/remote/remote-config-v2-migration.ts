@@ -44,7 +44,7 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     };
 
     // Add portForwardConfigs to each component state metadata if it doesn't exist
-    const initializePortForwardConfigs = (componentArray: any[]) => {
+    const initializePortForwardConfigs: (componentArray: any[]) => void = (componentArray: any[]): void => {
       if (!componentArray) {
         return;
       }
