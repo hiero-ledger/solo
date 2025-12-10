@@ -74,7 +74,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig, flags.zipPassword, flags.zipInputFile],
+    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig, flags.zipPassword, flags.zipFile],
   };
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
@@ -289,14 +289,11 @@ export class BackupRestoreCommand extends BaseCommand {
           },
           task: async (_, task) => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
-            const absoluteOutputDirectory: string = path.resolve(outputDirectory);
-            const outputArchivePath: string = `${absoluteOutputDirectory}.zip`;
-            const compressionCommand: string = `cd "${absoluteOutputDirectory}" && zip -rX -P "${zipPassword}" "${outputArchivePath}" .`;
-            await this.run(compressionCommand, [], true, false);
-
-            task.title = `Compress backup directory: created ${outputArchivePath}`;
-            //use log.ShowUser to tell where the output zip file location
-            this.logger.showUser(chalk.green(`Backup compressed to ${outputArchivePath}`));
+            const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
+            const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
+            const shellRunner: ShellRunner = new ShellRunner(this.logger);
+            await shellRunner.run(compressionCommand, [], true, false);
+            this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
       ],
@@ -1308,7 +1305,7 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
-    const zipInputFile: string = this.configManager.getFlag<string>(flags.zipInputFile);
+    const zipInputFile: string = this.configManager.getFlag<string>(flags.zipFile);
     if (!zipInputFile) {
       throw new SoloError('--zip-input-file is required when using --zip-password.');
     }
@@ -1333,6 +1330,7 @@ export class BackupRestoreCommand extends BaseCommand {
     }
 
     const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
+    const shellRunner: ShellRunner = new ShellRunner(this.logger);
     await this.run(unzipCommand, [], true, false);
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);

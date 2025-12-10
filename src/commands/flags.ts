@@ -1724,9 +1724,9 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly zipInputFile: CommandFlag = {
-    constName: 'zipInputFile',
-    name: 'zip-input-file',
+  public static readonly zipFile: CommandFlag = {
+    constName: 'zipFile',
+    name: 'zip-file',
     definition: {
       describe: 'Path to the encrypted backup ZIP archive used during restore',
       defaultValue: '',
@@ -2928,6 +2928,8 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.zipPassword,
+    Flags.zipFile,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

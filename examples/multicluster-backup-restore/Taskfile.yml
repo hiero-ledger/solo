@@ -17,6 +17,8 @@ vars:
   NAMESPACE: "external-database-test"
   CLUSTER_NAME: "backup-restore-cluster"
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
+  ZIP_PASSWORD: "test-password"
+  ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 
   POSTGRES_USERNAME: "postgres"
@@ -182,7 +184,8 @@ tasks:
     cmds:
       - cmd: |
           $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-          $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
+          $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
+          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -212,7 +215,9 @@ tasks:
     cmds:
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
-          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml
+          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+          --metallb-config { .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
