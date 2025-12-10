@@ -421,7 +421,7 @@ export function endToEndTestSuite(
         deployNetworkTest(argv, commandInvoker, networkCmd);
       }
 
-      if (startNodes) {
+      if (deployNetwork && startNodes) {
         startNodesTest(argv, commandInvoker, nodeCmd);
       }
     });
@@ -439,27 +439,22 @@ export async function queryBalance(
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): Promise<void> {
-  try {
-    const argv: Argv = Argv.getDefaultArgv(namespace);
-    expect(accountManager._nodeClient).to.be.null;
+  const argv: Argv = Argv.getDefaultArgv(namespace);
+  expect(accountManager._nodeClient).to.be.null;
 
-    await accountManager.refreshNodeClient(
-      namespace,
-      remoteConfig.getClusterRefs(),
-      skipNodeAlias,
-      argv.getArg<DeploymentName>(flags.deployment),
-    );
-    expect(accountManager._nodeClient).not.to.be.null;
+  await accountManager.refreshNodeClient(
+    namespace,
+    remoteConfig.getClusterRefs(),
+    skipNodeAlias,
+    argv.getArg<DeploymentName>(flags.deployment),
+  );
+  expect(accountManager._nodeClient).to.not.be.null;
 
-    const balance: AccountBalance = await new AccountBalanceQuery()
-      .setAccountId(accountManager._nodeClient.getOperator().accountId)
-      .execute(accountManager._nodeClient);
+  const balance: AccountBalance = await new AccountBalanceQuery()
+    .setAccountId(accountManager._nodeClient.getOperator().accountId)
+    .execute(accountManager._nodeClient);
 
-    expect(balance.hbars).not.be.null;
-  } catch (error) {
-    logger.showUserError(error);
-    expect.fail();
-  }
+  expect(balance.hbars).to.not.be.null;
   await sleep(Duration.ofSeconds(1));
 }
 
@@ -483,41 +478,36 @@ export async function createAccount(
   skipNodeAlias?: NodeAlias,
   expectedAccountId?: AccountId,
 ): Promise<void> {
-  try {
-    const argv: Argv = Argv.getDefaultArgv(namespace);
-    await accountManager.refreshNodeClient(
-      namespace,
-      remoteConfig.getClusterRefs(),
-      skipNodeAlias,
-      argv.getArg<DeploymentName>(flags.deployment),
-    );
-    expect(accountManager._nodeClient).not.to.be.null;
-    const privateKey: PrivateKey = PrivateKey.generate();
-    const amount: number = 100;
+  const argv: Argv = Argv.getDefaultArgv(namespace);
+  await accountManager.refreshNodeClient(
+    namespace,
+    remoteConfig.getClusterRefs(),
+    skipNodeAlias,
+    argv.getArg<DeploymentName>(flags.deployment),
+  );
+  expect(accountManager._nodeClient).not.to.be.null;
+  const privateKey: PrivateKey = PrivateKey.generate();
+  const amount: number = 100;
 
-    const newAccount: TransactionResponse = await new AccountCreateTransaction()
-      .setKey(privateKey)
-      .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-      .execute(accountManager._nodeClient);
+  const newAccount: TransactionResponse = await new AccountCreateTransaction()
+    .setKey(privateKey)
+    .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+    .execute(accountManager._nodeClient);
 
-    // Get the new account ID
-    const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-    const accountInfo = {
-      accountId: getReceipt.accountId.toString(),
-      privateKey: privateKey.toString(),
-      publicKey: privateKey.publicKey.toString(),
-      balance: amount,
-    };
+  // Get the new account ID
+  const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+  const accountInfo = {
+    accountId: getReceipt.accountId.toString(),
+    privateKey: privateKey.toString(),
+    publicKey: privateKey.publicKey.toString(),
+    balance: amount,
+  };
 
-    expect(accountInfo.accountId).not.to.be.null;
-    if (expectedAccountId) {
-      expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
-    }
-    expect(accountInfo.balance).to.equal(amount);
-  } catch (error) {
-    logger.showUserError(error);
-    expect.fail();
+  expect(accountInfo.accountId).not.to.be.null;
+  if (expectedAccountId) {
+    expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
   }
+  expect(accountInfo.balance).to.equal(amount);
 }
 
 export function accountCreationShouldSucceed(

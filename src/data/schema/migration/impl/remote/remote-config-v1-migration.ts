@@ -43,7 +43,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     delete clone.metadata.lastUpdateBy; // changed to lastUpdatedBy
 
     // Preserve the original metadata and add lastUpdated information
-    const originalMetadata = clone.metadata;
+    const originalMetadata: any = clone.metadata;
     clone.metadata = {
       ...originalMetadata,
       lastUpdatedAt: new Date(),
@@ -56,7 +56,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     // pull the versions from the old config, if it isn't set or set as empty,
     // then it will be set to 0.0.0 until an upgrade for the component is performed
     // Normalize version strings by removing 'v' prefix if present
-    const normalizeVersion = (version: string | undefined): string => {
+    const normalizeVersion: (version: string | undefined) => string = (version: string | undefined): string => {
       if (!version) {
         return '0.0.0';
       }
@@ -262,7 +262,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         } = clone.components.relays[relayNode];
 
         // convert component.consensusNodeAliases [node1, node2 ] to [1, 2]
-        const consensusNodeIds: number[] = component.consensusNodeAliases.map((alias: string) =>
+        const consensusNodeIds: number[] = component.consensusNodeAliases.map((alias: string): number =>
           Templates.nodeIdFromNodeAlias(alias as NodeAlias),
         );
         clone.state.relayNodes.push({

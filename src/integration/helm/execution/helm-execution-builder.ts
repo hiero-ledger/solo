@@ -195,7 +195,7 @@ export class HelmExecutionBuilder {
       environment[key] = value;
     }
 
-    return new HelmExecution(command, this._workingDirectory, environment);
+    return new HelmExecution(command, this._workingDirectory, environment, this.logger);
   }
 
   /**

@@ -108,9 +108,11 @@ export class HelmDependencyManager extends BaseDependencyManager {
     try {
       const output: string[] = await this.run(`${executablePath} version --short`);
       const parts: string[] = output[0].split('+');
-      this.logger.debug(`Found ${constants.HELM}:${parts[0]}`);
-      return parts[0];
-    } catch (error: any) {
+      const versionOnly: string = parts[0];
+      this.logger.info(`Helm version: ${versionOnly}`);
+      this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
+      return versionOnly;
+    } catch (error) {
       throw new SoloError('Failed to check helm version', error);
     }
   }
