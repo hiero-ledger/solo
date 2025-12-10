@@ -216,7 +216,7 @@ tasks:
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
           $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
-          --metallb-config { .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+          --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
 
   restore-network:
