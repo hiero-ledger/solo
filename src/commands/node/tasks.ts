@@ -2531,24 +2531,22 @@ export class NodeCommandTasks {
               publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
             };
 
-            // Delete old secret and create new one with updated key
-            try {
-              await self.k8Factory
-                .getK8(context)
-                .secrets()
-                .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
-            } catch (deleteError) {
-              self.logger.debug(
-                `No existing admin key secret to delete for ${config.nodeAlias}: ${deleteError.message}`,
-              );
-            }
-
-            await self.k8Factory
+            const isAdminKeySecretCreated: boolean = await self.k8Factory
               .getK8(context)
               .secrets()
-              .create(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias), SecretType.OPAQUE, data, {
-                'solo.hedera.com/node-admin-key': 'true',
-              });
+              .createOrReplace(
+                config.namespace,
+                Templates.renderNodeAdminKeyName(config.nodeAlias),
+                SecretType.OPAQUE,
+                data,
+                {
+                  'solo.hedera.com/node-admin-key': 'true',
+                },
+              );
+
+            if (!isAdminKeySecretCreated) {
+              throw new SoloError(`failed to create admin key secret for node '${config.nodeAlias}'`);
+            }
 
             self.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
           }
