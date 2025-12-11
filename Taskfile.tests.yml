@@ -122,13 +122,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/dual-cluster-full.test.ts' 
         {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
 
-  test-e2e-cluster:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Dual Cluster Full Test\"
-        {{ .reporter_prefix }}='coverage/e2e-dual-cluster-full'
-        {{ .mocha_bin }} 'test/e2e/commands/cluster.test.ts' 
-        {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
-
   test-e2e-external-database:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E External Database Test\"
