@@ -112,7 +112,7 @@ tasks:
     cmds:
       # Solo mirror node add"
       - cmd: |
-          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --use-external-database \
           --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
           --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
           --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
