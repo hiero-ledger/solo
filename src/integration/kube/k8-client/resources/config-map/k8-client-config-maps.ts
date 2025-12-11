@@ -153,11 +153,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
     }
 
     KubeApiResponse.check(results.response, ResourceOperation.LIST, ResourceType.CONFIG_MAP, namespace, '');
-    return (
-      results?.body?.items?.map(
-        (v1ConfigMap: V1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap),
-      ) || []
-    );
+    return results?.body?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
   }
 
   public async listForAllNamespaces(labels: string[]): Promise<ConfigMap[]> {
@@ -171,11 +167,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
     }
 
     KubeApiResponse.check(results.response, ResourceOperation.LIST, ResourceType.CONFIG_MAP, undefined, '');
-    return (
-      results?.body?.items?.map(
-        (v1ConfigMap: V1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap),
-      ) || []
-    );
+    return results?.body?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
   }
 
   public async update(namespace: NamespaceName, name: string, data: Record<string, string>): Promise<void> {
