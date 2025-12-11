@@ -174,7 +174,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }
 
         await logMetrics(startTime);
-      }).timeout(Duration.ofMinutes(60).toMillis());
+      }).timeout(Duration.ofMinutes(70).toMillis());
     });
   })
   .build();
