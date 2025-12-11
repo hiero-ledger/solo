@@ -111,15 +111,15 @@ if [[ $result -ne 0 ]]; then
   exit $result
 fi
 
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
 # force restart relay pod to pick up changes of configMap
 kubectl rollout restart deployment/relay-1 -n solo-e2e
 kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
-npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
@@ -165,7 +165,7 @@ echo "::endgroup::"
 echo "::group::Cleanup"
 # uninstall components using current Solo version
 npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
-npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev

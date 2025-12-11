@@ -41,7 +41,7 @@ export class ArgumentProcessor {
     );
 
     // Expand the terminal width to the maximum available
-    rootCmd.wrap();
+    rootCmd.wrap(rootCmd.terminalWidth());
 
     rootCmd.fail((message, error) => {
       if (message) {
