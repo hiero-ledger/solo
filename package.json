@@ -120,10 +120,7 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.49.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/hiero-ledger/solo.git"
-  },
+  "repository": "https://github.com/hiero-ledger/solo",
   "os": [
     "darwin",
     "linux",
