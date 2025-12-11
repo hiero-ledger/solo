@@ -38,7 +38,7 @@ new EndToEndTestSuiteBuilder()
   .withServiceMonitor(true)
   .withPodLog(true)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe('Dual Cluster Full E2E Test', (): void => {
+    describe('Node Upgrade E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
