@@ -23,7 +23,6 @@ import {AccountCommand} from '../../../src/commands/account.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import * as helpers from '../../../src/core/helpers.js';
@@ -84,7 +83,6 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
     after(async function () {
       this.timeout(Duration.ofMinutes(3).toMillis());
 
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
       await k8Factory.default().namespaces().delete(namespace);
       await accountManager.close();
       await nodeCmd.close();

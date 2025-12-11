@@ -110,6 +110,10 @@ jobs:
       - name: Install GnuPG Tools
         run: |
           if ! command -v gpg2 >/dev/null 2>&1; then
+            echo "::group::Configure APT Mirror"
+              # Configure APT to use main Ubuntu archive (disable mirror rotation)
+              sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
+            echo "::endgroup::"
             echo "::group::Updating APT Repository Indices"
               sudo apt update
             echo "::endgroup::"

@@ -13,9 +13,6 @@ import {
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
-import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type DeploymentName} from '../../../src/types/index.js';
@@ -226,10 +223,6 @@ export function testSeparateNodeAdd(
         .execute(accountManager._nodeClient);
 
       expect(balance.hbars).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
-    }).timeout(Duration.ofMinutes(10).toMillis());
-
-    it('get the logs', async (): Promise<void> => {
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }).timeout(Duration.ofMinutes(3).toMillis());
 }
