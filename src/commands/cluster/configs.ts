@@ -7,7 +7,6 @@ import {UserBreak} from '../../core/errors/user-break.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
