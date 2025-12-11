@@ -24,6 +24,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - ready_for_review
 defaults:
   run:
     shell: bash
@@ -35,6 +36,7 @@ permissions:
 
 jobs:
   gcs-storage-test:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     strategy:

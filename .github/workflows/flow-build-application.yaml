@@ -59,6 +59,8 @@ jobs:
       - name: Read JSON and Set Matrix Output
         id: set_matrix
         run: |
+          # Configure APT to use main Ubuntu archive (disable mirror rotation)
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
 

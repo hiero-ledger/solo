@@ -8,6 +8,7 @@ import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js
 import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
 import {type BaseTestOptions} from './commands/tests/base-test-options.js';
+import {BaseCommandTest} from './commands/tests/base-command-test.js';
 
 export class EndToEndTestSuite extends Suite {
   private readonly endToEndTestSuiteInstance: EndToEndTestSuite;
@@ -39,6 +40,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly serviceMonitor: boolean = false,
     public readonly podLog: boolean = false,
     public readonly minimalSetup: boolean = false,
+    public readonly collectDiagnosticLogs: boolean = true,
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -99,6 +101,12 @@ export class EndToEndTestSuite extends Suite {
     const endToEndTestSuiteInstance: EndToEndTestSuite = this.endToEndTestSuiteInstance;
     describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
       this.bail(true);
+
+      // Automatically setup diagnostic log collection if enabled
+      if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
+        BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
+      }
+
       endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options);
     });
   }
