@@ -224,8 +224,9 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.clusterRef],
+    required: [flags.deployment],
     optional: [
+      flags.clusterRef,
       flags.cacheDir,
       flags.chartDirectory,
       flags.mirrorNodeChartDirectory,
