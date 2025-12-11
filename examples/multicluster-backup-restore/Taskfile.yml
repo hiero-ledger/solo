@@ -223,6 +223,8 @@ tasks:
           $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
           --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
+          # keep a copy of zip file for debugging
+          cp {{ .ZIP_INPUT_FILE }} ~/.solo/
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
