@@ -79,7 +79,7 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --enable-ingress --pinger
 
       # Solo relay node add
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
