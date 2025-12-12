@@ -34,6 +34,7 @@ const accounts: number = 20;
 const tokens: number = 1;
 const nfts: number = 2;
 const percent: number = 50;
+const maxTps: number = 20;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 
@@ -123,17 +124,24 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }
 
-        testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        await main(soloOneShotDestroy(testName));
-        testLogger.info(`${testName}: finished ${testName}: destroy`);
+        // testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        // await main(soloOneShotDestroy(testName));
+        // testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
-      // it('CryptoTransferLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
+      it('CryptoTransferLoadTest', async (): Promise<void> => {
+        await main(
+          soloRapidFire(
+            testName,
+            'CryptoTransferLoadTest',
+            `-c ${clients} -a ${accounts} -R -t ${duration} -Dbenchmark.tps=20`,
+            maxTps,
+          ),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
       // it('HCSLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
+      //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
       // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
       //
       // it('NftTransferLoadTest', async (): Promise<void> => {
@@ -142,6 +150,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       //       testName,
       //       'NftTransferLoadTest',
       //       `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+      //       maxTps,
       //     ),
       //   );
       // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
@@ -149,12 +158,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // it('TokenTransferLoadTest', async (): Promise<void> => {
       //   // Keep Accounts and Associations at 1 to prevent test from failing.
       //   await main(
-      //     soloRapidFire(testName, 'TokenTransferLoadTest', `-c ${clients} -a 1 -T ${tokens} -A 1 -R -t ${duration}`),
+      //     soloRapidFire(testName, 'TokenTransferLoadTest', `-c ${clients} -a 1 -T ${tokens} -A 1 -R -t ${duration}`, maxTps),
       //   );
       // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
       //
       // it('SmartContractLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`));
+      //   await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
       // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
@@ -174,7 +183,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }
 
         await logMetrics(startTime);
-      }).timeout(Duration.ofMinutes(70).toMillis());
+      }).timeout(Duration.ofMinutes(60).toMillis());
     });
   })
   .build();
@@ -224,7 +233,12 @@ export function soloOneShotDestroy(testName: string): string[] {
   return argv;
 }
 
-export function soloRapidFire(testName: string, performanceTest: string, argumentsString: string): string[] {
+export function soloRapidFire(
+  testName: string,
+  performanceTest: string,
+  argumentsString: string,
+  maxTps: number,
+): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
@@ -237,6 +251,8 @@ export function soloRapidFire(testName: string, performanceTest: string, argumen
     deploymentName,
     optionFromFlag(Flags.performanceTest),
     performanceTest,
+    optionFromFlag(Flags.maxTps),
+    maxTps.toString(),
     optionFromFlag(Flags.nlgArguments),
     `'"${argumentsString}"'`,
   );
