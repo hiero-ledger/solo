@@ -152,6 +152,13 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
 
+  test-e2e-performance:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
+        {{ .reporter_prefix }}='coverage/e2e-performance'
+        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-performance.xml"
+
   test-example-node-create-transaction:
     dir: examples/node-create-transaction
     cmds:

@@ -28,7 +28,6 @@ import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
-import {sleep} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {ShellRunner} from '../../../src/core/shell-runner.js';
 
@@ -129,20 +128,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }
 
-        if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
-          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
-
-          if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
-            throw new Error(
-              `${testName}: invalid ONE_SHOT_METRICS_SLEEP_MINUTES value: ${process.env.ONE_SHOT_METRICS_SLEEP_MINUTES}`,
-            );
-          }
-
-          for (let index: number = 0; index < sleepTimeInMinutes; index++) {
-            console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
-            await sleep(Duration.ofMinutes(1));
-          }
-        }
         await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
       }).timeout(Duration.ofMinutes(60).toMillis());
 

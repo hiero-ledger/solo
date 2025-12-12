@@ -26,9 +26,11 @@ export class MetricsServerImpl implements MetricsServer {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.IgnorePodMetrics) private readonly ignorePodMetrics?: string[],
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.ignorePodMetrics = patchInject(ignorePodMetrics, InjectTokens.IgnorePodMetrics, this.constructor.name);
   }
 
   public async getMetrics(
@@ -60,7 +62,7 @@ export class MetricsServerImpl implements MetricsServer {
     context: Context = undefined,
     attempt: number = 1,
   ): Promise<ClusterMetrics> {
-    const podMetrics: PodMetrics[] = [];
+    let podMetrics: PodMetrics[] = [];
     const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
     const contextParameter: string = context ? `--context ${context}` : '';
     const labelSelectorParameter: string = labelSelector ? `-l='${labelSelector}'` : '';
@@ -94,6 +96,16 @@ export class MetricsServerImpl implements MetricsServer {
           mirrorNodePostgresPodName = podName;
         }
       }
+
+      podMetrics = podMetrics.filter((podMetric: PodMetrics): boolean => {
+        for (const ignorePattern of this.ignorePodMetrics) {
+          if (podMetric.podName.name.includes(ignorePattern)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
       return this.createClusterMetrics(
         context ?? 'default',
         clusterNamespace ? NamespaceName.of(clusterNamespace) : undefined,

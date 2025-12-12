@@ -229,6 +229,7 @@ export class Container {
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
+      new ValueContainer(InjectTokens.IgnorePodMetrics, constants.IGNORE_POD_METRICS),
     ];
   }
 
