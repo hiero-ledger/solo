@@ -10,7 +10,7 @@ export class KindCluster {
    * @param name the name of the repository.
    * @throws Error if any of the arguments are null or blank.
    */
-  constructor(public readonly name: string) {
+  public constructor(public readonly name: string) {
     if (!name) {
       throw new Error('name must not be null');
     }

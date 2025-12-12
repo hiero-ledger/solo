@@ -17,10 +17,10 @@ export class ChartInstallRequest implements HelmRequest {
    * @param chart The chart to install.
    * @param options The options to use when installing the chart.
    */
-  constructor(
-    readonly releaseName: string,
-    readonly chart: Chart,
-    readonly options: InstallChartOptions = InstallChartOptionsBuilder.builder().build(),
+  public constructor(
+    public readonly releaseName: string,
+    public readonly chart: Chart,
+    public readonly options: InstallChartOptions = InstallChartOptionsBuilder.builder().build(),
   ) {
     if (!releaseName) {
       throw new Error('releaseName must not be null');
@@ -36,11 +36,12 @@ export class ChartInstallRequest implements HelmRequest {
     }
   }
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('install');
     this.options.apply(builder);
 
-    const chartName = this.options.repo && this.options.repo !== '' ? this.chart.unqualified() : this.chart.qualified();
+    const chartName: string =
+      this.options.repo && this.options.repo !== '' ? this.chart.unqualified() : this.chart.qualified();
 
     builder.positional(this.releaseName).positional(chartName);
   }

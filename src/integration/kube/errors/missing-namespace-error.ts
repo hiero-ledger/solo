@@ -3,7 +3,7 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 
 export class MissingNamespaceError extends SoloError {
-  public static MISSING_NAMESPACE = 'Namespace is required.';
+  public static MISSING_NAMESPACE: string = 'Namespace is required.';
 
   /**
    * Instantiates a new error with a message and an optional cause.

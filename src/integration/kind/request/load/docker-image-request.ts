@@ -8,9 +8,9 @@ import {type LoadDockerImageOptions} from '../../model/load-docker-image/load-do
  * A request to list all Kind clusters.
  */
 export class LoadDockerImageRequest implements KindRequest {
-  constructor(private readonly options?: LoadDockerImageOptions) {}
+  public constructor(private readonly options?: LoadDockerImageOptions) {}
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('load', 'docker-image');
     if (this.options) {
       this.options.apply(builder);

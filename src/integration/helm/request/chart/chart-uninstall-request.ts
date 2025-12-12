@@ -8,7 +8,7 @@ import {type UnInstallChartOptions} from '../../model/install/un-install-chart-o
  * A request to uninstall a Helm chart.
  */
 export class ChartUninstallRequest implements HelmRequest {
-  constructor(
+  public constructor(
     private readonly releaseName: string,
     private readonly options: UnInstallChartOptions,
   ) {
@@ -20,7 +20,7 @@ export class ChartUninstallRequest implements HelmRequest {
     }
   }
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('uninstall');
 
     // Apply options if provided

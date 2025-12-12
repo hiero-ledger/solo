@@ -8,9 +8,9 @@ import {type GetNodesOptions} from '../../model/get-nodes/get-nodes-options.js';
  * A request to list Kind nodes for the specified context.
  */
 export class GetNodesRequest implements KindRequest {
-  constructor(private readonly options: GetNodesOptions) {}
+  public constructor(private readonly options: GetNodesOptions) {}
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('get', 'nodes');
     if (this.options) {
       this.options.apply(builder);

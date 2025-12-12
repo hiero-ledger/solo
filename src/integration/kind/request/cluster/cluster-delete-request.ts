@@ -8,13 +8,13 @@ import {type ClusterDeleteOptions} from '../../model/delete-cluster/cluster-dele
  * A request to delete a Kind cluster.
  */
 export class ClusterDeleteRequest implements KindRequest {
-  constructor(private readonly options: ClusterDeleteOptions) {
+  public constructor(private readonly options: ClusterDeleteOptions) {
     if (!options) {
       throw new Error('options must not be null');
     }
   }
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('delete', 'cluster');
     this.options.apply(builder);
   }

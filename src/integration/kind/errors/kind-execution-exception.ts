@@ -32,8 +32,8 @@ export class KindExecutionException extends Error {
   ) {
     let message: string;
     let cause: Error | undefined;
-    let stdOut = '';
-    let stdError = '';
+    let stdOut: string = '';
+    let stdError: string = '';
 
     if (messageOrStdOutOrCause instanceof Error) {
       // Constructor with exitCode and cause
@@ -79,7 +79,7 @@ export class KindExecutionException extends Error {
    * Returns a string representation of the exception.
    * @returns A string representation of the exception
    */
-  override toString(): string {
+  public override toString(): string {
     return `KindExecutionException{message=${this.message}, exitCode=${this.exitCode}, stdOut='${this.stdOut}', stdErr='${this.stdErr}'}`;
   }
 }

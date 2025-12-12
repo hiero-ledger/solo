@@ -2,12 +2,15 @@
 
 import {SoloError} from '../../../core/errors/solo-error.js';
 
-const RFC_1123_POSTFIX = (prefix: string) => `${prefix} is invalid, must be a valid RFC-1123 DNS label.  \` +
+const RFC_1123_POSTFIX: (prefix: string) => string = (
+  prefix: string,
+): string => `${prefix} is invalid, must be a valid RFC-1123 DNS label.  \` +
     "A DNS 1123 label must consist of lower case alphanumeric characters, '-' " +
     "or '.', must not exceed 63 characters, and must start and end with an alphanumeric character.`;
 
 export class NamespaceNameInvalidError extends SoloError {
-  public static NAMESPACE_NAME_INVALID = (name: string) => RFC_1123_POSTFIX(`Namespace name '${name}'`);
+  public static NAMESPACE_NAME_INVALID: (name: string) => string = (name: string): string =>
+    RFC_1123_POSTFIX(`Namespace name '${name}'`);
 
   /**
    * Instantiates a new error with a message and an optional cause.
@@ -22,7 +25,8 @@ export class NamespaceNameInvalidError extends SoloError {
 }
 
 export class ContainerNameInvalidError extends SoloError {
-  public static CONTAINER_NAME_INVALID = (name: string) => RFC_1123_POSTFIX(`Container name '${name}'`);
+  public static CONTAINER_NAME_INVALID: (name: string) => string = (name: string): string =>
+    RFC_1123_POSTFIX(`Container name '${name}'`);
 
   /**
    * Instantiates a new error with a message and an optional cause.
@@ -37,7 +41,7 @@ export class ContainerNameInvalidError extends SoloError {
 }
 
 export class MissingPodReferenceError extends SoloError {
-  public static MISSING_POD_REF = 'Pod ref is required.';
+  public static MISSING_POD_REF: string = 'Pod ref is required.';
 
   /**
    * Instantiates a new error with a message and an optional cause.
@@ -51,7 +55,7 @@ export class MissingPodReferenceError extends SoloError {
 }
 
 export class MissingContainerNameError extends SoloError {
-  public static MISSING_CONTAINER_NAME = 'Container Name is required.';
+  public static MISSING_CONTAINER_NAME: string = 'Container Name is required.';
 
   /**
    * Instantiates a new error with a message and an optional cause.

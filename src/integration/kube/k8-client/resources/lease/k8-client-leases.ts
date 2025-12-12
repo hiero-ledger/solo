@@ -31,7 +31,7 @@ import {ResourceType} from '../../../resources/resource-type.js';
 export class K8ClientLeases implements Leases {
   private readonly logger: SoloLogger;
 
-  constructor(private readonly coordinationApiClient: CoordinationV1Api) {
+  public constructor(private readonly coordinationApiClient: CoordinationV1Api) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
@@ -41,20 +41,20 @@ export class K8ClientLeases implements Leases {
     holderName: string,
     durationSeconds: number,
   ): Promise<Lease> {
-    const lease = new V1Lease();
+    const lease: V1Lease = new V1Lease();
 
-    const metadata = new V1ObjectMeta();
+    const metadata: V1ObjectMeta = new V1ObjectMeta();
     metadata.name = leaseName;
     metadata.namespace = namespace.name;
     lease.metadata = metadata;
 
-    const spec = new V1LeaseSpec();
+    const spec: V1LeaseSpec = new V1LeaseSpec();
     spec.holderIdentity = holderName;
     spec.leaseDurationSeconds = durationSeconds;
     spec.acquireTime = new V1MicroTime();
     lease.spec = spec;
 
-    let result: {response: any; body: any};
+    let result: {response: http.IncomingMessage; body: V1Lease};
     try {
       result = await this.coordinationApiClient.createNamespacedLease(namespace.name, lease);
     } catch (error) {
@@ -67,7 +67,7 @@ export class K8ClientLeases implements Leases {
   }
 
   public async delete(namespace: NamespaceName, name: string): Promise<V1Status> {
-    let result: {response: any; body: any};
+    let result: {response: http.IncomingMessage; body: V1Lease};
     try {
       result = await this.coordinationApiClient.deleteNamespacedLease(name, namespace.name);
     } catch (error) {
@@ -80,7 +80,7 @@ export class K8ClientLeases implements Leases {
   }
 
   public async read(namespace: NamespaceName, leaseName: string, timesCalled?: number): Promise<Lease> {
-    let result: {response: any; body: any};
+    let result: {response: http.IncomingMessage; body: V1Lease};
     try {
       result = await this.coordinationApiClient.readNamespacedLease(leaseName, namespace.name);
     } catch (error) {
@@ -109,7 +109,7 @@ export class K8ClientLeases implements Leases {
     const v1Lease: V1Lease = K8ClientLease.toV1Lease(lease);
     v1Lease.spec.renewTime = new V1MicroTime();
 
-    let result: {response: any; body: any};
+    let result: {response: http.IncomingMessage; body: V1Lease};
     try {
       result = await this.coordinationApiClient.replaceNamespacedLease(leaseName, namespace.name, v1Lease);
     } catch (error) {
@@ -122,12 +122,12 @@ export class K8ClientLeases implements Leases {
   }
 
   public async transfer(lease: Lease, newHolderName: string): Promise<Lease> {
-    const v1Lease = K8ClientLease.toV1Lease(lease);
+    const v1Lease: V1Lease = K8ClientLease.toV1Lease(lease);
     v1Lease.spec.leaseTransitions++;
     v1Lease.spec.renewTime = new V1MicroTime();
     v1Lease.spec.holderIdentity = newHolderName;
 
-    let result: {response: any; body: any};
+    let result: {response: http.IncomingMessage; body: V1Lease};
     try {
       result = await this.coordinationApiClient.replaceNamespacedLease(
         v1Lease.metadata.name,
@@ -155,7 +155,7 @@ export class K8ClientLeases implements Leases {
     error: Error | unknown,
     errorMessage: string,
   ): void {
-    const statusCode = +response?.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
+    const statusCode: number = +response?.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
 
     if (statusCode <= StatusCodes.ACCEPTED) {
       return;

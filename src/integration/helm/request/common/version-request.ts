@@ -7,7 +7,7 @@ import {type HelmRequest} from '../helm-request.js';
  * A request to get the version of the Helm CLI.
  */
 export class VersionRequest implements HelmRequest {
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('version').argument('template', String.raw`{\"version\":\"{{.Version}}\"}`);
   }
 }

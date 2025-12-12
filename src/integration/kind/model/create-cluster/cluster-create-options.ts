@@ -32,7 +32,7 @@ export class ClusterCreateOptions implements Options {
    */
   private readonly _wait: string;
 
-  constructor(config?: string, image?: string, name?: string, retain: boolean = false, wait?: string) {
+  public constructor(config?: string, image?: string, name?: string, retain: boolean = false, wait?: string) {
     if (config) {
       this._config = config;
     }
@@ -73,35 +73,35 @@ export class ClusterCreateOptions implements Options {
   /**
    * The value of the config flag.
    */
-  get config(): string {
+  public get config(): string {
     return this._config;
   }
 
   /**
    * The Docker image to use for booting the cluster.
    */
-  get image(): string {
+  public get image(): string {
     return this._image;
   }
 
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
   /**
    * If set, retain nodes for debugging when cluster creation fails.
    */
-  get retain(): boolean {
+  public get retain(): boolean {
     return this._retain;
   }
 
   /**
    * The duration to wait for the control plane node to be ready.
    */
-  get wait(): string {
+  public get wait(): string {
     return this._wait;
   }
 }

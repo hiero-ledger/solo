@@ -17,10 +17,10 @@ export class ChartUpgradeRequest implements HelmRequest {
    * @param chart The chart to upgrade to.
    * @param options The options to use when upgrading the chart.
    */
-  constructor(
-    readonly releaseName: string,
-    readonly chart: Chart,
-    readonly options: UpgradeChartOptions = UpgradeChartOptionsBuilder.builder().build(),
+  public constructor(
+    public readonly releaseName: string,
+    public readonly chart: Chart,
+    public readonly options: UpgradeChartOptions = UpgradeChartOptionsBuilder.builder().build(),
   ) {
     if (!releaseName) {
       throw new Error('releaseName must not be null');
@@ -40,7 +40,7 @@ export class ChartUpgradeRequest implements HelmRequest {
    * Applies this request to the given builder.
    * @param builder The builder to apply the request to.
    */
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('upgrade');
     this.options.apply(builder);
 

@@ -9,14 +9,16 @@ import {ShellRunner} from '../../../core/shell-runner.js';
 export class HelmSoftwareLoader {
   public static async getHelmExecutablePath(): Promise<string> {
     try {
-      const shellRunner = new ShellRunner();
-      const platform = process.platform;
+      const shellRunner: ShellRunner = new ShellRunner();
+      const platform: NodeJS.Platform = process.platform;
 
       let helmPath: string;
       // Use the appropriate command based on the platform
       if (platform === 'linux' || platform === 'darwin') {
+        // eslint-disable-next-line unicorn/no-await-expression-member
         helmPath = (await shellRunner.run('which helm')).join('').trim();
       } else if (platform === 'win32') {
+        // eslint-disable-next-line unicorn/no-await-expression-member
         helmPath = (await shellRunner.run('where helm')).join('').trim();
       } else {
         throw new HelmConfigurationException(`Unsupported operating system: ${platform}`);

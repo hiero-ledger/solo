@@ -11,7 +11,7 @@ export class Repository {
    * @param url  the url of the repository.
    * @throws Error if any of the arguments are null or blank.
    */
-  constructor(
+  public constructor(
     public readonly name: string,
     public readonly url: string,
   ) {

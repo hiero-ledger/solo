@@ -3,13 +3,17 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 import {type ResourceType} from '../resources/resource-type.js';
 
-const RFC_1123_POSTFIX = (prefix: string): string => `${prefix} is invalid, must be a valid RFC-1123 DNS label.  \` +
+const RFC_1123_POSTFIX: (prefix: string) => string = (
+  prefix: string,
+): string => `${prefix} is invalid, must be a valid RFC-1123 DNS label.  \` +
     "A DNS 1123 label must consist of lower case alphanumeric characters, '-' " +
     "or '.', must not exceed 63 characters, and must start and end with an alphanumeric character.`;
 
 export class InvalidResourceNameError extends SoloError {
-  public static RESOURCE_NAME_INVALID = (type: ResourceType, name: string) =>
-    RFC_1123_POSTFIX(`${type} name '${name}'`);
+  public static RESOURCE_NAME_INVALID: (type: ResourceType, name: string) => string = (
+    type: ResourceType,
+    name: string,
+  ): string => RFC_1123_POSTFIX(`${type} name '${name}'`);
 
   /**
    * Instantiates a new error with a message and an optional cause.

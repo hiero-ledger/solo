@@ -6,8 +6,8 @@ import {UnInstallChartOptions} from './un-install-chart-options.js';
  * Builder for {@link UnInstallChartOptions}.
  */
 export class UnInstallChartOptionsBuilder {
-  _namespace?: string;
-  _kubeContext?: string;
+  private _namespace?: string;
+  private _kubeContext?: string;
 
   private constructor() {}
 

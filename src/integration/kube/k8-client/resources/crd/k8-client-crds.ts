@@ -3,8 +3,9 @@
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
-import {type ApiextensionsV1Api} from '@kubernetes/client-node';
+import {type ApiextensionsV1Api, type V1CustomResourceDefinition} from '@kubernetes/client-node';
 import {type Crds} from '../../../resources/crd/crds.js';
+import {type IncomingMessage} from 'node:http';
 
 export class K8ClientCrds implements Crds {
   private readonly logger: SoloLogger;
@@ -15,7 +16,8 @@ export class K8ClientCrds implements Crds {
 
   public async ifExists(crdName: string): Promise<boolean> {
     try {
-      const response = await this.networkingApi.readCustomResourceDefinition(crdName);
+      const response: {response: IncomingMessage; body: V1CustomResourceDefinition} =
+        await this.networkingApi.readCustomResourceDefinition(crdName);
       this.logger.debug(`CRD ${crdName} exists, response:`, response);
       return true;
     } catch (error) {

@@ -8,9 +8,9 @@ import {type ExportKubeConfigOptions} from '../../model/export-kubeconfig/export
  * A request to export the kubectl configuration of a Kind cluster.
  */
 export class ExportKubeConfigRequest implements KindRequest {
-  constructor(private readonly options: ExportKubeConfigOptions) {}
+  public constructor(private readonly options: ExportKubeConfigOptions) {}
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('export', 'kubeconfig');
     if (this.options) {
       this.options.apply(builder);

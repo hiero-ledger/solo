@@ -8,9 +8,9 @@ import {type GetKubeConfigOptions} from '../../model/get-kubeconfig/get-kubeconf
  * A request to retrieve kubeconfig data.
  */
 export class GetKubeConfigRequest implements KindRequest {
-  constructor(private readonly options: GetKubeConfigOptions) {}
+  public constructor(private readonly options: GetKubeConfigOptions) {}
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('get', 'kubeconfig');
     if (this.options) {
       this.options.apply(builder);
