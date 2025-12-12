@@ -21,7 +21,7 @@ export interface Services {
 
   /**
    * Create a service
-   * @param serviceRef - service reference
+   * @param serviceReference - service reference
    * @param labels - the labels for the service
    * @param servicePort - the service port
    * @param podTargetPort - the target port

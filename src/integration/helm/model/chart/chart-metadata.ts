@@ -6,7 +6,7 @@ export class ChartMetadata {
    * @param version The version of the chart
    * @param appVersion The version of the application contained in the chart
    */
-  constructor(
+  public constructor(
     public readonly version: string,
     public readonly appVersion: string,
   ) {}

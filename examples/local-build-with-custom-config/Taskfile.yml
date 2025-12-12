@@ -23,7 +23,7 @@ vars:
 
   CN_VERSION: "0.63.0"
   RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
-  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.142.0"
+  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.143.0"
   EXPLORER_VERSION_FLAG: "--explorer-version 25.0.0"
 
   BLOCK_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/block-node-values.yaml"
@@ -72,8 +72,7 @@ tasks:
       - cmd: |
           export BLOCK_NODE_RELEASE_TAG=$(grep "'BLOCK_NODE_VERSION'" version.ts | sed -E "s/.*'([^']+)';/\1/")          
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
-          --chart-version $BLOCK_NODE_RELEASE_TAG \
-          --cluster-ref {{ .CLUSTER_REFERENCE }} {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
+          --chart-version $BLOCK_NODE_RELEASE_TAG {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
 
       # Solo node keys
       - cmd: |
@@ -103,7 +102,7 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger --enable-ingress {{ .MIRROR_NODE_VERSION_FLAG }} {{ .MIRROR_NODE_VALUE_FILE_FLAG }}
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress {{ .MIRROR_NODE_VERSION_FLAG }} {{ .MIRROR_NODE_VALUE_FILE_FLAG }}
 
       # Solo relay node add
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} {{ .RELAY_RELEASE_FLAG }} {{ .RELAY_NODE_VALUE_FILE_FLAG }}
@@ -114,7 +113,7 @@ tasks:
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
           -n {{ .EXPLORER_NAME_SPACE }} \
-          --cluster-ref {{ .CLUSTER_REFERENCE }} {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
+          {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
 
       - cmd: |
           $SOLO_COMMAND deployment diagnostics logs --deployment {{ .DEPLOYMENT }} 

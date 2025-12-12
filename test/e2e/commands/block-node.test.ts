@@ -22,7 +22,7 @@ import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ClusterReferenceName} from '../../../src/types/index.js';
-import {exec} from 'node:child_process';
+import {exec, type ExecOptions} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as SemVer from 'semver';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
@@ -32,10 +32,19 @@ import {BlockCommandDefinition} from '../../../src/commands/command-definitions/
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 
-// eslint-disable-next-line @typescript-eslint/typedef
-const execAsync = promisify(exec);
+const execPromise: (
+  command: string,
+  options?: ExecOptions,
+) => Promise<{stdout: string | Buffer; stderr: string | Buffer}> = promisify(exec);
+
+async function execAsync(command: string, options?: ExecOptions): Promise<{stdout: string; stderr: string}> {
+  const execOptions: ExecOptions = {...options, encoding: options?.encoding ?? 'utf8'};
+  const result: {stdout: string | Buffer; stderr: string | Buffer} = await execPromise(command, execOptions);
+  const stdout: string = typeof result.stdout === 'string' ? result.stdout : result.stdout.toString('utf8');
+  const stderr: string = typeof result.stderr === 'string' ? result.stderr : result.stderr.toString('utf8');
+  return {stdout, stderr};
+}
 
 const testName: string = 'block-node-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -76,7 +85,6 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bo
 
     after(async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(5).toMillis());
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
       await k8Factory.default().namespaces().delete(namespace);
     });
 
@@ -108,7 +116,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bo
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
-      const commandOptions: {cwd: string} = {cwd: './test/data'};
+      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 20 * 1024 * 1024, encoding: 'utf8'};
 
       // Make script executable
       await execAsync('chmod +x ./get-block.sh', commandOptions);

@@ -31,7 +31,7 @@ export class K8ClientIngresses implements Ingresses {
     KubeApiResponse.check(result.response, ResourceOperation.LIST, ResourceType.INGRESS, undefined, '');
 
     if (result?.body?.items) {
-      const ingressNames = [];
+      const ingressNames: string[] = [];
       for (const ingress of result.body.items) {
         ingressNames.push(ingress.metadata?.name ?? '');
       }
@@ -42,24 +42,24 @@ export class K8ClientIngresses implements Ingresses {
   }
 
   public async update(namespace: NamespaceName, name: string, patch: object): Promise<void> {
-    const ingresses = [];
+    const ingresses: string[] = [];
     // find the ingresses that match the specified name
     await this.networkingApi
       .listIngressForAllNamespaces()
-      .then(response => {
+      .then((response): void => {
         for (const ingress of response.body.items) {
-          const currentIngressName = ingress.metadata.name;
+          const currentIngressName: string = ingress.metadata.name;
           if (currentIngressName.includes(name)) {
             ingresses.push(currentIngressName);
           }
         }
       })
-      .catch(error => {
+      .catch((error): never => {
         throw new SoloError(`Error listing Ingresses: ${error}`);
       });
 
     for (const ingressName of ingresses) {
-      let result: {response: any; body?: V1Ingress};
+      let result: {response: IncomingMessage; body?: V1Ingress};
       try {
         result = await this.networkingApi.patchNamespacedIngress(
           ingressName,

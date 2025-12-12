@@ -66,7 +66,9 @@ export class KubectlDependencyManager extends BaseDependencyManager {
           if (line.trim().startsWith('Client Version')) {
             const match: RegExpMatchArray | null = line.trim().match(/(\d+\.\d+\.\d+)/);
             if (match) {
-              return match[1];
+              const detectedVersion: string = match[1];
+              this.logger.info(`Kubectl version: ${detectedVersion}`);
+              return detectedVersion;
             }
           }
         }

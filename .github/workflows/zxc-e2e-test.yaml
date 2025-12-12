@@ -200,6 +200,8 @@ jobs:
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
         run: |
+          # Configure APT to use main Ubuntu archive (disable mirror rotation)
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
 
@@ -354,17 +356,36 @@ jobs:
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
-        run: |
-          export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")          
-          cd ..
-          git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch v${TEST_LOCAL_BLOCK_NODE_VERSION}
-          cd hiero-block-node
-          ./gradlew :block-node-app:createDockerImage
-          kind get clusters
-
-          kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
-          ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
-          cd ../solo
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 20
+          command: |
+            export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            cd ..
+            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch v${TEST_LOCAL_BLOCK_NODE_VERSION}
+            cd hiero-block-node
+            
+            # Configure apt to use multiple mirror sources with fallback
+            # This adds fallback mirrors while keeping the original sources
+            find . -name "Dockerfile*" -type f | while read dockerfile; do
+              # Create a backup of sources.list configuration in the Dockerfile
+              sed -i '/RUN apt-get update/i \
+            # Add fallback Ubuntu mirrors for reliability\n\
+            RUN echo "deb http://archive.ubuntu.com/ubuntu/ mantic main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-updates main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "deb http://security.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
+                echo "Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \\\n\
+                echo "Acquire::http::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries && \\\n\
+                echo "Acquire::https::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries\n' "$dockerfile"
+            done
+            
+            ./gradlew :block-node-app:createDockerImage
+            kind get clusters
+            kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
+            ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
+            cd ../solo
 
       - name: Run E2E Tests
         run: |
@@ -413,13 +434,34 @@ jobs:
           
           cat .env
           
-          ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
+          # Start resource monitoring in background
+          ./.github/workflows/script/monitor-resources.sh start
+          
+          # Run the test
+          TEST_EXIT_CODE=0
+          ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
+          
+          # Stop resource monitoring and display summary
+          ./.github/workflows/script/monitor-resources.sh stop
+          
+          exit $TEST_EXIT_CODE
 
       - name: Log Metrics
         id: log-metrics
+        if: always()
         run: |
-          for logFile in ~/.solo/logs/*.json; do 
-            if [[ -f "$logFile" ]]; then
+          echo "json_log={}" >> $GITHUB_OUTPUT
+          
+          # Ensure logs directory exists
+          mkdir -p ~/.solo/logs
+          
+          # Check if any JSON files exist
+          shopt -s nullglob
+          json_files=(~/.solo/logs/*.json)
+          if [[ ${#json_files[@]} -eq 0 ]]; then
+            echo "::notice::No JSON log files found"
+          else
+            for logFile in "${json_files[@]}"; do
               echo "::group::JSON Format"
               cat $logFile | jq
               echo "::endgroup::" 
@@ -428,35 +470,79 @@ jobs:
               echo "logFile=$logFile"
               JSON_FILENAME=$logFile ./.github/workflows/script/metrics.sh
               echo "::endgroup::"
-            else
-              echo "json_log={}" >> $GITHUB_OUTPUT
-            fi
-          done
+            done
+          fi
+          
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
+
+      - name: Generate ASCII Resource Chart
+        id: generate-chart
+        if: ${{ always() }}
+        run: |
+          METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
+          CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
+          
+          if [[ -f "$METRICS_FILE" ]]; then
+            echo "Generating ASCII chart from metrics..."
+            ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
+            
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "chart_generated=true" >> $GITHUB_OUTPUT
+              echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+              echo "✅ ASCII chart generated successfully"
+            else
+              echo "chart_generated=false" >> $GITHUB_OUTPUT
+              echo "⚠️  ASCII chart generation failed"
+            fi
+          else
+            echo "chart_generated=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No metrics file found, skipping chart generation"
+          fi
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
+        if: ${{ always() && !cancelled() }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
-          echo "<details>" >> $LOG_FILE
-          echo "<summary>" >> $LOG_FILE
-          echo "JSON Log Metrics" >> $LOG_FILE
-          echo "</summary>" >> $LOG_FILE
-          echo '<pre><code class="JSON">' >> $LOG_FILE
-          echo "$JSON_INPUT" >> $LOG_FILE
-          echo "</code></pre>" >> $LOG_FILE
-          echo "</details>" >> $LOG_FILE
+          
+          # Add ASCII resource chart if available
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "<details>" >> $LOG_FILE
+              echo "<summary>📊 Runner Resource Usage</summary>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              cat "$CHART_FILE" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo "</details>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+            fi
+          fi
+          
+          # Add JSON log details if there's actual data
+          if [[ -n "$JSON_INPUT" && "$JSON_INPUT" != "{}" ]]; then
+            echo "<details>" >> $LOG_FILE
+            echo "<summary>" >> $LOG_FILE
+            echo "JSON Log Metrics" >> $LOG_FILE
+            echo "</summary>" >> $LOG_FILE
+            echo '<pre><code class="JSON">' >> $LOG_FILE
+            echo "$JSON_INPUT" >> $LOG_FILE
+            echo "</code></pre>" >> $LOG_FILE
+            echo "</details>" >> $LOG_FILE
+          fi
+          
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with Log Metrics
         if: >-
-          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && 
-          steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
+          ${{ always() && !cancelled() && github.event_name == 'pull_request' && 
+          steps.log-metrics-file.conclusion == 'success' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
@@ -464,13 +550,13 @@ jobs:
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: solo-${{ inputs.test-script }}.log
           path: ~/.solo/logs/*
           overwrite: true
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

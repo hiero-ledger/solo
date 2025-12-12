@@ -10,7 +10,7 @@ export class UnInstallChartOptions implements Options {
   private readonly _namespace?: string;
   private readonly _kubeContext?: string;
 
-  constructor(namespace?: string, kubeContext?: string) {
+  public constructor(namespace?: string, kubeContext?: string) {
     this._namespace = namespace;
     this._kubeContext = kubeContext;
   }
@@ -19,7 +19,7 @@ export class UnInstallChartOptions implements Options {
    * Gets the namespace where the release should be uninstalled.
    * @returns The namespace or undefined if not set.
    */
-  get namespace(): string | undefined {
+  public get namespace(): string | undefined {
     return this._namespace;
   }
 
@@ -27,7 +27,7 @@ export class UnInstallChartOptions implements Options {
    * Gets the Kubernetes context to use.
    * @returns The Kubernetes context or undefined if not set.
    */
-  get kubeContext(): string | undefined {
+  public get kubeContext(): string | undefined {
     return this._kubeContext;
   }
 
@@ -35,7 +35,7 @@ export class UnInstallChartOptions implements Options {
    * Applies the options to the given builder.
    * @param builder The builder to apply the options to.
    */
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     if (this._namespace) {
       builder.argument('namespace', this._namespace);
     }

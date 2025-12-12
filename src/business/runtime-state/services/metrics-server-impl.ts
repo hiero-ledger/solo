@@ -120,7 +120,9 @@ export class MetricsServerImpl implements MetricsServer {
             `Metrics API not available, retrying attempt ${attempt} after ${backOffSeconds} seconds...`,
             error,
           );
-          await new Promise(resolve => setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()));
+          await new Promise(
+            (resolve): NodeJS.Timeout => setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()),
+          );
           return this.getClusterMetrics(namespaceLookup, labelSelector, context, attempt + 1);
         } else {
           this.logger.showUser('Metrics API not available for reporting metrics');

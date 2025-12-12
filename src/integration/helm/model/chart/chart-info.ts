@@ -11,5 +11,5 @@ export class ChartInfo {
    * Creates a new ChartInfo instance.
    * @param metadata The metadata associated with the chart
    */
-  constructor(public readonly metadata: ChartMetadata) {}
+  public constructor(public readonly metadata: ChartMetadata) {}
 }

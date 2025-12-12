@@ -23,16 +23,16 @@ export class GetKubeConfigResponse {
 
     try {
       // Parse the YAML output
-      const config = yaml.parse(this._rawOutput);
+      const config: any = yaml.parse(this._rawOutput);
       this._config = new KindKubeConfig(
         config.apiVersion,
-        config.clusters.map((cluster: any) => {
+        config.clusters.map((cluster: any): KindKubeConfigCluster => {
           return new KindKubeConfigCluster(
             new KindKubeConfigClusterData(cluster.cluster['certificate-authority-data'], cluster.cluster.server),
             cluster.name,
           );
         }) || [],
-        config.contexts.map((context: any) => {
+        config.contexts.map((context: any): KindKubeConfigContext => {
           return new KindKubeConfigContext(
             new KindKubeConfigContextData(context.context.cluster, context.context.user),
             context.name,
@@ -41,7 +41,7 @@ export class GetKubeConfigResponse {
         config['current-context'] || '',
         config.kind,
         config.preferences || {},
-        config.users.map((user: any) => {
+        config.users.map((user: any): KindKubeConfigUser => {
           return new KindKubeConfigUser(
             new KindKubeConfigUserData(user.user['client-certificate-data'], user.user['client-key-data']),
             user.name,

@@ -9,7 +9,7 @@ export class HelmConfigurationException extends Error {
    *
    * @param message the detail message (which is saved for later retrieval by the getMessage() method).
    */
-  constructor(message: string);
+  public constructor(message: string);
 
   /**
    * Constructs a new exception instance with the specified message and cause.
@@ -18,7 +18,7 @@ export class HelmConfigurationException extends Error {
    * @param cause   the cause (which is saved for later retrieval by the getCause() method).
    *                A null value is permitted, and indicates that the cause is nonexistent or unknown.
    */
-  constructor(message: string, cause: Error);
+  public constructor(message: string, cause: Error);
 
   /**
    * Constructs a new exception instance with the specified cause.
@@ -26,10 +26,10 @@ export class HelmConfigurationException extends Error {
    * @param cause the cause (which is saved for later retrieval by the getCause() method).
    *              A null value is permitted, and indicates that the cause is nonexistent or unknown.
    */
-  constructor(cause: Error);
+  public constructor(cause: Error);
 
   // Implementation
-  constructor(messageOrCause?: string | Error, cause?: Error) {
+  public constructor(messageOrCause?: string | Error, cause?: Error) {
     if (typeof messageOrCause === 'string') {
       super(messageOrCause);
       if (cause) {
@@ -44,5 +44,5 @@ export class HelmConfigurationException extends Error {
     this.name = 'HelmConfigurationException';
   }
 
-  override cause?: Error;
+  public override cause?: Error;
 }

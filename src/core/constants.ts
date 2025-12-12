@@ -98,6 +98,9 @@ export const MIRROR_NODE_CHART_URL =
 export const MIRROR_NODE_CHART = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
+// Version boundary for mirror node upgrade behavior
+// Versions <= v0.143.0 require skipping reuseValues to avoid RegularExpression rules conflicts
+export const MIRROR_NODE_VERSION_BOUNDARY: string = 'v0.143.0';
 export const PROMETHEUS_STACK_CHART_URL =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART = 'kube-prometheus-stack';
@@ -147,6 +150,12 @@ export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
   'app.kubernetes.io/instance=network-load-generator',
   'app.kubernetes.io/name=network-load-generator',
 ];
+
+export const PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME: string = 'prometheus-operator-crds';
+export const PROMETHEUS_OPERATOR_CRDS_CHART: string = 'prometheus-operator-crds';
+export const PROMETHEUS_OPERATOR_CRDS_REPO: string = 'prometheus-community';
+export const PROMETHEUS_OPERATOR_CRDS_CHART_URL: string =
+  getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_CHART_URL') || 'https://prometheus-community.github.io/helm-charts';
 
 export const NETWORK_LOAD_GENERATOR_CONTAINER: ContainerName = ContainerName.of('nlg');
 

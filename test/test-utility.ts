@@ -50,7 +50,6 @@ import {resetForTest} from './test-container.js';
 import {NamespaceName} from '../src/types/namespace/namespace-name.js';
 import {PodReference} from '../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../src/integration/kube/resources/container/container-reference.js';
-import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {type DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
@@ -70,6 +69,7 @@ import {ClusterReferenceCommandDefinition} from '../src/commands/command-definit
 import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
+import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -341,7 +341,11 @@ export function endToEndTestSuite(
 
       after(async function (): Promise<void> {
         this.timeout(Duration.ofMinutes(5).toMillis());
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+
+        // Use shared diagnostic log collection helper
+        const deployment: string = argv.getArg(flags.deployment) as string;
+        await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
+
         testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
       });
 
@@ -421,7 +425,7 @@ export function endToEndTestSuite(
         deployNetworkTest(argv, commandInvoker, networkCmd);
       }
 
-      if (startNodes) {
+      if (deployNetwork && startNodes) {
         startNodesTest(argv, commandInvoker, nodeCmd);
       }
     });
@@ -439,27 +443,22 @@ export async function queryBalance(
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): Promise<void> {
-  try {
-    const argv: Argv = Argv.getDefaultArgv(namespace);
-    expect(accountManager._nodeClient).to.be.null;
+  const argv: Argv = Argv.getDefaultArgv(namespace);
+  expect(accountManager._nodeClient).to.be.null;
 
-    await accountManager.refreshNodeClient(
-      namespace,
-      remoteConfig.getClusterRefs(),
-      skipNodeAlias,
-      argv.getArg<DeploymentName>(flags.deployment),
-    );
-    expect(accountManager._nodeClient).not.to.be.null;
+  await accountManager.refreshNodeClient(
+    namespace,
+    remoteConfig.getClusterRefs(),
+    skipNodeAlias,
+    argv.getArg<DeploymentName>(flags.deployment),
+  );
+  expect(accountManager._nodeClient).to.not.be.null;
 
-    const balance: AccountBalance = await new AccountBalanceQuery()
-      .setAccountId(accountManager._nodeClient.getOperator().accountId)
-      .execute(accountManager._nodeClient);
+  const balance: AccountBalance = await new AccountBalanceQuery()
+    .setAccountId(accountManager._nodeClient.getOperator().accountId)
+    .execute(accountManager._nodeClient);
 
-    expect(balance.hbars).not.be.null;
-  } catch (error) {
-    logger.showUserError(error);
-    expect.fail();
-  }
+  expect(balance.hbars).to.not.be.null;
   await sleep(Duration.ofSeconds(1));
 }
 
@@ -483,41 +482,36 @@ export async function createAccount(
   skipNodeAlias?: NodeAlias,
   expectedAccountId?: AccountId,
 ): Promise<void> {
-  try {
-    const argv: Argv = Argv.getDefaultArgv(namespace);
-    await accountManager.refreshNodeClient(
-      namespace,
-      remoteConfig.getClusterRefs(),
-      skipNodeAlias,
-      argv.getArg<DeploymentName>(flags.deployment),
-    );
-    expect(accountManager._nodeClient).not.to.be.null;
-    const privateKey: PrivateKey = PrivateKey.generate();
-    const amount: number = 100;
+  const argv: Argv = Argv.getDefaultArgv(namespace);
+  await accountManager.refreshNodeClient(
+    namespace,
+    remoteConfig.getClusterRefs(),
+    skipNodeAlias,
+    argv.getArg<DeploymentName>(flags.deployment),
+  );
+  expect(accountManager._nodeClient).not.to.be.null;
+  const privateKey: PrivateKey = PrivateKey.generate();
+  const amount: number = 100;
 
-    const newAccount: TransactionResponse = await new AccountCreateTransaction()
-      .setKey(privateKey)
-      .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-      .execute(accountManager._nodeClient);
+  const newAccount: TransactionResponse = await new AccountCreateTransaction()
+    .setKey(privateKey)
+    .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+    .execute(accountManager._nodeClient);
 
-    // Get the new account ID
-    const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-    const accountInfo = {
-      accountId: getReceipt.accountId.toString(),
-      privateKey: privateKey.toString(),
-      publicKey: privateKey.publicKey.toString(),
-      balance: amount,
-    };
+  // Get the new account ID
+  const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+  const accountInfo = {
+    accountId: getReceipt.accountId.toString(),
+    privateKey: privateKey.toString(),
+    publicKey: privateKey.publicKey.toString(),
+    balance: amount,
+  };
 
-    expect(accountInfo.accountId).not.to.be.null;
-    if (expectedAccountId) {
-      expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
-    }
-    expect(accountInfo.balance).to.equal(amount);
-  } catch (error) {
-    logger.showUserError(error);
-    expect.fail();
+  expect(accountInfo.accountId).not.to.be.null;
+  if (expectedAccountId) {
+    expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
   }
+  expect(accountInfo.balance).to.equal(amount);
 }
 
 export function accountCreationShouldSucceed(

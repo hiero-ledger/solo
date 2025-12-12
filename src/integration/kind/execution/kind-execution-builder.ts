@@ -7,8 +7,8 @@ import {KindExecution} from './kind-execution.js';
  * A builder for creating a kind command execution.
  */
 export class KindExecutionBuilder {
-  private static readonly NAME_MUST_NOT_BE_NULL = 'name must not be null';
-  private static readonly VALUE_MUST_NOT_BE_NULL = 'value must not be null';
+  private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
+  private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
   /**
    * The path to the kind executable.
@@ -54,7 +54,7 @@ export class KindExecutionBuilder {
    * Creates a new KindExecutionBuilder instance.
    */
   public constructor() {
-    const workingDirectoryString = process.env.PWD;
+    const workingDirectoryString: string = process.env.PWD;
     this._workingDirectory =
       workingDirectoryString && workingDirectoryString.trim() !== ''
         ? workingDirectoryString
@@ -179,8 +179,8 @@ export class KindExecutionBuilder {
    * Builds the KindExecution instance.
    * @returns the KindExecution instance
    */
-  build(): KindExecution {
-    const command = this.buildCommand();
+  public build(): KindExecution {
+    const command: string[] = this.buildCommand();
     const environment: Record<string, string> = {...process.env};
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;

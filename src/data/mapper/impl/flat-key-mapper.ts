@@ -22,7 +22,7 @@ export class FlatKeyMapper {
     return fkm;
   }
 
-  private flattenKVPair(fkm: Map<string, string>, key: string, value: unknown) {
+  private flattenKVPair(fkm: Map<string, string>, key: string, value: unknown): void {
     // If the value is null or undefined, we don't need to do anything since the key should not be added to the map.
     if (value === null || value === undefined) {
       return;
@@ -54,16 +54,16 @@ export class FlatKeyMapper {
     }
   }
 
-  private flattenArray(fkm: Map<string, string>, key: string, value: unknown[]) {
+  private flattenArray(fkm: Map<string, string>, key: string, value: unknown[]): void {
     for (const [index, element] of value.entries()) {
-      const arrayKey = this.formatter.join(key, index.toString());
+      const arrayKey: string = this.formatter.join(key, index.toString());
       this.flattenKVPair(fkm, arrayKey, element);
     }
   }
 
-  private flattenObject(fkm: Map<string, string>, key: string, value: object) {
+  private flattenObject(fkm: Map<string, string>, key: string, value: object): void {
     for (const [subKey, subValue] of Object.entries(value)) {
-      const fullKey = this.formatter.join(key, subKey);
+      const fullKey: string = this.formatter.join(key, subKey);
       this.flattenKVPair(fkm, fullKey, subValue);
     }
   }

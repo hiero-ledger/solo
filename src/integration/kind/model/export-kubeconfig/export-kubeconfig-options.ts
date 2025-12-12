@@ -22,7 +22,7 @@ export class ExportKubeConfigOptions implements Options {
    */
   private readonly _kubeconfig: string | undefined;
 
-  constructor(name?: string, internal: boolean = false, kubeconfig?: string) {
+  public constructor(name?: string, internal: boolean = false, kubeconfig?: string) {
     if (name) {
       this._name = name;
     }
@@ -51,20 +51,20 @@ export class ExportKubeConfigOptions implements Options {
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
   /**
    * Whether to use internal or external address.
    */
-  get internal(): boolean {
+  public get internal(): boolean {
     return this._internal;
   }
   /**
    * The kubeconfig path.
    */
-  get kubeconfig(): string | undefined {
+  public get kubeconfig(): string | undefined {
     return this._kubeconfig;
   }
 }

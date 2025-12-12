@@ -11,7 +11,10 @@ export class Transformations {
     throw new UnsupportedOperationError('This class cannot be instantiated');
   }
 
-  public static readonly SemVer = ({value, type}: TransformFnParams) => {
+  public static readonly SemVer: ({value, type}: TransformFnParams) => string | SemVer = ({
+    value,
+    type,
+  }: TransformFnParams): string | SemVer => {
     switch (type) {
       case TransformationType.PLAIN_TO_CLASS: {
         return new SemVer(value);
@@ -25,7 +28,10 @@ export class Transformations {
     }
   };
 
-  public static readonly DeploymentPhase = ({value, type}: TransformFnParams) => {
+  public static readonly DeploymentPhase: ({value, type}: TransformFnParams) => string = ({
+    value,
+    type,
+  }: TransformFnParams): string => {
     switch (type) {
       case TransformationType.PLAIN_TO_CLASS: {
         return (value as string)?.trim().toLowerCase().replace('_', '-') as DeploymentPhase;
@@ -39,7 +45,10 @@ export class Transformations {
     }
   };
 
-  public static readonly LedgerPhase = ({value, type}: TransformFnParams) => {
+  public static readonly LedgerPhase: ({value, type}: TransformFnParams) => string = ({
+    value,
+    type,
+  }: TransformFnParams): string => {
     switch (type) {
       case TransformationType.PLAIN_TO_CLASS: {
         return (value as string)?.trim().toLowerCase().replace('_', '-') as LedgerPhase;

@@ -62,8 +62,7 @@ tasks:
       - cmd: |
           export BLOCK_NODE_RELEASE_TAG=$(grep "'BLOCK_NODE_VERSION'" version.ts | sed -E "s/.*'([^']+)';/\1/")
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
-          --chart-version $BLOCK_NODE_RELEASE_TAG \
-          --cluster-ref {{ .CLUSTER_REFERENCE }}
+          --chart-version $BLOCK_NODE_RELEASE_TAG
 
       # Solo node keys
       - cmd: |
@@ -80,13 +79,13 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --enable-ingress --pinger
 
       # Solo relay node add
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo explorer node add
-      - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }}
   destroy:
     desc: Destroy the Solo network with block node
     cmds:

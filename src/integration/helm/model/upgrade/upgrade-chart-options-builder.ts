@@ -6,11 +6,11 @@ import {UpgradeChartOptions} from './upgrade-chart-options.js';
  * Builder for {@link UpgradeChartOptions}.
  */
 export class UpgradeChartOptionsBuilder {
-  _namespace?: string;
-  _kubeContext?: string;
-  _reuseValues = false;
-  _extraArgs?: string;
-  _version?: string;
+  private _namespace?: string;
+  private _kubeContext?: string;
+  private _reuseValues: boolean = false;
+  private _extraArgs?: string;
+  private _version?: string;
 
   private constructor() {}
 
@@ -50,7 +50,7 @@ export class UpgradeChartOptionsBuilder {
 
   /**
    * Sets additional arguments to pass to the helm command.
-   * @param args The additional arguments.
+   * @param arguments_ The additional arguments.
    * @returns This builder instance.
    */
   public extraArgs(arguments_: string): UpgradeChartOptionsBuilder {

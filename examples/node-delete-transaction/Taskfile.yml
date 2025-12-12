@@ -101,17 +101,15 @@ tasks:
       - cmd: |
           # Solo mirror node add
           $SOLO_COMMAND mirror node add --deployment {{ .SOLO_DEPLOYMENT }} \
-          --cluster-ref {{ .SOLO_CLUSTER_REF }} --enable-ingress --dev
+          --enable-ingress --dev
 
       - cmd: |
           # Solo explorer node add
-          $SOLO_COMMAND explorer node add --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
-          --dev
+          $SOLO_COMMAND explorer node add --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
           # Solo relay node add
-          $SOLO_COMMAND relay node add --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} \
-          --cluster-ref {{ .SOLO_CLUSTER_REF }} --dev
+          $SOLO_COMMAND relay node add --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
           # Solo consensus dev-node-delete prepare
@@ -163,8 +161,7 @@ tasks:
 
       - cmd: |
           # Solo relay node destroy
-          $SOLO_COMMAND relay node destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev \
-          --cluster-ref {{ .SOLO_CLUSTER_REF }}
+          $SOLO_COMMAND relay node destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev
 
       - cmd: |
           # Solo explorer node destroy

@@ -8,9 +8,9 @@ import {type ExportLogsOptions} from '../../model/export-logs/export-logs-option
  * A request to export the logs of a Kind cluster.
  */
 export class ExportLogsRequest implements KindRequest {
-  constructor(private readonly options: ExportLogsOptions) {}
+  public constructor(private readonly options: ExportLogsOptions) {}
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('export', 'logs');
     if (this.options) {
       this.options.apply(builder);

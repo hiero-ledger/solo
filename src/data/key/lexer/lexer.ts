@@ -71,15 +71,15 @@ export class Lexer {
       return null;
     }
 
-    for (let index = 1; index < segments.length; index++) {
-      const segment = segments[index];
+    for (let index: number = 1; index < segments.length; index++) {
+      const segment: string = segments[index];
 
       if (currentNode.isLeaf()) {
         return null;
       }
 
       const inode: LexerInternalNode = currentNode as LexerInternalNode;
-      const nextNode: Node = inode.children.find(n => n.name === segment);
+      const nextNode: Node = inode.children.find((n): boolean => n.name === segment);
 
       if (!nextNode) {
         return null;
@@ -216,7 +216,7 @@ export class Lexer {
 
   private processKeys(keys: string[]): void {
     for (const k of keys) {
-      const key = this.formatter.normalize(k);
+      const key: string = this.formatter.normalize(k);
       const segments: string[] = this.formatter.split(key);
 
       const root: Node = this.rootNodeFor(segments);
@@ -251,8 +251,8 @@ export class Lexer {
   }
 
   private processSegments(root: LexerInternalNode, value: string, segments: string[]): void {
-    let currentRoot = root;
-    for (let index = 1; index < segments.length; index++) {
+    let currentRoot: LexerInternalNode = root;
+    for (let index: number = 1; index < segments.length; index++) {
       const segment: string = segments[index];
       let node: Node;
 
@@ -276,7 +276,7 @@ export class Lexer {
    * @param root {LexerInternalNode} the root node of this segment.
    * @param value {string} the value of the key.
    * @param segment {string} the segment to process.
-   * @param idx {number} the index of the segment in the array.
+   * @param index {number} the index of the segment in the array.
    * @param segments {string[]} the array of segments.
    * @return {Node} the new root node which should be used as the current root or null if no intermediate/leaf node was
    * created.
@@ -289,7 +289,7 @@ export class Lexer {
     index: number,
     segments: string[],
   ): Node {
-    let node: Node = root.children.find(n => n.name === segment);
+    let node: Node = root.children.find((n): boolean => n.name === segment);
     if (node) {
       if (node.isLeaf()) {
         throw new ConfigKeyError(
@@ -315,7 +315,7 @@ export class Lexer {
     index: number,
     segments: string[],
   ): Node {
-    const existingNode: Node = root.children.find(n => n.name === segment);
+    const existingNode: Node = root.children.find((n): boolean => n.name === segment);
     if (existingNode) {
       if (existingNode.isLeaf()) {
         throw new ConfigKeyError('Cannot add a leaf node to another leaf node');
@@ -354,7 +354,7 @@ export class Lexer {
       );
     }
 
-    if (root.children.some(n => n.name === segment)) {
+    if (root.children.some((n): boolean => n.name === segment)) {
       throw new ConfigKeyError(
         `Cannot add a leaf node to another leaf node [ parent: '${root.path()}', child: '${segment}' ]`,
       );

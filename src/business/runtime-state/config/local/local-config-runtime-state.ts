@@ -137,7 +137,7 @@ export class LocalConfigRuntimeState {
 
     try {
       // 1. Read the contents of the baseCacheDir (e.g., '.solo/cache/')
-      const versionDirectories: string[] = await fs.readdirSync(baseDirectory);
+      const versionDirectories: string[] = fs.readdirSync(baseDirectory);
 
       for (const versionDirectory of versionDirectories) {
         const versionMatch: string[] | null = versionDirectory.match(versionDirectionRegex);
@@ -148,7 +148,7 @@ export class LocalConfigRuntimeState {
           // Check if 'staging' directory exists within the version directory
           if (fs.existsSync(fullVersionPath)) {
             // Read the contents of the 'staging' directory
-            const stagingContents: string[] = await fs.readdirSync(fullVersionPath);
+            const stagingContents: string[] = fs.readdirSync(fullVersionPath);
 
             for (const stagingItem of stagingContents) {
               const fullItemPath: string = path.join(fullVersionPath, stagingItem);
