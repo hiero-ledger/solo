@@ -10,6 +10,7 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
+import {Context} from '../types/index.js';
 
 /**
  * Class to check if certain components are installed in the cluster.
@@ -77,10 +78,10 @@ export class ClusterChecks {
    * Check if the remote config is installed inside any namespace.
    * @returns if remote config is found
    */
-  public async isRemoteConfigPresentInAnyNamespace() {
+  public async isRemoteConfigPresentInAnyNamespace(context: Context): Promise<boolean> {
     try {
       const configmaps: ConfigMap[] = await this.k8Factory
-        .default()
+        .getK8(context)
         .configMaps()
         .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
 
