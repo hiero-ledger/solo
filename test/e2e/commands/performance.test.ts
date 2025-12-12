@@ -124,47 +124,49 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }
 
-        // testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        // await main(soloOneShotDestroy(testName));
-        // testLogger.info(`${testName}: finished ${testName}: destroy`);
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloOneShotDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
         await main(
+          soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('HCSLoadTest', async (): Promise<void> => {
+        await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('NftTransferLoadTest', async (): Promise<void> => {
+        await main(
           soloRapidFire(
             testName,
-            'CryptoTransferLoadTest',
-            `-c ${clients} -a ${accounts} -R -t ${duration} -Dbenchmark.tps=20`,
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
             maxTps,
           ),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
-      // it('HCSLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
-      // it('NftTransferLoadTest', async (): Promise<void> => {
-      //   await main(
-      //     soloRapidFire(
-      //       testName,
-      //       'NftTransferLoadTest',
-      //       `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-      //       maxTps,
-      //     ),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
-      // it('TokenTransferLoadTest', async (): Promise<void> => {
-      //   // Keep Accounts and Associations at 1 to prevent test from failing.
-      //   await main(
-      //     soloRapidFire(testName, 'TokenTransferLoadTest', `-c ${clients} -a 1 -T ${tokens} -A 1 -R -t ${duration}`, maxTps),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-      //
-      // it('SmartContractLoadTest', async (): Promise<void> => {
-      //   await main(soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-      // }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+      it('TokenTransferLoadTest', async (): Promise<void> => {
+        // Keep Accounts and Associations at 1 to prevent test from failing.
+        await main(
+          soloRapidFire(
+            testName,
+            'TokenTransferLoadTest',
+            `-c ${clients} -a 1 -T ${tokens} -A 1 -R -t ${duration}`,
+            maxTps,
+          ),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('SmartContractLoadTest', async (): Promise<void> => {
+        await main(
+          soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
