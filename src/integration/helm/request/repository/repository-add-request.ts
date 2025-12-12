@@ -9,7 +9,7 @@ import {type AddRepoOptions} from '../../model/add/add-repo-options.js';
  * A request to add a new Helm repository.
  */
 export class RepositoryAddRequest implements HelmRequest {
-  constructor(
+  public constructor(
     private readonly repository: Repository,
     private readonly options?: AddRepoOptions,
   ) {
@@ -24,7 +24,7 @@ export class RepositoryAddRequest implements HelmRequest {
     }
   }
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('repo', 'add').positional(this.repository.name).positional(this.repository.url);
     // Apply options if provided
     if (this.options) {

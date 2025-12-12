@@ -61,9 +61,7 @@ export class DefaultHelmClient implements HelmClient {
       throw new TypeError('Unexpected async execution');
     }
     const versionClass: typeof Version = Version;
-
     const result: Version = await execution.responseAs(versionClass);
-
     if (!(result instanceof Version)) {
       throw new TypeError('Unexpected response type');
     }
@@ -88,9 +86,7 @@ export class DefaultHelmClient implements HelmClient {
   }
 
   public async installChart(releaseName: string, chart: Chart, options: InstallChartOptions): Promise<Release> {
-    // eslint-disable-next-line @typescript-eslint/typedef
-    const release = Release as unknown as new () => Release;
-
+    const release: typeof Release = Release;
     const request: ChartInstallRequest = new ChartInstallRequest(releaseName, chart, options);
     return this.executeInternal(options.namespace, request, release, async (execution): Promise<Release> => {
       return await execution.responseAs(release);
@@ -115,7 +111,6 @@ export class DefaultHelmClient implements HelmClient {
 
   public async upgradeChart(releaseName: string, chart: Chart, options: UpgradeChartOptions): Promise<Release> {
     const request: ChartUpgradeRequest = new ChartUpgradeRequest(releaseName, chart, options);
-
     return this.executeInternal(
       options.namespace,
       request,
@@ -126,9 +121,10 @@ export class DefaultHelmClient implements HelmClient {
 
   /**
    * Applies the default namespace and authentication configuration to the given builder.
-   * @param builder - The builder to apply to which the defaults should be applied
+   * @param _builder - The builder to apply to which the defaults should be applied
    */
-  private applyBuilderDefaults(builder: HelmExecutionBuilder): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private applyBuilderDefaults(_builder: HelmExecutionBuilder): void {}
 
   /**
    * Executes the given request and returns the response as the given class.

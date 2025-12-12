@@ -2,7 +2,14 @@
 
 import {type Services} from '../../../resources/service/services.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
-import {V1ObjectMeta, V1Service, V1ServicePort, V1ServiceSpec, type CoreV1Api} from '@kubernetes/client-node';
+import {
+  V1ObjectMeta,
+  V1Service,
+  V1ServicePort,
+  V1ServiceSpec,
+  type CoreV1Api,
+  type V1ServiceList,
+} from '@kubernetes/client-node';
 import {K8ClientBase} from '../../k8-client-base.js';
 import {type Service} from '../../../resources/service/service.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
@@ -22,7 +29,7 @@ export class K8ClientServices extends K8ClientBase implements Services {
 
   public async list(namespace: NamespaceName, labels?: string[]): Promise<Service[]> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
-    const serviceList = await this.kubeClient.listNamespacedService(
+    const serviceList: {response: IncomingMessage; body: V1ServiceList} = await this.kubeClient.listNamespacedService(
       namespace.name,
       undefined,
       undefined,
@@ -31,13 +38,13 @@ export class K8ClientServices extends K8ClientBase implements Services {
       labelSelector,
     );
     KubeApiResponse.check(serviceList.response, ResourceOperation.LIST, ResourceType.SERVICE, namespace, '');
-    return serviceList.body.items.map((svc: V1Service) => {
+    return serviceList.body.items.map((svc: V1Service): Service => {
       return this.wrapService(namespace, svc);
     });
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<Service> {
-    const svc = await this.readV1Service(namespace, name);
+    const svc: V1Service = await this.readV1Service(namespace, name);
 
     if (!svc) {
       return null;
@@ -52,7 +59,7 @@ export class K8ClientServices extends K8ClientBase implements Services {
     return body as V1Service;
   }
 
-  private wrapService(namespace: NamespaceName, svc: V1Service): Service {
+  private wrapService(_namespace: NamespaceName, svc: V1Service): Service {
     return new K8ClientService(this.wrapObjectMeta(svc.metadata), svc.spec as ServiceSpec, svc.status as ServiceStatus);
   }
 
@@ -62,19 +69,19 @@ export class K8ClientServices extends K8ClientBase implements Services {
     servicePort: number,
     podTargetPort: number,
   ): Promise<Service> {
-    const v1SvcMetadata = new V1ObjectMeta();
+    const v1SvcMetadata: V1ObjectMeta = new V1ObjectMeta();
     v1SvcMetadata.name = serviceReference.name.toString();
     v1SvcMetadata.namespace = serviceReference.namespace.toString();
     v1SvcMetadata.labels = labels;
 
-    const v1SvcPort = new V1ServicePort();
+    const v1SvcPort: V1ServicePort = new V1ServicePort();
     v1SvcPort.port = servicePort;
     v1SvcPort.targetPort = podTargetPort;
 
-    const v1SvcSpec = new V1ServiceSpec();
+    const v1SvcSpec: V1ServiceSpec = new V1ServiceSpec();
     v1SvcSpec.ports = [v1SvcPort];
 
-    const v1Svc = new V1Service();
+    const v1Svc: V1Service = new V1Service();
     v1Svc.metadata = v1SvcMetadata;
     v1Svc.spec = v1SvcSpec;
 

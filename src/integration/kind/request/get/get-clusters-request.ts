@@ -7,7 +7,7 @@ import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.
  * A request to list all Kind clusters.
  */
 export class GetClustersRequest implements KindRequest {
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('get', 'clusters');
   }
 }

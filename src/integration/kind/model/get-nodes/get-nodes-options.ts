@@ -18,7 +18,7 @@ export class GetNodesOptions implements Options {
    */
   private readonly _allClusters: boolean;
 
-  constructor(name?: string, allClusters: boolean = false) {
+  public constructor(name?: string, allClusters: boolean = false) {
     if (name) {
       this._name = name;
     }
@@ -41,14 +41,14 @@ export class GetNodesOptions implements Options {
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
   /**
    * Whether to list all nodes across all cluster contexts.
    */
-  get allClusters(): boolean {
+  public get allClusters(): boolean {
     return this._allClusters;
   }
 }

@@ -3,7 +3,8 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 
 export class MissingActiveContextError extends SoloError {
-  public static MISSING_ACTIVE_CONTEXT = 'No active kubernetes context found. Please set current kubernetes context.';
+  public static MISSING_ACTIVE_CONTEXT: string =
+    'No active kubernetes context found. Please set current kubernetes context.';
 
   /**
    * Instantiates a new error with a message and an optional cause.

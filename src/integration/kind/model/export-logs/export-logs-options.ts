@@ -12,7 +12,7 @@ export class ExportLogsOptions implements Options {
    */
   private readonly _name: string;
 
-  constructor(name?: string) {
+  public constructor(name?: string) {
     if (name) {
       this._name = name;
     }
@@ -31,7 +31,7 @@ export class ExportLogsOptions implements Options {
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 }

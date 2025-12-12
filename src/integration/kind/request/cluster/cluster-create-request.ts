@@ -8,13 +8,13 @@ import {type ClusterCreateOptions} from '../../model/create-cluster/cluster-crea
  * A request to create a new Kind cluster.
  */
 export class ClusterCreateRequest implements KindRequest {
-  constructor(private readonly options: ClusterCreateOptions) {
+  public constructor(private readonly options: ClusterCreateOptions) {
     if (!options) {
       throw new Error('options must not be null');
     }
   }
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('create', 'cluster');
     this.options.apply(builder);
   }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type CoreV1Api, V1ConfigMap, V1ObjectMeta} from '@kubernetes/client-node';
+import {type CoreV1Api, V1ConfigMap, type V1ConfigMapList, V1ObjectMeta, type V1Status} from '@kubernetes/client-node';
 import {type ConfigMaps} from '../../../resources/config-map/config-maps.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {
@@ -19,6 +19,7 @@ import {container} from 'tsyringe-neo';
 import {type ConfigMap} from '../../../resources/config-map/config-map.js';
 import {K8ClientConfigMap} from './k8-client-config-map.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
+import {type IncomingMessage} from 'node:http';
 
 export class K8ClientConfigMaps implements ConfigMaps {
   private readonly logger: SoloLogger;
@@ -47,7 +48,10 @@ export class K8ClientConfigMaps implements ConfigMaps {
 
   public async delete(namespace: NamespaceName, name: string): Promise<boolean> {
     try {
-      const resp = await this.kubeClient.deleteNamespacedConfigMap(name, namespace.name);
+      const resp: {response: IncomingMessage; body: V1Status} = await this.kubeClient.deleteNamespacedConfigMap(
+        name,
+        namespace.name,
+      );
       return KubeApiResponse.isFailingStatus(resp.response);
     } catch (error) {
       throw new ResourceDeleteError(ResourceType.CONFIG_MAP, namespace, name, error);
@@ -55,7 +59,10 @@ export class K8ClientConfigMaps implements ConfigMaps {
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<ConfigMap> {
-    const {response, body} = await this.kubeClient.readNamespacedConfigMap(name, namespace?.name).catch(error => error);
+    const {response, body} = await this.kubeClient
+      .readNamespacedConfigMap(name, namespace?.name)
+      .catch((error): any => error);
+
     KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
     return K8ClientConfigMap.fromV1ConfigMap(body);
   }
@@ -100,15 +107,14 @@ export class K8ClientConfigMaps implements ConfigMaps {
     metadata.labels = labels;
     configMap.metadata = metadata;
     try {
-      const resp = replace
+      const resp: {response: IncomingMessage; body: V1ConfigMap} = replace
         ? await this.kubeClient.replaceNamespacedConfigMap(name, namespace.name, configMap)
         : await this.kubeClient.createNamespacedConfigMap(namespace.name, configMap);
       return KubeApiResponse.isCreatedStatus(resp.response);
     } catch (error) {
-      const error_ = replace
+      throw replace
         ? new ResourceReplaceError(ResourceType.CONFIG_MAP, namespace, name, error)
         : new ResourceCreateError(ResourceType.CONFIG_MAP, namespace, name, error);
-      throw error_;
     }
   }
 
@@ -132,7 +138,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
   public async list(namespace: NamespaceName, labels: string[]): Promise<ConfigMap[]> {
     const labelsSelector: string = labels ? labels.join(',') : undefined;
 
-    let results: {response: any; body: any};
+    let results: {response: IncomingMessage; body: V1ConfigMapList};
     try {
       results = await this.kubeClient.listNamespacedConfigMap(
         namespace.name,
@@ -147,15 +153,13 @@ export class K8ClientConfigMaps implements ConfigMaps {
     }
 
     KubeApiResponse.check(results.response, ResourceOperation.LIST, ResourceType.CONFIG_MAP, namespace, '');
-    return (
-      results?.body?.items?.map((v1ConfigMap: V1ConfigMap) => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || []
-    );
+    return results?.body?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
   }
 
   public async listForAllNamespaces(labels: string[]): Promise<ConfigMap[]> {
     const labelsSelector: string = labels ? labels.join(',') : undefined;
 
-    let results: {response: any; body: any};
+    let results: {response: IncomingMessage; body: V1ConfigMapList};
     try {
       results = await this.kubeClient.listConfigMapForAllNamespaces(undefined, undefined, undefined, labelsSelector);
     } catch (error) {
@@ -163,9 +167,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
     }
 
     KubeApiResponse.check(results.response, ResourceOperation.LIST, ResourceType.CONFIG_MAP, undefined, '');
-    return (
-      results?.body?.items?.map((v1ConfigMap: V1ConfigMap) => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || []
-    );
+    return results?.body?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
   }
 
   public async update(namespace: NamespaceName, name: string, data: Record<string, string>): Promise<void> {
@@ -181,7 +183,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
       headers: {'Content-Type': 'application/merge-patch+json'}, // Or the appropriate content type
     };
 
-    let result: {response: any; body?: V1ConfigMap};
+    let result: {response: IncomingMessage; body?: V1ConfigMap};
     try {
       result = await this.kubeClient.patchNamespacedConfigMap(
         name,

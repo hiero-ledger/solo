@@ -87,7 +87,6 @@ export class DefaultKindClient implements KindClient {
     }
     const versionClass: typeof KindVersion = KindVersion;
     const result: KindVersion = await execution.responseAs(versionClass);
-
     if (!(result instanceof KindVersion)) {
       throw new TypeError('Unexpected response type');
     }

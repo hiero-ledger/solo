@@ -9,6 +9,7 @@ import {
   V1PersistentVolumeClaimSpec,
   V1VolumeResourceRequirements,
   type CoreV1Api,
+  type V1PersistentVolumeClaimList,
 } from '@kubernetes/client-node';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type Pvc} from '../../../resources/pvc/pvc.js';
@@ -21,10 +22,10 @@ import {type IncomingMessage} from 'node:http';
 import {type PvcReference} from '../../../resources/pvc/pvc-reference.js';
 
 export class K8ClientPvcs implements Pvcs {
-  constructor(private readonly kubeClient: CoreV1Api) {}
+  public constructor(private readonly kubeClient: CoreV1Api) {}
 
   public async delete(pvcReference: PvcReference): Promise<boolean> {
-    let resp: {response: any; body?: V1PersistentVolumeClaim};
+    let resp: {response: IncomingMessage; body?: V1PersistentVolumeClaim};
     try {
       resp = await this.kubeClient.deleteNamespacedPersistentVolumeClaim(
         pvcReference.name.toString(),
@@ -51,7 +52,7 @@ export class K8ClientPvcs implements Pvcs {
     const pvcs: string[] = [];
     const labelSelector: string = labels ? labels.join(',') : undefined;
 
-    let resp: {body: any; response?: IncomingMessage};
+    let resp: {body: V1PersistentVolumeClaimList; response?: IncomingMessage};
     try {
       resp = await this.kubeClient.listNamespacedPersistentVolumeClaim(
         namespace.name,
@@ -94,7 +95,7 @@ export class K8ClientPvcs implements Pvcs {
     v1Pvc.spec = v1Spec;
     v1Pvc.metadata = v1Metadata;
 
-    let result: {response: any; body?: V1PersistentVolumeClaim};
+    let result: {response: IncomingMessage; body?: V1PersistentVolumeClaim};
     try {
       result = await this.kubeClient.createNamespacedPersistentVolumeClaim(pvcReference.namespace.toString(), v1Pvc);
     } catch (error) {

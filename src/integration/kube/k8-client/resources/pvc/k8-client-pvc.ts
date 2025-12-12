@@ -4,5 +4,5 @@ import {type Pvc} from '../../../resources/pvc/pvc.js';
 import {type PvcReference} from '../../../resources/pvc/pvc-reference.js';
 
 export class K8ClientPvc implements Pvc {
-  constructor(public readonly pvcReference: PvcReference) {}
+  public constructor(public readonly pvcReference: PvcReference) {}
 }

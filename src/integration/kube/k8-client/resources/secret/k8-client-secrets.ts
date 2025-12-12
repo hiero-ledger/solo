@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Secrets} from '../../../resources/secret/secrets.js';
-import {type CoreV1Api, V1ObjectMeta, V1Secret} from '@kubernetes/client-node';
+import {type CoreV1Api, V1ObjectMeta, V1Secret, type V1SecretList, type V1Status} from '@kubernetes/client-node';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type Optional} from '../../../../../types/index.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
@@ -15,6 +15,7 @@ import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type SecretType} from '../../../resources/secret/secret-type.js';
 import {type Secret} from '../../../resources/secret/secret.js';
+import {type IncomingMessage} from 'node:http';
 
 export class K8ClientSecrets implements Secrets {
   public constructor(private readonly kubeClient: CoreV1Api) {}
@@ -40,7 +41,10 @@ export class K8ClientSecrets implements Secrets {
   }
 
   public async delete(namespace: NamespaceName, name: string): Promise<boolean> {
-    const resp = await this.kubeClient.deleteNamespacedSecret(name, namespace.name);
+    const resp: {response: IncomingMessage; body: V1Status} = await this.kubeClient.deleteNamespacedSecret(
+      name,
+      namespace.name,
+    );
     return !KubeApiResponse.isFailingStatus(resp.response);
   }
 
@@ -55,7 +59,9 @@ export class K8ClientSecrets implements Secrets {
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<Secret> {
-    const {response, body} = await this.kubeClient.readNamespacedSecret(name, namespace.name).catch(error => error);
+    const {response, body} = await this.kubeClient
+      .readNamespacedSecret(name, namespace.name)
+      .catch((error): any => error);
     KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
     return {
       name: body.metadata!.name as string,
@@ -68,7 +74,7 @@ export class K8ClientSecrets implements Secrets {
 
   public async list(namespace: NamespaceName, labels?: string[]): Promise<Array<Secret>> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
-    const secretList = await this.kubeClient.listNamespacedSecret(
+    const secretList: {response: IncomingMessage; body: V1SecretList} = await this.kubeClient.listNamespacedSecret(
       namespace.toString(),
       undefined,
       undefined,
@@ -82,7 +88,7 @@ export class K8ClientSecrets implements Secrets {
       Duration.ofMinutes(5).toMillis(),
     );
     KubeApiResponse.check(secretList.response, ResourceOperation.LIST, ResourceType.SECRET, namespace, '');
-    return secretList.body.items.map((secret: V1Secret) => {
+    return secretList.body.items.map((secret: V1Secret): Secret => {
       return {
         name: secret.metadata!.name as string,
         labels: secret.metadata!.labels as Record<string, string>,
@@ -115,8 +121,8 @@ export class K8ClientSecrets implements Secrets {
     forceReplace?: boolean,
     forceCreate?: boolean,
   ): Promise<boolean> {
-    const replace = await this.shouldReplace(namespace, name, forceReplace, forceCreate);
-    const v1Secret = new V1Secret();
+    const replace: boolean = await this.shouldReplace(namespace, name, forceReplace, forceCreate);
+    const v1Secret: V1Secret = new V1Secret();
     v1Secret.apiVersion = 'v1';
     v1Secret.kind = 'Secret';
     v1Secret.type = secretType;
@@ -126,15 +132,14 @@ export class K8ClientSecrets implements Secrets {
     v1Secret.metadata.labels = labels;
 
     try {
-      const resp = replace
+      const resp: {response: IncomingMessage; body: V1Secret} = replace
         ? await this.kubeClient.replaceNamespacedSecret(name, namespace.name, v1Secret)
         : await this.kubeClient.createNamespacedSecret(namespace.name, v1Secret);
       return !KubeApiResponse.isFailingStatus(resp.response);
     } catch (error) {
-      const error_ = replace
+      throw replace
         ? new ResourceReplaceError(ResourceType.SECRET, namespace, name, error)
         : new ResourceCreateError(ResourceType.SECRET, namespace, name, error);
-      throw error_;
     }
   }
 

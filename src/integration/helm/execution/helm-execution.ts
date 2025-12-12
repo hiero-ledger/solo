@@ -13,15 +13,18 @@ export class HelmExecution {
   /**
    * The logger for this class which should be used for all logging.
    */
-  private static readonly MSG_TIMEOUT_ERROR = 'Timed out waiting for the process to complete';
+  private static readonly MSG_TIMEOUT_ERROR: string = 'Timed out waiting for the process to complete';
+
   /**
    * The message for a timeout error.
    */
-  private static readonly MSG_DESERIALIZATION_ERROR = 'Failed to deserialize the output into the specified class: %s';
+  private static readonly MSG_DESERIALIZATION_ERROR: string =
+    'Failed to deserialize the output into the specified class: %s';
+
   /**
    * The message for a deserialization error.
    */
-  private static readonly MSG_LIST_DESERIALIZATION_ERROR =
+  private static readonly MSG_LIST_DESERIALIZATION_ERROR: string =
     'Failed to deserialize the output into a list of the specified class: %s';
 
   private readonly process: ChildProcessWithoutNullStreams;
@@ -39,7 +42,7 @@ export class HelmExecution {
    * @param environmentVariables The environment variables to set
    * @param logger Optional logger for command output
    */
-  constructor(
+  public constructor(
     command: string[],
     workingDirectory: string,
     environmentVariables: Record<string, string>,
@@ -63,10 +66,10 @@ export class HelmExecution {
    * Waits for the process to complete.
    * @returns A promise that resolves when the process completes
    */
-  async waitFor(): Promise<void> {
-    return new Promise((resolve, reject) => {
+  public async waitFor(): Promise<void> {
+    return new Promise((resolve, reject): void => {
       // const output: string[] = [];
-      this.process.stdout.on('data', d => {
+      this.process.stdout.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
@@ -75,7 +78,7 @@ export class HelmExecution {
         }
       });
 
-      this.process.stderr.on('data', d => {
+      this.process.stderr.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
@@ -84,7 +87,7 @@ export class HelmExecution {
         }
       });
 
-      this.process.on('close', code => {
+      this.process.on('close', (code): void => {
         this.exitCodeValue = code;
         if (code === 0) {
           resolve();
@@ -107,13 +110,13 @@ export class HelmExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves with true if the process completed, or false if it timed out
    */
-  async waitForTimeout(timeout: Duration): Promise<boolean> {
-    const timeoutPromise = new Promise<boolean>(resolve => {
-      setTimeout(() => resolve(false), timeout.toMillis());
+  private async waitForTimeout(timeout: Duration): Promise<boolean> {
+    const timeoutPromise: Promise<boolean> = new Promise<boolean>((resolve): void => {
+      setTimeout((): void => resolve(false), timeout.toMillis());
     });
 
-    const successPromise = new Promise<boolean>(resolve => {
-      this.process.on('close', code => {
+    const successPromise: Promise<boolean> = new Promise<boolean>((resolve): void => {
+      this.process.on('close', (code): void => {
         resolve(code === 0);
       });
     });
@@ -125,7 +128,7 @@ export class HelmExecution {
    * Gets the exit code of the process.
    * @returns The exit code or null if the process hasn't completed
    */
-  exitCode(): number | null {
+  private exitCode(): number | null {
     return this.exitCodeValue;
   }
 
@@ -133,7 +136,7 @@ export class HelmExecution {
    * Gets the standard output of the process.
    * @returns concatenated standard output as a string
    */
-  standardOutput(): string {
+  private standardOutput(): string {
     return this.output.join('');
   }
 
@@ -141,7 +144,7 @@ export class HelmExecution {
    * Gets the standard error of the process.
    * @returns concatenated standard error as a string
    */
-  standardError(): string {
+  private standardError(): string {
     return this.errOutput.join('');
   }
 
@@ -150,7 +153,7 @@ export class HelmExecution {
    * @param responseClass The class to parse the response into
    * @returns A promise that resolves with the parsed response
    */
-  async responseAs<T>(responseClass: new (...arguments_: any[]) => T): Promise<T> {
+  public async responseAs<T>(responseClass: new (...arguments_: any[]) => T): Promise<T> {
     return this.responseAsTimeout(responseClass, null);
   }
 
@@ -160,20 +163,23 @@ export class HelmExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves with the parsed response or rejects on timeout
    */
-  async responseAsTimeout<T>(responseClass: new (...arguments_: any[]) => T, timeout: Duration | null): Promise<T> {
+  public async responseAsTimeout<T>(
+    responseClass: new (...arguments_: any[]) => T,
+    timeout: Duration | null,
+  ): Promise<T> {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new HelmParserException(HelmExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = this.standardOutput();
-      const stdError = this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new HelmExecutionException(
         exitCode,
         `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`,
@@ -185,10 +191,10 @@ export class HelmExecution {
       return null;
     }
 
-    const output = this.standardOutput();
+    const output: string = this.standardOutput();
     try {
-      const parsed = JSON.parse(output);
-      const result = new responseClass();
+      const parsed: any = JSON.parse(output);
+      const result: T = new responseClass();
       Object.assign(result, parsed);
       return result;
     } catch {
@@ -201,7 +207,7 @@ export class HelmExecution {
    * @param responseClass The class to parse each item in the response into
    * @returns A promise that resolves with the parsed response list
    */
-  async responseAsList<T>(responseClass: new (...arguments_: any[]) => T): Promise<T[]> {
+  public async responseAsList<T>(responseClass: new (...arguments_: any[]) => T): Promise<T[]> {
     return this.responseAsListTimeout(responseClass, null);
   }
 
@@ -211,23 +217,23 @@ export class HelmExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves with the parsed response list or rejects on timeout
    */
-  async responseAsListTimeout<T>(
+  public async responseAsListTimeout<T>(
     responseClass: new (...arguments_: any[]) => T,
     timeout: Duration | null,
   ): Promise<T[]> {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new HelmParserException(HelmExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = this.standardOutput();
-      const stdError = this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new HelmExecutionException(
         exitCode,
         `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`,
@@ -236,7 +242,7 @@ export class HelmExecution {
       );
     }
 
-    const output = this.standardOutput();
+    const output: string = this.standardOutput();
     try {
       return JSON.parse(output) as T[];
     } catch {
@@ -248,7 +254,7 @@ export class HelmExecution {
    * Executes the command and waits for completion.
    * @returns A promise that resolves when the command completes
    */
-  async call(): Promise<void> {
+  public async call(): Promise<void> {
     await this.callTimeout(null);
   }
 
@@ -257,20 +263,20 @@ export class HelmExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves when the command completes or rejects on timeout
    */
-  async callTimeout(timeout: Duration | null): Promise<void> {
+  public async callTimeout(timeout: Duration | null): Promise<void> {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new HelmParserException(HelmExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = await this.standardOutput();
-      const stdError = await this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new HelmExecutionException(
         exitCode,
         `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`,

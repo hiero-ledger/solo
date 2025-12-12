@@ -9,12 +9,12 @@ export class SemanticVersion {
   /**
    * Constant value representing a zero version number.
    */
-  public static readonly ZERO = new SemanticVersion(0, 0, 0, '', '');
+  public static readonly ZERO: SemanticVersion = new SemanticVersion(0, 0, 0, '', '');
 
   /**
    * A precompiled regular expression used to parse a semantic version string and extract the individual components.
    */
-  private static readonly SEMVER_PATTERN = new RegExp(
+  private static readonly SEMVER_PATTERN: RegExp = new RegExp(
     '^' +
       String.raw`((\d+)\.(\d+)\.(\d+))` + // version string
       String.raw`(?:-([\dA-Za-z]+(?:\.[\dA-Za-z]+)*))?` + // prerelease suffix (optional)
@@ -31,7 +31,7 @@ export class SemanticVersion {
    * @param _prerelease the optional prerelease specifier.
    * @param _build      the optional build specifier.
    */
-  constructor(
+  private constructor(
     private readonly _major: number,
     private readonly _minor: number,
     private readonly _patch: number,
@@ -75,18 +75,18 @@ export class SemanticVersion {
       throw new Error('version cannot be null');
     }
 
-    const matcher = version.trim().match(SemanticVersion.SEMVER_PATTERN);
+    const matcher: RegExpMatchArray = version.trim().match(SemanticVersion.SEMVER_PATTERN);
 
     if (!matcher) {
       throw new InvalidSemanticVersionException(`The supplied version '${version}' is not a valid semantic version`);
     }
 
     try {
-      const major = Number.parseInt(matcher[2], 10);
-      const minor = Number.parseInt(matcher[3], 10);
-      const patch = Number.parseInt(matcher[4], 10);
-      const prerelease = SemanticVersion.nullToBlank(matcher[5]);
-      const build = SemanticVersion.nullToBlank(matcher[6]);
+      const major: number = Number.parseInt(matcher[2], 10);
+      const minor: number = Number.parseInt(matcher[3], 10);
+      const patch: number = Number.parseInt(matcher[4], 10);
+      const prerelease: string = SemanticVersion.nullToBlank(matcher[5]);
+      const build: string = SemanticVersion.nullToBlank(matcher[6]);
 
       return new SemanticVersion(major, minor, patch, prerelease, build);
     } catch (error) {
@@ -127,7 +127,7 @@ export class SemanticVersion {
       return 1;
     }
 
-    let result = this._major - other._major;
+    let result: number = this._major - other._major;
     if (result !== 0) {
       return result;
     }
@@ -153,22 +153,22 @@ export class SemanticVersion {
   /**
    * Checks if this version equals another object.
    *
-   * @param obj the object to compare with
+   * @param object_ the object to compare with
    * @returns true if the objects are equal, false otherwise
    */
-  public equals(object: unknown): boolean {
-    if (this === object) {
+  public equals(object_: unknown): boolean {
+    if (this === object_) {
       return true;
     }
-    if (!(object instanceof SemanticVersion)) {
+    if (!(object_ instanceof SemanticVersion)) {
       return false;
     }
     return (
-      this._major === object._major &&
-      this._minor === object._minor &&
-      this._patch === object._patch &&
-      this._prerelease === object._prerelease &&
-      this._build === object._build
+      this._major === object_._major &&
+      this._minor === object_._minor &&
+      this._patch === object_._patch &&
+      this._prerelease === object_._prerelease &&
+      this._build === object_._build
     );
   }
 
@@ -178,7 +178,7 @@ export class SemanticVersion {
    * @returns the version string
    */
   public toString(): string {
-    const parts = [`${this._major}.${this._minor}.${this._patch}`];
+    const parts: string[] = [`${this._major}.${this._minor}.${this._patch}`];
 
     if (this._prerelease && this._prerelease.trim()) {
       parts.push('-', this._prerelease);
@@ -194,7 +194,7 @@ export class SemanticVersion {
   /**
    * Helper method to convert null to blank string.
    *
-   * @param str the string to check
+   * @param string_ the string to check
    * @returns the string or blank if null/undefined
    */
   private static nullToBlank(string_: string | null | undefined): string {
