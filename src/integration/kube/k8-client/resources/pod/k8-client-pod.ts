@@ -55,7 +55,7 @@ export class K8ClientPod implements Pod {
 
   public async killPod(): Promise<void> {
     try {
-      const result = await this.kubeClient.deleteNamespacedPod(
+      const result: {response: http.IncomingMessage; body: V1Pod} = await this.kubeClient.deleteNamespacedPod(
         this.podReference.name.toString(),
         this.podReference.namespace.toString(),
         undefined,
@@ -100,7 +100,12 @@ export class K8ClientPod implements Pod {
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  public async portForward(localPort: number, podPort: number, reuse?: boolean, persist = false): Promise<number> {
+  public async portForward(
+    localPort: number,
+    podPort: number,
+    reuse?: boolean,
+    persist: boolean = false,
+  ): Promise<number> {
     let availablePort: number = localPort;
 
     try {
@@ -255,9 +260,9 @@ export class K8ClientPod implements Pod {
       for (const processLine of result) {
         // Process line format: UID PID PPID C STIME TTY TIME CMD
         // Split by whitespace and get the PID (second column)
-        const parts = processLine.trim().split(/\s+/);
+        const parts: string[] = processLine.trim().split(/\s+/);
         if (parts.length >= 2) {
-          const pid = parts[1];
+          const pid: string = parts[1];
 
           // Validate that PID is a number
           if (/^\d+$/.test(pid)) {
@@ -270,10 +275,10 @@ export class K8ClientPod implements Pod {
               this.logger.debug(`Successfully sent SIGTERM to PID: ${pid}`);
 
               // Wait a moment for graceful shutdown
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, 1000));
 
               // Check if process is still running
-              const checkResult = await shellRunner.run(`ps -p ${pid}`, [], false, false);
+              const checkResult: string[] = await shellRunner.run(`ps -p ${pid}`, [], false, false);
 
               // If process still exists, use SIGKILL
               if (checkResult.length > 1) {

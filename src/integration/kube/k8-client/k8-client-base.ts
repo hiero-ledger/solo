@@ -19,19 +19,19 @@ export abstract class K8ClientBase {
    * @returns a list of items that match the filters
    * @throws MissingArgumentError - filters are required
    */
-  private applyMetadataFilter(items: (object | any)[], filters: Record<string, string> = {}) {
+  private applyMetadataFilter(items: (object | any)[], filters: Record<string, string> = {}): any[] {
     if (!filters) {
       throw new MissingArgumentError('filters are required');
     }
 
-    const matched = [];
-    const filterMap = new Map(Object.entries(filters));
+    const matched: any[] = [];
+    const filterMap: Map<any, any> = new Map(Object.entries(filters));
     for (const item of items) {
       // match all filters
-      let foundMatch = true;
+      let foundMatch: boolean = true;
       for (const entry of filterMap.entries()) {
-        const field = entry[0];
-        const value = entry[1];
+        const field: any = entry[0];
+        const value: any = entry[1];
 
         if (item.metadata[field] !== value) {
           foundMatch = false;
@@ -54,8 +54,8 @@ export abstract class K8ClientBase {
    * @throws SoloError - multiple items found with filters
    * @throws MissingArgumentError - filters are required
    */
-  protected filterItem(items: (object | any)[], filters: Record<string, string> = {}) {
-    const filtered = this.applyMetadataFilter(items, filters);
+  protected filterItem(items: (object | any)[], filters: Record<string, string> = {}): any {
+    const filtered: any[] = this.applyMetadataFilter(items, filters);
     if (filtered.length > 1) {
       throw new SoloError('multiple items found with filters', {filters});
     }

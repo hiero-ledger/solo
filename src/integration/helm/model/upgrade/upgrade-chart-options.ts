@@ -13,7 +13,7 @@ export class UpgradeChartOptions implements Options {
   private readonly _extraArgs?: string;
   private readonly _version?: string;
 
-  constructor(
+  public constructor(
     namespace?: string,
     kubeContext?: string,
     reuseValues: boolean = false,
@@ -31,7 +31,7 @@ export class UpgradeChartOptions implements Options {
    * Gets the namespace where the release should be upgraded.
    * @returns The namespace or undefined if not set.
    */
-  get namespace(): string | undefined {
+  public get namespace(): string | undefined {
     return this._namespace;
   }
 
@@ -39,7 +39,7 @@ export class UpgradeChartOptions implements Options {
    * Gets the Kubernetes context to use.
    * @returns The Kubernetes context or undefined if not set.
    */
-  get kubeContext(): string | undefined {
+  public get kubeContext(): string | undefined {
     return this._kubeContext;
   }
 
@@ -47,7 +47,7 @@ export class UpgradeChartOptions implements Options {
    * Gets whether to reuse the last release's values.
    * @returns True if values should be reused, false otherwise.
    */
-  get reuseValues(): boolean {
+  public get reuseValues(): boolean {
     return this._reuseValues;
   }
 
@@ -55,7 +55,7 @@ export class UpgradeChartOptions implements Options {
    * Gets additional arguments to pass to the helm command.
    * @returns The additional arguments or undefined if not set.
    */
-  get extraArgs(): string | undefined {
+  public get extraArgs(): string | undefined {
     return this._extraArgs;
   }
 
@@ -63,7 +63,7 @@ export class UpgradeChartOptions implements Options {
    * Gets the version of the chart to upgrade to.
    * @returns The version or undefined if not set.
    */
-  get version(): string | undefined {
+  public get version(): string | undefined {
     return this._version;
   }
 
@@ -71,7 +71,7 @@ export class UpgradeChartOptions implements Options {
    * Applies the options to the given builder.
    * @param builder The builder to apply the options to.
    */
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.argument('output', 'json');
 
     if (this._namespace) {

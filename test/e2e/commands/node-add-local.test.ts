@@ -9,9 +9,6 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {destroyEnabled, endToEndTestSuite, getTestCluster} from '../../test-utility.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
-import {container} from 'tsyringe-neo';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
-import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
@@ -56,7 +53,6 @@ describe('Node add with hedera local build', (): void => {
     after(async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(10).toMillis());
 
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
       await accountManager.close();
 
       if (destroyEnabled()) {

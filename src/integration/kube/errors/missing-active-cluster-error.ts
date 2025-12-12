@@ -3,7 +3,7 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 
 export class MissingActiveClusterError extends SoloError {
-  public static MISSING_ACTIVE_CLUSTER =
+  public static MISSING_ACTIVE_CLUSTER: string =
     'No active kubernetes cluster found. Please create a cluster and set current context.';
 
   /**

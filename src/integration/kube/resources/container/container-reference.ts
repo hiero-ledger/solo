@@ -14,7 +14,7 @@ export class ContainerReference extends NestedResourceReference<PodReference, Co
 
   /**
    * Creates a container reference.
-   * @param podRef The namespace name.
+   * @param podReference The namespace name.
    * @param containerName The pod name.
    */
   public static of(podReference: PodReference, containerName: ContainerName): ContainerReference {

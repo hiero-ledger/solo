@@ -41,14 +41,14 @@ export class GetKubeConfigOptions implements Options {
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
   /**
    * Whether to use internal or external address.
    */
-  get internal(): boolean {
+  public get internal(): boolean {
     return this._internal;
   }
 }

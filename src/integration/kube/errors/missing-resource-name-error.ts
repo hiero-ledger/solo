@@ -3,7 +3,7 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 
 export class MissingResourceNameError extends SoloError {
-  public static MISSING_RESOURCE_NAME = 'Name is required.';
+  public static MISSING_RESOURCE_NAME: string = 'Name is required.';
 
   /**
    * Instantiates a new error with a message and an optional cause.

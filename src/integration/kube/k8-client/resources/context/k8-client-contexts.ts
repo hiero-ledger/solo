@@ -30,17 +30,17 @@ export class K8ClientContexts implements Contexts {
   }
 
   public async testContextConnection(context: string): Promise<boolean> {
-    const originalContextName = this.readCurrent();
+    const originalContextName: string = this.readCurrent();
     this.kubeConfig.setCurrentContext(context);
 
-    const temporaryKubeClient = this.kubeConfig.makeApiClient(CoreV1Api);
+    const temporaryKubeClient: CoreV1Api = this.kubeConfig.makeApiClient(CoreV1Api);
     return await temporaryKubeClient
       .listNamespace()
-      .then(() => {
+      .then((): boolean => {
         this.kubeConfig.setCurrentContext(originalContextName);
         return true;
       })
-      .catch(() => {
+      .catch((): boolean => {
         this.kubeConfig.setCurrentContext(originalContextName);
         return false;
       });

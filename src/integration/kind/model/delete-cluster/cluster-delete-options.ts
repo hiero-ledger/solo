@@ -17,7 +17,7 @@ export class ClusterDeleteOptions implements Options {
    */
   private readonly _kubeconfig: string;
 
-  constructor(name?: string, kubeconfig?: string) {
+  public constructor(name?: string, kubeconfig?: string) {
     if (name) {
       this._name = name;
     }
@@ -42,14 +42,14 @@ export class ClusterDeleteOptions implements Options {
   /**
    * The name of the cluster.
    */
-  get name(): string {
+  public get name(): string {
     return this._name;
   }
 
   /**
    * sets kubeconfig path instead of $KUBECONFIG or $HOME/.kube/config
    */
-  get kubeconfig(): string {
+  public get kubeconfig(): string {
     return this._kubeconfig;
   }
 }

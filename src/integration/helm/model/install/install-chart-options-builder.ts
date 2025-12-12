@@ -6,23 +6,23 @@ import {InstallChartOptions} from './install-chart-options.js';
  * The builder for the InstallChartOptions.
  */
 export class InstallChartOptionsBuilder {
-  private _atomic = false;
-  private _createNamespace = false;
-  private _dependencyUpdate = false;
+  private _atomic: boolean = false;
+  private _createNamespace: boolean = false;
+  private _dependencyUpdate: boolean = false;
   private _description?: string;
-  private _enableDNS = false;
-  private _force = false;
-  private _passCredentials = false;
+  private _enableDNS: boolean = false;
+  private _force: boolean = false;
+  private _passCredentials: boolean = false;
   private _password?: string;
   private _repo?: string;
   private _set?: string[];
-  private _skipCrds = false;
+  private _skipCrds: boolean = false;
   private _timeout?: string;
   private _username?: string;
   private _values?: string[];
-  private _verify = false;
+  private _verify: boolean = false;
   private _version?: string;
-  private _waitFor = false;
+  private _waitFor: boolean = false;
   private _kubeContext?: string;
   private _namespace?: string;
   private _extraArgs?: string;
@@ -259,7 +259,7 @@ export class InstallChartOptionsBuilder {
 
   /**
    * Sets additional arguments to pass to the helm command.
-   * @param args The additional arguments.
+   * @param arguments_ The additional arguments.
    * @returns This builder instance.
    */
   public extraArgs(arguments_: string): InstallChartOptionsBuilder {

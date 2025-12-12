@@ -33,6 +33,7 @@ on:
       - opened
       - reopened
       - synchronize
+      - ready_for_review
 
 permissions:
   id-token: write
@@ -62,7 +63,7 @@ jobs:
           egress-policy: audit
           # allow internal Podman/Kind HTTPS calls between pods/services on the runner (no internet egress)
           allowed-endpoints: >
-            *.svc.cluster.local.dns.podman:443
+            **.svc.cluster.local.dns.podman:443
 
       - name: Checkout Code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -70,6 +71,8 @@ jobs:
       - name: Read JSON and Set Matrix Output
         id: set_matrix
         run: |
+          # Configure APT to use main Ubuntu archive (disable mirror rotation)
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
 
@@ -155,6 +158,6 @@ jobs:
   hugo-docs-build:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     with:
       ref: ${{ github.ref }}

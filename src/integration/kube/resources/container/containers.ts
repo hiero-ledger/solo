@@ -6,7 +6,7 @@ import {type Container} from './container.js';
 export interface Containers {
   /**
    * Get a container by reference for running operations against
-   * @param containerRef - the reference to the container
+   * @param containerReference - the reference to the container
    * @returns a container object
    */
   readByRef(containerReference: ContainerReference): Container;

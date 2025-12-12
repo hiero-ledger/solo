@@ -207,7 +207,7 @@ jobs:
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
-        if: failure()
+        if: ${{ github.ref == 'refs/heads/main' && failure() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}

@@ -3,7 +3,7 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 
 export class MissingParentResourceReferenceError extends SoloError {
-  public static MISSING_PARENT_RESOURCE_REF = 'The parent ResourceReference is required.';
+  public static MISSING_PARENT_RESOURCE_REF: string = 'The parent ResourceReference is required.';
 
   /**
    * Instantiates a new error with a message and an optional cause.

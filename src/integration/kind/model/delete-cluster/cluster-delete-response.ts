@@ -10,12 +10,14 @@ export class ClusterDeleteResponse {
     this._name = nameMatch ? nameMatch[1] : undefined;
 
     // Extract deleted nodes if present
-    const nodesMatch: RegExpMatchArray = this._rawOutput.match(/Deleted nodes: \[(.*?)\]/);
+    const nodesMatch: RegExpMatchArray = this._rawOutput.match(/Deleted nodes: \[(.*?)]/);
     if (nodesMatch && nodesMatch[1]) {
       // Parse the JSON-like array string into actual string array
       try {
         // Remove extra quotes and split by comma
-        const nodesList: string[] = nodesMatch[1].split(',').map(node => node.trim().replace(/^"(.*)"$/, '$1'));
+        const nodesList: string[] = nodesMatch[1]
+          .split(',')
+          .map((node): string => node.trim().replace(/^"(.*)"$/, '$1'));
         this._deletedNodes.push(...nodesList);
       } catch {
         // If parsing fails, leave as empty array

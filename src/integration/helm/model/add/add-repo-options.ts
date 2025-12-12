@@ -12,7 +12,7 @@ export class AddRepoOptions implements Options {
    */
   private readonly _forceUpdate: boolean;
 
-  constructor(forceUpdate: boolean = false) {
+  public constructor(forceUpdate: boolean = false) {
     this._forceUpdate = forceUpdate;
   }
 
@@ -20,7 +20,7 @@ export class AddRepoOptions implements Options {
    * Apply the options to the HelmExecutionBuilder.
    * @param builder The HelmExecutionBuilder to apply options to.
    */
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     if (this._forceUpdate) {
       builder.flag('--force-update');
     }
@@ -29,7 +29,7 @@ export class AddRepoOptions implements Options {
   /**
    * Whether --force-update will be set.
    */
-  get forceUpdate(): boolean {
+  public get forceUpdate(): boolean {
     return this._forceUpdate;
   }
 }
