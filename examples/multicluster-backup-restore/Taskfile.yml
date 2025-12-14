@@ -48,7 +48,7 @@ tasks:
       - cmd: |
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} || {
             status=$?
-            $SOLO_COMMAND deployment diagnostics logs --deployment {{ .DEPLOYMENT }}
+            $SOLO_COMMAND deployment diagnostics all --deployment {{ .DEPLOYMENT }}
             exit "$status"
           }
       - task: verify
