@@ -8,7 +8,7 @@ import {ErrorMessages} from '../../core/error-messages.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type ClusterReferenceName, Context, type ReleaseNameData, type SoloListrTask} from '../../types/index.js';
+import {type Context, type ReleaseNameData, type SoloListr, type SoloListrTask} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -84,35 +84,28 @@ export class ClusterCommandTasks {
     };
   }
 
-  public testConnectionToCluster(
-    clusterReference?: ClusterReferenceName,
-  ): SoloListrTask<ClusterReferenceConnectContext> {
-    const self = this;
+  public testConnectionToCluster(): SoloListrTask<ClusterReferenceConnectContext> {
     return {
       title: 'Test connection to cluster: ',
-      task: async (context_, task) => {
-        task.title += context_.config.context;
+      task: async ({config: {context, clusterRef}}, task): Promise<void> => {
+        task.title += context;
         try {
-          await self.k8Factory.getK8(context_.config.context).namespaces().list();
+          await this.k8Factory.getK8(context).namespaces().list();
         } catch {
           task.title = `${task.title} - ${chalk.red('Cluster connection failed')}`;
-          throw new SoloError(
-            `${ErrorMessages.INVALID_CONTEXT_FOR_CLUSTER_DETAILED(context_.config.context, context_.config.clusterRef)}`,
-          );
+          throw new SoloError(ErrorMessages.INVALID_CONTEXT_FOR_CLUSTER_DETAILED(context, clusterRef));
         }
       },
     };
   }
 
   public validateClusterRefs(): SoloListrTask<ClusterReferenceConnectContext> {
-    const self = this;
     return {
       title: 'Validating cluster ref: ',
-      task: async (context_, task) => {
-        const {clusterRef} = context_.config;
+      task: async ({config: {clusterRef}}, task): Promise<void> => {
         task.title += clusterRef;
 
-        if (self.localConfig.configuration.clusterRefs.get(clusterRef)) {
+        if (this.localConfig.configuration.clusterRefs.get(clusterRef)) {
           this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));
         }
       },
@@ -376,24 +369,19 @@ export class ClusterCommandTasks {
   }
 
   public uninstallPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
-      task: async context_ => {
-        const k8 = this.k8Factory.getK8(context_.config.context);
-
+      task: async ({config: {context}}): Promise<void> => {
         try {
           // Check if ClusterRole exists using Kubernetes JavaScript API
-          await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          await this.k8Factory.getK8(context).rbac().readClusterRole(constants.POD_MONITOR_ROLE);
 
           // ClusterRole exists, delete it
-          await k8.rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
-          self.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
+          await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
+          this.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
         } catch {
           // ClusterRole doesn't exist, skip
-          self.logger.showUser('⏭️  ClusterRole pod-monitor-role not found, skipping');
+          this.logger.showUser('⏭️  ClusterRole pod-monitor-role not found, skipping');
         }
       },
     };
@@ -465,74 +453,54 @@ export class ClusterCommandTasks {
   }
 
   public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Uninstall Prometheus Stack chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isPrometheusInstalled = await this.chartManager.isChartInstalled(
+      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
+        const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
           clusterSetupNamespace,
           constants.PROMETHEUS_RELEASE_NAME,
-          context_.config.context,
+          context,
         );
 
         if (isPrometheusInstalled) {
-          await self.chartManager.uninstall(
-            clusterSetupNamespace,
-            constants.PROMETHEUS_RELEASE_NAME,
-            context_.config.context || this.k8Factory.default().contexts().readCurrent(),
-          );
-          self.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
+          await this.chartManager.uninstall(clusterSetupNamespace, constants.PROMETHEUS_RELEASE_NAME, context);
+          this.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
         } else {
-          self.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
+          this.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
         }
       },
     };
   }
 
   public uninstallGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Uninstall Grafana Agent chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isGrafanaAgentInstalled = await this.chartManager.isChartInstalled(
+      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
+        const isGrafanaAgentInstalled: boolean = await this.chartManager.isChartInstalled(
           clusterSetupNamespace,
           constants.GRAFANA_AGENT_RELEASE_NAME,
-          context_.config.context,
+          context,
         );
 
         if (isGrafanaAgentInstalled) {
-          await self.chartManager.uninstall(
-            clusterSetupNamespace,
-            constants.GRAFANA_AGENT_RELEASE_NAME,
-            context_.config.context || this.k8Factory.default().contexts().readCurrent(),
-          );
-          self.logger.showUser('✅ Grafana Agent chart uninstalled successfully');
+          await this.chartManager.uninstall(clusterSetupNamespace, constants.GRAFANA_AGENT_RELEASE_NAME, context);
+          this.logger.showUser('✅ Grafana Agent chart uninstalled successfully');
         } else {
-          self.logger.showUser('⏭️  Grafana Agent chart not installed, skipping');
+          this.logger.showUser('⏭️  Grafana Agent chart not installed, skipping');
         }
       },
     };
   }
 
   public uninstallClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Uninstall cluster charts',
-      task: async (context_, task) => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        if (!argv.force && (await self.clusterChecks.isRemoteConfigPresentInAnyNamespace())) {
-          const confirm = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+      task: async (
+        {config: {clusterSetupNamespace, context}},
+        task,
+      ): Promise<SoloListr<ClusterReferenceResetContext>> => {
+        if (!argv.force && (await this.clusterChecks.isRemoteConfigPresentInAnyNamespace(context))) {
+          const confirm: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
             default: false,
             message:
               'There is remote config for one of the deployments' +
@@ -544,20 +512,19 @@ export class ClusterCommandTasks {
           }
         }
 
-        const subtasks = [
-          this.uninstallGrafanaAgent(argv),
-          this.uninstallPrometheusStack(argv),
-          this.uninstallMinioOperator(argv),
-          this.uninstallPodMonitorRole(argv),
-        ];
-
-        const result = await task.newListr(subtasks, {concurrent: false});
-
         if (argv.dev) {
           await this.showInstalledChartList(clusterSetupNamespace);
         }
 
-        return result;
+        return task.newListr(
+          [
+            this.uninstallGrafanaAgent(argv),
+            this.uninstallPrometheusStack(argv),
+            this.uninstallMinioOperator(argv),
+            this.uninstallPodMonitorRole(argv),
+          ],
+          {concurrent: false},
+        );
       },
     };
   }

@@ -3,7 +3,7 @@
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 
 export interface ClusterReferenceResetConfigClass {
-  clusterName: string;
+  clusterReference: string;
   clusterSetupNamespace: NamespaceName;
   context?: string;
 }
