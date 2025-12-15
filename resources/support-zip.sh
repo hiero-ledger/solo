@@ -30,7 +30,8 @@ rm ${FILE_LIST} 2>/dev/null || true
 AddToFileList()
 {
   if [[ -d "${1}" ]];then
-    find ${1} -name "*" -printf '\047%p\047\n' | tee -a ${LOG_FILE} >>${FILE_LIST}
+    # Do not add quote symbol since zip does not strip them out
+    find "$1" -print | tee -a ${LOG_FILE} >>${FILE_LIST}
     return
   fi
 
@@ -66,6 +67,7 @@ AddToFileList ${UPGRADE_DIR}
 AddToFileList ${STATS_DIR}
 
 echo "creating zip file ${ZIP_FULLPATH}" | tee -a ${LOG_FILE}
+sed -i '/^$/d' "${FILE_LIST}" # Removes empty lines
 if [[ "$useZip" = "true" ]]; then
   echo "Using zip" | tee -a ${LOG_FILE}
   dnf install zip -y | tee -a ${LOG_FILE}
