@@ -31,7 +31,8 @@ const testTitle: string = 'E2E Performance Tests';
 const duration: number = 300; // 5 minutes
 const clients: number = 5;
 const accounts: number = 20;
-const tokens: number = 1;
+const tokens: number = 10;
+const associations: number = 10;
 const nfts: number = 2;
 const percent: number = 50;
 const maxTps: number = 20;
@@ -151,12 +152,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('TokenTransferLoadTest', async (): Promise<void> => {
-        // Keep Accounts and Associations at 1 to prevent test from failing.
         await main(
           soloRapidFire(
             testName,
             'TokenTransferLoadTest',
-            `-c ${clients} -a 1 -T ${tokens} -A 1 -R -t ${duration}`,
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
             maxTps,
           ),
         );
