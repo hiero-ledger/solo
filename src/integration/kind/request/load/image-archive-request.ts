@@ -8,9 +8,9 @@ import {type LoadImageArchiveOptions} from '../../model/load-image-archive/load-
  * A request to list all Kind clusters.
  */
 export class LoadImageArchiveRequest implements KindRequest {
-  constructor(private readonly options?: LoadImageArchiveOptions) {}
+  public constructor(private readonly options?: LoadImageArchiveOptions) {}
 
-  apply(builder: KindExecutionBuilder): void {
+  public apply(builder: KindExecutionBuilder): void {
     builder.subcommands('load', 'image-archive');
     if (this.options) {
       this.options.apply(builder);

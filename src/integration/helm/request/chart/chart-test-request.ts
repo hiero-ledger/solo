@@ -15,9 +15,9 @@ export class ChartTestRequest implements HelmRequest {
    * @param releaseName The name of the release.
    * @param options The options to use when testing the chart.
    */
-  constructor(
-    readonly releaseName: string,
-    readonly options: TestChartOptions = TestChartOptionsBuilder.builder().build(),
+  public constructor(
+    public readonly releaseName: string,
+    public readonly options: TestChartOptions = TestChartOptionsBuilder.builder().build(),
   ) {
     if (!releaseName) {
       throw new Error('releaseName must not be null');
@@ -30,7 +30,7 @@ export class ChartTestRequest implements HelmRequest {
     }
   }
 
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('test');
     this.options.apply(builder);
     builder.positional(this.releaseName);

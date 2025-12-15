@@ -47,7 +47,7 @@ export abstract class ResourceName {
    * Allows `PodName` to be used as a primitive string in operations.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public [Symbol.toPrimitive](hint: string): string {
+  public [Symbol.toPrimitive](_hint: string): string {
     return this.name;
   }
 

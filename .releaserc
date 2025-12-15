@@ -12,9 +12,18 @@
         "preset": "conventionalcommits"
       }
     ],
-    "@semantic-release/npm",
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false,
+        "tarballDir": "dist"
+      }
+    ],
     "@semantic-release/git",
-    "@semantic-release/github"
+    "@semantic-release/github",
+    {
+      "assets": "dist/*.tgz"
+    }
   ],
   "releaseRules": [
     { "breaking": "true", "release": "minor"}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export class ReleaseItem {
-  constructor(
+  public constructor(
     public readonly name: string,
     public readonly namespace: string,
     public readonly revision: string,

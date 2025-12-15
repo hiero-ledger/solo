@@ -14,8 +14,8 @@ import * as constants from '../../../core/constants.js';
  * A builder for creating a helm command execution.
  */
 export class HelmExecutionBuilder {
-  private static readonly NAME_MUST_NOT_BE_NULL = 'name must not be null';
-  private static readonly VALUE_MUST_NOT_BE_NULL = 'value must not be null';
+  private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
+  private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
   /**
    * The path to the helm executable.
@@ -60,7 +60,7 @@ export class HelmExecutionBuilder {
   /**
    * Creates a new HelmExecutionBuilder instance.
    */
-  constructor(
+  public constructor(
     @inject(InjectTokens.OsPlatform) private readonly osPlatform?: NodeJS.Platform,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
@@ -74,7 +74,7 @@ export class HelmExecutionBuilder {
       throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');
     }
 
-    const workingDirectoryString = process.env.PWD;
+    const workingDirectoryString: string = process.env.PWD;
     this._workingDirectory =
       workingDirectoryString && workingDirectoryString.trim() !== ''
         ? workingDirectoryString
@@ -86,7 +86,7 @@ export class HelmExecutionBuilder {
    * @param commands the list of subcommands to be added
    * @returns this builder
    */
-  subcommands(...commands: string[]): HelmExecutionBuilder {
+  public subcommands(...commands: string[]): HelmExecutionBuilder {
     if (!commands) {
       throw new Error('commands must not be null');
     }
@@ -100,7 +100,7 @@ export class HelmExecutionBuilder {
    * @param value the value of the argument
    * @returns this builder
    */
-  argument(name: string, value: string): HelmExecutionBuilder {
+  public argument(name: string, value: string): HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
@@ -117,7 +117,7 @@ export class HelmExecutionBuilder {
    * @param value the list of values for the option
    * @returns this builder
    */
-  optionsWithMultipleValues(name: string, value: string[]): HelmExecutionBuilder {
+  public optionsWithMultipleValues(name: string, value: string[]): HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
@@ -133,7 +133,7 @@ export class HelmExecutionBuilder {
    * @param value the value of the positional argument
    * @returns this builder
    */
-  positional(value: string): HelmExecutionBuilder {
+  public positional(value: string): HelmExecutionBuilder {
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
@@ -147,7 +147,7 @@ export class HelmExecutionBuilder {
    * @param value the value of the environment variable
    * @returns this builder
    */
-  environmentVariable(name: string, value: string): HelmExecutionBuilder {
+  public environmentVariable(name: string, value: string): HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
@@ -163,7 +163,7 @@ export class HelmExecutionBuilder {
    * @param workingDirectoryPath the path to the working directory
    * @returns this builder
    */
-  workingDirectory(workingDirectoryPath: string): HelmExecutionBuilder {
+  public workingDirectory(workingDirectoryPath: string): HelmExecutionBuilder {
     if (!workingDirectoryPath) {
       throw new Error('workingDirectoryPath must not be null');
     }
@@ -176,7 +176,7 @@ export class HelmExecutionBuilder {
    * @param flag the flag to be added
    * @returns this builder
    */
-  flag(flag: string): HelmExecutionBuilder {
+  public flag(flag: string): HelmExecutionBuilder {
     if (!flag) {
       throw new Error('flag must not be null');
     }
@@ -188,8 +188,8 @@ export class HelmExecutionBuilder {
    * Builds the HelmExecution instance.
    * @returns the HelmExecution instance
    */
-  build(): HelmExecution {
-    const command = this.buildCommand();
+  public build(): HelmExecution {
+    const command: string[] = this.buildCommand();
     const environment: Record<string, string> = {...process.env};
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;

@@ -6,7 +6,7 @@ import {AddRepoOptions} from './add-repo-options.js';
  * Builder for AddRepoOptions for helm repo add command.
  */
 export class AddRepoOptionsBuilder {
-  private _forceUpdate = false;
+  private _forceUpdate: boolean = false;
 
   /**
    * Set whether to use --force-update.

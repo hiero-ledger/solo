@@ -17,7 +17,7 @@ export class TestChartOptions implements Options {
    * @param timeout - The operation timeout
    * @param namespace
    */
-  constructor(
+  public constructor(
     public readonly filter?: string,
     public readonly timeout?: string,
     public readonly namespace?: string,
@@ -27,7 +27,7 @@ export class TestChartOptions implements Options {
    * Applies the options to the given builder.
    * @param builder The builder to apply the options to
    */
-  apply(builder: HelmExecutionBuilder): void {
+  public apply(builder: HelmExecutionBuilder): void {
     if (this.filter?.trim()) {
       builder.argument('filter', this.filter.trim());
     }
