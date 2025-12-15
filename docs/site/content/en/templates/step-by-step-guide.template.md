@@ -337,55 +337,9 @@ solo one-shot falcon destroy
 
 If you have a more complex setup in mind, such as multiple nodes or specific configurations, follow these detailed steps to deploy your Solo network.
 
-### 1. Initialize Solo
+It is recommended to reset the `.solo` directory before creating a new Solo deployment. This step is crucial to ensure a clean setup without any leftover artifacts from previous installations. See: [\*Cleaning up an old install](#cleaning-up-an-old-install)
 
-{{< details summary="Details (click to expand/collapse)" open=true >}}
-
-Reset the `.solo` directory before initializing Solo. This step is crucial to ensure a clean setup without any leftover artifacts from previous installations. See: [\*Cleaning up an old install](#cleaning-up-an-old-install)
-
-```bash
-solo init
-```
-
-Example output:
-
-```text
->> environment variable 'SOLO_HOME' exists, using its value
-
-******************************* Solo *********************************************
-Version                 : 0.50.0
-Kubernetes Context      : kind-solo
-Kubernetes Cluster      : kind-solo
-Current Command         : init
-**********************************************************************************
-
-***************************************************************************************
-Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: /Users/torfinn/.solo
-If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.
-***************************************************************************************
-**********************************************************************************
-'solo init' is now deprecated, you don't need to run it anymore.
-**********************************************************************************
-
- Setup home directory and cache
-✔ Setup home directory and cache
- Create local configuration
- Create local configuration [SKIPPED: Create local configuration]
- Copy templates in '/Users/torfinn/.solo/cache'
-✔ Copy templates in '/Users/torfinn/.solo/cache'
- Check dependencies
- Check dependency: helm [OS: darwin, Release: 24.4.0, Arch: arm64]
- Check dependency: kubectl [OS: darwin, Release: 24.4.0, Arch: arm64]
-✔ Check dependency: helm [OS: darwin, Release: 24.4.0, Arch: arm64] [0.2s]
-✔ Check dependency: kubectl [OS: darwin, Release: 24.4.0, Arch: arm64] [0.3s]
-✔ Check dependencies [0.3s]
- Setup chart manager
-✔ Setup chart manager [5s]
-```
-
-{{< /details >}}
-
-### 2. Connect the cluster and create a deployment
+### 1. Connect the cluster and create a deployment
 
 {{< details summary="Details (click to expand/collapse)" open=true >}}
 
@@ -399,7 +353,7 @@ The deployment will:
 * Create persistent volumes if needed
 
 > 📝 Notice that the `--cluster-ref` value is `kind-solo`. When you created the Kind cluster it created a cluster reference in the Kubernetes config with the name `kind-solo`. If you used a different name, replace `kind-solo` with your cluster name, but prefix it with `kind-`.\
-> 📝 Solo stores various artifacts (config, logs, keys etc.) in its home directory: `~/.solo`. If you need a full reset, delete this directory before running `solo init` again.
+> 📝 Solo stores various artifacts (config, logs, keys etc.) in its home directory: `~/.solo`. If you need a full reset, delete this directory before running `solo init` or other commands again.
 
 ```bash
 # Connect to the cluster you created in a previous command
@@ -421,7 +375,7 @@ $SOLO_DEPLOYMENT_CREATE_OUTPUT
 
 {{< /details >}}
 
-### 3. Add a cluster to the deployment you created
+### 2. Add a cluster to the deployment you created
 
 {{< details summary="Details (click to expand/collapse)" open=true >}}
 
@@ -443,7 +397,7 @@ $SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
 
 {{< /details >}}
 
-### 4. Generate keys
+### 3. Generate keys
 
 {{< details summary="Details (click to expand/collapse)" open=true >}}
 
@@ -470,7 +424,7 @@ hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 
 {{< /details >}}
 
-### 5. Set up cluster with shared components
+### 4. Set up cluster with shared components
 
 {{< details summary="Details (click to expand/collapse)" open=true >}}
 
