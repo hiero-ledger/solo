@@ -95,7 +95,7 @@ export class NetworkNodes {
 
       await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
       await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
+      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}-log-config.zip`, targetDirectory);
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
       // and also delete namespace in the end
