@@ -133,10 +133,10 @@ One thing to consider: old installs can really hamper your ability to get a new 
 
 {{< details summary="Details (click to expand/collapse)" open=true >}}
 
-Open your terminal and install Solo using `npx`:
+Open your terminal and install Solo using `npm`:
 
 ```bash
-npx @hashgraph/solo
+npm install -g @hashgraph/solo
 
 # Verify the installation
 solo --version
