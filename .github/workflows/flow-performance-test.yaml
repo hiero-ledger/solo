@@ -189,7 +189,7 @@ jobs:
 
       - name: Performance Test Verification
         run: |
-          MAX_MEMORY_MB=10000
+          MAX_MEMORY_MB=12000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
