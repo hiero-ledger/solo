@@ -24,7 +24,7 @@ import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
-import * as stream from 'node:stream';
+import type * as stream from 'node:stream';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
