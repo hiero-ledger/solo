@@ -7,7 +7,6 @@ import {UserBreak} from '../../core/errors/user-break.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
@@ -50,11 +49,11 @@ export class ClusterCommandConfigs {
   ): Promise<ClusterReferenceConnectConfigClass> {
     // Apply changes to argv[context] before the config is initiated, because the `context` field is immutable
     if (!argv[flags.context.name]) {
-      const isQuiet = this.configManager.getFlag(flags.quiet);
+      const isQuiet: string = this.configManager.getFlag(flags.quiet);
       if (isQuiet) {
         argv[flags.context.name] = this.k8Factory.default().contexts().readCurrent();
       } else {
-        const kubeContexts = this.k8Factory.default().contexts().list();
+        const kubeContexts: string[] = this.k8Factory.default().contexts().list();
         argv[flags.context.name] = await flags.context.prompt(task, kubeContexts, argv[flags.clusterRef.name]);
       }
     }
@@ -124,7 +123,7 @@ export class ClusterCommandConfigs {
     task: SoloListrTaskWrapper<ClusterReferenceResetContext>,
   ): Promise<ClusterReferenceResetConfigClass> {
     if (!argv[flags.force.name]) {
-      const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+      const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
         default: false,
         message: 'Are you sure you would like to uninstall solo-cluster-setup chart?',
       });
@@ -137,9 +136,19 @@ export class ClusterCommandConfigs {
     this.configManager.update(argv);
 
     context_.config = {
-      clusterName: this.configManager.getFlag(flags.clusterRef),
-      clusterSetupNamespace: this.configManager.getFlag<NamespaceName>(flags.clusterSetupNamespace),
+      clusterReference: this.configManager.getFlag(flags.clusterRef),
+      clusterSetupNamespace: this.configManager.getFlag(flags.clusterSetupNamespace),
     } as ClusterReferenceResetConfigClass;
+
+    context_.config.clusterReference ??= this.k8Factory.default().clusters().readCurrent();
+
+    context_.config.context = this.localConfig.configuration.clusterRefs
+      .get(context_.config.clusterReference)
+      ?.toString();
+
+    if (!context_.config.context) {
+      throw new Error(`Cluster "${context_.config.clusterReference}" not found in the LocalConfig`);
+    }
 
     return context_.config;
   }
