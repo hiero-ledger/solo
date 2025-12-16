@@ -125,6 +125,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }
 
+        // copy the maxCpuFile to the main solo logs directory to be accessible by existing scripts
+        fs.copyFileSync(
+          PathEx.join(tartgetDirectory, maxCpuFileName),
+          PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
+        );
+
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
