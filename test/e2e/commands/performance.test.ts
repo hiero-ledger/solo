@@ -127,7 +127,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         // copy the maxCpuFile to the main solo logs directory to be accessible by existing scripts
         fs.copyFileSync(
-          PathEx.join(tartgetDirectory, maxCpuFileName),
+          PathEx.join(tartgetDirectory, `${namespace}.json`),
           PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
         );
 
