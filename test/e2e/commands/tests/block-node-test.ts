@@ -72,7 +72,7 @@ export class BlockNodeTest extends BaseCommandTest {
         soloBlockNodeDeployArgv(
           testName,
           deployment,
-          clusterReferenceNameArray[1],
+          clusterReferenceNameArray[0],
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
         ),
