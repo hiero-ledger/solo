@@ -66,31 +66,19 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bo
     } = bootstrapResp;
 
     let blockNodeCommand: BlockNodeCommand;
-    let platformVersion: SemVer.SemVer;
 
     before(async (): Promise<void> => {
       blockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand);
-      platformVersion = new SemVer.SemVer(argv.getArg(flags.releaseTag));
-      if (
-        SemVer.lt(
-          platformVersion,
-          new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
-        )
-      ) {
-        expect.fail(
-          `BlockNodeCommand should not be tested with versions less than ${version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE}`,
-        );
-      }
     });
 
-    after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-      await k8Factory.default().namespaces().delete(namespace);
-    });
+    // after(async function (): Promise<void> {
+    //   this.timeout(Duration.ofMinutes(5).toMillis());
+    //   await k8Factory.default().namespaces().delete(namespace);
+    // });
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
-    it("Should succeed deploying block node with 'add' command", async function (): Promise<void> {
+    it("Should succeed deploying block node with 'add' command, pre-genesis", async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(5).toMillis());
 
       await commandInvoker.invoke({
@@ -108,11 +96,49 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bo
 
     startNodesTest(argv, commandInvoker, nodeCmd);
 
-    it('Should be able to use the getSingleBlock Method to validate block node connectivity', async (): Promise<void> => {
+    it('Should be able to use the getSingleBlock Method to validate block node connectivity, pre-genesis', async (): Promise<void> => {
       const pod: Pod = await k8Factory
         .default()
         .pods()
         .list(namespace, Templates.renderBlockNodeLabels(1))
+        .then((pods: Pod[]): Pod => pods[0]);
+
+      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 20 * 1024 * 1024, encoding: 'utf8'};
+
+      // Make script executable
+      await execAsync('chmod +x ./get-block.sh', commandOptions);
+
+      // Execute script
+      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
+
+      expect(scriptStd.stderr).to.equal('');
+      expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
+
+      await pod.stopPortForward(srv);
+    });
+
+    it("Should succeed deploying block node with 'add' command, post-genesis", async function (): Promise<void> {
+      this.timeout(Duration.ofMinutes(5).toMillis());
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_ADD,
+        callback: async (argv): Promise<boolean> => blockNodeCommand.add(argv),
+      });
+
+      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 2);
+    });
+
+    it('Should be able to use the getSingleBlock Method to validate block node connectivity, post-genesis', async (): Promise<void> => {
+      await sleep(Duration.ofMinutes(1));
+
+      const pod: Pod = await k8Factory
+        .default()
+        .pods()
+        .list(namespace, Templates.renderBlockNodeLabels(2))
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);

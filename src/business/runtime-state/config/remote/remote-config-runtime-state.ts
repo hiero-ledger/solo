@@ -223,7 +223,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     const remoteConfig: RemoteConfigSchema = new RemoteConfigSchema(
-      3,
+      4,
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
@@ -543,6 +543,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             cluster.dnsBaseDomain,
             cluster.dnsConsensusNodePattern,
           ),
+          node.blockNodeIds || [],
         ),
       );
     }

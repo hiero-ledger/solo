@@ -23,7 +23,14 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {
+  type AnyListrContext,
+  type ArgvStruct,
+  type IP,
+  type NodeAlias,
+  type NodeAliases,
+  type NodeId,
+} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -67,6 +74,8 @@ import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node
 import {Version} from '../business/utils/version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
+import {SoloLogger} from '../core/logging/solo-logger.js';
+import {K8Factory} from '../integration/kube/k8-factory.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -123,7 +132,7 @@ export interface NetworkDeployConfigClass {
   domainNamesMapping?: Record<NodeAlias, string>;
   blockNodeComponents: BlockNodeStateSchema[];
   blockNodeCfg: string;
-  consensusNodeToBlockNodesMap?: Record<string, number[]>;
+  consensusNodeToBlockNodesMap?: Record<NodeAlias, number[]>;
   debugNodeAlias: NodeAlias;
   app: string;
   serviceMonitor: string;
@@ -607,20 +616,16 @@ export class NetworkCommand extends BaseCommand {
             throw new SoloError(`Failed to parse blockNodeCfg JSON: ${error.message}`, error);
           }
         } else {
-          // Default behavior: all consensus nodes get all block nodes (use node name as key)
           for (const consensusNode of config.consensusNodes) {
-            config.consensusNodeToBlockNodesMap[consensusNode.name] = config.blockNodeComponents.map(
-              (bn): number => bn.metadata.id,
-            );
+            config.consensusNodeToBlockNodesMap[consensusNode.name] = consensusNode.blockNodeIds;
           }
         }
       }
 
       // Generate separate block-nodes.json files for each consensus node
       for (const consensusNode of config.consensusNodes) {
-        const consensusNodeId: string = consensusNode.nodeId.toString();
-        // Use node name as the key for lookup (e.g., "node1", "node2")
-        const blockNodeIds: number[] = config.consensusNodeToBlockNodesMap[consensusNode.name] || [];
+        const blockNodeIds: number[] =
+          config.consensusNodeToBlockNodesMap[consensusNode.name] || consensusNode.blockNodeIds;
 
         if (blockNodeIds.length > 0) {
           // Filter block node components based on the mapping
@@ -635,37 +640,14 @@ export class NetworkCommand extends BaseCommand {
           ).toJSON();
 
           // Create a unique filename for each consensus node
-          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
+          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNode.nodeId}.json`;
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
           // Format JSON with indentation for readability
           const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);
 
-          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNodeId}`);
+          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNode.nodeId}`);
         }
-      }
-
-      // For cluster-level configuration, use all block nodes (backward compatibility)
-      // Skip this if blockNodeConfiguration is provided, as we're using node-specific files
-      if (!config.blockNodeCfg || config.blockNodeCfg.trim() === '') {
-        for (const clusterReference of clusterReferences) {
-          const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-            config.blockNodeComponents,
-            this.remoteConfig.configuration.clusters,
-            this.remoteConfig.configuration.versions,
-          ).toJSON();
-
-          const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
-          // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
-          fs.writeFileSync(blockNodesJsonPath, formattedJson);
-
-          valuesArguments[clusterReference] += ` --set-file "hedera.configMaps.blockNodesJson=${blockNodesJsonPath}"`;
-        }
-      } else {
-        this.logger.debug(
-          'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeConfiguration',
-        );
       }
     }
 
@@ -1372,79 +1354,19 @@ export class NetworkCommand extends BaseCommand {
         this.addNodesAndProxies(),
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
-          skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
-          task: async (context_): Promise<void> => {
-            const config: NetworkDeployConfigClass = context_.config;
-            const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
-
-            // Reuse the already-parsed consensusNodeToBlockNodesMap from config
-            const consensusNodeToBlockNodesMap: Record<string, number[]> = config.consensusNodeToBlockNodesMap || {};
-            const useNodeSpecificFiles: boolean = config.blockNodeCfg && config.blockNodeCfg.trim() !== '';
+          skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
+          task: async ({config: {consensusNodeToBlockNodesMap, namespace, consensusNodes}}): Promise<void> => {
+            consensusNodeToBlockNodesMap ||= {};
 
             try {
-              for (const consensusNode of config.consensusNodes) {
-                const consensusNodeId: string = consensusNode.nodeId.toString();
-
-                // Determine which file to copy
-                let blockNodesJsonPath: string;
-                if (useNodeSpecificFiles) {
-                  // Use node-specific file if blockNodeConfiguration is provided
-                  const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
-                  blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-
-                  // Check if the node has block nodes assigned (use node name as key)
-                  if (
-                    !consensusNodeToBlockNodesMap[consensusNode.name] ||
-                    consensusNodeToBlockNodesMap[consensusNode.name].length === 0
-                  ) {
-                    this.logger.debug(
-                      `Skipping consensus node ${consensusNode.name} (nodeId: ${consensusNodeId}) - no block nodes assigned`,
-                    );
-                    continue;
-                  }
-                } else {
-                  // Use default file for backward compatibility
-                  blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
-                }
-
-                // Check if the file exists before copying
-                if (!fs.existsSync(blockNodesJsonPath)) {
-                  this.logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
-                  continue;
-                }
-
-                const podReference: PodReference = await this.k8Factory
-                  .getK8(consensusNode.context)
-                  .pods()
-                  .list(config.namespace, [
-                    `solo.hedera.com/node-name=${consensusNode.name}`,
-                    'solo.hedera.com/type=network-node',
-                  ])
-                  .then((pods: Pod[]): PodReference => pods[0].podReference);
-
-                const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-
-                const container: Container = this.k8Factory
-                  .getK8(consensusNode.context)
-                  .containers()
-                  .readByRef(rootContainer);
-
-                await container.execContainer('pwd');
-
-                await container.execContainer(`mkdir -p ${targetDirectory}`);
-
-                // Copy the file and rename it to block-nodes.json in the destination
-                await container.copyTo(blockNodesJsonPath, targetDirectory);
-
-                // If using node-specific files, rename the copied file to the standard name
-                if (useNodeSpecificFiles) {
-                  const sourceFilename: string = path.basename(blockNodesJsonPath);
-                  await container.execContainer(
-                    `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-                  );
-                }
-
-                this.logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
+              for (const consensusNode of consensusNodes) {
+                await NetworkCommand.createBlockNodeJsonFileForConsensusNode(
+                  consensusNode,
+                  consensusNodeToBlockNodesMap[consensusNode.name],
+                  namespace,
+                  this.logger,
+                  this.k8Factory,
+                );
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
@@ -1474,6 +1396,58 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  public static async createBlockNodeJsonFileForConsensusNode(
+    consensusNode: ConsensusNode,
+    blockNodeIds: number[],
+    namespace: NamespaceName,
+    logger: SoloLogger,
+    k8Factory: K8Factory,
+  ): Promise<void> {
+    const nodeId: NodeId = consensusNode.nodeId;
+    const nodeAlias: NodeAlias = consensusNode.name;
+    const context: Context = consensusNode.context;
+
+    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+    const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
+    const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+
+    // Check if the node has block nodes assigned (use node name as key)
+    if (blockNodeIds.length === 0) {
+      logger.debug(`Skipping consensus node ${nodeAlias} (nodeId: ${nodeId}) - no block nodes assigned`);
+      return;
+    }
+
+    // Check if the file exists before copying
+    if (!fs.existsSync(blockNodesJsonPath)) {
+      logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
+      return;
+    }
+
+    const k8: K8 = k8Factory.getK8(context);
+
+    const container: Container = await k8
+      .pods()
+      .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'])
+      .then((pods): PodReference => pods[0].podReference)
+      .then((pod): ContainerReference => ContainerReference.of(pod, constants.ROOT_CONTAINER))
+      .then((containerReference): Container => k8.containers().readByRef(containerReference));
+
+    await container.execContainer('pwd');
+
+    await container.execContainer(`mkdir -p ${targetDirectory}`);
+
+    // Copy the file and rename it to block-nodes.json in the destination
+    await container.copyTo(blockNodesJsonPath, targetDirectory);
+
+    // If using node-specific files, rename the copied file to the standard name
+    const sourceFilename: string = path.basename(blockNodesJsonPath);
+    await container.execContainer(
+      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
+    );
+
+    logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

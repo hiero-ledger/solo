@@ -7,7 +7,7 @@ import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
@@ -33,12 +33,15 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {gte, lt, SemVer} from 'semver';
 import {injectable} from 'tsyringe-neo';
 import {Templates} from '../core/templates.js';
-import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
 import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
+import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
+import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
+import {ConsensusNode} from '../core/model/consensus-node.js';
+import {NetworkCommand} from './network.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -100,6 +103,7 @@ interface BlockNodeUpgradeConfigClass {
   valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
+  nodeAliases: NodeAliases;
 }
 
 interface BlockNodeUpgradeContext {
@@ -132,6 +136,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.releaseTag,
       flags.imageTag,
+      flags.nodeAliasesUnparsed,
     ],
   };
 
@@ -152,6 +157,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.upgradeVersion,
       flags.id,
+      flags.nodeAliasesUnparsed,
     ],
   };
 
@@ -207,6 +213,63 @@ export class BlockNodeCommand extends BaseCommand {
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
 
+  private updateConsensusNodesInRemoteConfig(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Update consensus nodes in remote config',
+      task: async ({config: {newBlockNodeComponent, nodeAliases}}): Promise<void> => {
+        const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
+
+        for (const node of state.consensusNodes.filter((node): boolean =>
+          nodeAliases.includes(Templates.renderNodeAliasFromNumber(node.metadata.id)),
+        )) {
+          node.blockNodeIds.push(newBlockNodeComponent.metadata.id);
+        }
+
+        this.remoteConfig.configuration.state.consensusNodes = state.consensusNodes;
+
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
+  private updateConsensusNodesPostGenesis(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: '',
+      task: async ({config: {nodeAliases, newBlockNodeComponent, namespace}}): Promise<void> => {
+        const nodes: ConsensusNode[] = this.remoteConfig
+          .getConsensusNodes()
+          .filter((node): boolean => nodeAliases.includes(node.name));
+
+        for (const node of nodes) {
+          const blockNodeIds: number[] = node.blockNodeIds;
+          blockNodeIds.push(newBlockNodeComponent.metadata.id);
+          await NetworkCommand.createBlockNodeJsonFileForConsensusNode(
+            node,
+            blockNodeIds,
+            namespace,
+            this.logger,
+            this.k8Factory,
+          );
+        }
+      },
+    };
+  }
+
+  private handleConesenusNodeUpdating(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Update consensus nodes',
+      task: (_, task): SoloListr<BlockNodeDeployContext> => {
+        const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [this.updateConsensusNodesInRemoteConfig()];
+
+        if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
+          subTasks.push(this.updateConsensusNodesPostGenesis());
+        }
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+      },
+    };
+  }
+
   public async add(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
@@ -245,12 +308,11 @@ export class BlockNodeCommand extends BaseCommand {
               // if is possible block node deployed before consensus node, then use release tag as fallback
               consensusNodeVersion = config.releaseTag;
             }
-            if (
-              lt(
-                new SemVer(consensusNodeVersion),
-                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
-              )
-            ) {
+
+            const currentVersion: SemVer = new SemVer(consensusNodeVersion);
+            const minimumVersion: SemVer = new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE);
+
+            if (lt(currentVersion, minimumVersion)) {
               throw new SoloError(
                 `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
@@ -259,7 +321,11 @@ export class BlockNodeCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
-            config.nodeAliases = this.remoteConfig.getConsensusNodes().map((node): NodeAlias => node.name);
+            config.nodeAliases = helpers.parseNodeAliases(
+              this.configManager.getFlag(flags.nodeAliasesUnparsed),
+              this.remoteConfig.getConsensusNodes(),
+              this.configManager,
+            );
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
@@ -306,31 +372,44 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Deploy block node',
           task: async ({config}, task): Promise<void> => {
+            const {
+              context,
+              namespace,
+              releaseName,
+              chartVersion,
+              valuesArg,
+              clusterRef,
+              imageTag,
+              blockNodeChartDirectory,
+            } = config;
+
             await this.chartManager.install(
-              config.namespace,
-              config.releaseName,
+              namespace,
+              releaseName,
               constants.BLOCK_NODE_CHART,
-              config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
-              config.chartVersion,
-              config.valuesArg,
-              config.context,
+              blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
+              chartVersion,
+              valuesArg,
+              context,
             );
 
-            if (config.imageTag) {
+            if (imageTag) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
               const blockNodeStateSchema: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
-                config.clusterRef,
-                config.namespace,
+                clusterRef,
+                namespace,
               );
               const blockNodeId: ComponentId = blockNodeStateSchema.metadata.id;
-              const k8: K8 = this.k8Factory.getK8(config.context);
-              await k8.configMaps().update(config.namespace, `block-node-${blockNodeId}-config`, {
-                VERSION: config.imageTag,
-              });
-              task.title += ` with local built image (${config.imageTag})`;
+
+              const name: string = `block-node-${blockNodeId}-config`;
+              const data: Record<string, string> = {VERSION: imageTag};
+
+              await this.k8Factory.getK8(context).configMaps().update(namespace, name, data);
+
+              task.title += ` with local built image (${imageTag})`;
             }
-            showVersionBanner(this.logger, config.releaseName, config.chartVersion);
+            showVersionBanner(this.logger, releaseName, chartVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
@@ -351,13 +430,10 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Check software',
-          task: async ({config}): Promise<void> => {
-            const labels: string[] = Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id);
+          task: async ({config: {newBlockNodeComponent, context, namespace}}): Promise<void> => {
+            const labels: string[] = Templates.renderBlockNodeLabels(newBlockNodeComponent.metadata.id);
 
-            const blockNodePods: Pod[] = await this.k8Factory
-              .getK8(config.context)
-              .pods()
-              .list(config.namespace, labels);
+            const blockNodePods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
             if (blockNodePods.length === 0) {
               throw new SoloError('Failed to list block node pod');
@@ -384,6 +460,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.checkBlockNodeReadiness(),
         this.addBlockNodeComponent(),
+        this.handleConesenusNodeUpdating(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -548,6 +625,12 @@ export class BlockNodeCommand extends BaseCommand {
               : this.renderReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+
+            config.nodeAliases = helpers.parseNodeAliases(
+              this.configManager.getFlag(flags.nodeAliasesUnparsed),
+              this.remoteConfig.getConsensusNodes(),
+              this.configManager,
+            );
 
             if (!config.upgradeVersion) {
               config.upgradeVersion = versions.BLOCK_NODE_VERSION;

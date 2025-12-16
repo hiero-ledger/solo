@@ -45,10 +45,11 @@ export class CommandHandler {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | any) {
+      } catch (error) {
+        console.error(error);
         throw new SoloError(`${errorString}: ${error.message}`, error);
       } finally {
-        const promises = [];
+        const promises: Promise<void>[] = [];
         if (lease) {
           promises.push(lease?.release());
         }
@@ -57,7 +58,7 @@ export class CommandHandler {
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        const promises = [];
+        const promises: Promise<void>[] = [];
         if (lease) {
           promises.push(lease?.release());
         }
