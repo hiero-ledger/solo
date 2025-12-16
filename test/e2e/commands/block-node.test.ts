@@ -19,6 +19,7 @@ import {DeploymentTest} from './tests/deployment-test.js';
 import {NodeTest} from './tests/node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
+import {sleep} from '../../../src/core/helpers.js';
 
 const testName: string = 'block-node-test';
 
@@ -61,6 +62,8 @@ new EndToEndTestSuiteBuilder()
         resetForTest(namespace.name, testCacheDirectory, false);
         testLogger.info(`${testName}: finished resetting containers for each test`);
       });
+
+      afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
       InitTest.init(options);
       ClusterReferenceTest.connect(options);

@@ -74,7 +74,6 @@ export class BlockNodeTest extends BaseCommandTest {
   public static add(options: BaseTestOptions): void {
     const {testName, deployment, clusterReferenceNameArray, localBuildReleaseTag, enableLocalBuildPathTesting} =
       options;
-
     const {soloBlockNodeDeployArgv} = BlockNodeTest;
 
     it(`${testName}: block node add`, async (): Promise<void> => {
