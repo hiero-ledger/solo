@@ -29,6 +29,6 @@ export interface BaseTestOptions {
   readonly applicationEnvironment: string;
   readonly applicationProperties: string;
   readonly bootstrapProperties: string;
-  readonly log4j2Xml: string;
+  readonly logXml: string;
   readonly settingsTxt: string;
 }

@@ -82,7 +82,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // copy all consensus config files to a temporary directory with non-default names
         const templateDirectory: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates');
         const temporaryDirectory: string = getTemporaryDirectory();
-        for (const [sourceFileName, targetFileName] of Object.entries(configFiles)) {
+        for (const [targetFileName, sourceFileName] of Object.entries(configFiles)) {
           fs.cpSync(
             PathEx.joinWithRealPath(templateDirectory, sourceFileName),
             PathEx.joinWithRealPath(temporaryDirectory, targetFileName),

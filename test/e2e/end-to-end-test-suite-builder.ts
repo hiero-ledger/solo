@@ -23,7 +23,7 @@ export class EndToEndTestSuiteBuilder {
   private applicationEnvironment: string;
   private applicationProperties: string;
   private bootstrapProperties: string;
-  private log4j2Xml: string;
+  private logXml: string;
   private settingsTxt: string;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
@@ -124,7 +124,7 @@ export class EndToEndTestSuiteBuilder {
   }
 
   public withLog4j2Xml(fileName: string): this {
-    this.log4j2Xml = fileName;
+    this.logXml = fileName;
     return this;
   }
 
@@ -156,7 +156,7 @@ export class EndToEndTestSuiteBuilder {
       this.applicationEnvironment,
       this.applicationProperties,
       this.bootstrapProperties,
-      this.log4j2Xml,
+      this.logXml,
       this.settingsTxt,
       this.testSuiteCallback,
     );

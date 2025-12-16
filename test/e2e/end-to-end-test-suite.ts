@@ -45,9 +45,8 @@ export class EndToEndTestSuite extends Suite {
     public readonly applicationEnvironment: string = 'application.env',
     public readonly applicationProperties: string = 'application.properties',
     public readonly bootstrapProperties: string = 'bootstrap.properties',
-    public readonly log4j2Xml: string = 'log4j2.xml',
+    public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
-
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -105,7 +104,7 @@ export class EndToEndTestSuite extends Suite {
       applicationEnvironment: this.applicationEnvironment,
       applicationProperties: this.applicationProperties,
       bootstrapProperties: this.bootstrapProperties,
-      log4j2Xml: this.log4j2Xml,
+      logXml: this.logXml,
       settingsTxt: this.settingsTxt,
     } as BaseTestOptions;
   }
