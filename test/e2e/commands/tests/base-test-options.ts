@@ -25,4 +25,10 @@ export interface BaseTestOptions {
   readonly serviceMonitor: boolean;
   readonly podLog: boolean;
   readonly minimalSetup: boolean;
+  readonly apiPermissionProperties: string;
+  readonly applicationEnvironment: string;
+  readonly applicationProperties: string;
+  readonly bootstrapProperties: string;
+  readonly log4j2Xml: string;
+  readonly settingsTxt: string;
 }

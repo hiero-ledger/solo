@@ -19,6 +19,12 @@ export class EndToEndTestSuiteBuilder {
   private podLog: boolean;
   private minimalSetup: boolean;
   private collectDiagnosticLogs: boolean = true; // Default to true
+  private apiPermissionProperties: string;
+  private applicationEnvironment: string;
+  private applicationProperties: string;
+  private bootstrapProperties: string;
+  private log4j2Xml: string;
+  private settingsTxt: string;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -92,6 +98,41 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withCollectDiagnosticLogs(collectDiagnosticLogs: boolean): this {
+    this.collectDiagnosticLogs = collectDiagnosticLogs;
+    return this;
+  }
+
+  public withApiPermissionProperties(fileName: string): this {
+    this.apiPermissionProperties = fileName;
+    return this;
+  }
+
+  public withApplicationEnvironment(fileName: string): this {
+    this.applicationEnvironment = fileName;
+    return this;
+  }
+
+  public withApplicationProperties(fileName: string): this {
+    this.applicationProperties = fileName;
+    return this;
+  }
+
+  public withBootstrapProperties(fileName: string): this {
+    this.bootstrapProperties = fileName;
+    return this;
+  }
+
+  public withLog4j2Xml(fileName: string): this {
+    this.log4j2Xml = fileName;
+    return this;
+  }
+
+  public withSettingsTxt(fileName: string): this {
+    this.settingsTxt = fileName;
+    return this;
+  }
+
   public build(): EndToEndTestSuite {
     if (!this.testName || !this.testSuiteName || !this.testSuiteCallback) {
       throw new Error('Missing required properties to build EndToEndTestSuite');
@@ -111,6 +152,12 @@ export class EndToEndTestSuiteBuilder {
       this.podLog || false,
       this.minimalSetup || false,
       this.collectDiagnosticLogs,
+      this.apiPermissionProperties,
+      this.applicationEnvironment,
+      this.applicationProperties,
+      this.bootstrapProperties,
+      this.log4j2Xml,
+      this.settingsTxt,
       this.testSuiteCallback,
     );
   }
