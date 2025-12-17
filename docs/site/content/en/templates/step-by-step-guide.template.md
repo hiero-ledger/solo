@@ -31,7 +31,7 @@ First, check that your computer meets these minimum specifications:
 * **Storage**: At least **20 GB of free disk space**
 * **Operating System**: macOS, Linux, or Windows with WSL2
 
-{{< details summary="Platform notes \<click to expand/collapse>" open=true >}}<br/>
+{{< details summary="Platform notes (click to expand/collapse)" open=true >}}
 
 * **Windows (WSL2)** – Enable **Virtual Machine Platform** and **Windows Subsystem for Linux** from **Turn Windows features on or off**, reboot, then run `wsl --install Ubuntu` in PowerShell. For the rest of this guide, run all commands from the Ubuntu (WSL2) terminal so Docker and Kubernetes share the same Linux environment.
 * **Linux** – Use a recent LTS distribution (for example Ubuntu 22.04+, Debian 12, or Fedora 40+) with cgroup v2 enabled.
