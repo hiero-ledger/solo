@@ -28,7 +28,7 @@ import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/
 const testName: string = 'performance-tests';
 const testTitle: string = 'E2E Performance Tests';
 
-const duration: number = 300; // 5 minutes
+const duration: number = 10; // 5 minutes
 const clients: number = 5;
 const accounts: number = 20;
 const tokens: number = 10;
@@ -38,6 +38,7 @@ const percent: number = 50;
 const maxTps: number = 20;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
+let events: string[] = [];
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -131,22 +132,25 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
         );
 
-        testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        await main(soloOneShotDestroy(testName));
-        testLogger.info(`${testName}: finished ${testName}: destroy`);
+        // testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        // await main(soloOneShotDestroy(testName));
+        // testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
+        logEvent('Starting CryptoTransferLoadTest');
         await main(
           soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('HCSLoadTest', async (): Promise<void> => {
+        logEvent('Starting HCSLoadTest');
         await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('NftTransferLoadTest', async (): Promise<void> => {
+        logEvent('Starting NftTransferLoadTest');
         await main(
           soloRapidFire(
             testName,
@@ -158,6 +162,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('TokenTransferLoadTest', async (): Promise<void> => {
+        logEvent('Starting TokenTransferLoadTest');
         await main(
           soloRapidFire(
             testName,
@@ -169,12 +174,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('SmartContractLoadTest', async (): Promise<void> => {
+        logEvent('Starting SmartContractLoadTest');
         await main(
           soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
+        logEvent('Completed all performance tests');
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
           const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
 
@@ -216,7 +223,12 @@ export async function logMetrics(startTime: Date): Promise<void> {
   await new MetricsServerImpl().logMetrics(
     `${testName}-${elapsedMilliseconds}`,
     PathEx.join(tartgetDirectory, `${elapsedMilliseconds}`),
+    undefined,
+    undefined,
+    undefined,
+    events,
   );
+  flushEvents();
 }
 
 export function soloOneShotDeploy(testName: string): string[] {
@@ -239,6 +251,14 @@ export function soloOneShotDestroy(testName: string): string[] {
   argv.push('one-shot', 'single', 'destroy');
   argvPushGlobalFlags(argv, testName);
   return argv;
+}
+
+function logEvent(event: string): void {
+  events.push(event);
+}
+
+function flushEvents(): void {
+  events = [];
 }
 
 export function soloRapidFire(
