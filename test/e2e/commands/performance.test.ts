@@ -28,7 +28,7 @@ import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/
 const testName: string = 'performance-tests';
 const testTitle: string = 'E2E Performance Tests';
 
-const duration: number = 10; // 5 minutes
+const duration: number = 300; // 5 minutes
 const clients: number = 5;
 const accounts: number = 20;
 const tokens: number = 10;
@@ -132,9 +132,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
         );
 
-        // testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        // await main(soloOneShotDestroy(testName));
-        // testLogger.info(`${testName}: finished ${testName}: destroy`);
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloOneShotDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
