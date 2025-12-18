@@ -91,4 +91,4 @@ Options:
   -v, --version              Show version number                       [boolean]
 ```
 
-## For more information see: [Solo CLI Commands](solo-commands.md)
+For more information see: [Solo CLI Commands](solo-commands.md)
