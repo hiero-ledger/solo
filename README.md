@@ -69,7 +69,7 @@ nvm use v22.0.0
 
 ## Install Solo
 
-* Run `npx @hashgraph/solo`
+* Run `npm install -g @hashgraph/solo`
 
 ## Documentation
 
