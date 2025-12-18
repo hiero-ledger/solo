@@ -451,11 +451,11 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Get all log zip files directly from logs directory
       const allFiles: string[] = fs.readdirSync(logsDirectory);
-      const logFiles: string[] = allFiles.filter(file => file.endsWith('.zip'));
+      const logFiles: string[] = allFiles.filter(file => file.endsWith(constants.LOG_CONFIG_ZIP_SUFFIX));
 
       if (logFiles.length === 0) {
         this.logger.showUser(
-          chalk.yellow(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
+          chalk.red(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
         );
         this.logger.showUser(chalk.gray(`    Available files: ${allFiles.join(', ')}`));
         throw new SoloError(`No log files found to restore in context: ${context}`);
@@ -469,8 +469,8 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Upload logs to each pod
       for (const logFile of logFiles) {
-        // Extract pod name from log file (e.g., network-node-0.zip -> network-node-0)
-        const podName: string = logFile.replace('.zip', '');
+        // Extract pod name from log file by removing the suffix
+        const podName: string = logFile.replace(constants.LOG_CONFIG_ZIP_SUFFIX, '');
         const pod: any = pods.find((p: any): boolean => p.podReference.name.name === podName);
 
         if (!pod) {
@@ -483,7 +483,7 @@ export class BackupRestoreCommand extends BaseCommand {
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const container: any = await k8.containers().readByRef(containerReference);
 
-        // Upload log file to pod
+        // Upload zipped log file to pod
         this.logger.showUser(chalk.gray(`    Uploading log file: ${logFile}`));
         await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
 
@@ -498,6 +498,9 @@ export class BackupRestoreCommand extends BaseCommand {
           `${constants.HEDERA_HAPI_PATH}/${logFile}`,
           '-d',
           `${constants.HEDERA_HAPI_PATH}`,
+          // output to a log file for debugging
+          '>',
+          `${constants.HEDERA_HAPI_PATH}/unzip-log.txt`,
         ]);
 
         // Fix ownership of extracted files to hedera user

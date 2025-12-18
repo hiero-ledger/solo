@@ -2,7 +2,7 @@
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {HEDERA_HAPI_PATH, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
+import {HEDERA_HAPI_PATH, LOG_CONFIG_ZIP_SUFFIX, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
 import fs from 'node:fs';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
@@ -95,7 +95,10 @@ export class NetworkNodes {
 
       await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
       await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}-log-config.zip`, targetDirectory);
+      await container.copyFrom(
+        `${HEDERA_HAPI_PATH}/data/${podReference.name}${LOG_CONFIG_ZIP_SUFFIX}`,
+        targetDirectory,
+      );
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
       // and also delete namespace in the end
@@ -161,14 +164,16 @@ export class NetworkNodes {
   }
 
   public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {
+    // Use curl's built-in retry and timeout options to handle transient network glitches
+    // --max-time 60: overall timeout for the operation (seconds)
+    // --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors: retry transient failures
+    const curlCmd: string = String.raw`curl -sS --max-time 60 --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors http://localhost:9999/metrics`;
+    const cmd: string[] = ['bash', '-c', `${curlCmd} | grep platform_PlatformStatus | grep -v #`];
+
     return this.k8Factory
       .getK8(context)
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .execContainer([
-        'bash',
-        '-c',
-        String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-      ]);
+      .execContainer(cmd);
   }
 }
