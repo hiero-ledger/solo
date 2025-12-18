@@ -11,7 +11,7 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {Templates} from '../../../../src/core/templates.js';
 import * as constants from '../../../../src/core/constants.js';
 import {expect} from 'chai';
-import {exec, type ExecException} from 'node:child_process';
+import {exec, type ExecException, type ExecOptions} from 'node:child_process';
 import {promisify} from 'node:util';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
@@ -103,7 +103,7 @@ export class BlockNodeTest extends BaseCommandTest {
 
     const execAsync: (
       command: string,
-      options?: {cwd: string},
+      options?: ExecOptions,
     ) => Promise<{stdout: string; stderr: string; error?: ExecException}> = promisify(exec);
 
     it(`${testName}: test block node connection`, async (): Promise<void> => {
@@ -116,7 +116,7 @@ export class BlockNodeTest extends BaseCommandTest {
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
-      const commandOptions: {cwd: string} = {cwd: './test/data'};
+      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
 
       // Make script executable
       await execAsync('chmod +x ./get-block.sh', commandOptions);

@@ -19,7 +19,7 @@ npx @hashgraph/solo:@latest one-shot single deploy
 **Multiple Node Deployment (for testing consensus scenarios):**
 
 ```bash
-npx @hashgraph/solo:@latest one-shot multiple deploy
+npx @hashgraph/solo:@latest one-shot multi deploy
 ```
 
 **Falcon Deployment (with custom configuration file):**
