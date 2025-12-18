@@ -178,6 +178,55 @@ jobs:
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-performance-test
 
+      - name: Log Timeline Metrics
+        id: timeline-log-metrics
+        run: |
+          : > $GITHUB_OUTPUT
+          for logFile in ~/.solo/logs/**/timeline-metrics.json; do 
+            if [[ -f "$logFile" ]]; then
+              echo "::group::JSON Format"
+              cat $logFile | jq
+              echo "::endgroup::" 
+              echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
+              echo "::group::Spreadsheet Format"
+              echo "logFile=$logFile"
+              JSON_FILENAME=$logFile ./.github/workflows/script/metrics.sh
+              echo "::endgroup::"
+            else
+              echo "json_log={}" >> $GITHUB_OUTPUT
+            fi
+          done
+          echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
+
+      - name: Write Timeline Log Metrics Message File
+        id: timeline-log-metrics-file
+        if: ${{ !cancelled() && !failure() && steps.timeline-log-metrics.outputs.json_log != '{}' }}
+        env:
+          LOG_FILE: "${{ steps.timeline-log-metrics.outputs.solo_log_dir }}/log_file.md"
+          JSON_INPUT: "${{ toJSON(fromJSON(steps.timeline-log-metrics.outputs.json_log)) }}"
+        run: |
+          echo "## Log Metrics - Performance Test" >> $TIMELINE_LOG_FILE
+          echo "" >> $TIMELINE_LOG_FILE
+          echo "<details>" >> $TIMELINE_LOG_FILE
+          echo "<summary>" >> $TIMELINE_LOG_FILE
+          echo "JSON Timeline Log Metrics" >> $TIMELINE_LOG_FILE
+          echo "</summary>" >> $TIMELINE_LOG_FILE
+          echo '<pre><code class="JSON">' >> $TIMELINE_LOG_FILE
+          echo "$JSON_INPUT" >> $TIMELINE_LOG_FILE
+          echo "</code></pre>" >> $TIMELINE_LOG_FILE
+          echo "</details>" >> $TIMELINE_LOG_FILE
+          echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with Timeline Log Metrics
+        if: >-
+          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && 
+          steps.timeline-log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
+        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+        with:
+          mode: recreate
+          file-path: ${{ steps.timeline-log-metrics-file.outputs.log_file }}
+          comment-tag: timeline-log-metrics-performance-test
+
       - name: Upload E2E Logs to GitHub
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

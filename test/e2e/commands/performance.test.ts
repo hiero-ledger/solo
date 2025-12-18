@@ -97,7 +97,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }
 
         // save the aggregated metrics to a single file
-        const aggregatedMetricsFileName: string = `${namespace}-aggregated-metrics.json`;
+        const aggregatedMetricsFileName: string = 'timeline-metrics.json';
         const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
         fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
 
