@@ -178,6 +178,9 @@ jobs:
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-performance-test
 
+
+############
+
       - name: Log Timeline Metrics
         id: timeline-log-metrics
         run: |
@@ -198,8 +201,7 @@ jobs:
         id: timeline-log-metrics-file
         if: ${{ !cancelled() && !failure() && steps.timeline-log-metrics.outputs.json_log != '{}' }}
         env:
-          LOG_FILE: "${{ steps.timeline-log-metrics.outputs.solo_log_dir }}/log_file.md"
-          JSON_INPUT: "${{ toJSON(fromJSON(steps.timeline-log-metrics.outputs.json_log)) }}"
+          TIMELINE_LOG_FILE: "${{ steps.timeline-log-metrics.outputs.solo_log_dir }}/timeline_log_file.md"
         run: |
           echo "## Log Metrics - Performance Test" >> $TIMELINE_LOG_FILE
           echo "" >> $TIMELINE_LOG_FILE
@@ -208,10 +210,10 @@ jobs:
           echo "JSON Timeline Log Metrics" >> $TIMELINE_LOG_FILE
           echo "</summary>" >> $TIMELINE_LOG_FILE
           echo '<pre><code class="JSON">' >> $TIMELINE_LOG_FILE
-          echo "$JSON_INPUT" >> $TIMELINE_LOG_FILE
+          echo "$GITHUB_OUTPUT" >> $TIMELINE_LOG_FILE
           echo "</code></pre>" >> $TIMELINE_LOG_FILE
           echo "</details>" >> $TIMELINE_LOG_FILE
-          echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
+          echo "timeline_log_file=$TIMELINE_LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with Timeline Log Metrics
         if: >-
@@ -220,7 +222,7 @@ jobs:
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
-          file-path: ${{ steps.timeline-log-metrics-file.outputs.log_file }}
+          file-path: ${{ steps.timeline-log-metrics-file.outputs.timeline_log_file }}
           comment-tag: timeline-log-metrics-performance-test
 
       - name: Upload E2E Logs to GitHub
