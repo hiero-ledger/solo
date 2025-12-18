@@ -1,188 +1,96 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {afterEach, describe} from 'mocha';
-import {expect} from 'chai';
-
-import {Flags as flags} from '../../../src/commands/flags.js';
-import {
-  deployNetworkTest,
-  destroyEnabled,
-  endToEndTestSuite,
-  getTestCluster,
-  startNodesTest,
-} from '../../test-utility.js';
-import * as version from '../../../version.js';
-import {sleep} from '../../../src/core/helpers.js';
+import {describe} from 'mocha';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {Argv} from '../../helpers/argv-wrapper.js';
-import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
-import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
-import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {type ClusterReferenceName} from '../../../src/types/index.js';
-import {exec, type ExecOptions} from 'node:child_process';
-import {promisify} from 'node:util';
-import * as SemVer from 'semver';
-import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
-import {Templates} from '../../../src/core/templates.js';
 import * as constants from '../../../src/core/constants.js';
-import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
+import {type BaseTestOptions} from './tests/base-test-options.js';
+import fs from 'node:fs';
+import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
+import {resetForTest} from '../../test-container.js';
+import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
+import {InitTest} from './tests/init-test.js';
+import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
+import {DeploymentTest} from './tests/deployment-test.js';
+import {NodeTest} from './tests/node-test.js';
+import {NetworkTest} from './tests/network-test.js';
+import {BlockNodeTest} from './tests/block-node-test.js';
+import {sleep} from '../../../src/core/helpers.js';
 
-const execPromise: (
-  command: string,
-  options?: ExecOptions,
-) => Promise<{stdout: string | Buffer; stderr: string | Buffer}> = promisify(exec);
+const testName: string = 'block-node-test';
 
-async function execAsync(command: string, options?: ExecOptions): Promise<{stdout: string; stderr: string}> {
-  const execOptions: ExecOptions = {...options, encoding: options?.encoding ?? 'utf8'};
-  const result: {stdout: string | Buffer; stderr: string | Buffer} = await execPromise(command, execOptions);
-  const stdout: string = typeof result.stdout === 'string' ? result.stdout : result.stdout.toString('utf8');
-  const stderr: string = typeof result.stderr === 'string' ? result.stderr : result.stderr.toString('utf8');
-  return {stdout, stderr};
-}
+new EndToEndTestSuiteBuilder()
+  .withTestName(testName)
+  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withNamespace(testName)
+  .withDeployment(`${testName}-deployment`)
+  .withClusterCount(1)
+  .withConsensusNodesCount(1)
+  .withLoadBalancerEnabled(false)
+  .withPinger(false)
+  .withRealm(0)
+  .withShard(0)
+  .withServiceMonitor(true)
+  .withPodLog(true)
+  .withTestSuiteCallback((options: BaseTestOptions): void => {
+    describe('Block Node E2E Test', (): void => {
+      const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
-const testName: string = 'block-node-cmd-e2e';
-const namespace: NamespaceName = NamespaceName.of(testName);
-const argv: Argv = Argv.getDefaultArgv(namespace);
-const clusterReference: ClusterReferenceName = getTestCluster();
-argv.setArg(flags.namespace, namespace.name);
-argv.setArg(flags.nodeAliasesUnparsed, 'node1');
-argv.setArg(flags.generateGossipKeys, true);
-argv.setArg(flags.generateTlsKeys, true);
-argv.setArg(flags.clusterRef, clusterReference);
-argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
-argv.setArg(flags.force, true);
+      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
+      before(async (): Promise<void> => {
+        fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+        try {
+          fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+            force: true,
+          });
+        } catch {
+          // allowed to fail if the file doesn't exist
+        }
+        resetForTest(namespace.name, testCacheDirectory, false);
+        for (const item of contexts) {
+          await container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item).namespaces().delete(namespace);
+        }
+        testLogger.info(`${testName}: starting ${testName} e2e test`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
-endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bootstrapResp): void => {
-  describe('BlockNodeCommand', async (): Promise<void> => {
-    const {
-      opts: {k8Factory, commandInvoker, remoteConfig, configManager},
-      cmd: {nodeCmd, networkCmd},
-    } = bootstrapResp;
-
-    let blockNodeCommand: BlockNodeCommand;
-
-    before(async (): Promise<void> => {
-      blockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand);
-    });
-
-    // after(async function (): Promise<void> {
-    //   this.timeout(Duration.ofMinutes(5).toMillis());
-    //   await k8Factory.default().namespaces().delete(namespace);
-    // });
-
-    afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
-
-    it("Should succeed deploying block node with 'add' command, pre-genesis", async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: BlockCommandDefinition.COMMAND_NAME,
-        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: BlockCommandDefinition.NODE_ADD,
-        callback: async (argv): Promise<boolean> => blockNodeCommand.add(argv),
+      beforeEach(async (): Promise<void> => {
+        testLogger.info(`${testName}: resetting containers for each test`);
+        resetForTest(namespace.name, testCacheDirectory, false);
+        testLogger.info(`${testName}: finished resetting containers for each test`);
       });
 
-      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 1);
-    });
+      afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
-    deployNetworkTest(argv, commandInvoker, networkCmd);
+      InitTest.init(options);
+      ClusterReferenceTest.connect(options);
+      DeploymentTest.create(options);
+      DeploymentTest.addCluster(options);
+      NodeTest.keys(options);
 
-    startNodesTest(argv, commandInvoker, nodeCmd);
+      BlockNodeTest.add(options);
 
-    it('Should be able to use the getSingleBlock Method to validate block node connectivity, pre-genesis', async (): Promise<void> => {
-      const pod: Pod = await k8Factory
-        .default()
-        .pods()
-        .list(namespace, Templates.renderBlockNodeLabels(1))
-        .then((pods: Pod[]): Pod => pods[0]);
+      NetworkTest.deploy(options);
+      NodeTest.setup(options);
+      NodeTest.start(options);
 
-      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
-      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 20 * 1024 * 1024, encoding: 'utf8'};
+      BlockNodeTest.testBlockNode(options);
 
-      // Make script executable
-      await execAsync('chmod +x ./get-block.sh', commandOptions);
+      BlockNodeTest.destroy(options);
 
-      // Execute script
-      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
-
-      expect(scriptStd.stderr).to.equal('');
-      expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
-
-      await pod.stopPortForward(srv);
-    });
-
-    it("Should succeed deploying block node with 'add' command, post-genesis", async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: BlockCommandDefinition.COMMAND_NAME,
-        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: BlockCommandDefinition.NODE_ADD,
-        callback: async (argv): Promise<boolean> => blockNodeCommand.add(argv),
+      describe('Should write log metrics', async (): Promise<void> => {
+        await new MetricsServerImpl().logMetrics(
+          testName,
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+          undefined,
+          undefined,
+          options.contexts,
+        );
       });
-
-      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 2);
-    });
-
-    it('Should be able to use the getSingleBlock Method to validate block node connectivity, post-genesis', async (): Promise<void> => {
-      await sleep(Duration.ofMinutes(1));
-
-      const pod: Pod = await k8Factory
-        .default()
-        .pods()
-        .list(namespace, Templates.renderBlockNodeLabels(2))
-        .then((pods: Pod[]): Pod => pods[0]);
-
-      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
-      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 20 * 1024 * 1024, encoding: 'utf8'};
-
-      // Make script executable
-      await execAsync('chmod +x ./get-block.sh', commandOptions);
-
-      // Execute script
-      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
-
-      expect(scriptStd.stderr).to.equal('');
-      expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
-
-      await pod.stopPortForward(srv);
-    });
-
-    it('Should write log metrics', async (): Promise<void> => {
-      await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
-    });
-
-    it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
-      if (!destroyEnabled()) {
-        this.skip();
-      }
-
-      this.timeout(Duration.ofMinutes(2).toMillis());
-
-      configManager.reset();
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: BlockCommandDefinition.COMMAND_NAME,
-        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: BlockCommandDefinition.NODE_DESTROY,
-        callback: async (argv): Promise<boolean> => blockNodeCommand.destroy(argv),
-      });
-
-      try {
-        remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
-        expect.fail();
-      } catch (error) {
-        expect(error).to.be.instanceof(SoloError);
-      }
-    });
-  });
-});
+    }).timeout(Duration.ofMinutes(30).toMillis());
+  })
+  .build()
+  .runTestSuite();

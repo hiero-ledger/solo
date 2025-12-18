@@ -200,7 +200,7 @@ describe('K8', () => {
         .readByRef(ContainerReference.of(podReference, containerName))
         .execContainer(['rm', '-f', remoteFilePath]);
 
-      fs.rmdirSync(localTemporaryDirectory, {recursive: true});
+      fs.rmSync(localTemporaryDirectory, {recursive: true});
     }).timeout(defaultTimeout);
   });
 
