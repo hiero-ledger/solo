@@ -210,7 +210,7 @@ jobs:
           echo "JSON Timeline Log Metrics" >> $TIMELINE_LOG_FILE
           echo "</summary>" >> $TIMELINE_LOG_FILE
           echo '<pre><code class="JSON">' >> $TIMELINE_LOG_FILE
-          echo "${{ steps.timeline-log-metrics.outputs.json_timeline_log }}" | jq . >> $TIMELINE_LOG_FILE
+          echo '${{ steps.timeline-log-metrics.outputs.json_timeline_log }}' | jq . >> $TIMELINE_LOG_FILE
           echo "</code></pre>" >> $TIMELINE_LOG_FILE
           echo "</details>" >> $TIMELINE_LOG_FILE
           echo "timeline_log_file=$TIMELINE_LOG_FILE" >> $GITHUB_OUTPUT
