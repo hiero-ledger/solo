@@ -3015,24 +3015,8 @@ export class NodeCommandTasks {
           // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
           zipFileName = await container.execContainer([
             'bash',
-            '-euo',
-            'pipefail',
             '-c',
-            `
-    cd "${upgradeDirectory}"
-
-    # pick newest directory by mtime
-    state="$(ls -1t | head -n 1)"
-
-    if [ -z "$state" ]; then
-      echo "No state directories found" >&2
-      exit 1
-    fi
-
-    zip -rqX "$state.zip" "$state"
-
-    echo -n "$state.zip"
-  `,
+            `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
           ]);
 
           this.logger.debug(`state zip file to download is = ${zipFileName}`);

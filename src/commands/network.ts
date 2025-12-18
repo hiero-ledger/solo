@@ -76,6 +76,8 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
+import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {ChartManager} from '../core/chart-manager.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -1354,17 +1356,23 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
-          task: async ({config: {consensusNodeToBlockNodesMap, namespace, consensusNodes}}): Promise<void> => {
+          task: async ({
+            config: {consensusNodeToBlockNodesMap, namespace, consensusNodes, chartDirectory, soloChartVersion},
+          }): Promise<void> => {
             consensusNodeToBlockNodesMap ||= {};
 
             try {
               for (const consensusNode of consensusNodes) {
-                await NetworkCommand.createBlockNodeJsonFileForConsensusNode(
+                await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
                   consensusNode,
                   consensusNodeToBlockNodesMap[consensusNode.name],
                   namespace,
                   this.logger,
                   this.k8Factory,
+                  this.remoteConfig,
+                  this.chartManager,
+                  chartDirectory,
+                  soloChartVersion,
                 );
               }
             } catch (error) {
@@ -1382,6 +1390,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
@@ -1397,12 +1406,16 @@ export class NetworkCommand extends BaseCommand {
     return true;
   }
 
-  public static async createBlockNodeJsonFileForConsensusNode(
+  public static async createAndCopyBlockNodeJsonFileForConsensusNode(
     consensusNode: ConsensusNode,
     blockNodeIds: number[],
     namespace: NamespaceName,
     logger: SoloLogger,
     k8Factory: K8Factory,
+    remoteConfig: RemoteConfigRuntimeStateApi,
+    chartManager: ChartManager,
+    chartDirectory: string,
+    soloChartVersion: string,
   ): Promise<void> {
     const nodeId: NodeId = consensusNode.nodeId;
     const nodeAlias: NodeAlias = consensusNode.name;
@@ -1418,11 +1431,27 @@ export class NetworkCommand extends BaseCommand {
       return;
     }
 
+    const filteredBlockNodes: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
+      (bn): boolean => blockNodeIds.includes(bn.metadata.id),
+    );
+
+    const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+      filteredBlockNodes,
+      remoteConfig.configuration.clusters,
+      remoteConfig.configuration.versions,
+    ).toJSON();
+
+    // Create a unique filename for each consensus node
+    // Format JSON with indentation for readability
+    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+
     // Check if the file exists before copying
     if (!fs.existsSync(blockNodesJsonPath)) {
       logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
       return;
     }
+
+    console.log(fs.readFileSync(blockNodesJsonPath, 'utf8'));
 
     const k8: K8 = k8Factory.getK8(context);
 
@@ -1446,7 +1475,33 @@ export class NetworkCommand extends BaseCommand {
       `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
     );
 
+    const nodeIndex: number = remoteConfig.configuration.state.consensusNodes.find(
+      (node): boolean => consensusNode.nodeId === Templates.renderNodeIdFromComponentId(node.metadata.id),
+    ).metadata.id;
+
+    console.log({
+      chartDirectory: chartDirectory || constants.SOLO_TESTING_CHART_URL,
+      soloChartVersion,
+      SOLO_DEPLOYMENT_CHART: constants.SOLO_DEPLOYMENT_CHART,
+    });
+
+    await chartManager.upgrade(
+      namespace,
+      constants.SOLO_DEPLOYMENT_CHART,
+      constants.SOLO_DEPLOYMENT_CHART,
+      chartDirectory || constants.SOLO_TESTING_CHART_URL,
+      soloChartVersion,
+      `--set 'hedera.nodes.${nodeIndex}.blockNodesJson=${blockNodesJsonData}'`,
+      consensusNode.context,
+    );
+
     logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
+
+    await k8
+      .pods()
+      .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'])
+      .then((pods): PodReference => pods[0].podReference)
+      .then((podReference): Promise<void> => k8.pods().readByReference(podReference).killPod());
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

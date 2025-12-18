@@ -63,6 +63,7 @@ interface BlockNodeDeployConfigClass {
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
   livenessCheckPort: number;
+  soloChartVersion: string;
 }
 
 interface BlockNodeDeployContext {
@@ -104,6 +105,7 @@ interface BlockNodeUpgradeConfigClass {
   id: number;
   isLegacyChartInstalled: boolean;
   nodeAliases: NodeAliases;
+  soloChartVersion: string;
 }
 
 interface BlockNodeUpgradeContext {
@@ -137,6 +139,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.releaseTag,
       flags.imageTag,
       flags.nodeAliasesUnparsed,
+      flags.soloChartVersion,
     ],
   };
 
@@ -158,6 +161,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.upgradeVersion,
       flags.id,
       flags.nodeAliasesUnparsed,
+      flags.soloChartVersion,
     ],
   };
 
@@ -234,8 +238,10 @@ export class BlockNodeCommand extends BaseCommand {
 
   private updateConsensusNodesPostGenesis(): SoloListrTask<BlockNodeDeployContext> {
     return {
-      title: '',
-      task: async ({config: {nodeAliases, newBlockNodeComponent, namespace}}): Promise<void> => {
+      title: 'Copy block-nodes.json to consensus nodes',
+      task: async ({
+        config: {nodeAliases, newBlockNodeComponent, namespace, chartDirectory, soloChartVersion},
+      }): Promise<void> => {
         const nodes: ConsensusNode[] = this.remoteConfig
           .getConsensusNodes()
           .filter((node): boolean => nodeAliases.includes(node.name));
@@ -243,19 +249,24 @@ export class BlockNodeCommand extends BaseCommand {
         for (const node of nodes) {
           const blockNodeIds: number[] = node.blockNodeIds;
           blockNodeIds.push(newBlockNodeComponent.metadata.id);
-          await NetworkCommand.createBlockNodeJsonFileForConsensusNode(
+
+          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
             node,
             blockNodeIds,
             namespace,
             this.logger,
             this.k8Factory,
+            this.remoteConfig,
+            this.chartManager,
+            chartDirectory,
+            soloChartVersion,
           );
         }
       },
     };
   }
 
-  private handleConesenusNodeUpdating(): SoloListrTask<BlockNodeDeployContext> {
+  private handleConsensusNodeUpdating(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Update consensus nodes',
       task: (_, task): SoloListr<BlockNodeDeployContext> => {
@@ -460,7 +471,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.checkBlockNodeReadiness(),
         this.addBlockNodeComponent(),
-        this.handleConesenusNodeUpdating(),
+        this.handleConsensusNodeUpdating(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,

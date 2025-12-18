@@ -183,6 +183,8 @@ export class DefaultHelmClient implements HelmClient {
     const execution: HelmExecution = builder.build();
 
     try {
+      console.log({execution, responseClass});
+
       return await responseFunction(execution, responseClass);
     } catch (error) {
       const errorMessage: string = error?.message ?? '';
