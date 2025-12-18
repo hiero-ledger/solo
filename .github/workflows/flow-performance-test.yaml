@@ -190,27 +190,27 @@ jobs:
               echo "::group::JSON Format"
               cat $logFile | jq
               echo "::endgroup::" 
-              echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
+              echo "json_timeline_log=$(cat $logFile)" >> $GITHUB_OUTPUT
             else
-              echo "json_log={}" >> $GITHUB_OUTPUT
+              echo "json_timeline_log={}" >> $GITHUB_OUTPUT
             fi
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
       - name: Write Timeline Log Metrics Message File
         id: timeline-log-metrics-file
-        if: ${{ !cancelled() && !failure() && steps.timeline-log-metrics.outputs.json_log != '{}' }}
+        if: ${{ !cancelled() && !failure() && steps.timeline-log-metrics.outputs.json_timeline_log != '{}' }}
         env:
           TIMELINE_LOG_FILE: "${{ steps.timeline-log-metrics.outputs.solo_log_dir }}/timeline_log_file.md"
         run: |
-          echo "## Log Metrics - Performance Test" >> $TIMELINE_LOG_FILE
+          echo "## Log Timeline Metrics - Performance Test" >> $TIMELINE_LOG_FILE
           echo "" >> $TIMELINE_LOG_FILE
           echo "<details>" >> $TIMELINE_LOG_FILE
           echo "<summary>" >> $TIMELINE_LOG_FILE
           echo "JSON Timeline Log Metrics" >> $TIMELINE_LOG_FILE
           echo "</summary>" >> $TIMELINE_LOG_FILE
           echo '<pre><code class="JSON">' >> $TIMELINE_LOG_FILE
-          echo "$GITHUB_OUTPUT" >> $TIMELINE_LOG_FILE
+          echo "${{ steps.timeline-log-metrics.outputs.json_timeline_log }}" | jq . >> $TIMELINE_LOG_FILE
           echo "</code></pre>" >> $TIMELINE_LOG_FILE
           echo "</details>" >> $TIMELINE_LOG_FILE
           echo "timeline_log_file=$TIMELINE_LOG_FILE" >> $GITHUB_OUTPUT
