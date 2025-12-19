@@ -498,9 +498,6 @@ export class BackupRestoreCommand extends BaseCommand {
           `${constants.HEDERA_HAPI_PATH}/${logFile}`,
           '-d',
           `${constants.HEDERA_HAPI_PATH}`,
-          // output to a log file for debugging
-          '>',
-          `${constants.HEDERA_HAPI_PATH}/unzip-log.txt`,
         ]);
 
         // Fix ownership of extracted files to hedera user
