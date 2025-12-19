@@ -3007,7 +3007,7 @@ export class NodeCommandTasks {
         const container = await k8.containers().readByRef(containerReference);
 
         // Use the -X to archive for cross-platform compatibility
-        const archiveCommand: string = //-rX -P
+        const archiveCommand: string =
           'cd "${states[0]}" && zip -rX "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
