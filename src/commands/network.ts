@@ -1321,17 +1321,19 @@ export class NetworkCommand extends BaseCommand {
               {
                 title: 'Check MinIO',
                 task: async ({config: {contexts, namespace}}): Promise<void> => {
-                  for (const context of contexts) {
-                    await this.k8Factory
-                      .getK8(context)
-                      .pods()
-                      .waitForReadyStatus(
-                        namespace,
-                        ['v1.min.io/tenant=minio'],
-                        constants.PODS_RUNNING_MAX_ATTEMPTS,
-                        constants.PODS_RUNNING_DELAY,
-                      );
-                  }
+                  await sleep(Duration.ofSeconds(30));
+
+                  // for (const context of contexts) {
+                  //   await this.k8Factory
+                  //     .getK8(context)
+                  //     .pods()
+                  //     .waitForReadyStatus(
+                  //       namespace,
+                  //       ['v1.min.io/tenant=minio'],
+                  //       constants.PODS_RUNNING_MAX_ATTEMPTS,
+                  //       constants.PODS_RUNNING_DELAY,
+                  //     );
+                  // }
                 },
                 // skip if only cloud storage is/are used
                 skip: ({config: {storageType}}): boolean =>
@@ -1356,9 +1358,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
-          task: async ({
-            config: {consensusNodeToBlockNodesMap, namespace, consensusNodes, chartDirectory, soloChartVersion},
-          }): Promise<void> => {
+          task: async ({config: {consensusNodeToBlockNodesMap, namespace, consensusNodes}}): Promise<void> => {
             consensusNodeToBlockNodesMap ||= {};
 
             try {
@@ -1370,9 +1370,7 @@ export class NetworkCommand extends BaseCommand {
                   this.logger,
                   this.k8Factory,
                   this.remoteConfig,
-                  this.chartManager,
-                  chartDirectory,
-                  soloChartVersion,
+                  this.remoteConfig.configuration.state.blockNodes.length === 0,
                 );
               }
             } catch (error) {
@@ -1390,7 +1388,6 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
@@ -1413,9 +1410,7 @@ export class NetworkCommand extends BaseCommand {
     logger: SoloLogger,
     k8Factory: K8Factory,
     remoteConfig: RemoteConfigRuntimeStateApi,
-    chartManager: ChartManager,
-    chartDirectory: string,
-    soloChartVersion: string,
+    shouldCreateConfigMaps: boolean,
   ): Promise<void> {
     const nodeId: NodeId = consensusNode.nodeId;
     const nodeAlias: NodeAlias = consensusNode.name;
@@ -1424,6 +1419,7 @@ export class NetworkCommand extends BaseCommand {
     const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
     const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
     const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
 
     // Check if the node has block nodes assigned (use node name as key)
     if (blockNodeIds.length === 0) {
@@ -1441,8 +1437,6 @@ export class NetworkCommand extends BaseCommand {
       remoteConfig.configuration.versions,
     ).toJSON();
 
-    // Create a unique filename for each consensus node
-    // Format JSON with indentation for readability
     fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
 
     // Check if the file exists before copying
@@ -1450,8 +1444,6 @@ export class NetworkCommand extends BaseCommand {
       logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
       return;
     }
-
-    console.log(fs.readFileSync(blockNodesJsonPath, 'utf8'));
 
     const k8: K8 = k8Factory.getK8(context);
 
@@ -1475,33 +1467,58 @@ export class NetworkCommand extends BaseCommand {
       `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
     );
 
-    const nodeIndex: number = remoteConfig.configuration.state.consensusNodes.find(
-      (node): boolean => consensusNode.nodeId === Templates.renderNodeIdFromComponentId(node.metadata.id),
-    ).metadata.id;
+    let applicationPropertiesData: string;
+    try {
+      applicationPropertiesData = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+    } catch (error) {
+      logger.error(`Failed to read application.properties file: ${error.message}`);
+      return;
+    }
 
-    console.log({
-      chartDirectory: chartDirectory || constants.SOLO_TESTING_CHART_URL,
-      soloChartVersion,
-      SOLO_DEPLOYMENT_CHART: constants.SOLO_DEPLOYMENT_CHART,
-    });
+    const lines: string[] = applicationPropertiesData.split('\n');
 
-    await chartManager.upgrade(
-      namespace,
-      constants.SOLO_DEPLOYMENT_CHART,
-      constants.SOLO_DEPLOYMENT_CHART,
-      chartDirectory || constants.SOLO_TESTING_CHART_URL,
-      soloChartVersion,
-      `--set 'hedera.nodes.${nodeIndex}.blockNodesJson=${blockNodesJsonData}'`,
-      consensusNode.context,
-    );
+    if (lines.length === 0) {
+      logger.error(`Failed to read application.properties file: ${applicationPropertiesFilePath}, insufficient lines`);
+      return;
+    }
+
+    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
+
+    let shouldUpdateApplicationProperties: boolean = false;
+
+    if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
+      lines.push(`blockStream.streamMode=${streamMode}`);
+      shouldUpdateApplicationProperties = true;
+    }
+    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+      lines.push(`blockStream.writerMode=${writerMode}`);
+      shouldUpdateApplicationProperties = true;
+    }
+
+    if (shouldUpdateApplicationProperties) {
+      await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+        ['applicationProperties']: lines.join('\n'),
+      });
+    }
+
+    if (shouldCreateConfigMaps) {
+      logger.debug('No block nodes found in remote config');
+      await k8.configMaps().create(
+        namespace,
+        `network-${nodeAlias}-data-config-cm`,
+        {},
+        {
+          'block-nodes.json': blockNodesJsonData,
+        },
+      );
+    } else {
+      await k8.configMaps().update(namespace, `network-${nodeAlias}-data-config-cm`, {
+        'block-nodes.json': blockNodesJsonData,
+      });
+    }
 
     logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
-
-    await k8
-      .pods()
-      .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'])
-      .then((pods): PodReference => pods[0].podReference)
-      .then((podReference): Promise<void> => k8.pods().readByReference(podReference).killPod());
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

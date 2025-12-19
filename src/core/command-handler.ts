@@ -46,7 +46,6 @@ export class CommandHandler {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`${errorString}: ${error.message}`, error);
       } finally {
         const promises: Promise<void>[] = [];

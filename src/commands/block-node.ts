@@ -239,9 +239,7 @@ export class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesPostGenesis(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Copy block-nodes.json to consensus nodes',
-      task: async ({
-        config: {nodeAliases, newBlockNodeComponent, namespace, chartDirectory, soloChartVersion},
-      }): Promise<void> => {
+      task: async ({config: {nodeAliases, newBlockNodeComponent, namespace}}): Promise<void> => {
         const nodes: ConsensusNode[] = this.remoteConfig
           .getConsensusNodes()
           .filter((node): boolean => nodeAliases.includes(node.name));
@@ -257,9 +255,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.logger,
             this.k8Factory,
             this.remoteConfig,
-            this.chartManager,
-            chartDirectory,
-            soloChartVersion,
+            this.remoteConfig.configuration.state.blockNodes.length <= 1,
           );
         }
       },
@@ -482,6 +478,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error deploying block node: ${error.message}`, error);
       } finally {
         await lease?.release();
