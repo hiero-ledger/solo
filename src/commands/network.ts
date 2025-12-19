@@ -1045,7 +1045,6 @@ export class NetworkCommand extends BaseCommand {
 
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     let lease: Lock;
 
     const tasks: SoloListr<NetworkDeployContext> = this.taskList.newTaskList(

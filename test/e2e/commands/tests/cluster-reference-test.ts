@@ -14,7 +14,7 @@ import {type BaseTestOptions} from './base-test-options.js';
 import {ClusterReferenceCommandDefinition} from '../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
-  private static soloClusterReferenceConnectArgv(
+  public static soloClusterReferenceConnectArgv(
     testName: string,
     clusterReference: ClusterReferenceName,
     context: string,
@@ -54,7 +54,11 @@ export class ClusterReferenceTest extends BaseCommandTest {
     });
   }
 
-  private static soloClusterReferenceSetup(testName: string, clusterReference: ClusterReferenceName): string[] {
+  public static soloClusterReferenceSetup(
+    testName: string,
+    clusterReference: ClusterReferenceName,
+    clusterSetupNamespace?: string,
+  ): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
 
     const argv: string[] = newArgv();
@@ -65,6 +69,11 @@ export class ClusterReferenceTest extends BaseCommandTest {
       optionFromFlag(Flags.clusterRef),
       clusterReference,
     );
+
+    if (clusterSetupNamespace) {
+      argv.push(optionFromFlag(Flags.clusterSetupNamespace), clusterSetupNamespace);
+    }
+
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
@@ -80,6 +89,101 @@ export class ClusterReferenceTest extends BaseCommandTest {
       }
       // TODO add some verification that the setup was successful
       testLogger.info(`${testName}: finishing solo cluster-ref config setup`);
+    });
+  }
+
+  public static soloClusterReferenceReset(
+    testName: string,
+    clusterReference: ClusterReferenceName,
+    clusterSetupNamespace?: string,
+  ): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ClusterReferenceCommandDefinition.COMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_RESET,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+    );
+
+    if (clusterSetupNamespace) {
+      argv.push(optionFromFlag(Flags.clusterSetupNamespace), clusterSetupNamespace);
+    }
+
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
+  public static reset(options: BaseTestOptions): void {
+    const {testName, testLogger, clusterReferenceNameArray} = options;
+    const {soloClusterReferenceReset} = ClusterReferenceTest;
+
+    it(`${testName}: solo cluster-ref config reset`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo cluster-ref config reset`);
+      for (const clusterReferenceName of clusterReferenceNameArray) {
+        await main(soloClusterReferenceReset(testName, clusterReferenceName));
+      }
+      testLogger.info(`${testName}: finishing solo cluster-ref config reset`);
+    });
+  }
+
+  public static soloClusterReferenceInfo(testName: string, clusterReference: ClusterReferenceName): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ClusterReferenceCommandDefinition.COMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_INFO,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.quiet),
+    );
+
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static info(options: BaseTestOptions): void {
+    const {testName, testLogger, clusterReferenceNameArray} = options;
+    const {soloClusterReferenceInfo} = ClusterReferenceTest;
+
+    it(`${testName}: solo cluster-ref config info`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo cluster-ref config info`);
+      for (const clusterReferenceName of clusterReferenceNameArray) {
+        await main(soloClusterReferenceInfo(testName, clusterReferenceName));
+      }
+      testLogger.info(`${testName}: finishing solo cluster-ref config info`);
+    });
+  }
+
+  public static soloClusterReferenceList(testName: string): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ClusterReferenceCommandDefinition.COMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_INFO,
+      optionFromFlag(Flags.quiet),
+    );
+
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static list(options: BaseTestOptions): void {
+    const {testName, testLogger} = options;
+    const {soloClusterReferenceList} = ClusterReferenceTest;
+
+    it(`${testName}: solo cluster-ref config list`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo cluster-ref config list`);
+      await main(soloClusterReferenceList(testName));
+      testLogger.info(`${testName}: finishing solo cluster-ref config list`);
     });
   }
 }
