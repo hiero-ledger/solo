@@ -77,7 +77,6 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
-import {ChartManager} from '../core/chart-manager.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -1321,19 +1320,17 @@ export class NetworkCommand extends BaseCommand {
               {
                 title: 'Check MinIO',
                 task: async ({config: {contexts, namespace}}): Promise<void> => {
-                  await sleep(Duration.ofSeconds(30));
-
-                  // for (const context of contexts) {
-                  //   await this.k8Factory
-                  //     .getK8(context)
-                  //     .pods()
-                  //     .waitForReadyStatus(
-                  //       namespace,
-                  //       ['v1.min.io/tenant=minio'],
-                  //       constants.PODS_RUNNING_MAX_ATTEMPTS,
-                  //       constants.PODS_RUNNING_DELAY,
-                  //     );
-                  // }
+                  for (const context of contexts) {
+                    await this.k8Factory
+                      .getK8(context)
+                      .pods()
+                      .waitForReadyStatus(
+                        namespace,
+                        ['v1.min.io/tenant=minio'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                      );
+                  }
                 },
                 // skip if only cloud storage is/are used
                 skip: ({config: {storageType}}): boolean =>

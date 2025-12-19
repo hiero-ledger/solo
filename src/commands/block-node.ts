@@ -63,7 +63,6 @@ interface BlockNodeDeployConfigClass {
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
   livenessCheckPort: number;
-  soloChartVersion: string;
 }
 
 interface BlockNodeDeployContext {
@@ -105,7 +104,6 @@ interface BlockNodeUpgradeConfigClass {
   id: number;
   isLegacyChartInstalled: boolean;
   nodeAliases: NodeAliases;
-  soloChartVersion: string;
 }
 
 interface BlockNodeUpgradeContext {
@@ -139,7 +137,6 @@ export class BlockNodeCommand extends BaseCommand {
       flags.releaseTag,
       flags.imageTag,
       flags.nodeAliasesUnparsed,
-      flags.soloChartVersion,
     ],
   };
 
@@ -161,7 +158,6 @@ export class BlockNodeCommand extends BaseCommand {
       flags.upgradeVersion,
       flags.id,
       flags.nodeAliasesUnparsed,
-      flags.soloChartVersion,
     ],
   };
 
@@ -478,7 +474,6 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error deploying block node: ${error.message}`, error);
       } finally {
         await lease?.release();
