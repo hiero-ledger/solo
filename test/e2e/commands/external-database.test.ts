@@ -8,7 +8,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
-import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
+import {DEFAULT_LOCAL_CONFIG_FILE, RESOURCES_DIR} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 
@@ -27,8 +27,18 @@ import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
+import {getTemporaryDirectory} from '../../test-utility.js';
 
 const testName: string = 'external-database-test';
+
+const configFiles: Record<string, string> = {
+  'api-permission.properties': 'api-permission.properties.txt',
+  'application.env': 'application.env.txt',
+  'application.properties': 'application.properties.txt',
+  'bootstrap.properties': 'bootstrap.properties.txt',
+  'log4j2.xml': 'log4j2.xml.txt',
+  'settings.txt': 'settings.txt.txt',
+};
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -41,6 +51,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withPinger(true)
   .withShard(3)
   .withRealm(2)
+  .withApiPermissionProperties(configFiles['api-permission.properties'])
+  .withApplicationEnvironment(configFiles['application.env'])
+  .withApplicationProperties(configFiles['application.properties'])
+  .withBootstrapProperties(configFiles['bootstrap.properties'])
+  .withLog4j2Xml(configFiles['log4j2.xml'])
+  .withSettingsTxt(configFiles['settings.txt'])
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
@@ -62,6 +78,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await k8Client.namespaces().delete(namespace);
         }
         testLogger.info(`${testName}: starting ${testName} e2e test`);
+
+        // copy all consensus config files to a temporary directory with non-default names
+        const templateDirectory: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates');
+        const temporaryDirectory: string = getTemporaryDirectory();
+        for (const [sourceFileName, targetFileName] of Object.entries(configFiles)) {
+          fs.cpSync(PathEx.join(templateDirectory, sourceFileName), PathEx.join(temporaryDirectory, targetFileName));
+        }
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       beforeEach(async (): Promise<void> => {

@@ -6,13 +6,16 @@ tasks:
     silent: true
     sources:
       - README.md
+      - LICENSE
       - docs/legacy-versions.md
     generates:
       - docs/site/build/README.md
       - docs/site/build/legacy-versions.md
+      - docs/site/static/LICENSE
     cmds:
       - |
         mkdir -p docs/site/build
+        mkdir -p docs/site/static
         cat > docs/site/build/README.md << 'EOF'
         ---
         title: "Getting Started"
@@ -25,6 +28,8 @@ tasks:
         # Remove 'docs/' from local file links like (docs/file.md) -> (file.md)
         cat README.md | sed -E 's|\(docs/([^)]+)\)|(\1)|g' >> docs/site/build/README.md
         cat docs/legacy-versions.md >> docs/site/build/legacy-versions.md
+        # Copy LICENSE file to static directory so it's available in the built site
+        cp LICENSE docs/site/static/LICENSE
 
   mutate:dev:
     desc: "Mutate the DEV.md file to add front-matter"

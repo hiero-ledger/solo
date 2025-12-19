@@ -256,8 +256,8 @@ export class ProfileManager {
         throw new SoloError(`Configuration file path is missing for: ${flag.name}`);
       }
 
-      const fileName = path.basename(filePath);
-      const destinationPath = PathEx.join(stagingDirectory, 'templates', fileName);
+      // use the default flag value to rename the file provided by the user
+      const destinationPath: string = PathEx.join(stagingDirectory, flag.definition.defaultValue as string);
       this.logger.debug(`Copying configuration file to staging: ${filePath} -> ${destinationPath}`);
 
       fs.cpSync(filePath, destinationPath, {force: true});

@@ -41,6 +41,12 @@ export class EndToEndTestSuite extends Suite {
     public readonly podLog: boolean = false,
     public readonly minimalSetup: boolean = false,
     public readonly collectDiagnosticLogs: boolean = true,
+    public readonly apiPermissionProperties: string = 'api-permission.properties',
+    public readonly applicationEnvironment: string = 'application.env',
+    public readonly applicationProperties: string = 'application.properties',
+    public readonly bootstrapProperties: string = 'bootstrap.properties',
+    public readonly logXml: string = 'log4j2.xml',
+    public readonly settingsTxt: string = 'settings.txt',
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -94,6 +100,12 @@ export class EndToEndTestSuite extends Suite {
       serviceMonitor: this.serviceMonitor,
       podLog: this.podLog,
       minimalSetup: this.minimalSetup,
+      apiPermissionProperties: this.apiPermissionProperties,
+      applicationEnvironment: this.applicationEnvironment,
+      applicationProperties: this.applicationProperties,
+      bootstrapProperties: this.bootstrapProperties,
+      logXml: this.logXml,
+      settingsTxt: this.settingsTxt,
     } as BaseTestOptions;
   }
 

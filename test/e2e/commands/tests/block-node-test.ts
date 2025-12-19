@@ -7,6 +7,15 @@ import {BaseCommandTest} from './base-command-test.js';
 import {BlockCommandDefinition} from '../../../../src/commands/command-definitions/block-command-definition.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {type ClusterReferenceName, type DeploymentName} from '../../../../src/types/index.js';
+import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
+import {Templates} from '../../../../src/core/templates.js';
+import * as constants from '../../../../src/core/constants.js';
+import {expect} from 'chai';
+import {exec, type ExecException, type ExecOptions} from 'node:child_process';
+import {promisify} from 'node:util';
+import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
+import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
@@ -72,7 +81,7 @@ export class BlockNodeTest extends BaseCommandTest {
         soloBlockNodeDeployArgv(
           testName,
           deployment,
-          clusterReferenceNameArray[1],
+          clusterReferenceNameArray[0],
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
         ),
@@ -87,5 +96,38 @@ export class BlockNodeTest extends BaseCommandTest {
     it(`${testName}: block node destroy`, async (): Promise<void> => {
       await main(soloBlockNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static testBlockNode(options: BaseTestOptions): void {
+    const {namespace, contexts, testName} = options;
+
+    const execAsync: (
+      command: string,
+      options?: ExecOptions,
+    ) => Promise<{stdout: string; stderr: string; error?: ExecException}> = promisify(exec);
+
+    it(`${testName}: test block node connection`, async (): Promise<void> => {
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const pod: Pod = await k8Factory
+        .getK8(contexts[0])
+        .pods()
+        .list(namespace, Templates.renderBlockNodeLabels(1))
+        .then((pods: Pod[]): Pod => pods[0]);
+
+      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
+
+      // Make script executable
+      await execAsync('chmod +x ./get-block.sh', commandOptions);
+
+      // Execute script
+      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
+
+      expect(scriptStd.stderr).to.equal('');
+      expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
+
+      await pod.stopPortForward(srv);
+    });
   }
 }
