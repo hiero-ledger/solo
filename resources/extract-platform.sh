@@ -18,38 +18,6 @@ function log() {
   printf "%s - %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "${message}" | tee -a "${LOG_FILE}"
 }
 
-# New: robust fetch with retries and exponential backoff
-function fetch_with_retry() {
-  local url="${1}"
-  local out_file="${2}"
-  local desc="${3}"
-
-  local attempt=1
-  local max_attempts=5
-  local delay=2
-
-  while true; do
-    log "Attempt ${attempt}/${max_attempts}: downloading ${desc} from ${url}"
-    # follow redirects, fail on HTTP errors, be silent but show errors, write to output file
-    curl -sSfL "${url}" -o "${out_file}" > >(tee -a "${LOG_FILE}") 2>&1
-    local ec=${?}
-    if [[ ${ec} -eq 0 ]]; then
-      log "Successfully downloaded ${desc} to ${out_file}"
-      return 0
-    fi
-
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      log "Failed to download ${desc} after ${attempt} attempts. Last exit code: ${ec}"
-      return ${ec}
-    fi
-
-    log "Download failed (exit ${ec}). Retrying in ${delay}s..."
-    sleep ${delay}
-    attempt=$((attempt + 1))
-    delay=$((delay * 2))
-  done
-}
-
 readonly tag="${1}"
 if [[ -z "${tag}" ]]; then
   echo "Release tag is required (e.g. v0.42.5)"
@@ -71,8 +39,7 @@ log "extract-platform.sh: begin................................"
 log "Checking if ${BUILD_ZIP_FILE} exists..."
 if [[ ! -f "${BUILD_ZIP_FILE}" ]]; then
   log "Downloading ${BUILD_ZIP_URL}..."
-  # use retry wrapper instead of direct curl to mitigate transient network/SSL issues
-  fetch_with_retry "${BUILD_ZIP_URL}" "${BUILD_ZIP_FILE}" "build zip"
+  curl -sSf "${BUILD_ZIP_URL}" -o "${BUILD_ZIP_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
   ec="${?}"
   if [[ "${ec}" -ne 0 ]]; then
     log "Failed to download ${BUILD_ZIP_URL}. Error code: ${ec}"
@@ -84,7 +51,7 @@ log "Checking if ${CHECKSUM_FILE} exists..."
 
 if [[ ! -f "${CHECKSUM_FILE}" ]]; then
   log "Downloading ${CHECKSUM_URL}..."
-  fetch_with_retry "${CHECKSUM_URL}" "${CHECKSUM_FILE}" "checksum"
+  curl -sSf "${CHECKSUM_URL}" -o "${CHECKSUM_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
   ec="${?}"
   if [[ "${ec}" -ne 0 ]]; then
     log "Failed to download ${CHECKSUM_URL}. Error code: ${ec}"
