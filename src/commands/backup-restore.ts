@@ -1536,6 +1536,9 @@ export class BackupRestoreCommand extends BaseCommand {
   public async restoreClusters(argv: ArgvStruct): Promise<boolean> {
     const self: BackupRestoreCommand = this;
 
+    await this.depManager.checkDependency(constants.KIND);
+    await this.depManager.checkDependency(constants.HELM);
+
     // Extract metallbConfig from argv
     const metallbConfig: string = (argv[flags.metallbConfig.name] as string) ?? 'metallb-cluster-{index}.yaml';
 
