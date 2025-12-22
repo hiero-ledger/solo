@@ -28,7 +28,9 @@ import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/
 const testName: string = 'performance-tests';
 const testTitle: string = 'E2E Performance Tests';
 
-const duration: number = 300; // 5 minutes
+const duration: number = Duration.ofMinutes(
+  Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
+).seconds;
 const clients: number = 5;
 const accounts: number = 20;
 const tokens: number = 10;
@@ -182,12 +184,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
         logEvent('Completed all performance tests');
-        if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
-          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
+        if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
+          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES, 10);
 
           if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
             throw new Error(
-              `${testName}: invalid ONE_SHOT_METRICS_SLEEP_MINUTES value: ${process.env.ONE_SHOT_METRICS_SLEEP_MINUTES}`,
+              `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
             );
           }
 
