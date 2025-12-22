@@ -32,12 +32,14 @@ const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
 ).seconds;
 const clients: number = 5;
-const accounts: number = 20;
-const tokens: number = 10;
-const associations: number = 10;
-const nfts: number = 2;
+const accounts: number = 50;
+const tokens: number = 50;
+const associations: number = 50;
+const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 20;
+// TokenTransferLoadTest maxTps behavior is different, so we set it higher here
+const tokenTransferMaxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
@@ -170,7 +172,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             testName,
             'TokenTransferLoadTest',
             `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-            maxTps,
+            tokenTransferMaxTps,
           ),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
