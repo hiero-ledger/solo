@@ -38,8 +38,6 @@ const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 20;
-// TokenTransferLoadTest maxTps behavior is different, so we set it higher here
-const tokenTransferMaxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
@@ -160,7 +158,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             testName,
             'TokenTransferLoadTest',
             `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-            tokenTransferMaxTps,
+            maxTps,
           ),
         );
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
