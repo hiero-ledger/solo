@@ -16,6 +16,7 @@ export class AggregatedMetrics extends Metrics {
     memoryInMebibytes: number,
     public readonly runtimeInMinutes: number,
     public readonly transactionCount: number,
+    public readonly events?: string[],
     public readonly date?: Date,
     public readonly gitHubSha?: string,
     public readonly soloVersion?: SemVer,
@@ -57,6 +58,7 @@ export class AggregatedMetrics extends Metrics {
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +
       `"runtimeInMinutes": ${this.runtimeInMinutes}, ` +
       `"transactionCount": ${this.transactionCount}, ` +
+      `"events": [${this.events.map(event => `"${event}"`).join(',')}], ` +
       '"clusterMetrics": [';
     for (let index: number = 0; index < this.clusterMetrics?.length; index++) {
       outputString += this.clusterMetrics[index].toString();

@@ -42,6 +42,7 @@ interface RapidFireStartConfigClass {
   javaHeap: number;
   performanceTest: string;
   packageName: string;
+  maxTps: number;
 }
 
 interface RapidFireStopConfigClass {
@@ -84,7 +85,15 @@ export class RapidFireCommand extends BaseCommand {
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.javaHeap, flags.packageName],
+    optional: [
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.valuesFile,
+      flags.javaHeap,
+      flags.packageName,
+      flags.maxTps,
+    ],
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
@@ -219,16 +228,21 @@ export class RapidFireCommand extends BaseCommand {
           );
           const container: Container = k8Containers.readByRef(containerReference);
           const outputStream: PassThrough = new PassThrough();
-          outputStream.on('data', (chunk: Buffer) => {
-            const string_: string = chunk.toString();
-            task.output = (task.output || '') + chalk.gray(string_);
-          });
+          const errorStream: PassThrough = new PassThrough();
+          for (const stream_ of [errorStream, outputStream]) {
+            stream_.on('data', (chunk: Buffer) => {
+              const string_: string = chunk.toString();
+              task.output = (task.output || '') + chalk.gray(string_);
+            });
+          }
 
           try {
             await leaseReference.lease?.release();
+            const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
             await container.execContainer(
-              `/usr/bin/env java -Xmx${context_.config.javaHeap}g -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`,
+              `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`,
               outputStream,
+              errorStream,
             );
           } catch (error) {
             throw new SoloError(`Error running ${testClass} load test: ${error.message}`, error);

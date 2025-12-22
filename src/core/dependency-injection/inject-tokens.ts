@@ -87,6 +87,7 @@ export class InjectTokens {
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
+  public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');

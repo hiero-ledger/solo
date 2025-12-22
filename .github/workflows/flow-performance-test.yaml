@@ -126,18 +126,18 @@ jobs:
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
-          echo ONE_SHOT_METRICS_SLEEP_MINUTES=30 >> .env
+          echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
-          task test-e2e-one-shot-single
+          task test-e2e-performance
 
       - name: Log Metrics
         id: log-metrics
         run: |
-          for logFile in ~/.solo/logs/*.json; do 
+          for logFile in ~/.solo/logs/*.json; do
             if [[ -f "$logFile" ]]; then
               echo "::group::JSON Format"
               cat $logFile | jq
-              echo "::endgroup::" 
+              echo "::endgroup::"
               echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
               echo "::group::Spreadsheet Format"
               echo "logFile=$logFile"
@@ -170,7 +170,7 @@ jobs:
 
       - name: Comment PR with Log Metrics
         if: >-
-          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && 
+          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' &&
           steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
@@ -179,7 +179,6 @@ jobs:
           comment-tag: log-metrics-performance-test
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ github.event_name != 'workflow_dispatch' && !cancelled() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: solo-performance-test.log

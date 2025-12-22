@@ -28,10 +28,15 @@ export interface Container {
   /**
    * Invoke sh command within a container and return the console output as string
    * @param command - sh commands as an array to be run within the containerName (e.g 'ls -la /opt/hgcapp')
-   * @param errorPassthroughStream
+   * @param outputPassThroughStream
+   * @param errorPassThroughStream
    * @returns console output as string
    */
-  execContainer(command: string | string[], errorPassthroughStream?: stream.PassThrough): Promise<string>;
+  execContainer(
+    command: string | string[],
+    outputPassThroughStream?: stream.PassThrough,
+    errorPassThroughStream?: stream.PassThrough,
+  ): Promise<string>;
 
   /**
    * Check if a directory exists in the specified container
