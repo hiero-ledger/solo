@@ -141,18 +141,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
-      it('CryptoTransferLoadTest', async (): Promise<void> => {
-        logEvent('Starting CryptoTransferLoadTest');
-        await main(
-          soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-        );
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-
-      it('HCSLoadTest', async (): Promise<void> => {
-        logEvent('Starting HCSLoadTest');
-        await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-
       it('NftTransferLoadTest', async (): Promise<void> => {
         logEvent('Starting NftTransferLoadTest');
         await main(
@@ -175,6 +163,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             tokenTransferMaxTps,
           ),
         );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('CryptoTransferLoadTest', async (): Promise<void> => {
+        logEvent('Starting CryptoTransferLoadTest');
+        await main(
+          soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+        );
+      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+      it('HCSLoadTest', async (): Promise<void> => {
+        logEvent('Starting HCSLoadTest');
+        await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('SmartContractLoadTest', async (): Promise<void> => {
