@@ -146,11 +146,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(
           soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
         );
+        await main(soloRapidFireDestroy());
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('HCSLoadTest', async (): Promise<void> => {
         logEvent('Starting HCSLoadTest');
         await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+        await main(soloRapidFireDestroy());
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('NftTransferLoadTest', async (): Promise<void> => {
@@ -163,6 +165,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             maxTps,
           ),
         );
+        await main(soloRapidFireDestroy());
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('TokenTransferLoadTest', async (): Promise<void> => {
@@ -175,6 +178,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             tokenTransferMaxTps,
           ),
         );
+        await main(soloRapidFireDestroy());
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('SmartContractLoadTest', async (): Promise<void> => {
@@ -182,6 +186,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(
           soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
         );
+        await main(soloRapidFireDestroy());
       }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
@@ -288,6 +293,16 @@ export function soloRapidFire(
     optionFromFlag(Flags.nlgArguments),
     `'"${argumentsString}"'`,
   );
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloRapidFireDestroy(): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+
+  const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
+  const argv: string[] = newArgv();
+  argv.push('rapid-fire', 'destroy', 'all', optionFromFlag(Flags.deployment), deploymentName);
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
