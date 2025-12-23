@@ -1143,6 +1143,8 @@ export class NetworkCommand extends BaseCommand {
                 'Solo chart version',
               );
 
+              console.log(config.valuesArgMap[clusterReference]);
+
               await this.chartManager.upgrade(
                 config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,

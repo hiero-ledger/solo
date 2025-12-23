@@ -201,15 +201,14 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installMinioOperator(_: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
         const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
-          this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
-          return;
+          return this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
         }
 
         try {
