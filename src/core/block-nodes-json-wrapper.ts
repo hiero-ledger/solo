@@ -31,7 +31,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
     const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeComponents.map(
       (blockNodeComponent): BlockNodeConnectionData => {
         const cluster: ClusterSchema = this.clusters.find(
-          (cluster: ClusterSchema): boolean => cluster.name === blockNodeComponent.metadata.cluster,
+          (cluster): boolean => cluster.name === blockNodeComponent.metadata.cluster,
         );
 
         const address: string = Templates.renderSvcFullyQualifiedDomainName(

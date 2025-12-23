@@ -12,6 +12,7 @@ import {type ObjectMapper} from '../../../../mapper/api/object-mapper.js';
 import {RemoteConfigV1Migration} from './remote-config-v1-migration.js';
 import {RemoteConfigV2Migration} from './remote-config-v2-migration.js';
 import {RemoteConfigV3Migration} from './remote-config-v3-migration.js';
+import {RemoteConfigV4Migration} from './remote-config-v4-migration.js';
 
 @injectable()
 export class RemoteConfigSchemaDefinition
@@ -35,6 +36,11 @@ export class RemoteConfigSchemaDefinition
   }
 
   public get migrations(): SchemaMigration[] {
-    return [new RemoteConfigV1Migration(), new RemoteConfigV2Migration(), new RemoteConfigV3Migration()];
+    return [
+      new RemoteConfigV1Migration(),
+      new RemoteConfigV2Migration(),
+      new RemoteConfigV3Migration(),
+      new RemoteConfigV4Migration(),
+    ];
   }
 }

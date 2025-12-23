@@ -15,6 +15,7 @@ describe('core/templates', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node1-svc.solo.svc.cluster.local',
+      blockNodeIds: [],
     },
     {
       name: 'node2',
@@ -25,6 +26,7 @@ describe('core/templates', () => {
       dnsBaseDomain: 'us-west-2.gcp.charlie.sphere',
       dnsConsensusNodePattern: '{nodeId}.consensus.prod',
       fullyQualifiedDomainName: '2.consensus.prod.us-west-2.gcp.charlie.sphere',
+      blockNodeIds: [],
     },
   ];
   it('should render FQDN for a consensus node', () => {
