@@ -41,7 +41,7 @@ npx @hashgraph/solo:@latest one-shot single deploy
 @hashgraph/solo:@latest rapid-fire destroy all --deployment my-deployment
 ```
 
-See this example for more details: [examples/network-load-generator/README.md](../../examples/network-load-generator/README.md)
+See this example for more details: [examples/rapid-fire/](../../examples/rapid-fire/)
 
 A full list of all available `rapid-fire` commands can be found in [Solo CLI Commands](solo-commands.md/#rapid-fire)
 
