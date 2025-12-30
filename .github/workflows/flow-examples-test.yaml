@@ -59,7 +59,7 @@ permissions:
 jobs:
   generate_matrix:
     name: Generate Test Matrix
-    runs-on: hiero-solo-linux-medium
+    runs-on: hiero-solo-linux-large
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:

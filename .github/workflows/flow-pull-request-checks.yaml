@@ -53,7 +53,7 @@ concurrency:
 
 jobs:
   generate_matrix:
-    runs-on: hiero-solo-linux-medium
+    runs-on: hiero-solo-linux-large
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
