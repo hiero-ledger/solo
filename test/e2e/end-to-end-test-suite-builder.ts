@@ -137,6 +137,7 @@ export class EndToEndTestSuiteBuilder {
     if (!this.testName || !this.testSuiteName || !this.testSuiteCallback) {
       throw new Error('Missing required properties to build EndToEndTestSuite');
     }
+
     return new EndToEndTestSuite(
       this.testName,
       this.testSuiteName,

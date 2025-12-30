@@ -104,25 +104,7 @@ export class NetworkTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
-  private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.NETWORK_DESTROY,
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.deletePvcs),
-      optionFromFlag(Flags.deleteSecrets),
-      optionFromFlag(Flags.force),
-      optionFromFlag(Flags.quiet),
-    );
-    argvPushGlobalFlags(argv, testName, false, true);
-    return argv;
-  }
-
+  // ----- Destroy Command -----
   public static destroy(options: BaseTestOptions): void {
     const {testName, deployment} = options;
     const {soloNetworkDestroyArgv} = NetworkTest;
@@ -184,5 +166,73 @@ export class NetworkTest extends BaseCommandTest {
         'Secrets should be deleted in cluster[1]',
       ).eventually.to.have.lengthOf(0);
     }).timeout(Duration.ofMinutes(2).toMillis());
+  }
+
+  private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.deletePvcs),
+      optionFromFlag(Flags.deleteSecrets),
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+    );
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
+  // ----- Freeze Command -----
+  public static freeze(options: BaseTestOptions): void {
+    const {testName, deployment} = options;
+
+    it(`${testName}: consensus network freeze`, async (): Promise<void> => {
+      await main(NetworkTest.soloNetworkFreezeArgv(deployment));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  private static soloNetworkFreezeArgv(deployment: DeploymentName): string[] {
+    const {newArgv, optionFromFlag} = NetworkTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_FREEZE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.quiet),
+    );
+    return argv;
+  }
+
+  // ----- Restart Command -----
+  public static restart(options: BaseTestOptions): void {
+    const {testName, deployment} = options;
+
+    it(`${testName}: consensus network restart`, async (): Promise<void> => {
+      await main(NetworkTest.soloNetworkRestartArgv(deployment));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  private static soloNetworkRestartArgv(deployment: DeploymentName): string[] {
+    const {newArgv, optionFromFlag} = NetworkTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_FREEZE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.quiet),
+    );
+
+    return argv;
   }
 }

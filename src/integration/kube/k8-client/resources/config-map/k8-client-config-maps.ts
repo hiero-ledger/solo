@@ -15,17 +15,16 @@ import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
-import {container} from 'tsyringe-neo';
 import {type ConfigMap} from '../../../resources/config-map/config-map.js';
 import {K8ClientConfigMap} from './k8-client-config-map.js';
-import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type IncomingMessage} from 'node:http';
+import {SoloPinoLogger} from '../../../../../core/logging/solo-pino-logger.js';
 
 export class K8ClientConfigMaps implements ConfigMaps {
   private readonly logger: SoloLogger;
 
   public constructor(private readonly kubeClient: CoreV1Api) {
-    this.logger = container.resolve(InjectTokens.SoloLogger);
+    this.logger = new SoloPinoLogger();
   }
 
   public async create(

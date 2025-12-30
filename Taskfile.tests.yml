@@ -115,6 +115,13 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/block-node.test.ts'
         {{ .reporter_options_prefix }}-e2e-block-node.xml"
 
+  test-e2e-account:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E AccountsTests\"
+        {{ .reporter_prefix }}='coverage/e2e-account'
+        {{ .mocha_bin }} 'test/e2e/commands/account.test.ts'
+        {{ .reporter_options_prefix }}-e2e-account.xml"
+
   test-e2e-dual-cluster-full:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Dual Cluster Full Test\"
