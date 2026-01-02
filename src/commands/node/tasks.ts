@@ -1650,8 +1650,29 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async () => {
+              const scriptName = 'test_systemd.sh';
+              // copy script to pod
+              const scriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`;
+              const scriptLocalPath = PathEx.join(__dirname, '..', '..', 'scripts', scriptName);
+
               const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8 = this.k8Factory.getK8(context);
+              const container = k8.containers().readByRef(containerReference);
+
+              await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+              await container.copyTo(scriptLocalPath, constants.HEDERA_USER_HOME_DIR);
+              await container.execContainer(['chmod', '+x', scriptDestination]);
+              await sleep(Duration.ofSeconds(1));
+
+              const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const k8 = this.k8Factory.getK8(context);
+
+              // run script test_systemd.sh and dump its output to console
+              const output = await k8
+                .containers()
+                .readByRef(containerReference)
+                .execContainer(['bash', '-c', `sudo ${scriptDestination}`]);
+              this.logger.showUser(chalk.red(`Output of ${scriptName} for node ${nodeAlias}:\n${output}`));
               await k8
                 .containers()
                 .readByRef(containerReference)
