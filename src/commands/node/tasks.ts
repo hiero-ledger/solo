@@ -1650,33 +1650,42 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async () => {
-
               const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8 = this.k8Factory.getK8(context);
 
-              // run script test_systemd.sh and dump its output to console
-              const scriptName = 'test_systemd.sh';
-              const scriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`;
-              const scriptLocalPath = PathEx.join('./', scriptName);
-
-              const container = k8.containers().readByRef(containerReference);
-
-              await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-              await container.copyTo(scriptLocalPath, constants.HEDERA_USER_HOME_DIR);
-              await container.execContainer(['chmod', '+x', scriptDestination]);
-              await sleep(Duration.ofSeconds(1));
-              const output = await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer(['bash', '-c', `sudo ${scriptDestination}`]);
-              this.logger.showUser(chalk.red(`Output of ${scriptName} for node ${nodeAlias}:\n${output}`));
               await k8
                 .containers()
                 .readByRef(containerReference)
                 .execContainer([
                   'bash',
-                  '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                  '-lc',
+                  String.raw`pkill -TERM -f 'com\.hedera\.node\.app\.ServicesMain' || true`,
+                ]);
+
+              await k8.containers().readByRef(containerReference).execContainer([
+                'bash',
+                '-lc',
+                // 1) Pre-start staging like the systemd unit does
+                '/usr/bin/bash /etc/network-node/startup/stage_files.sh',
+              ]);
+
+              await k8.containers().readByRef(containerReference).execContainer([
+                'bash',
+                '-lc',
+                // 2) Load env file + start entrypoint in background
+                'set -a; [ -f /etc/network-node/application.env ] && . /etc/network-node/application.env; set +a; \
+   nohup /usr/bin/bash /opt/hgcapp/services-hedera/HapiApp2.0/entrypoint.sh \
+     >>/opt/hgcapp/services-hedera/HapiApp2.0/output/network-node.log 2>&1 &',
+              ]);
+
+              // 3) Verify it started
+              await k8
+                .containers()
+                .readByRef(containerReference)
+                .execContainer([
+                  'bash',
+                  '-lc',
+                  String.raw`sleep 2; pgrep -f 'com\.hedera\.node\.app\.ServicesMain' >/dev/null`,
                 ]);
             },
           });
@@ -1913,12 +1922,26 @@ export class NodeCommandTasks {
 
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
-              task: async () =>
-                await this.k8Factory
-                  .getK8(context)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
+              task: async () => {
+                const config = context_.config;
+                const shellRunner: ShellRunner = new ShellRunner(this.logger);
+                await shellRunner.run('kubectl', [
+                  '-n',
+                  config.namespace.name,
+                  'exec',
+                  podReference.name.name,
+                  '-c',
+                  'root-container',
+                  '--',
+                  'pkill',
+                  '-TERM',
+                  '-f',
+                  'com.hedera.node.app.ServicesMain',
+                ]);
+
+                //wait few seconds for the process to terminate
+                await sleep(Duration.ofMillis(5000));
+              },
             });
           }
         }
