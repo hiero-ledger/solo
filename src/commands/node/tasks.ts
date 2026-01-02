@@ -1654,7 +1654,6 @@ export class NodeCommandTasks {
               const shellRunner = new ShellRunner(this.logger);
               // run scriptName
               const output: string[] = await shellRunner.run('bash', [
-                '-c',
                 scriptName,
                 config.namespace,
                 podReference.name.name,
