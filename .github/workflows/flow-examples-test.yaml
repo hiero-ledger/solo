@@ -101,17 +101,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-      - name: Checkout Solo Charts
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          repository: hashgraph/solo-charts
-          ref: solo-chart-stateful
-          path: solo-charts
-
-      - name: Build Solo chart dependencies
-        working-directory: solo-charts/charts/solo-deployment
-        run: helm dependency build
-
       - name: Setup Node
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
@@ -138,6 +127,17 @@ jobs:
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: "v3.17.1" # helm version
+
+      - name: Checkout Solo Charts
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: hashgraph/solo-charts
+          ref: solo-chart-stateful
+          path: solo-charts
+
+      - name: Build Solo chart dependencies
+        working-directory: solo-charts/charts/solo-deployment
+        run: helm dependency build
 
       - name: Install Dependencies
         id: npm-deps
