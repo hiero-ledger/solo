@@ -81,6 +81,10 @@ tasks:
       # Solo node start
       - cmd: |
           set -euxo pipefail
+          echo "RUNNER_NAME=$RUNNER_NAME"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "HOSTNAME=$(hostname)"
+          cat /etc/os-release || true          
           ps -p 1 -o pid,comm,args || true
           ls -la /run /run/systemd /run/dbus || true
           test -S /run/systemd/private && echo "systemd bus socket exists" || echo "NO systemd bus socket"
