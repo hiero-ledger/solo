@@ -79,7 +79,13 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
 
       # Solo node start
-      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: |
+          set -euxo pipefail
+          ps -p 1 -o pid,comm,args || true
+          ls -la /run /run/systemd /run/dbus || true
+          test -S /run/systemd/private && echo "systemd bus socket exists" || echo "NO systemd bus socket"
+          test -S /run/dbus/system_bus_socket && echo "dbus socket exists" || echo "NO dbus socket"
+          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
       - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
