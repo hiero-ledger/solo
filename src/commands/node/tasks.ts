@@ -1662,8 +1662,33 @@ export class NodeCommandTasks {
                 this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
               }
 
-              const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const k8 = this.k8Factory.getK8(context);
+              const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const k8: K8 = this.k8Factory.getK8(context);
+
+              // copy pod_check.sh to pod, execute it, then print output
+              const checkScriptLocalPath: string = PathEx.joinWithRealPath(constants.ROOT_DIR, 'pod_check.sh');
+              const checkScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/pod_check.sh`;
+
+              await k8
+                .containers()
+                .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+                .copyTo(checkScriptLocalPath, `${constants.HEDERA_HAPI_PATH}`);
+
+              await k8
+                .containers()
+                .readByRef(containerReference)
+                .execContainer(['bash', '-lc', `chmod +x ${checkScriptContainerPath}`]);
+
+              const checkOutput: string = await k8
+                .containers()
+                .readByRef(containerReference)
+                .execContainer(['bash', '-lc', checkScriptContainerPath]);
+              for (const line of checkOutput.split('\n')) {
+                if (line.trim().length > 0) {
+                  this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
+                }
+              }
+
               await k8
                 .containers()
                 .readByRef(containerReference)
