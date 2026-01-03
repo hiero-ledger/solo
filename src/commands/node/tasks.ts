@@ -1665,28 +1665,53 @@ export class NodeCommandTasks {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
 
-              // copy pod_check.sh to pod, execute it, then print output
-              const checkScriptLocalPath: string = PathEx.joinWithRealPath(constants.ROOT_DIR, '..', 'pod_check.sh');
-              const checkScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/pod_check.sh`;
+              try {
+                const prepMessage: string = `[${nodeAlias}] Preparing pod_check.sh before restarting network-node service`;
+                console.log(prepMessage);
+                this.logger.showUser(chalk.yellow(prepMessage));
 
-              await k8
-                .containers()
-                .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-                .copyTo(checkScriptLocalPath, `${constants.HEDERA_HAPI_PATH}`);
+                // copy pod_check.sh to pod, execute it, then print output
+                const checkScriptLocalPath: string = PathEx.joinWithRealPath(constants.ROOT_DIR, '..', 'pod_check.sh');
+                const checkScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/pod_check.sh`;
 
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer(['bash', '-lc', `chmod +x ${checkScriptContainerPath}`]);
+                const copyMessage: string = `[${nodeAlias}] Copying pod_check.sh to ${constants.HEDERA_HAPI_PATH} inside pod ${podReference.name.name}`;
+                console.log(copyMessage);
+                this.logger.showUser(chalk.yellow(copyMessage));
+                await k8
+                  .containers()
+                  .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+                  .copyTo(checkScriptLocalPath, `${constants.HEDERA_HAPI_PATH}`);
 
-              const checkOutput: string = await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer(['bash', '-lc', checkScriptContainerPath]);
-              for (const line of checkOutput.split('\n')) {
-                if (line.trim().length > 0) {
-                  this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
+                const chmodMessage: string = `[${nodeAlias}] Marking pod_check.sh as executable`;
+                console.log(chmodMessage);
+                this.logger.showUser(chalk.yellow(chmodMessage));
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .execContainer(['bash', '-lc', `chmod +x ${checkScriptContainerPath}`]);
+
+                const runMessage: string = `[${nodeAlias}] Running pod_check.sh to validate systemd/dbus state`;
+                console.log(runMessage);
+                this.logger.showUser(chalk.yellow(runMessage));
+                const checkOutput: string = await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .execContainer(['bash', '-lc', checkScriptContainerPath]);
+                for (const line of checkOutput.split('\n')) {
+                  if (line.trim().length > 0) {
+                    const prefixedLine: string = `[${nodeAlias}] ${line}`;
+                    console.log(prefixedLine);
+                    this.logger.showUser(chalk.red(prefixedLine));
+                  }
                 }
+                const successMessage: string = `[${nodeAlias}] pod_check.sh completed successfully`;
+                console.log(successMessage);
+                this.logger.showUser(chalk.green(successMessage));
+              } catch (error: unknown) {
+                const errorMessage: string = `[${nodeAlias}] pod_check.sh failed before node restart`;
+                console.error(errorMessage, error);
+                this.logger.error(errorMessage, error);
+                throw error;
               }
 
               await k8
