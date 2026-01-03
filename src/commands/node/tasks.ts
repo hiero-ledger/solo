@@ -1663,48 +1663,100 @@ export class NodeCommandTasks {
               }
 
               const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const k8 = this.k8Factory.getK8(context);
+              const k8: K8 = this.k8Factory.getK8(context);
+              const namespaceName: string = config.namespace.name;
+              const podName: string = podReference.name.name;
 
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer([
+              try {
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .execContainer([
+                    'bash',
+                    '-lc',
+                    String.raw`pkill -TERM -f 'com\.hedera\.node\.app\.ServicesMain' || true`,
+                  ]);
+
+                await k8.containers().readByRef(containerReference).execContainer([
                   'bash',
                   '-lc',
-                  String.raw`pkill -TERM -f 'com\.hedera\.node\.app\.ServicesMain' || true`,
+                  // 1) Pre-start staging like the systemd unit does
+                  'timeout 60s /usr/bin/bash /etc/network-node/startup/stage_files.sh',
                 ]);
 
-              await k8.containers().readByRef(containerReference).execContainer([
-                'bash',
-                '-lc',
-                // 1) Pre-start staging like the systemd unit does
-                '/usr/bin/bash /etc/network-node/startup/stage_files.sh',
-              ]);
-
-              await k8.containers().readByRef(containerReference).execContainer([
-                'bash',
-                '-lc',
-                // 2) Load env file + start entrypoint in background
-                'set -a; [ -f /etc/network-node/application.env ] && . /etc/network-node/application.env; set +a; \
+                await k8.containers().readByRef(containerReference).execContainer([
+                  'bash',
+                  '-lc',
+                  // 2) Load env file + start entrypoint in background
+                  'set -a; [ -f /etc/network-node/application.env ] && . /etc/network-node/application.env; set +a; \
    nohup /usr/bin/bash /opt/hgcapp/services-hedera/HapiApp2.0/entrypoint.sh \
      >>/opt/hgcapp/services-hedera/HapiApp2.0/output/network-node.log 2>&1 &',
-              ]);
-
-              // 3) Verify it started
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer([
-                  'bash',
-                  '-lc',
-                  String.raw`sleep 2; pgrep -f 'com\.hedera\.node\.app\.ServicesMain' >/dev/null`,
                 ]);
+
+                // 3) Verify it started
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .execContainer([
+                    'bash',
+                    '-lc',
+                    String.raw`timeout 60s bash -lc "until pgrep -f 'com\\.hedera\\.node\\.app\\.ServicesMain' >/dev/null; do sleep 2; done"`,
+                  ]);
+              } catch (error) {
+                try {
+                  const diagnosticRunner: ShellRunner = new ShellRunner(this.logger);
+
+                  const describeOutput: string[] = await diagnosticRunner.run('kubectl', [
+                    '-n',
+                    namespaceName,
+                    'describe',
+                    'pod',
+                    podName,
+                  ]);
+                  for (const line of describeOutput) {
+                    this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
+                  }
+
+                  const logsOutput: string[] = await diagnosticRunner.run('kubectl', [
+                    '-n',
+                    namespaceName,
+                    'logs',
+                    podName,
+                    '-c',
+                    constants.ROOT_CONTAINER.toString(),
+                    '--tail=200',
+                  ]);
+                  for (const line of logsOutput) {
+                    this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
+                  }
+
+                  const previousLogsOutput: string[] = await diagnosticRunner
+                    .run('kubectl', [
+                      '-n',
+                      namespaceName,
+                      'logs',
+                      podName,
+                      '-c',
+                      constants.ROOT_CONTAINER.toString(),
+                      '--previous',
+                      '--tail=200',
+                    ])
+                    .catch((): string[] => []);
+                  for (const line of previousLogsOutput) {
+                    this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
+                  }
+                } catch {
+                  // ignore diagnostics failures
+                }
+
+                throw error;
+              }
             },
           });
         }
 
         // set up the sub-tasks
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
     };
   }
