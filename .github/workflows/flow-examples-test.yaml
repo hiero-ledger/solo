@@ -231,6 +231,10 @@ jobs:
 
           if [ $TASK_EXIT_CODE -ne 0 ]; then
             echo "Task failed with exit code: $TASK_EXIT_CODE"
+            echo "Collecting Kubernetes diagnostics..."
+            kubectl get pods -A || true
+            kubectl get events -A --sort-by=.lastTimestamp | tail -n 200 || true
+            echo "Finished collecting Kubernetes diagnostics"
         
             
             # need to extract deployment name from a line like this: DEPLOYMENT: "deployment-network-with-custom-config"
