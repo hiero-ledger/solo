@@ -225,6 +225,14 @@ jobs:
 
           if [ $TASK_EXIT_CODE -ne 0 ]; then
             echo "Task failed with exit code: $TASK_EXIT_CODE"
+            helm list -A -o json \
+              | jq -r '.[] | "\(.name) \(.namespace)"' \
+              | while read -r name ns; do
+                  echo "===== $name ($ns) ====="
+                  helm get values "$name" -n "$ns" --all || true
+                done            
+            
+            echo "Extracting deployment name from Taskfile.yml"
 
             # need to extract deployment name from a line like this: DEPLOYMENT: "deployment-network-with-custom-config"
             DEPLOYMENT=$(
@@ -236,12 +244,6 @@ jobs:
             if [ -z "$DEPLOYMENT" ]; then
               DEPLOYMENT="solo-deployment"
             fi
-            helm list -A -o json \
-              | jq -r '.[] | "\(.name) \(.namespace)"' \
-              | while read -r name ns; do
-                  echo "===== $name ($ns) ====="
-                  helm get values "$name" -n "$ns" --all || true
-                done            
             npm run solo-test -- deployment diagnostics all --deployment "$DEPLOYMENT"
           else
             echo "Task completed successfully"
