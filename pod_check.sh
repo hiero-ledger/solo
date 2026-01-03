@@ -54,6 +54,6 @@ log "BUS STILL MISSING after 60 seconds"
 run_cmd "List /run and /run/systemd" ls -la /run /run/systemd
 run_cmd "Show mountpoints for cgroup or /run" bash -c 'mount | egrep "cgroup|/run"'
 run_cmd "Show systemd/journald/dbus processes" bash -c 'ps -ef | egrep "systemd|journald|dbus"'
-run_cmd "Show recent journal (if available)" journalctl -n 100 --no-pager
+run_cmd "Show recent journal (if available)" bash -c 'journalctl -n 100 --no-pager || echo "journalctl unavailable (no files found)"'
 
 exit 1
