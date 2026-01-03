@@ -236,6 +236,12 @@ jobs:
             if [ -z "$DEPLOYMENT" ]; then
               DEPLOYMENT="solo-deployment"
             fi
+            helm list -A -o json \
+              | jq -r '.[] | "\(.name) \(.namespace)"' \
+              | while read -r name ns; do
+                  echo "===== $name ($ns) ====="
+                  helm get values "$name" -n "$ns" --all || true
+                done            
             npm run solo-test -- deployment diagnostics all --deployment "$DEPLOYMENT"
           else
             echo "Task completed successfully"
