@@ -30,6 +30,8 @@ run_cmd() {
 
 log "Starting pod_check.sh"
 run_cmd "Show PID 1 details" bash -c 'echo "pid1: $(cat /proc/1/comm) cmd: $(tr "\0" " " </proc/1/cmdline)"'
+run_cmd "Show container /etc/os-release" cat /etc/os-release
+run_cmd "Show container kernel info" uname -a
 
 bus_ready=0
 for i in {1..60}; do
