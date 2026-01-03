@@ -1650,6 +1650,18 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async () => {
+              const scriptName = './test_systemd.sh';
+              const shellRunner = new ShellRunner(this.logger);
+              // run scriptName
+              const output: string[] = await shellRunner.run('bash', [
+                scriptName,
+                config.namespace,
+                podReference.name.name,
+              ]);
+              for (const line of output) {
+                this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
+              }
+
               const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8 = this.k8Factory.getK8(context);
               await k8
