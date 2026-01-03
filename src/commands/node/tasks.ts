@@ -1666,7 +1666,7 @@ export class NodeCommandTasks {
               const k8: K8 = this.k8Factory.getK8(context);
 
               // copy pod_check.sh to pod, execute it, then print output
-              const checkScriptLocalPath: string = PathEx.joinWithRealPath(constants.ROOT_DIR, 'pod_check.sh');
+              const checkScriptLocalPath: string = PathEx.joinWithRealPath(constants.ROOT_DIR, '..', 'pod_check.sh');
               const checkScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/pod_check.sh`;
 
               await k8
