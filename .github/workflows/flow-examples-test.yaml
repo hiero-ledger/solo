@@ -133,7 +133,13 @@ jobs:
         with:
           repository: hashgraph/solo-charts
           ref: solo-chart-stateful
+          fetch-depth: 0
           path: solo-charts
+
+      - name: Verify solo-charts checkout
+        working-directory: solo-charts
+        run: |
+          git branch
 
       - name: Add Helm repos for Solo chart deps
         run: |
@@ -229,7 +235,7 @@ jobs:
               | jq -r '.[] | "\(.name) \(.namespace)"' \
               | while read -r name ns; do
                   echo "===== $name ($ns) ====="
-                  helm get values "$name" -n "$ns" --all || true
+                  helm get all "$name" -n "$ns" || true
                 done            
             
             echo "Extracting deployment name from Taskfile.yml"
