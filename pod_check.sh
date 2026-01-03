@@ -6,7 +6,13 @@
 set -u
 
 log() {
-  echo "[$(date -u +\"%F %T\")] $*"
+  local timestamp
+  if timestamp="$(date -u '+%F %T' 2>/dev/null)"; then
+    :
+  else
+    timestamp="unknown-timestamp"
+  fi
+  echo "[${timestamp}] $*"
 }
 
 run_cmd() {
