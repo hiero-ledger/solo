@@ -218,9 +218,30 @@ jobs:
           
           # Run the example
           echo "Starting task..."
+          set +e
           task
-          
-          echo "Task completed successfully"
+          TASK_EXIT_CODE=$?
+          set -e
+
+          if [ $TASK_EXIT_CODE -ne 0 ]; then
+            echo "Task failed with exit code: $TASK_EXIT_CODE"
+
+            # need to extract deployment name from a line like this: DEPLOYMENT: "deployment-network-with-custom-config"
+            DEPLOYMENT=$(
+              grep -E '^[[:space:]]*(SOLO_DEPLOYMENT|DEPLOYMENT):' Taskfile.yml \
+                | head -n 1 \
+                | sed -E 's/^[[:space:]]*(SOLO_DEPLOYMENT|DEPLOYMENT):[[:space:]]*"?([^"#]+)"?.*/\2/' \
+                | xargs
+            )
+            if [ -z "$DEPLOYMENT" ]; then
+              DEPLOYMENT="solo-deployment"
+            fi
+            npm run solo-test -- deployment diagnostics all --deployment "$DEPLOYMENT"
+          else
+            echo "Task completed successfully"
+          fi
+
+          exit $TASK_EXIT_CODE
 
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && failure() }}
