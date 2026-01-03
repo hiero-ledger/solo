@@ -1650,28 +1650,13 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async () => {
-              const scriptName = './test_systemd.sh';
-              const shellRunner = new ShellRunner(this.logger);
-              // run scriptName
-              const output: string[] = await shellRunner.run('bash', [
-                scriptName,
-                config.namespace,
-                podReference.name.name,
-              ]);
-              for (const line of output) {
-                this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
-              }
-
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
               const namespaceName: string = config.namespace.name;
               const podName: string = podReference.name.name;
 
               try {
-                const startScriptLocalPath: string = PathEx.joinWithRealPath(
-                  constants.RESOURCES_DIR,
-                  'start-node.sh',
-                );
+                const startScriptLocalPath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'start-node.sh');
                 const startScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/start-node.sh`;
                 await k8
                   .containers()
@@ -1984,11 +1969,7 @@ export class NodeCommandTasks {
                 await k8
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer([
-                    'bash',
-                    '-lc',
-                    `chmod +x ${stopScriptContainerPath} && ${stopScriptContainerPath}`,
-                  ]);
+                  .execContainer(['bash', '-lc', `chmod +x ${stopScriptContainerPath} && ${stopScriptContainerPath}`]);
               },
             });
           }
