@@ -135,6 +135,11 @@ jobs:
           ref: solo-chart-stateful
           path: solo-charts
 
+      - name: Add Helm repos for Solo chart deps
+        run: |
+          helm repo add minio https://operator.min.io/
+          helm repo update
+
       - name: Build Solo chart dependencies
         working-directory: solo-charts/charts/solo-deployment
         run: helm dependency build
