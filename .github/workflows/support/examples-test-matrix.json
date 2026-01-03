@@ -8,5 +8,10 @@
     "name": "Custom Network Config",
     "directory": "custom-network-config",
     "local-java-build": false
+  },
+  {
+    "name": "Local Build with Custom Config",
+    "directory": "local-build-with-custom-config",
+    "local-java-build": true
   }
 ]
