@@ -1662,45 +1662,29 @@ export class NodeCommandTasks {
                 this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
               }
 
-              const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
               const namespaceName: string = config.namespace.name;
               const podName: string = podReference.name.name;
 
               try {
+                const startScriptLocalPath: string = PathEx.joinWithRealPath(
+                  constants.RESOURCES_DIR,
+                  'start-node.sh',
+                );
+                const startScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/start-node.sh`;
+                await k8
+                  .containers()
+                  .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+                  .copyTo(startScriptLocalPath, constants.HEDERA_HAPI_PATH);
+
                 await k8
                   .containers()
                   .readByRef(containerReference)
                   .execContainer([
                     'bash',
                     '-lc',
-                    String.raw`pkill -TERM -f 'com\.hedera\.node\.app\.ServicesMain' || true`,
-                  ]);
-
-                await k8.containers().readByRef(containerReference).execContainer([
-                  'bash',
-                  '-lc',
-                  // 1) Pre-start staging like the systemd unit does
-                  'timeout 60s /usr/bin/bash /etc/network-node/startup/stage_files.sh',
-                ]);
-
-                await k8.containers().readByRef(containerReference).execContainer([
-                  'bash',
-                  '-lc',
-                  // 2) Load env file + start entrypoint in background
-                  'set -a; [ -f /etc/network-node/application.env ] && . /etc/network-node/application.env; set +a; \
-   nohup /usr/bin/bash /opt/hgcapp/services-hedera/HapiApp2.0/entrypoint.sh \
-     >>/opt/hgcapp/services-hedera/HapiApp2.0/output/network-node.log 2>&1 &',
-                ]);
-
-                // 3) Verify it started
-                await k8
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer([
-                    'bash',
-                    '-lc',
-                    String.raw`timeout 60s bash -lc "until pgrep -f 'com\\.hedera\\.node\\.app\\.ServicesMain' >/dev/null; do sleep 2; done"`,
+                    `chmod +x ${startScriptContainerPath} && ${startScriptContainerPath}`,
                   ]);
               } catch (error) {
                 try {
@@ -1987,24 +1971,24 @@ export class NodeCommandTasks {
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
-                const config = context_.config;
-                const shellRunner: ShellRunner = new ShellRunner(this.logger);
-                await shellRunner.run('kubectl', [
-                  '-n',
-                  config.namespace.name,
-                  'exec',
-                  podReference.name.name,
-                  '-c',
-                  'root-container',
-                  '--',
-                  'pkill',
-                  '-TERM',
-                  '-f',
-                  'com.hedera.node.app.ServicesMain',
-                ]);
+                const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+                const k8: K8 = this.k8Factory.getK8(context);
+                const stopScriptLocalPath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'stop-node.sh');
+                const stopScriptContainerPath: string = `${constants.HEDERA_HAPI_PATH}/stop-node.sh`;
 
-                //wait few seconds for the process to terminate
-                await sleep(Duration.ofMillis(5000));
+                await k8
+                  .containers()
+                  .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+                  .copyTo(stopScriptLocalPath, constants.HEDERA_HAPI_PATH);
+
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .execContainer([
+                    'bash',
+                    '-lc',
+                    `chmod +x ${stopScriptContainerPath} && ${stopScriptContainerPath}`,
+                  ]);
               },
             });
           }
