@@ -1303,7 +1303,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             self.logger.info('Adding MetalLB Helm repository...');
-            await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
+            await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb --force-update');
             await shellRunner.run('helm repo update');
           } catch (error: any) {
             // Network might already exist, which is fine

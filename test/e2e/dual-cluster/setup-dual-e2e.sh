@@ -33,8 +33,8 @@ docker network rm -f kind || true
 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 
 # Setup Helm Repos
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm repo add metallb https://metallb.github.io/metallb
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
+helm repo add metallb https://metallb.github.io/metallb --force-update
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster-${i}.yaml" || exit 1
