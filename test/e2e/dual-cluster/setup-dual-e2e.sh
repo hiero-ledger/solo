@@ -7,7 +7,7 @@ readonly SCRIPT_PATH
 
 readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
 readonly CLUSTER_LOG_DIR="${SCRIPT_PATH}/logs"
-readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
+readonly KIND_IMAGE="kindest/node:v1.30.5@sha256:34a2ee102d38564bbcc85277655a3ccdec8267184b36192ccf3cb5f3bfa29df4"
 readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
