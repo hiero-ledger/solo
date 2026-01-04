@@ -7,6 +7,7 @@ readonly SCRIPT_PATH
 
 readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
+readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
@@ -56,18 +57,64 @@ create_kind_cluster() {
   done
 }
 
+install_metrics_server() {
+  local max_attempts=3
+  local attempt=1
+
+  while true; do
+    if helm upgrade --install metrics-server metrics-server/metrics-server \
+      --namespace kube-system \
+      --timeout "${HELM_TIMEOUT}" \
+      --set "args[0]=--kubelet-insecure-tls"; then
+      return 0
+    fi
+
+    if [[ ${attempt} -ge ${max_attempts} ]]; then
+      echo "ERROR: failed to install metrics-server after ${max_attempts} attempts" >&2
+      return 1
+    fi
+
+    echo "metrics-server install failed (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
+    helm uninstall metrics-server -n kube-system || true
+    sleep 10
+    attempt=$((attempt + 1))
+  done
+}
+
+install_metallb() {
+  local max_attempts=3
+  local attempt=1
+
+  while true; do
+    if helm upgrade --install metallb metallb/metallb \
+      --namespace metallb-system --create-namespace --atomic --wait \
+      --timeout "${HELM_TIMEOUT}" \
+      --set speaker.frr.enabled=true; then
+      return 0
+    fi
+
+    if [[ ${attempt} -ge ${max_attempts} ]]; then
+      echo "ERROR: failed to install metallb after ${max_attempts} attempts" >&2
+      kubectl get pods -n metallb-system -o wide || true
+      return 1
+    fi
+
+    echo "metallb install failed (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
+    kubectl get pods -n metallb-system -o wide || true
+    helm uninstall metallb -n metallb-system || true
+    sleep 10
+    attempt=$((attempt + 1))
+  done
+}
+
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   cluster_name="${SOLO_CLUSTER_NAME}-c${i}"
   cluster_config="${SCRIPT_PATH}/kind-cluster-${i}.yaml"
   create_kind_cluster "${cluster_name}" "${cluster_config}"
 
-  helm upgrade --install metrics-server metrics-server/metrics-server \
-    --namespace kube-system \
-    --set "args[0]=--kubelet-insecure-tls"
+  install_metrics_server || exit 1
 
-  helm upgrade --install metallb metallb/metallb \
-    --namespace metallb-system --create-namespace --atomic --wait \
-    --set speaker.frr.enabled=true
+  install_metallb || exit 1
 
   kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
 
