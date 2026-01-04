@@ -36,8 +36,30 @@ docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
 helm repo add metallb https://metallb.github.io/metallb --force-update
 
+create_kind_cluster() {
+  local cluster_name=$1
+  local config_path=$2
+  local max_attempts=3
+  local attempt=1
+
+  until kind create cluster -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"; do
+    if [[ ${attempt} -ge ${max_attempts} ]]; then
+      echo "ERROR: failed to create Kind cluster ${cluster_name} after ${max_attempts} attempts"
+      exit 1
+    fi
+
+    echo "Kind cluster ${cluster_name} failed to create (attempt ${attempt}/${max_attempts})." \
+      "Retrying in 10 seconds..."
+    kind delete cluster -n "${cluster_name}" || true
+    sleep 10
+    attempt=$((attempt + 1))
+  done
+}
+
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
-  kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster-${i}.yaml" || exit 1
+  cluster_name="${SOLO_CLUSTER_NAME}-c${i}"
+  cluster_config="${SCRIPT_PATH}/kind-cluster-${i}.yaml"
+  create_kind_cluster "${cluster_name}" "${cluster_config}"
 
   helm upgrade --install metrics-server metrics-server/metrics-server \
     --namespace kube-system \
