@@ -7,6 +7,11 @@ nodes:
         kind: ClusterConfiguration
         networking:
           dnsDomain: "cluster.local"
+      - |
+        apiVersion: kubeadm.k8s.io/v1beta4
+        kind: ClusterConfiguration
+        networking:
+          dnsDomain: "cluster.local"          
 networking:
 #  apiServerAddress: "172.19.0.2"
 #  apiServerPort: 6443
