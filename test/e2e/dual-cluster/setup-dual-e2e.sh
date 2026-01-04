@@ -46,7 +46,7 @@ create_kind_cluster() {
 
   mkdir -p "${CLUSTER_LOG_DIR}"
 
-  until kind create cluster -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"; do
+  until kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"; do
     if [[ ${attempt} -ge ${max_attempts} ]]; then
       echo "ERROR: failed to create Kind cluster ${cluster_name} after ${max_attempts} attempts"
       exit 1
