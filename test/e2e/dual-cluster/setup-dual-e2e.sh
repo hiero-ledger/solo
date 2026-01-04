@@ -6,9 +6,7 @@ SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 readonly SCRIPT_PATH
 
 readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
-readonly CLUSTER_LOG_DIR="${SCRIPT_PATH}/logs"
 readonly KIND_IMAGE="kindest/node:v1.30.5@sha256:34a2ee102d38564bbcc85277655a3ccdec8267184b36192ccf3cb5f3bfa29df4"
-readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
@@ -35,93 +33,19 @@ docker network rm -f kind || true
 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 
 # Setup Helm Repos
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
-helm repo add metallb https://metallb.github.io/metallb --force-update
-
-create_kind_cluster() {
-  local cluster_name=$1
-  local config_path=$2
-  local max_attempts=3
-  local attempt=1
-
-  mkdir -p "${CLUSTER_LOG_DIR}"
-
-  until kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"; do
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      echo "ERROR: failed to create Kind cluster ${cluster_name} after ${max_attempts} attempts"
-      exit 1
-    fi
-
-    log_archive="${CLUSTER_LOG_DIR}/${cluster_name}-attempt-${attempt}-$(date -u +%Y%m%dT%H%M%SZ)"
-    echo "Gathering diagnostics for ${cluster_name} (attempt ${attempt}) to ${log_archive}"
-    kind export logs -n "${cluster_name}" "${log_archive}" || true
-
-    echo "Kind cluster ${cluster_name} failed to create (attempt ${attempt}/${max_attempts})." \
-      "Retrying in 10 seconds..."
-    kind delete cluster -n "${cluster_name}" || true
-    sleep 10
-    attempt=$((attempt + 1))
-  done
-}
-
-install_metrics_server() {
-  local max_attempts=3
-  local attempt=1
-
-  while true; do
-    if helm upgrade --install metrics-server metrics-server/metrics-server \
-      --namespace kube-system \
-      --timeout "${HELM_TIMEOUT}" \
-      --set "args[0]=--kubelet-insecure-tls"; then
-      return 0
-    fi
-
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      echo "ERROR: failed to install metrics-server after ${max_attempts} attempts" >&2
-      return 1
-    fi
-
-    echo "metrics-server install failed (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
-    helm uninstall metrics-server -n kube-system || true
-    sleep 10
-    attempt=$((attempt + 1))
-  done
-}
-
-install_metallb() {
-  local max_attempts=3
-  local attempt=1
-
-  while true; do
-    if helm upgrade --install metallb metallb/metallb \
-      --namespace metallb-system --create-namespace --atomic --wait \
-      --timeout "${HELM_TIMEOUT}" \
-      --set speaker.frr.enabled=true; then
-      return 0
-    fi
-
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      echo "ERROR: failed to install metallb after ${max_attempts} attempts" >&2
-      kubectl get pods -n metallb-system -o wide || true
-      return 1
-    fi
-
-    echo "metallb install failed (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
-    kubectl get pods -n metallb-system -o wide || true
-    helm uninstall metallb -n metallb-system || true
-    sleep 10
-    attempt=$((attempt + 1))
-  done
-}
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm repo add metallb https://metallb.github.io/metallb
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
-  cluster_name="${SOLO_CLUSTER_NAME}-c${i}"
-  cluster_config="${SCRIPT_PATH}/kind-cluster-${i}.yaml"
-  create_kind_cluster "${cluster_name}" "${cluster_config}"
+  kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster-${i}.yaml" || exit 1
 
-  install_metrics_server || exit 1
+  helm upgrade --install metrics-server metrics-server/metrics-server \
+    --namespace kube-system \
+    --set "args[0]=--kubelet-insecure-tls"
 
-  install_metallb || exit 1
+  helm upgrade --install metallb metallb/metallb \
+    --namespace metallb-system --create-namespace --atomic --wait \
+    --set speaker.frr.enabled=true
 
   kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
 
