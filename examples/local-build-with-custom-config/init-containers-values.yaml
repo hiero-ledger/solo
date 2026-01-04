@@ -70,7 +70,7 @@ defaults:
       - name: JAVA_HEAP_MIN
         value: "256m"
       - name: JAVA_HEAP_MAX
-        value: "2g"
+        value: "1g"
 minio-server:
   tenant:
     pools:

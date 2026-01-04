@@ -636,7 +636,8 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
-        ...this.validateConnectionsTaskList(),
+        // Do not call validate connections since node may not be active, but we still need to get logs
+        // ...this.validateConnectionsTaskList(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in diagnosing deployment',
