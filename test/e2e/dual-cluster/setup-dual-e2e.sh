@@ -6,6 +6,7 @@ SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 readonly SCRIPT_PATH
 
 readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
+readonly CLUSTER_LOG_DIR="${SCRIPT_PATH}/logs"
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
 
@@ -43,11 +44,17 @@ create_kind_cluster() {
   local max_attempts=3
   local attempt=1
 
+  mkdir -p "${CLUSTER_LOG_DIR}"
+
   until kind create cluster -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"; do
     if [[ ${attempt} -ge ${max_attempts} ]]; then
       echo "ERROR: failed to create Kind cluster ${cluster_name} after ${max_attempts} attempts"
       exit 1
     fi
+
+    log_archive="${CLUSTER_LOG_DIR}/${cluster_name}-attempt-${attempt}-$(date -u +%Y%m%dT%H%M%SZ)"
+    echo "Gathering diagnostics for ${cluster_name} (attempt ${attempt}) to ${log_archive}"
+    kind export logs -n "${cluster_name}" "${log_archive}" || true
 
     echo "Kind cluster ${cluster_name} failed to create (attempt ${attempt}/${max_attempts})." \
       "Retrying in 10 seconds..."
