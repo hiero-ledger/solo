@@ -1724,7 +1724,7 @@ export class NodeCommandTasks {
           });
         }
 
-        // set up the sub-tasks
+        // do not use WITH_CONCURRENCY since it may suddenly increase memory usage on cluster nodes
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
     };
