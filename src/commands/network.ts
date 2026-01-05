@@ -448,9 +448,9 @@ export class NetworkCommand extends BaseCommand {
                                config.envoyIpsParsed?.[consensusNode.name];
       
       if (!kubeVipIP) {
-        const clusterMatch: RegExpMatchArray | null = consensusNode.cluster.match(/-c(\d+)$/);
-        const clusterIndex: number = clusterMatch ? parseInt(clusterMatch[1], 10) - 1 : 0;
-        kubeVipIP = kubeVipIPs[clusterIndex] || kubeVipIPs[0];
+        // Use node ID to assign IP from the pool (node IDs are 0-based)
+        const nodeIndex: number = consensusNode.nodeId;
+        kubeVipIP = kubeVipIPs[nodeIndex] || kubeVipIPs[0];
       }
 
       if (!kubeVipIP) {
@@ -465,15 +465,27 @@ export class NetworkCommand extends BaseCommand {
 
       for (const serviceName of serviceNames) {
         try {
-          // Apply the annotation using kubectl command via shell
+          // Wait for service to exist before annotating
           const {exec} = await import('child_process');
           const {promisify} = await import('util');
           const execAsync = promisify(exec);
           
+          // Check if service exists first
+          const checkCmd: string = `kubectl get svc ${serviceName} -n ${config.namespace} --context ${consensusNode.context} --ignore-not-found`;
+          const {stdout: checkOutput} = await execAsync(checkCmd);
+          
+          if (!checkOutput || checkOutput.trim() === '') {
+            this.logger.warn(`Service ${serviceName} does not exist yet, skipping annotation`);
+            continue;
+          }
+          
           const command: string = `kubectl annotate svc ${serviceName} -n ${config.namespace} kube-vip.io/loadbalancerIPs=${kubeVipIP} --overwrite --context ${consensusNode.context}`;
           await execAsync(command);
 
-          this.logger.debug(`Added kube-vip annotation to ${serviceName} in ${config.namespace} with IP ${kubeVipIP}`);
+          this.logger.info(`Added kube-vip annotation to ${serviceName} in ${config.namespace} with IP ${kubeVipIP}`);
+          
+          // Wait a moment for kube-vip to process the annotation
+          await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error: any) {
           this.logger.warn(`Failed to annotate ${serviceName}: ${error.message}`);
         }
@@ -1229,7 +1241,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
-          title: 'Add kube-vip annotations to LoadBalancer services',
+          title: 'Add kube-vip annotations to LoadBalancer services (before check)',
           skip: (context_): boolean => {
             const useKubeVip: boolean = process.env.SOLO_USE_KUBE_VIP === 'true';
             return !useKubeVip || !context_.config.loadBalancerEnabled;
@@ -1346,6 +1358,16 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.waitForNetworkPods(),
+        {
+          title: 'Add kube-vip annotations to LoadBalancer services (after redeploy)',
+          skip: (context_): boolean => {
+            const useKubeVip: boolean = process.env.SOLO_USE_KUBE_VIP === 'true';
+            return !useKubeVip || !context_.config.loadBalancerEnabled;
+          },
+          task: async (context_): Promise<void> => {
+            await this.addKubeVipAnnotationsToServices(context_.config);
+          },
+        },
         {
           title: 'Check proxy pods are running',
           task: (context_, task): SoloListr<NetworkDeployContext> => {
