@@ -64,6 +64,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       const topicTestOnly: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_TOPIC_ONLY === 'true';
 
       before(async (): Promise<void> => {
+        // Enable kube-vip annotations for LoadBalancer services in dual-cluster setup
+        process.env.SOLO_USE_KUBE_VIP = 'true';
+        process.env.SOLO_KUBE_VIP_ADDRESSES = '172.19.255.200,172.19.255.201';
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
           fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {

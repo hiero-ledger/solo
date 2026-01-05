@@ -417,6 +417,7 @@ export class NetworkCommand extends BaseCommand {
       config.valuesFile,
     );
 
+
     for (const clusterReference of Object.keys(valuesFiles)) {
       valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
@@ -425,6 +426,59 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return valuesArgumentMap;
+  }
+
+  /**
+   * Add kube-vip annotations to LoadBalancer services after deployment
+   * This is done post-deployment to avoid modifying Helm charts
+   * @param config - Network deployment configuration
+   */
+  private async addKubeVipAnnotationsToServices(config: NetworkDeployConfigClass): Promise<void> {
+    const useKubeVip: boolean = process.env.SOLO_USE_KUBE_VIP === 'true';
+    if (!useKubeVip || !config.loadBalancerEnabled) {
+      return;
+    }
+
+    const kubeVipAddresses: string = process.env.SOLO_KUBE_VIP_ADDRESSES || '172.19.255.200,172.19.255.201';
+    const kubeVipIPs: string[] = kubeVipAddresses.split(',');
+
+    for (const consensusNode of config.consensusNodes) {
+      // Determine kube-vip IP for this node
+      let kubeVipIP: string = config.haproxyIpsParsed?.[consensusNode.name] || 
+                               config.envoyIpsParsed?.[consensusNode.name];
+      
+      if (!kubeVipIP) {
+        const clusterMatch: RegExpMatchArray | null = consensusNode.cluster.match(/-c(\d+)$/);
+        const clusterIndex: number = clusterMatch ? parseInt(clusterMatch[1], 10) - 1 : 0;
+        kubeVipIP = kubeVipIPs[clusterIndex] || kubeVipIPs[0];
+      }
+
+      if (!kubeVipIP) {
+        continue;
+      }
+
+      const serviceNames: string[] = [
+        `haproxy-${consensusNode.name}-svc`,
+        `envoy-proxy-${consensusNode.name}-svc`,
+        `network-${consensusNode.name}-svc`,
+      ];
+
+      for (const serviceName of serviceNames) {
+        try {
+          // Apply the annotation using kubectl command via shell
+          const {exec} = await import('child_process');
+          const {promisify} = await import('util');
+          const execAsync = promisify(exec);
+          
+          const command: string = `kubectl annotate svc ${serviceName} -n ${config.namespace} kube-vip.io/loadbalancerIPs=${kubeVipIP} --overwrite --context ${consensusNode.context}`;
+          await execAsync(command);
+
+          this.logger.debug(`Added kube-vip annotation to ${serviceName} in ${config.namespace} with IP ${kubeVipIP}`);
+        } catch (error: any) {
+          this.logger.warn(`Failed to annotate ${serviceName}: ${error.message}`);
+        }
+      }
+    }
   }
 
   /**
@@ -585,6 +639,7 @@ export class NetworkCommand extends BaseCommand {
           ' --set "defaults.envoyProxy.service.type=LoadBalancer"' +
           ' --set "defaults.consensus.service.type=LoadBalancer"';
       }
+
     }
 
     if (config.blockNodeComponents.length > 0) {
@@ -1171,6 +1226,16 @@ export class NetworkCommand extends BaseCommand {
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
+          },
+        },
+        {
+          title: 'Add kube-vip annotations to LoadBalancer services',
+          skip: (context_): boolean => {
+            const useKubeVip: boolean = process.env.SOLO_USE_KUBE_VIP === 'true';
+            return !useKubeVip || !context_.config.loadBalancerEnabled;
+          },
+          task: async (context_): Promise<void> => {
+            await this.addKubeVipAnnotationsToServices(context_.config);
           },
         },
         // TODO: Move the check for load balancer logic to a utility method or class

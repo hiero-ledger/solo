@@ -1,3 +1,69 @@
+install_kube_vip() {
+  local cluster_name=$1
+  local vip_address=$2
+  local context="kind-${cluster_name}"
+
+  if [[ -z "${vip_address}" ]]; then
+    echo "No kube-vip address provided for ${cluster_name}; skipping kube-vip install"
+    return
+  fi
+
+  kubectl config use-context "${context}"
+
+  kubectl create namespace kube-vip --dry-run=client -o yaml | kubectl apply -f -
+
+  cat <<'EOF' | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-vip
+  namespace: kube-vip
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-vip-role
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "nodes", "pods"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["services/status"]
+    verbs: ["update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-vip-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-vip-role
+subjects:
+  - kind: ServiceAccount
+    name: kube-vip
+    namespace: kube-vip
+EOF
+
+  docker run --rm "${KUBE_VIP_IMAGE}" manifest daemonset \
+    --services \
+    --arp \
+    --interface "${KUBE_VIP_INTERFACE}" \
+    --leaderElection \
+    --inCluster \
+    --namespace kube-vip | sed 's/namespace: kube-system/namespace: kube-vip/' | kubectl apply -f -
+
+  kubectl -n kube-vip set serviceaccount daemonset/kube-vip-ds kube-vip
+
+  echo "Installed kube-vip v0.9.2 in cluster ${cluster_name}"
+  echo "NOTE: Services require annotation 'kube-vip.io/loadbalancerIPs=${vip_address}' to get LoadBalancer IP"
+}
 #!/usr/bin/env bash
 set -eo pipefail
 
@@ -10,10 +76,21 @@ readonly CLUSTER_LOG_DIR="${SCRIPT_PATH}/logs"
 readonly KIND_IMAGE="kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
 readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
 readonly KIND_CLUSTER_BACKOFF_SECONDS="${SOLO_KIND_CLUSTER_BACKOFF_SECONDS:-30}"
-readonly ENABLE_METALLB="${SOLO_ENABLE_METALLB:-true}"
+readonly ENABLE_METALLB="${SOLO_ENABLE_METALLB:-false}"
+readonly ENABLE_KUBE_VIP="${SOLO_ENABLE_KUBE_VIP:-true}"
+readonly KUBE_VIP_IMAGE="${SOLO_KUBE_VIP_IMAGE:-ghcr.io/kube-vip/kube-vip:v0.9.2}"
+readonly KUBE_VIP_INTERFACE="${SOLO_KUBE_VIP_INTERFACE:-eth0}"
+readonly KUBE_VIP_ADDRESSES="${SOLO_KUBE_VIP_ADDRESSES:-172.19.255.200,172.19.255.201}"
+readonly KUBE_VIP_RANGE="${SOLO_KUBE_VIP_RANGE:-172.19.255.200-172.19.255.220}"
+readonly KUBE_VIP_RANGE_CIDR="${SOLO_KUBE_VIP_RANGE_CIDR:-32}"
+readonly KUBE_VIP_NETWORK="${SOLO_KUBE_VIP_NETWORK:-172.19.255.0/24}"
+IFS=',' read -r -a kube_vip_addresses <<< "${KUBE_VIP_ADDRESSES}"
+IFS='-' read -r KUBE_VIP_RANGE_START KUBE_VIP_RANGE_STOP <<< "${KUBE_VIP_RANGE}"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
+export SOLO_USE_KUBE_VIP=true
+export SOLO_KUBE_VIP_ADDRESSES="${KUBE_VIP_ADDRESSES}"
 
 if [[ -n "${SOLO_TEST_CLUSTER}" ]]; then
   SOLO_CLUSTER_NAME="${SOLO_TEST_CLUSTER}"
@@ -131,6 +208,8 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   if [[ "${ENABLE_METALLB}" == "true" ]]; then
     install_metallb || exit 1
     kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+  elif [[ "${ENABLE_KUBE_VIP}" == "true" ]]; then
+    install_kube_vip "${cluster_name}" "${kube_vip_addresses[$((i - 1))]}" || exit 1
   else
     echo "Skipping MetalLB install for ${cluster_name}"
   fi

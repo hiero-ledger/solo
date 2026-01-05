@@ -49,6 +49,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
+        // Enable kube-vip annotations for LoadBalancer services in dual-cluster setup
+        process.env.SOLO_USE_KUBE_VIP = 'true';
+        process.env.SOLO_KUBE_VIP_ADDRESSES = '172.19.255.200,172.19.255.201';
+
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
           fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
