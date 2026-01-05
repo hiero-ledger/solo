@@ -9,6 +9,7 @@ readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
 readonly CLUSTER_LOG_DIR="${SCRIPT_PATH}/logs"
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
+readonly ENABLE_METALLB="${SOLO_ENABLE_METALLB:-false}"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
@@ -36,7 +37,11 @@ docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 
 # Setup Helm Repos
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm repo add metallb https://metallb.github.io/metallb
+if [[ "${ENABLE_METALLB}" == "true" ]]; then
+  helm repo add metallb https://metallb.github.io/metallb
+else
+  echo "Skipping MetalLB Helm repo setup (SOLO_ENABLE_METALLB=${ENABLE_METALLB})"
+fi
 
 create_kind_cluster() {
   local cluster_name=$1
@@ -122,9 +127,12 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
 
   install_metrics_server || exit 1
 
-  install_metallb || exit 1
-
-  kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+  if [[ "${ENABLE_METALLB}" == "true" ]]; then
+    install_metallb || exit 1
+    kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+  else
+    echo "Skipping MetalLB install for ${cluster_name}"
+  fi
 
   # Deploy the diagnostics container if not running in CI
   if [[ -z "${CI}" ]]; then
