@@ -118,7 +118,7 @@ readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
 readonly CLUSTER_LOG_DIR="${SCRIPT_PATH}/logs"
 readonly KIND_IMAGE="kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
 readonly HELM_TIMEOUT="${HELM_TIMEOUT_OVERRIDE:-10m0s}"
-readonly KIND_CLUSTER_BACKOFF_SECONDS="${SOLO_KIND_CLUSTER_BACKOFF_SECONDS:-30}"
+readonly KIND_CLUSTER_BACKOFF_SECONDS="${SOLO_KIND_CLUSTER_BACKOFF_SECONDS:-60}"
 readonly ENABLE_METALLB="${SOLO_ENABLE_METALLB:-false}"
 readonly ENABLE_KUBE_VIP="${SOLO_ENABLE_KUBE_VIP:-true}"
 readonly KUBE_VIP_IMAGE="${SOLO_KUBE_VIP_IMAGE:-ghcr.io/kube-vip/kube-vip:v0.9.2}"
@@ -170,7 +170,7 @@ create_kind_cluster() {
 
   mkdir -p "${CLUSTER_LOG_DIR}"
 
-  kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"
+  kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}" --wait 5m
 }
 
 install_metrics_server() {

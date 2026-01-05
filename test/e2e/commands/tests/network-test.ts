@@ -101,7 +101,7 @@ export class NetworkTest extends BaseCommandTest {
           `expected exactly ${nodeCount} network-node pod in namespace ${namespace} for context ${context_}`,
         ).to.equal(nodeCount);
       }
-    }).timeout(Duration.ofMinutes(10).toMillis());
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {

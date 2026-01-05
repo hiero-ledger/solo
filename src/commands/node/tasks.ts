@@ -1671,54 +1671,8 @@ export class NodeCommandTasks {
                     '-lc',
                     `chmod +x ${startScriptContainerPath} && ${startScriptContainerPath}`,
                   ]);
-              } catch (error) {
-                try {
-                  const diagnosticRunner: ShellRunner = new ShellRunner(this.logger);
-
-                  const describeOutput: string[] = await diagnosticRunner.run('kubectl', [
-                    '-n',
-                    namespaceName,
-                    'describe',
-                    'pod',
-                    podName,
-                  ]);
-                  for (const line of describeOutput) {
-                    this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
-                  }
-
-                  const logsOutput: string[] = await diagnosticRunner.run('kubectl', [
-                    '-n',
-                    namespaceName,
-                    'logs',
-                    podName,
-                    '-c',
-                    constants.ROOT_CONTAINER.toString(),
-                    '--tail=200',
-                  ]);
-                  for (const line of logsOutput) {
-                    this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
-                  }
-
-                  const previousLogsOutput: string[] = await diagnosticRunner
-                    .run('kubectl', [
-                      '-n',
-                      namespaceName,
-                      'logs',
-                      podName,
-                      '-c',
-                      constants.ROOT_CONTAINER.toString(),
-                      '--previous',
-                      '--tail=200',
-                    ])
-                    .catch((): string[] => []);
-                  for (const line of previousLogsOutput) {
-                    this.logger.showUser(chalk.red(`[${nodeAlias}] ${line}`));
-                  }
-                } catch {
-                  // ignore diagnostics failures
-                }
-
-                throw error;
+              } catch (error: any) {
+                throw new SoloError(`Failed to start node ${nodeAlias}: ${error.message}`, error);
               }
             },
           });
