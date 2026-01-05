@@ -90,7 +90,7 @@ export class NetworkNodes {
       await container.execContainer([
         'bash',
         '-c',
-        `sync ${HEDERA_HAPI_PATH} && sudo chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
+        `sync ${HEDERA_HAPI_PATH} && chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
       ]);
 
       await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
