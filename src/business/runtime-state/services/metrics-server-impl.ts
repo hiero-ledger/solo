@@ -26,9 +26,11 @@ export class MetricsServerImpl implements MetricsServer {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.IgnorePodMetrics) private readonly ignorePodMetrics?: string[],
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.ignorePodMetrics = patchInject(ignorePodMetrics, InjectTokens.IgnorePodMetrics, this.constructor.name);
   }
 
   public async getMetrics(
@@ -36,6 +38,7 @@ export class MetricsServerImpl implements MetricsServer {
     namespaceLookup: NamespaceName = undefined,
     labelSelector: string = undefined,
     contexts: Context[] = undefined,
+    events: string[] = [],
   ): Promise<AggregatedMetrics> {
     const clusterMetrics: ClusterMetrics[] = [];
     if (!contexts || contexts?.length === 0) {
@@ -51,7 +54,7 @@ export class MetricsServerImpl implements MetricsServer {
         }
       }
     }
-    return this.createAggregatedMetrics(snapshotName, clusterMetrics);
+    return this.createAggregatedMetrics(snapshotName, clusterMetrics, events);
   }
 
   private async getClusterMetrics(
@@ -60,7 +63,7 @@ export class MetricsServerImpl implements MetricsServer {
     context: Context = undefined,
     attempt: number = 1,
   ): Promise<ClusterMetrics> {
-    const podMetrics: PodMetrics[] = [];
+    let podMetrics: PodMetrics[] = [];
     const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
     const contextParameter: string = context ? `--context ${context}` : '';
     const labelSelectorParameter: string = labelSelector ? `-l='${labelSelector}'` : '';
@@ -94,6 +97,16 @@ export class MetricsServerImpl implements MetricsServer {
           mirrorNodePostgresPodName = podName;
         }
       }
+
+      podMetrics = podMetrics.filter((podMetric: PodMetrics): boolean => {
+        for (const ignorePattern of this.ignorePodMetrics) {
+          if (podMetric.podName.name.includes(ignorePattern)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
       return this.createClusterMetrics(
         context ?? 'default',
         clusterNamespace ? NamespaceName.of(clusterNamespace) : undefined,
@@ -124,6 +137,7 @@ export class MetricsServerImpl implements MetricsServer {
   private async createAggregatedMetrics(
     snapshotName: string,
     clusterMetrics: ClusterMetrics[],
+    events: string[] = [],
   ): Promise<AggregatedMetrics> {
     let namespace: NamespaceName = undefined;
 
@@ -159,6 +173,7 @@ export class MetricsServerImpl implements MetricsServer {
       memoryInMebibytes,
       runtime,
       transactions,
+      events,
     );
   }
 
@@ -194,12 +209,14 @@ export class MetricsServerImpl implements MetricsServer {
     namespace?: NamespaceName,
     labelSelector?: string,
     contexts?: Context[],
+    events: string[] = [],
   ): Promise<void> {
     const aggregatedMetrics: AggregatedMetrics = await this.getMetrics(
       snapshotName,
       namespace,
       labelSelector,
       contexts,
+      events,
     );
 
     fs.writeFileSync(`${metricsLogFile}.json`, aggregatedMetrics ? aggregatedMetrics.toString() : '');
