@@ -342,6 +342,14 @@ jobs:
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
+      - name: Upload Kind diagnostics
+        if: failure() && inputs.test-script != 'test-e2e-node-local-ptt'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kind-diagnostics
+          path: test/e2e/dual-cluster/logs/
+          if-no-files-found: ignore
+
       - name: Setup Podman & Kind Cluster for E2E Tests
         if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
