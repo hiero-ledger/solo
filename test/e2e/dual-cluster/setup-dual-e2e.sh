@@ -210,6 +210,9 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   fi
 
   if [[ ${i} -lt ${SOLO_CLUSTER_DUALITY} ]]; then
+    echo "Cleaning up Docker resources before next cluster..."
+    docker system prune -f --volumes || true
+    
     echo "Waiting ${KIND_CLUSTER_BACKOFF_SECONDS}s before creating the next cluster..."
     sleep "${KIND_CLUSTER_BACKOFF_SECONDS}"
   fi
