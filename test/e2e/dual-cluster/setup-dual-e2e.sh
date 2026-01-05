@@ -1,3 +1,48 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+#
+# Dual-Cluster Kind Setup Script for E2E Testing
+#
+# This script sets up dual Kind clusters for end-to-end testing with LoadBalancer support.
+#
+# LOADBALANCER CONFIGURATION:
+# ---------------------------
+# This script supports two LoadBalancer providers: MetalLB and kube-vip
+#
+# To use MetalLB (default for macOS local testing):
+#   export SOLO_ENABLE_METALLB=true
+#   export SOLO_ENABLE_KUBE_VIP=false
+#   # MetalLB will automatically assign IPs from the pool defined in metallb-cluster-*.yaml files
+#   # Default IP ranges: 172.19.1.0/24 (cluster 1), 172.19.2.0/24 (cluster 2)
+#
+# To use kube-vip (recommended for GitHub Actions Linux runners):
+#   export SOLO_ENABLE_METALLB=false
+#   export SOLO_ENABLE_KUBE_VIP=true
+#   export SOLO_KUBE_VIP_ADDRESSES=172.19.255.200,172.19.255.201
+#   # kube-vip requires explicit IP addresses (one per cluster/node)
+#   # The Solo CLI will annotate services with these IPs using: kube-vip.io/loadbalancerIPs
+#
+# ENVIRONMENT VARIABLES:
+# ----------------------
+# SOLO_TEST_CLUSTER         - Base cluster name (default: solo-e2e)
+# SOLO_CLUSTER_DUALITY      - Number of clusters to create: 1 or 2 (default: 2)
+# SOLO_ENABLE_METALLB       - Enable MetalLB LoadBalancer (default: false)
+# SOLO_ENABLE_KUBE_VIP      - Enable kube-vip LoadBalancer (default: true)
+# SOLO_KUBE_VIP_ADDRESSES   - Comma-separated IPs for kube-vip (default: 172.19.255.200,172.19.255.201)
+# SOLO_KUBE_VIP_IMAGE       - kube-vip container image (default: ghcr.io/kube-vip/kube-vip:v0.9.2)
+# SOLO_KUBE_VIP_INTERFACE   - Network interface for kube-vip (default: eth0)
+# HELM_TIMEOUT_OVERRIDE     - Helm operation timeout (default: 10m0s)
+# SOLO_KIND_CLUSTER_BACKOFF_SECONDS - Delay between cluster creation (default: 30s)
+#
+# NOTES:
+# ------
+# - MetalLB uses IP pools and L2Advertisement for automatic IP assignment
+# - kube-vip requires per-service annotations managed by the Solo CLI
+# - Both providers work on macOS; kube-vip is preferred for Linux CI environments
+# - The Solo CLI automatically detects SOLO_USE_KUBE_VIP and applies annotations during deployment
+#
+
 install_kube_vip() {
   local cluster_name=$1
   local vip_address=$2
@@ -64,8 +109,6 @@ EOF
   echo "Installed kube-vip v0.9.2 in cluster ${cluster_name}"
   echo "NOTE: Services require annotation 'kube-vip.io/loadbalancerIPs=${vip_address}' to get LoadBalancer IP"
 }
-#!/usr/bin/env bash
-set -eo pipefail
 
 ##### Setup Environment #####
 SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -124,77 +167,24 @@ fi
 create_kind_cluster() {
   local cluster_name=$1
   local config_path=$2
-  local max_attempts=3
-  local attempt=1
 
   mkdir -p "${CLUSTER_LOG_DIR}"
 
-  until kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"; do
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      echo "ERROR: failed to create Kind cluster ${cluster_name} after ${max_attempts} attempts"
-      exit 1
-    fi
-
-    log_archive="${CLUSTER_LOG_DIR}/${cluster_name}-attempt-${attempt}-$(date -u +%Y%m%dT%H%M%SZ)"
-    echo "Gathering diagnostics for ${cluster_name} (attempt ${attempt}) to ${log_archive}"
-    kind export logs -n "${cluster_name}" "${log_archive}" || true
-
-    echo "Kind cluster ${cluster_name} failed to create (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
-    kind delete cluster -n "${cluster_name}" || true
-    sleep 10
-    attempt=$((attempt + 1))
-  done
+  kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}"
 }
 
 install_metrics_server() {
-  local max_attempts=3
-  local attempt=1
-
-  while true; do
-    if helm upgrade --install metrics-server metrics-server/metrics-server \
-      --namespace kube-system \
-      --timeout "${HELM_TIMEOUT}" \
-      --set "args[0]=--kubelet-insecure-tls"; then
-      return 0
-    fi
-
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      echo "ERROR: failed to install metrics-server after ${max_attempts} attempts" >&2
-      return 1
-    fi
-
-    echo "metrics-server install failed (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
-    helm uninstall metrics-server -n kube-system || true
-    sleep 10
-    attempt=$((attempt + 1))
-  done
+  helm upgrade --install metrics-server metrics-server/metrics-server \
+    --namespace kube-system \
+    --timeout "${HELM_TIMEOUT}" \
+    --set "args[0]=--kubelet-insecure-tls"
 }
 
 install_metallb() {
-  local max_attempts=3
-  local attempt=1
-
-  while true; do
-    if helm upgrade --install metallb metallb/metallb \
-      --namespace metallb-system --create-namespace --atomic --wait \
-      --timeout "${HELM_TIMEOUT}" \
-      --set speaker.frr.enabled=true; then
-      return 0
-    fi
-
-    if [[ ${attempt} -ge ${max_attempts} ]]; then
-      echo "ERROR: failed to install metallb after ${max_attempts} attempts" >&2
-      kubectl get pods -n metallb-system -o wide || true
-      kubectl describe pods -n metallb-system || true
-      return 1
-    fi
-
-    echo "metallb install failed (attempt ${attempt}/${max_attempts}). Retrying in 10 seconds..."
-    kubectl get pods -n metallb-system -o wide || true
-    helm uninstall metallb -n metallb-system || true
-    sleep 10
-    attempt=$((attempt + 1))
-  done
+  helm upgrade --install metallb metallb/metallb \
+    --namespace metallb-system --create-namespace --atomic --wait \
+    --timeout "${HELM_TIMEOUT}" \
+    --set speaker.frr.enabled=true
 }
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do

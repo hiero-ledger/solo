@@ -417,7 +417,6 @@ export class NetworkCommand extends BaseCommand {
       config.valuesFile,
     );
 
-
     for (const clusterReference of Object.keys(valuesFiles)) {
       valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
@@ -444,9 +443,9 @@ export class NetworkCommand extends BaseCommand {
 
     for (const consensusNode of config.consensusNodes) {
       // Determine kube-vip IP for this node
-      let kubeVipIP: string = config.haproxyIpsParsed?.[consensusNode.name] || 
-                               config.envoyIpsParsed?.[consensusNode.name];
-      
+      let kubeVipIP: string =
+        config.haproxyIpsParsed?.[consensusNode.name] || config.envoyIpsParsed?.[consensusNode.name];
+
       if (!kubeVipIP) {
         // Use node ID to assign IP from the pool (node IDs are 0-based)
         const nodeIndex: number = consensusNode.nodeId;
@@ -466,24 +465,24 @@ export class NetworkCommand extends BaseCommand {
       for (const serviceName of serviceNames) {
         try {
           // Wait for service to exist before annotating
-          const {exec} = await import('child_process');
-          const {promisify} = await import('util');
+          const {exec} = await import('node:child_process');
+          const {promisify} = await import('node:util');
           const execAsync = promisify(exec);
-          
+
           // Check if service exists first
           const checkCmd: string = `kubectl get svc ${serviceName} -n ${config.namespace} --context ${consensusNode.context} --ignore-not-found`;
           const {stdout: checkOutput} = await execAsync(checkCmd);
-          
+
           if (!checkOutput || checkOutput.trim() === '') {
             this.logger.warn(`Service ${serviceName} does not exist yet, skipping annotation`);
             continue;
           }
-          
+
           const command: string = `kubectl annotate svc ${serviceName} -n ${config.namespace} kube-vip.io/loadbalancerIPs=${kubeVipIP} --overwrite --context ${consensusNode.context}`;
           await execAsync(command);
 
           this.logger.info(`Added kube-vip annotation to ${serviceName} in ${config.namespace} with IP ${kubeVipIP}`);
-          
+
           // Wait a moment for kube-vip to process the annotation
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error: any) {
@@ -651,7 +650,6 @@ export class NetworkCommand extends BaseCommand {
           ' --set "defaults.envoyProxy.service.type=LoadBalancer"' +
           ' --set "defaults.consensus.service.type=LoadBalancer"';
       }
-
     }
 
     if (config.blockNodeComponents.length > 0) {
