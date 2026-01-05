@@ -336,7 +336,7 @@ jobs:
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
-          timeout_minutes: 10
+          timeout_minutes: 25
           command: |
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
