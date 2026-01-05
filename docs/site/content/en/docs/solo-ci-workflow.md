@@ -48,7 +48,7 @@ Next, install Kind to create and manage a local Kubernetes cluster in your workf
       install_only: true
       node_image: kindest/node:v1.34.3@sha256:08497ee19eace7b4b5348db5c6a1591d7752b164530a36f855cb0f2bdcbadd48
       version: v0.31.0
-      kubectl_version: v1.34.4
+      kubectl_version: v1.34.0
       verbosity: 3
       wait: 120s
 ```
@@ -111,7 +111,7 @@ Here’s the full workflow combining all the steps above:
       install_only: true
       node_image: kindest/node:v1.34.3@sha256:08497ee19eace7b4b5348db5c6a1591d7752b164530a36f855cb0f2bdcbadd48
       version: v0.31.0
-      kubectl_version: v1.34.4
+      kubectl_version: v1.34.0
       verbosity: 3
       wait: 120s
          
