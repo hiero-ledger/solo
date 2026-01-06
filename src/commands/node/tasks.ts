@@ -1658,7 +1658,7 @@ export class NodeCommandTasks {
                 .execContainer([
                   'bash',
                   '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                  'id || systemctl stop network-node || true && systemctl enable --now network-node',
                 ]);
             },
           });
