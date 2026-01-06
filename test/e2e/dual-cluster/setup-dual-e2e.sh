@@ -127,6 +127,8 @@ readonly KUBE_VIP_ADDRESSES="${SOLO_KUBE_VIP_ADDRESSES:-172.19.255.200,172.19.25
 readonly KUBE_VIP_RANGE="${SOLO_KUBE_VIP_RANGE:-172.19.255.200-172.19.255.220}"
 readonly KUBE_VIP_RANGE_CIDR="${SOLO_KUBE_VIP_RANGE_CIDR:-32}"
 readonly KUBE_VIP_NETWORK="${SOLO_KUBE_VIP_NETWORK:-172.19.255.0/24}"
+readonly ULIMIT_NOFILE="${SOLO_ULIMIT_NOFILE:-65536}"
+readonly DOCKER_PRUNE_BETWEEN_CLUSTERS="${SOLO_DOCKER_PRUNE_BETWEEN_CLUSTERS:-false}"
 IFS=',' read -r -a kube_vip_addresses <<< "${KUBE_VIP_ADDRESSES}"
 IFS='-' read -r KUBE_VIP_RANGE_START KUBE_VIP_RANGE_STOP <<< "${KUBE_VIP_RANGE}"
 
@@ -152,6 +154,10 @@ fi
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" || true
 done
+
+if [[ -n "${CI}" ]]; then
+  ulimit -n "${ULIMIT_NOFILE}" || true
+fi
 
 docker network rm -f kind || true
 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
@@ -195,7 +201,7 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   create_kind_cluster "${cluster_name}" "${cluster_config}"
 
   if [[ ${i} -lt ${SOLO_CLUSTER_DUALITY} ]]; then
-    if [[ -n "${CI}" ]]; then
+    if [[ -n "${CI}" && "${DOCKER_PRUNE_BETWEEN_CLUSTERS}" == "true" ]]; then
       echo "Cleaning up Docker resources before next cluster..."
       docker system prune -f || true
     fi
