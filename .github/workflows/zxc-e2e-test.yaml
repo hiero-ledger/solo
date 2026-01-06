@@ -334,7 +334,9 @@ jobs:
       - name: Increase Docker file descriptor limit
         if: ${{ runner.os == 'linux' && !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
         run: |
-          bash .github/workflows/script/set-docker-ulimits.sh 1048576
+          echo "Skipped"
+          # bash .github/workflows/script/set-docker-ulimits.sh 1048576
+          echo "Skipped"
 
       - name: Setup E2E Tests
         if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
