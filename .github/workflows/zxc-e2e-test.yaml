@@ -351,17 +351,17 @@ jobs:
                 | sudo tee /etc/docker/daemon.json.tmp >/dev/null
               sudo mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
             else
-              sudo tee /etc/docker/daemon.json >/dev/null <<EOF
-{
-  "default-ulimits": {
-    "nofile": {
-      "Name": "nofile",
-      "Soft": 1048576,
-      "Hard": 1048576
-    }
-  }
-}
-EOF
+              cat <<'EOF' | sudo tee /etc/docker/daemon.json >/dev/null
+              {
+                "default-ulimits": {
+                  "nofile": {
+                    "Name": "nofile",
+                    "Soft": 1048576,
+                    "Hard": 1048576
+                  }
+                }
+              }
+              EOF
             fi
             sudo service docker restart || sudo /etc/init.d/docker restart || true
           fi
