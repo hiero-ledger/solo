@@ -361,7 +361,7 @@ jobs:
     }
   }
 }
-EOF
+              EOF
             fi
             sudo service docker restart || sudo /etc/init.d/docker restart || true
           fi
