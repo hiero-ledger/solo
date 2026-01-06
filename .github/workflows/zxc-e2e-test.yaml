@@ -351,7 +351,7 @@ jobs:
                 | sudo tee /etc/docker/daemon.json.tmp >/dev/null
               sudo mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
             else
-              sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+              sudo tee /etc/docker/daemon.json >/dev/null <<EOF
 {
   "default-ulimits": {
     "nofile": {
