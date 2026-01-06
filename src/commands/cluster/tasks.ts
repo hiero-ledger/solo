@@ -208,7 +208,8 @@ export class ClusterCommandTasks {
         const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
-          return this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+          this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+          return;
         }
 
         try {
