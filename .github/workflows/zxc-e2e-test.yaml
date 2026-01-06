@@ -331,6 +331,23 @@ jobs:
           ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
           cd ../solo
 
+      - name: Increase Docker file descriptor limit
+        if: ${{ runner.os == 'linux' && !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
+        run: |
+          set -euo pipefail
+          echo "Current ulimit -n: $(ulimit -n)"
+
+          sudo mkdir -p /etc/systemd/system/docker.service.d
+          printf "[Service]\nLimitNOFILE=1048576\n" | sudo tee /etc/systemd/system/docker.service.d/override.conf > /dev/null
+
+          sudo systemctl daemon-reload
+          sudo systemctl restart docker
+
+          ulimit -n 1048576 || true
+          echo "Updated ulimit -n: $(ulimit -n)"
+
+          docker info | sed -n '1,80p'
+
       - name: Setup E2E Tests
         if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4

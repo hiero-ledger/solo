@@ -176,7 +176,30 @@ create_kind_cluster() {
 
   mkdir -p "${CLUSTER_LOG_DIR}"
 
-  kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}" --wait 5m
+  if ! kind create cluster --retain -n "${cluster_name}" --image "${KIND_IMAGE}" --config "${config_path}" --wait 5m; then
+    local log_archive
+    log_archive="${CLUSTER_LOG_DIR}/${cluster_name}-failed-$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p "${log_archive}" || true
+
+    echo "ERROR: kind cluster creation failed for ${cluster_name}; exporting diagnostics to ${log_archive}" >&2
+
+    kind export logs -n "${cluster_name}" "${log_archive}/kind" || true
+
+    docker ps -a >"${log_archive}/docker-ps-a.txt" 2>&1 || true
+    docker network ls >"${log_archive}/docker-network-ls.txt" 2>&1 || true
+
+    local control_plane_container
+    control_plane_container="${cluster_name}-control-plane"
+    docker logs "${control_plane_container}" >"${log_archive}/docker-logs-control-plane.txt" 2>&1 || true
+
+    docker exec --privileged "${control_plane_container}" journalctl --no-pager >"${log_archive}/journalctl.txt" 2>&1 || true
+    docker exec --privileged "${control_plane_container}" journalctl --no-pager -u containerd.service >"${log_archive}/journalctl-containerd.txt" 2>&1 || true
+    docker exec --privileged "${control_plane_container}" journalctl --no-pager -u kubelet.service >"${log_archive}/journalctl-kubelet.txt" 2>&1 || true
+
+    echo "ERROR: kind cluster creation failed for ${cluster_name}." >&2
+    echo "Diagnostics written under: ${log_archive}" >&2
+    return 1
+  fi
 }
 
 install_metrics_server() {
