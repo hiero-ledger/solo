@@ -1222,7 +1222,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 
           // Clean up old rounds - keep only the latest/biggest round
