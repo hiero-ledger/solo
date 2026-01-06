@@ -63,6 +63,12 @@ export const HEDERA_NODE_INTERNAL_GOSSIP_PORT = getEnvironmentVariable('SOLO_NOD
 export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT = getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT = +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
 
+// Pods with a name matching one of these strings will be ignored when collecting pod metrics
+const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
+export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
+  ? ignorePodMetricsEnvironment.split(',')
+  : ['network-load-generator'];
+
 export const HEDERA_NODE_SIDECARS = [
   'recordStreamUploader',
   'eventStreamUploader',
