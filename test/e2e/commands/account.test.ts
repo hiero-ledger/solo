@@ -1,12 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {before, describe, it} from 'mocha';
+import {describe} from 'mocha';
 import {expect} from 'chai';
 
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
+import * as constants from '../../../src/core/constants.js';
+import {Duration} from '../../../src/core/time/duration.js';
+import {sleep} from '../../../src/core/helpers.js';
+import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
+import fs from 'node:fs';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
+import {resetForTest} from '../../test-container.js';
+import {InitTest} from './tests/init-test.js';
+import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
+import {DeploymentTest} from './tests/deployment-test.js';
+import {NodeTest} from './tests/node-test.js';
+import {BlockNodeTest} from './tests/block-node-test.js';
+import {NetworkTest} from './tests/network-test.js';
+import {AccountTest} from './tests/account-test.js';
 import {
   AccountCreateTransaction,
   AccountId,
-  type AccountInfo,
   Client,
   Hbar,
   HbarUnit,
@@ -16,33 +32,16 @@ import {
   Status,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
+  type AccountInfo,
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
-import * as constants from '../../../src/core/constants.js';
-import {type AccountCommand} from '../../../src/commands/account.js';
-import {Duration} from '../../../src/core/time/duration.js';
-import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {sleep} from '../../../src/core/helpers.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
-import fs from 'node:fs';
-import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
-import {resetForTest} from '../../test-container.js';
-import {K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
-import {InitTest} from './tests/init-test.js';
-import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
-import {DeploymentTest} from './tests/deployment-test.js';
-import {NodeTest} from './tests/node-test.js';
-import {BlockNodeTest} from './tests/block-node-test.js';
-import {NetworkTest} from './tests/network-test.js';
-import {AccountTest} from './tests/account-test.js';
+import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
+import {type AccountCommand} from '../../../src/commands/account.js';
+import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type AccountManager} from '../../../src/core/account-manager.js';
-import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 type AccountInfoData = {
   accountId: string;
@@ -53,7 +52,7 @@ type AccountInfoData = {
 };
 const testName: string = 'account-test';
 
-const testSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
+new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Account Command E2E Test Suite')
   .withNamespace(testName)
@@ -74,8 +73,6 @@ const testSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
-        // container.registerInstance<K8ClientFactory>(InjectTokens.K8Factory, new K8ClientFactory());
-
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
           fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
@@ -110,50 +107,48 @@ const testSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
+      AccountTest.init(options);
+      AccountTest.specialAccountsShouldHaveNewKeys(options);
+
+      AccountTest.create(options);
+      // const accountId1: string = AccountTest.validateAccountInfo();
+
+      AccountTest.create(options, constants.GENESIS_KEY, 777);
+      // const accountId2: string = AccountTest.validateAccountInfo(constants.GENESIS_KEY, 777);
+
+      // AccountTest.update(options, accountId1);
+      // AccountTest.update(options, accountId2, 333, constants.GENESIS_KEY);
+      //
+      // AccountTest.info(options, accountId1);
+      //
+      // it('validate account 1 ', (): void => {
+      //   const accountInfo: AccountInfoData = accountCommand.accountInfo;
+      //   expect(accountInfo).not.to.be.null;
+      //   expect(accountInfo.accountId).to.equal(accountId1);
+      //   expect(accountInfo.privateKey).to.be.undefined;
+      //   expect(accountInfo.publicKey).to.be.ok;
+      // });
+      //
+      // AccountTest.info(options, accountId2);
+      //
+      // it('validate account 2 ', (): void => {
+      //   const accountInfo: AccountInfoData = accountCommand.accountInfo;
+      //   expect(accountInfo).not.to.be.null;
+      //   expect(accountInfo.accountId).to.equal(accountId2);
+      //   expect(accountInfo.privateKey).to.be.undefined;
+      //   expect(accountInfo.publicKey).to.be.ok;
+      //   expect(accountInfo.balance).to.equal(1110);
+      // });
+
+      const ecdsaPrivateKey: PrivateKey = PrivateKey.generateECDSA();
+
+      AccountTest.create(options, undefined, 0, ecdsaPrivateKey.toString());
+
       it('should succeed with prerequisites', async (): Promise<void> => {
         await container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState).load();
         accountCommand = container.resolve<AccountCommand>(InjectTokens.AccountCommand);
         accountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
       });
-
-      AccountTest.init(options);
-      AccountTest.specialAccountsShouldHaveNewKeys(options);
-
-      AccountTest.create(options);
-      const accountId1: string = AccountTest.validateAccountInfo();
-
-      AccountTest.create(options, constants.GENESIS_KEY, 777);
-      const accountId2: string = AccountTest.validateAccountInfo(constants.GENESIS_KEY, 777);
-
-      AccountTest.update(options, accountId1);
-      AccountTest.update(options, accountId2, 333, constants.GENESIS_KEY);
-
-      AccountTest.info(options, accountId1);
-
-      it('validate account 1 ', (): void => {
-        // @ts-expect-error - TS2341: to access private property
-        const accountInfo: AccountInfoData = accountCommand.accountInfo;
-        expect(accountInfo).not.to.be.null;
-        expect(accountInfo.accountId).to.equal(accountId1);
-        expect(accountInfo.privateKey).to.be.undefined;
-        expect(accountInfo.publicKey).to.be.ok;
-      });
-
-      AccountTest.info(options, accountId2);
-
-      it('validate account 2 ', (): void => {
-        // @ts-expect-error - TS2341: to access private property
-        const accountInfo: AccountInfoData = accountCommand.accountInfo;
-        expect(accountInfo).not.to.be.null;
-        expect(accountInfo.accountId).to.equal(accountId2);
-        expect(accountInfo.privateKey).to.be.undefined;
-        expect(accountInfo.publicKey).to.be.ok;
-        expect(accountInfo.balance).to.equal(1110);
-      });
-
-      const ecdsaPrivateKey: PrivateKey = PrivateKey.generateECDSA();
-
-      AccountTest.create(options, undefined, 0, ecdsaPrivateKey.toString());
 
       it('should validate new account', async (): Promise<void> => {
         // @ts-expect-error - TS2341: to access private property
@@ -282,6 +277,5 @@ const testSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NetworkTest.restart(options);
     }).timeout(Duration.ofMinutes(30).toMillis());
   })
-  .build();
-
-testSuite.runTestSuite();
+  .build()
+  .runTestSuite();

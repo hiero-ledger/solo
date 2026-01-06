@@ -3259,7 +3259,7 @@ export class NodeCommandTasks {
   public downloadHieroComponentLogs(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
     return {
       title: 'Download logs from Hiero components',
-      task: async (context_, task) => {
+      task: async (_, task) => {
         // Iterate all k8 contexts to find solo-remote-config configmaps
         this.logger.info('Discovering Hiero components from remote configuration...');
         const contexts: ReturnType<ReturnType<typeof this.k8Factory.default>['contexts']> = this.k8Factory

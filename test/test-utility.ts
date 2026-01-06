@@ -70,13 +70,14 @@ import {DeploymentCommandDefinition} from '../src/commands/command-definitions/d
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
-import {K8ClientFactory} from '../src/integration/kube/k8-client/k8-client-factory.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
 export function getTestCluster(): ClusterReferenceName {
   const soloTestCluster: ClusterReferenceName =
-    process.env.SOLO_TEST_CLUSTER || new K8ClientFactory().default().clusters().readCurrent() || 'solo-e2e';
+    process.env.SOLO_TEST_CLUSTER ||
+    container.resolve<K8Factory>(InjectTokens.K8Factory).default().clusters().readCurrent() ||
+    'solo-e2e';
 
   return soloTestCluster.startsWith('kind-') ? soloTestCluster : `kind-${soloTestCluster}`;
 }
