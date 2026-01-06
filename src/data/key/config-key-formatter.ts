@@ -54,4 +54,8 @@ export class ConfigKeyFormatter implements KeyFormatter {
 
     return ConfigKeyFormatter._instance;
   }
+
+  public static newMethod() {
+    const a = 5;
+  }
 }
