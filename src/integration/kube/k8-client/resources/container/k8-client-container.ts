@@ -24,6 +24,7 @@ import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
+import type * as stream from 'node:stream';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -40,7 +41,11 @@ export class K8ClientContainer implements Container {
     return this.kubeConfig.getCurrentContext();
   }
 
-  private async execKubectl(arguments_: string[]): Promise<string> {
+  private async execKubectl(
+    arguments_: string[],
+    outputPassThroughStream?: stream.PassThrough,
+    errorPassThroughStream?: stream.PassThrough,
+  ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
 
@@ -53,10 +58,16 @@ export class K8ClientContainer implements Container {
       let stderr: string = '';
 
       process.stdout.on('data', (chunk): void => {
+        if (outputPassThroughStream) {
+          outputPassThroughStream.write(chunk);
+        }
         stdout += chunk.toString();
       });
 
       process.stderr.on('data', (chunk): void => {
+        if (errorPassThroughStream) {
+          errorPassThroughStream.write(chunk);
+        }
         stderr += chunk.toString();
       });
 
@@ -242,7 +253,11 @@ export class K8ClientContainer implements Container {
     }
   }
 
-  public async execContainer(cmd: string | string[]): Promise<string> {
+  public async execContainer(
+    cmd: string | string[],
+    outputPassThroughStream?: stream.PassThrough,
+    errorPassThroughStream?: stream.PassThrough,
+  ): Promise<string> {
     const namespace: NamespaceName = this.containerReference.parentReference.namespace;
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
@@ -263,7 +278,7 @@ export class K8ClientContainer implements Container {
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-    return await this.execKubectl(arguments_);
+    return await this.execKubectl(arguments_, outputPassThroughStream, errorPassThroughStream);
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {
