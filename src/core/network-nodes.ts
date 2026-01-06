@@ -164,16 +164,14 @@ export class NetworkNodes {
   }
 
   public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {
-    // Use curl's built-in retry and timeout options to handle transient network glitches
-    // --max-time 60: overall timeout for the operation (seconds)
-    // --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors: retry transient failures
-    const curlCmd: string = String.raw`curl -sS --max-time 60 --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors http://localhost:9999/metrics`;
-    const cmd: string[] = ['bash', '-c', `${curlCmd} | grep platform_PlatformStatus | grep -v #`];
-
     return this.k8Factory
       .getK8(context)
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .execContainer(cmd);
+      .execContainer([
+        'bash',
+        '-c',
+        String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
+      ]);
   }
 }
