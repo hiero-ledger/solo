@@ -436,6 +436,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Get all log zip files directly from logs directory
       const allFiles: string[] = fs.readdirSync(logsDirectory);
+      this.logger.showUser(`Files are found in ${logsDirectory} are : ${allFiles.join(', ')}`);
       const logFiles: string[] = allFiles.filter(file => file.endsWith('.zip'));
 
       if (logFiles.length === 0) {
