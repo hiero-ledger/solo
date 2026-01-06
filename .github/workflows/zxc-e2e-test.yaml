@@ -337,11 +337,34 @@ jobs:
           set -euo pipefail
           echo "Current ulimit -n: $(ulimit -n)"
 
-          sudo mkdir -p /etc/systemd/system/docker.service.d
-          printf "[Service]\nLimitNOFILE=1048576\n" | sudo tee /etc/systemd/system/docker.service.d/override.conf > /dev/null
-
-          sudo systemctl daemon-reload
-          sudo systemctl restart docker
+          if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+            echo "Configuring Docker LimitNOFILE via systemd override"
+            sudo mkdir -p /etc/systemd/system/docker.service.d
+            printf "[Service]\nLimitNOFILE=1048576\n" | sudo tee /etc/systemd/system/docker.service.d/override.conf > /dev/null
+            sudo systemctl daemon-reload
+            sudo systemctl restart docker
+          else
+            echo "systemd not available; applying Docker default-ulimits via daemon.json"
+            sudo mkdir -p /etc/docker
+            if [ -f /etc/docker/daemon.json ]; then
+              sudo jq '. += {"default-ulimits":{"nofile":{"Name":"nofile","Hard":1048576,"Soft":1048576}}}' /etc/docker/daemon.json \
+                | sudo tee /etc/docker/daemon.json.tmp >/dev/null
+              sudo mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
+            else
+              sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Soft": 1048576,
+      "Hard": 1048576
+    }
+  }
+}
+EOF
+            fi
+            sudo service docker restart || sudo /etc/init.d/docker restart || true
+          fi
 
           ulimit -n 1048576 || true
           echo "Updated ulimit -n: $(ulimit -n)"
