@@ -100,5 +100,11 @@ jobs:
           }
           branch_warnings=$(get_warnings eslint-branch.log)
           main_warnings=$(get_warnings eslint.log)
-          echo "BRANCH_WARNINGS=$branch_warnings" >> $GITHUB_ENV
-          echo "MAIN_WARNINGS=$main_warnings" >> $GITHUB_ENV
+          echo "Warnings on branch: $branch_warnings"
+          echo "Warnings on main: $main_warnings"
+            if [ "$branch_warnings" -gt "$main_warnings" ]; then
+              echo "ESLint warnings have increased from $main_warnings to $branch_warnings"
+              exit 1
+            else
+              echo "ESLint warnings have not increased."
+            fi
