@@ -33,7 +33,7 @@ set -eo pipefail
 # SOLO_KUBE_VIP_IMAGE       - kube-vip container image (default: ghcr.io/kube-vip/kube-vip:v0.9.2)
 # SOLO_KUBE_VIP_INTERFACE   - Network interface for kube-vip (default: eth0)
 # HELM_TIMEOUT_OVERRIDE     - Helm operation timeout (default: 10m0s)
-# SOLO_KIND_CLUSTER_BACKOFF_SECONDS - Delay between cluster creation (default: 30s)
+# SOLO_KIND_CLUSTER_BACKOFF_SECONDS - Delay between cluster creation (default: 60s)
 #
 # NOTES:
 # ------
@@ -187,11 +187,28 @@ install_metallb() {
     --set speaker.frr.enabled=true
 }
 
+# Phase 1: create Kind clusters
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   cluster_name="${SOLO_CLUSTER_NAME}-c${i}"
   cluster_config="${SCRIPT_PATH}/kind-cluster-${i}.yaml"
 
   create_kind_cluster "${cluster_name}" "${cluster_config}"
+
+  if [[ ${i} -lt ${SOLO_CLUSTER_DUALITY} ]]; then
+    if [[ -n "${CI}" ]]; then
+      echo "Cleaning up Docker resources before next cluster..."
+      docker system prune -f || true
+    fi
+
+    echo "Waiting ${KIND_CLUSTER_BACKOFF_SECONDS}s before creating the next cluster..."
+    sleep "${KIND_CLUSTER_BACKOFF_SECONDS}"
+  fi
+done
+
+# Phase 2: install cluster add-ons
+for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
+  cluster_name="${SOLO_CLUSTER_NAME}-c${i}"
+  kubectl config use-context "kind-${cluster_name}"
 
   install_metrics_server || exit 1
 
@@ -207,14 +224,6 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   # Deploy the diagnostics container if not running in CI
   if [[ -z "${CI}" ]]; then
     "${CLUSTER_DIAGNOSTICS_PATH}"/deploy.sh
-  fi
-
-  if [[ ${i} -lt ${SOLO_CLUSTER_DUALITY} ]]; then
-    echo "Cleaning up Docker resources before next cluster..."
-    docker system prune -f --volumes || true
-    
-    echo "Waiting ${KIND_CLUSTER_BACKOFF_SECONDS}s before creating the next cluster..."
-    sleep "${KIND_CLUSTER_BACKOFF_SECONDS}"
   fi
 done
 
