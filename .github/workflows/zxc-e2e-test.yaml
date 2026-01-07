@@ -272,30 +272,6 @@ jobs:
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
-      - name: Install Podman
-        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
-        run: |
-          # Detect distro and install Podman + essential dependencies for rootful mode
-          if [ -f /etc/debian_version ]; then
-            sudo apt-get update
-            sudo apt-get install -y podman iptables
-          elif [ -f /etc/redhat-release ]; then
-            # Keep your RedHat logic if needed
-            true
-          else
-            echo "Unsupported distro"
-            exit 1
-          fi
-          
-          podman --version
-          
-          # Verify Podman works in rootful mode
-          echo "Verifying Podman in rootful mode..."
-          sudo podman info
-          sudo podman ps
-          echo "Podman is ready"
-
-
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
@@ -341,18 +317,6 @@ jobs:
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
-
-      - name: Setup Podman & Kind Cluster for E2E Tests
-        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
-        with:
-          max_attempts: 3
-          timeout_minutes: 15
-          command: |
-            npm link
-            echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
-            echo "GITHUB_RUN_ID=${{ github.run_id }}"
-            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} GITHUB_RUN_ID=${{ github.run_id }} ${{ env.CG_EXEC }} ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
