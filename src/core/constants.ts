@@ -8,6 +8,7 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
+import {type RbacAuthorizationV1ApiReadClusterRoleRequest} from '@kubernetes/client-node';
 
 export function getEnvironmentVariable(name: string): string {
   if (process.env[name]) {
@@ -111,7 +112,7 @@ export const GRAFANA_AGENT_CHART_URL =
 export const GRAFANA_AGENT_CHART = 'grafana-agent';
 export const GRAFANA_AGENT_RELEASE_NAME = 'grafana-agent';
 
-export const POD_MONITOR_ROLE = 'pod-monitor-role';
+export const POD_MONITOR_ROLE: RbacAuthorizationV1ApiReadClusterRoleRequest = {name: 'pod-monitor-role'};
 
 export const MINIO_OPERATOR_CHART_URL =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
