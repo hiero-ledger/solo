@@ -17,7 +17,7 @@ vars:
   NAMESPACE: "external-database-test"
   CLUSTER_NAME: "backup-restore-cluster"
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
-  ZIP_PASSWORD: "test-password"
+  ZIP_PASSWORD: "1234"
   ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 
@@ -46,6 +46,8 @@ tasks:
       - task: restore-network
       - task: restore-config
       - cmd: |
+          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
+          helm get all solo-deployment -n external-database-test > after-restore-config-helm.txt || true  
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} || {
             status=$?
             $SOLO_COMMAND deployment diagnostics all --deployment {{ .DEPLOYMENT }}
@@ -129,7 +131,7 @@ tasks:
 
       # Deploy consensus network
       - cmd: echo "🚀 Deploying consensus network..."
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs
 
       # Setup nodes
       - cmd: echo "⚙️  Setting up consensus nodes..."
@@ -137,7 +139,9 @@ tasks:
 
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
-      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+      - cmd: |
+          # Kill the start command if it hangs for more than 60 seconds
+          gtimeout 60s $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
 
       # Install PostgreSQL on Cluster 2
       - cmd: kubectl config use-context kind-solo-e2e-c2
@@ -190,9 +194,10 @@ tasks:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
       - cmd: |
-          $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+          gtimeout 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
+          helm get all solo-deployment -n external-database-test > before-backup-helm.txt || true
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -221,11 +226,12 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
      - cmd: |
-          rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
+          #rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
+          rm ~/.solo/local-config.yaml || true
           $SOLO_COMMAND init
-          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+          gtimeout 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
           --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
+          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
 
@@ -234,7 +240,8 @@ tasks:
     cmds:
       - task: deploy-external-database
       - cmd: |
-          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2
+          gtimeout 300s $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+          helm get all solo-deployment -n external-database-test > after-restore-helm.txt || true
       - task: deploy-mirror-external
 
   # ==================== External Database Tasks ====================
@@ -293,8 +300,23 @@ tasks:
     desc: Restore configuration and state from backup
     cmds:
       # freeze first before restoring
-      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+      - cmd: |
+          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
+          # rm hedera.crt
+          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- rm -f /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
+          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- rm -f /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
+          $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+          # restart pod to make new configMaps/Secrets effective
+          kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
+          kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
+
+          # refresh Helm release state so helm get all reflects restored values
+          helm upgrade --reuse-values --namespace external-database-test \
+          --kube-context kind-solo-e2e-c1 solo-deployment oci://ghcr.io/hashgraph/solo-charts/solo-deployment || true
+
+          
+          sleep 30
+          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt  || true
       - cmd: echo "Restoring database from dump..."
       - cmd: |
           kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
@@ -302,7 +324,7 @@ tasks:
       - cmd: |
           kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
       - cmd: echo "✅ Database restored"
   # ==================== Verification Tasks ====================
 

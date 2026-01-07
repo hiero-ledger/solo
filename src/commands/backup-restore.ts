@@ -47,6 +47,7 @@ import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-ki
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
+import {ResourceNotFoundError} from '../integration/kube/errors/resource-operation-errors.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -369,12 +370,24 @@ export class BackupRestoreCommand extends BaseCommand {
           const filePath: string = path.join(contextDirectory, file);
           const yamlContent: string = fs.readFileSync(filePath, 'utf8');
           const resource: any = yaml.parse(yamlContent);
+          const secretName: string = resource.metadata?.name;
 
           try {
             // skip configMap file SOLO_REMOTE_CONFIGMAP_NAME
             if (resource.metadata.name === constants.SOLO_REMOTE_CONFIGMAP_NAME) {
               this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata.name}`));
               continue;
+            }
+
+            const isSecret: boolean = resourceType === 'secrets';
+            if (isSecret) {
+              const existingSecretData: Record<string, string> | undefined = await this.readSecretDataSafe(
+                k8,
+                namespace,
+                secretName,
+              );
+              this.logSecretDataSnapshot('Existing secret data', secretName, existingSecretData);
+              this.logSecretDataSnapshot('New input data', secretName, resource.data || {});
             }
             await (resourceType === 'configmaps'
               ? k8
@@ -394,6 +407,14 @@ export class BackupRestoreCommand extends BaseCommand {
                     resource.data || {},
                     resource.metadata.labels || {},
                   ));
+            if (isSecret) {
+              const updatedSecretData: Record<string, string> | undefined = await this.readSecretDataSafe(
+                k8,
+                namespace,
+                secretName,
+              );
+              this.logSecretDataSnapshot('Secret data after import', secretName, updatedSecretData);
+            }
             this.logger.showUser(chalk.gray(`    ✓ Imported: ${resource.metadata.name}`));
             totalImportedCount++;
           } catch (error) {
@@ -410,6 +431,31 @@ export class BackupRestoreCommand extends BaseCommand {
       return totalImportedCount;
     } catch (error) {
       throw new SoloError(`Failed to import ${resourceType}: ${error.message}`, error);
+    }
+  }
+
+  private async readSecretDataSafe(k8: K8, namespace: NamespaceName, name: string): Promise<Record<string, string> | undefined> {
+    try {
+      const secret: Secret = await k8.secrets().read(namespace, name);
+      return secret.data || {};
+    } catch (error) {
+      if (error instanceof ResourceNotFoundError) {
+        this.logger.showUser(chalk.gray(`    Secret ${name} not found while reading existing data`));
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  private logSecretDataSnapshot(contextLabel: string, secretName: string, data?: Record<string, string>): void {
+    if (!data || Object.keys(data).length === 0) {
+      this.logger.showUser(chalk.gray(`      ${contextLabel} (${secretName}): <empty>`));
+      return;
+    }
+
+    this.logger.showUser(chalk.gray(`      ${contextLabel} (${secretName}):`));
+    for (const [key, value] of Object.entries(data)) {
+      this.logger.showUser(chalk.gray(`        ${key}: ${value}`));
     }
   }
 
