@@ -239,11 +239,9 @@ export class RapidFireCommand extends BaseCommand {
           try {
             await leaseReference.lease?.release();
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
-            await container.execContainer(
-              `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`,
-              outputStream,
-              errorStream,
-            );
+            let commandString = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
+            commandString = commandString.replaceAll('  ', ' ').trim();
+            await container.execContainer(commandString, outputStream, errorStream);
           } catch (error) {
             throw new SoloError(`Error running ${testClass} load test: ${error.message}`, error);
           }
