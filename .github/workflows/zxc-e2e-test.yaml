@@ -308,7 +308,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
+        if: ${{ !cancelled() && inputs.custom-job-label != 'One Shot Single - using Podman' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -353,20 +353,6 @@ jobs:
 
       - name: Run E2E Tests
         run: |
-          # Set KUBECONFIG to the unique config for Podman-based test only
-          if [[ "${{ inputs.test-script }}" == "test-e2e-node-local-ptt" ]]; then
-            UNIQUE_KUBECONFIG="${HOME}/.kube/solo-${{ github.run_id }}.yaml"
-            if [[ -f "${UNIQUE_KUBECONFIG}" ]]; then
-              export KUBECONFIG="${UNIQUE_KUBECONFIG}"
-              echo "Using unique KUBECONFIG for Podman test: ${KUBECONFIG}"
-            else
-              echo "Warning: Expected unique KUBECONFIG not found: ${UNIQUE_KUBECONFIG}"
-              exit 1
-            fi
-          else
-            echo "Using default KUBECONFIG (Kind action setup)"
-          fi
-          
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
