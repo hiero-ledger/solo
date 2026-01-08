@@ -221,7 +221,7 @@ jobs:
         if: ${{ inputs.install-dependencies == true }}
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
-          version: 'v1.27.3'
+          version: 'v1.34.0'
         id: install
 
       - name: Setup Kind
@@ -239,7 +239,7 @@ jobs:
         if: ${{ inputs.install-dependencies == true }}
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
-          version: "v3.17.1" # helm version
+          version: "v4.0.4" # helm version
 
       - name: Install Dependencies
         id: npm-deps

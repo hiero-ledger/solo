@@ -58,7 +58,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
-          version: "v3.12.3" # helm version
+          version: "v4.0.4" # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
@@ -73,7 +73,7 @@ jobs:
       - name: Install Kubectl
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
-          version: 'v1.27.3'
+          version: 'v1.34.0'
         id: install
 
       - name: Get Latest Version
