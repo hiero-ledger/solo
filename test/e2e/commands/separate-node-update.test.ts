@@ -24,6 +24,7 @@ import {
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {main} from '../../../src/index.js';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -42,8 +43,7 @@ export function testSeparateNodeUpdate(
   );
 
   const {
-    opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
-    cmd: {nodeCmd},
+    opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
   } = bootstrapResp;
 
   describe('Node update via separated commands', async (): Promise<void> => {
@@ -92,33 +92,30 @@ export function testSeparateNodeUpdate(
       const temporaryDirectory2: string = 'contextDir';
       const argvPrepare: Argv = argv.clone();
       argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
+      argvPrepare.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+      );
+      await main(argvPrepare.asStringArray());
+
+      const argvUpdateSubmit: Argv = argv.clone();
+      argvUpdateSubmit.setArg(flags.inputDir, temporaryDirectory2);
+      argvUpdateSubmit.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+      );
+      await main(argvUpdateSubmit.asStringArray());
 
       const argvExecute: Argv = argv.clone();
       argvExecute.setArg(flags.inputDir, temporaryDirectory2);
-
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updatePrepare(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateSubmitTransactions(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateExecute(argv),
-      });
+      argvExecute.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+      );
+      await main(argvExecute.asStringArray());
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
