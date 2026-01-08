@@ -84,11 +84,9 @@ jobs:
           task check
           mv eslint.log eslint-branch.log || true
 
-      - name: Compare warnings with main branch
+      - name: Compare warnings with target branch
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
-          git fetch origin main:main
-          git checkout main
-          task check
           get_warnings() {
             file="$1"
             if [ -f "$file" ]; then
@@ -98,13 +96,20 @@ jobs:
               echo 0
             fi
           }
+          # Determine the PR target (base) branch
+          target_branch="${{ github.event.pull_request.base.ref }}"
+          echo "Target branch: $target_branch"
+          # Fetch and check out the target branch from origin
+          git fetch origin "$target_branch":"$target_branch"
+          git checkout "$target_branch"
+          task check
           branch_warnings=$(get_warnings eslint-branch.log)
-          main_warnings=$(get_warnings eslint.log)
+          target_warnings=$(get_warnings eslint.log)
           echo "Warnings on branch: $branch_warnings"
-          echo "Warnings on main: $main_warnings"
-            if [ "$branch_warnings" -gt "$main_warnings" ]; then
-              echo "✘ Warnings have increased from $main_warnings to $branch_warnings"
-              exit 1
-            else
-              echo "✔ Warnings have not increased"
-            fi
+          echo "Warnings on target ($target_branch): $target_warnings"
+          if [ "$branch_warnings" -gt "$target_warnings" ]; then
+            echo "✘ Warnings have increased from $target_warnings to $branch_warnings"
+            exit 1
+          else
+            echo "✔ Warnings have not increased"
+          fi
