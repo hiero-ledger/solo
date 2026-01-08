@@ -5,6 +5,7 @@ import {describe, it} from 'mocha';
 import {platform, arch} from 'node:os';
 import {existsSync} from 'node:fs';
 import {execSync} from 'node:child_process';
+import {gte} from 'semver';
 import {SemanticVersion} from '../../../../../src/integration/helm/base/api/version/semantic-version.js';
 import {HelmSoftwareLoader} from '../../../../../src/integration/helm/resource/helm-software-loader.js';
 
@@ -48,10 +49,9 @@ describe('Helm Software Loader Test', () => {
     }
 
     const actualVersion = SemanticVersion.parse(helmVersion);
+    const minimumVersion = SemanticVersion.parse('3.12.0');
     expect(actualVersion).to.not.be.null;
-    expect(actualVersion.major).to.be.greaterThanOrEqual(3);
-    expect(actualVersion.minor).to.be.greaterThanOrEqual(12);
-    expect(actualVersion.patch).to.be.greaterThanOrEqual(0);
+    expect(gte(actualVersion.toString(), minimumVersion.toString())).to.be.true;
   };
 
   // Run tests only if current platform/arch is supported
