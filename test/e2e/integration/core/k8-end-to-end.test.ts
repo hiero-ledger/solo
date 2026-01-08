@@ -33,6 +33,38 @@ import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
+async function logPodDiagnostics(
+  namespace: NamespaceName,
+  labels: string[],
+  k8Factory: K8Factory,
+  logger: SoloLogger,
+): Promise<void> {
+  try {
+    const pods: Pod[] = await k8Factory.default().pods().list(namespace, labels);
+    if (pods.length === 0) {
+      const namespacePods: Pod[] = await k8Factory.default().pods().list(namespace, []);
+      logger.showUser?.(
+        `Diagnostic: No pods matched labels [${labels.join(', ')}]. Pods currently in namespace ${namespace.toString()}: ${namespacePods
+          .map(pod => `${pod.podReference.name.name}`)
+          .join(', ')}`,
+      );
+      return;
+    }
+
+    pods.forEach(pod => {
+      const conditions: string =
+        pod.conditions?.map(condition => `${condition.type}:${condition.status}`).join(', ') ?? 'none';
+      logger.showUser?.(
+        `Diagnostic: Pod ${pod.podReference.name.name} -> conditions=[${conditions}], deletionTimestamp=${
+          pod.deletionTimestamp?.toISOString() ?? 'n/a'
+        }, labels=${JSON.stringify(pod.labels ?? {})}`,
+      );
+    });
+  } catch (diagnosticError) {
+    logger.showUser?.(`Failed to capture pod diagnostics: ${(diagnosticError as Error).message}`);
+  }
+}
+
 async function createPod(
   podReference: PodReference,
   containerName: ContainerName,
@@ -122,10 +154,19 @@ describe('K8', () => {
   it('should be able to run wait for pod', async () => {
     const labels = [`app=${podLabelValue}`];
 
-    const pods = await k8Factory
-      .default()
-      .pods()
-      .waitForRunningPhase(testNamespace, labels, 30, constants.PODS_RUNNING_DELAY);
+    let pods: Pod[] = [];
+    try {
+      pods = await k8Factory
+        .default()
+        .pods()
+        .waitForRunningPhase(testNamespace, labels, 30, constants.PODS_RUNNING_DELAY);
+    } catch (error) {
+      await logPodDiagnostics(testNamespace, labels, k8Factory, testLogger);
+      throw error;
+    }
+    if (pods.length !== 1) {
+      await logPodDiagnostics(testNamespace, labels, k8Factory, testLogger);
+    }
     expect(pods).to.have.lengthOf(1);
   }).timeout(defaultTimeout);
 
