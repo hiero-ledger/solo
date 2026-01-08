@@ -189,6 +189,27 @@ export class BackupRestoreCommand extends BaseCommand {
     }
   }
 
+  private async waitForConsensusPods(): Promise<void> {
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+    for (const consensusNode of consensusNodes) {
+      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name as any, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(context);
+      this.logger.info(
+        `Waiting for pod of node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
+      );
+      await k8
+        .pods()
+        .waitForRunningPhase(
+          namespace,
+          [`solo.hedera.com/node-name=${consensusNode.name}`, 'solo.hedera.com/type=network-node'],
+          constants.PODS_RUNNING_MAX_ATTEMPTS,
+          constants.PODS_RUNNING_DELAY,
+        );
+    }
+  }
+
   /**
    * Export all configmaps from the cluster as YAML files
    * @param outputDirectory - directory to export configmaps to
@@ -649,6 +670,13 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task) => {
             context_.secretCount = await this.importSecrets(inputDirectory);
             task.title = `Import Secrets: ${context_.secretCount} imported`;
+          },
+        },
+        {
+          title: 'Wait for consensus node pods',
+          task: async (context_, task) => {
+            await this.waitForConsensusPods();
+            task.title = 'Wait for consensus node pods: completed';
           },
         },
         {
