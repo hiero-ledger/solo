@@ -88,7 +88,7 @@ jobs:
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         if: ${{ runner.os == 'linux' }}
         with:
-          version: "v3.12.3" # helm version
+          version: "v4.0.4" # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
