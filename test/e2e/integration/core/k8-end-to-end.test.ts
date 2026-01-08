@@ -37,71 +37,6 @@ const TEST_POD_IMAGE: string =
   process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
 let testImagePreloaded: boolean = false;
 
-async function logPodDiagnostics(
-  namespace: NamespaceName,
-  labels: string[],
-  k8Factory: K8Factory,
-  logger: SoloLogger,
-): Promise<void> {
-  try {
-    const pods: Pod[] = await k8Factory.default().pods().list(namespace, labels);
-    if (pods.length === 0) {
-      const namespacePods: Pod[] = await k8Factory.default().pods().list(namespace, []);
-      logger.showUser?.(
-        `Diagnostic: No pods matched labels [${labels.join(', ')}]. Pods currently in namespace ${namespace.toString()}: ${namespacePods
-          .map(pod => `${pod.podReference.name.name}`)
-          .join(', ')}`,
-      );
-      return;
-    }
-
-    pods.forEach(pod => {
-      const conditions: string =
-        pod.conditions?.map(condition => `${condition.type}:${condition.status}`).join(', ') ?? 'none';
-      logger.showUser?.(
-        `Diagnostic: Pod ${pod.podReference.name.name} -> conditions=[${conditions}], deletionTimestamp=${
-          pod.deletionTimestamp?.toISOString() ?? 'n/a'
-        }, labels=${JSON.stringify(pod.labels ?? {})}`,
-      );
-    });
-
-    await describePods(namespace, pods, logger);
-  } catch (diagnosticError) {
-    logger.showUser?.(`Failed to capture pod diagnostics: ${(diagnosticError as Error).message}`);
-  }
-}
-
-async function describePods(namespace: NamespaceName, pods: Pod[], logger: SoloLogger): Promise<void> {
-  const shellRunner: ShellRunner = new ShellRunner(logger);
-
-  for (const pod of pods) {
-    const podName: string = pod.podReference.name.name;
-    try {
-      const describeOutput: string[] = await shellRunner.run(
-        `kubectl describe pod ${podName} -n ${namespace.toString()}`,
-        [],
-        false,
-        false,
-      );
-      logger.showUser?.(`kubectl describe pod ${podName}:\n${describeOutput.join('\n')}`);
-    } catch (error) {
-      logger.showUser?.(`Failed to describe pod ${podName}: ${(error as Error).message}`);
-    }
-
-    try {
-      const statusOutput: string[] = await shellRunner.run(
-        `kubectl get pod ${podName} -n ${namespace.toString()} -o jsonpath='{.status.containerStatuses}'`,
-        [],
-        false,
-        false,
-      );
-      logger.showUser?.(`kubectl get pod ${podName} containerStatuses: ${statusOutput.join('\n')}`);
-    } catch (error) {
-      logger.showUser?.(`Failed to get pod status for ${podName}: ${(error as Error).message}`);
-    }
-  }
-}
-
 async function ensureTestImageAvailable(image: string, contexts: string[], logger: SoloLogger): Promise<void> {
   if (testImagePreloaded) {
     return;
@@ -232,19 +167,10 @@ describe('K8', () => {
   it('should be able to run wait for pod', async () => {
     const labels = [`app=${podLabelValue}`];
 
-    let pods: Pod[] = [];
-    try {
-      pods = await k8Factory
-        .default()
-        .pods()
-        .waitForRunningPhase(testNamespace, labels, 30, constants.PODS_RUNNING_DELAY);
-    } catch (error) {
-      await logPodDiagnostics(testNamespace, labels, k8Factory, testLogger);
-      throw error;
-    }
-    if (pods.length !== 1) {
-      await logPodDiagnostics(testNamespace, labels, k8Factory, testLogger);
-    }
+    const pods = await k8Factory
+      .default()
+      .pods()
+      .waitForRunningPhase(testNamespace, labels, 30, constants.PODS_RUNNING_DELAY);
     expect(pods).to.have.lengthOf(1);
   }).timeout(defaultTimeout);
 
