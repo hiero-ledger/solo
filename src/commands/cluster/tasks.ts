@@ -28,8 +28,6 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import * as versions from '../../../version.js';
-import * as fs from 'node:fs';
-import * as yaml from 'yaml';
 import {findMinioOperator} from '../../core/helpers.js';
 
 @injectable()
@@ -352,10 +350,25 @@ export class ClusterCommandTasks {
         } catch {
           // ClusterRole doesn't exist, create it
           try {
-            const yamlContent = fs.readFileSync(constants.POD_MONITOR_ROLE_TEMPLATE, 'utf8');
-            const clusterRole = yaml.parse(yamlContent);
+            // const yamlContent = fs.readFileSync(constants.POD_MONITOR_ROLE_TEMPLATE, 'utf8');
+            // const clusterRole = yaml.parse(yamlContent);
 
-            await k8.rbac().createClusterRole(clusterRole);
+            await k8.rbac().createClusterRole(
+              constants.POD_MONITOR_ROLE,
+              [
+                {
+                  apiGroups: [''],
+                  resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
+                  verbs: ['get', 'list'],
+                },
+                {
+                  apiGroups: [''],
+                  resources: ['pods/exec'],
+                  verbs: ['create'],
+                },
+              ],
+              {'solo.hedera.com/type': 'cluster-role'},
+            );
             self.logger.showUser(
               `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
             );

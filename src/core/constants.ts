@@ -8,7 +8,6 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
-import {type RbacAuthorizationV1ApiReadClusterRoleRequest} from '@kubernetes/client-node';
 
 export function getEnvironmentVariable(name: string): string {
   if (process.env[name]) {
@@ -112,7 +111,7 @@ export const GRAFANA_AGENT_CHART_URL =
 export const GRAFANA_AGENT_CHART = 'grafana-agent';
 export const GRAFANA_AGENT_RELEASE_NAME = 'grafana-agent';
 
-export const POD_MONITOR_ROLE: RbacAuthorizationV1ApiReadClusterRoleRequest = {name: 'pod-monitor-role'};
+export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
 export const MINIO_OPERATOR_CHART_URL =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
@@ -233,6 +232,7 @@ export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'm
 export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values-hedera.yaml');
 export const INGRESS_CONTROLLER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'ingress-controller-values.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+// TODO delete
 export const POD_MONITOR_ROLE_TEMPLATE = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'pod-monitor-role.yaml');
 export const CLEANUP_STATE_ROUNDS_SCRIPT = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
