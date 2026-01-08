@@ -945,7 +945,7 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async crdExists(context: string, crdName: string): Promise<boolean> {
-    return await this.k8Factory.getK8(context).crds().ifExists(crdName);
+    return await this.k8Factory.getK8(context).customResourceDefinitions().ifExists(crdName);
   }
 
   /**

@@ -317,7 +317,10 @@ export class ExplorerCommand extends BaseCommand {
         // check if CRDs of cert-manager are already installed
         let needInstall: boolean = false;
         for (const crd of constants.CERT_MANAGER_CRDS) {
-          const crdExists: boolean = await this.k8Factory.getK8(config.clusterContext).crds().ifExists(crd);
+          const crdExists: boolean = await this.k8Factory
+            .getK8(config.clusterContext)
+            .customResourceDefinitions()
+            .ifExists(crd);
 
           if (!crdExists) {
             needInstall = true;
