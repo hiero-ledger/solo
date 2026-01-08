@@ -383,7 +383,7 @@ describe('K8', () => {
     const podName = PodName.of(`test-pod-${uuid4()}`);
     const podReference = PodReference.of(testNamespace, podName);
     const podLabelValue = `test-${uuid4()}`;
-    await createPod(podReference, containerName, podLabelValue, k8Factory);
+    await createPod(podReference, containerName, podLabelValue, k8Factory, TEST_POD_IMAGE);
     await k8Factory.default().pods().readByReference(podReference).killPod();
     const newPods = await k8Factory
       .default()
