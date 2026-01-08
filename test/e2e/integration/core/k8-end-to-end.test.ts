@@ -33,7 +33,8 @@ import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
-const TEST_POD_IMAGE: string = process.env.K8_E2E_TEST_IMAGE ?? 'alpine:3.18';
+const TEST_POD_IMAGE: string =
+  process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
 let testImagePreloaded: boolean = false;
 
 async function logPodDiagnostics(
@@ -171,8 +172,16 @@ describe('K8', () => {
       if (!(await k8Factory.default().namespaces().has(testNamespace))) {
         await k8Factory.default().namespaces().create(testNamespace);
       }
-      const contextsList: string[] = k8Factory.default().contexts().list();
-      await ensureTestImageAvailable(TEST_POD_IMAGE, contextsList, testLogger);
+      try {
+        const contextsList: string[] = k8Factory.default().contexts().list();
+        await ensureTestImageAvailable(TEST_POD_IMAGE, contextsList, testLogger);
+      } catch (error) {
+        testLogger.showUser?.(
+          `Warning: unable to preload test image '${TEST_POD_IMAGE}'. The cluster will pull it directly. Reason: ${
+            (error as Error).message
+          }`,
+        );
+      }
       await createPod(podReference, containerName, podLabelValue, k8Factory, TEST_POD_IMAGE);
 
       const serviceReference: ServiceReference = ServiceReference.of(testNamespace, ServiceName.of(serviceName));
