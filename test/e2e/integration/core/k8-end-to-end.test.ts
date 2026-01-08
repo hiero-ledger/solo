@@ -30,42 +30,10 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
-import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const TEST_POD_IMAGE: string =
   process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
-let testImagePreloaded: boolean = false;
-
-async function ensureTestImageAvailable(image: string, contexts: string[], logger: SoloLogger): Promise<void> {
-  if (testImagePreloaded) {
-    return;
-  }
-
-  const shellRunner: ShellRunner = new ShellRunner(logger);
-  logger.showUser?.(`Preloading test image '${image}' into kind clusters...`);
-
-  try {
-    await shellRunner.run(`docker pull ${image}`, [], true, false);
-  } catch (error) {
-    throw new SoloError(`Failed to pull test image '${image}'. Ensure docker is available.`, error as Error);
-  }
-
-  for (const contextName of contexts) {
-    if (!contextName.startsWith('kind-')) {
-      continue;
-    }
-
-    const clusterName: string = contextName.replace(/^kind-/, '');
-    try {
-      await shellRunner.run(`kind load docker-image ${image} --name ${clusterName}`, [], true, false);
-    } catch (error) {
-      throw new SoloError(`Failed to load image '${image}' into kind cluster '${clusterName}'.`, error as Error);
-    }
-  }
-
-  testImagePreloaded = true;
-}
 
 async function createPod(
   podReference: PodReference,
@@ -106,16 +74,6 @@ describe('K8', () => {
       configManager.update(argv.build());
       if (!(await k8Factory.default().namespaces().has(testNamespace))) {
         await k8Factory.default().namespaces().create(testNamespace);
-      }
-      try {
-        const contextsList: string[] = k8Factory.default().contexts().list();
-        await ensureTestImageAvailable(TEST_POD_IMAGE, contextsList, testLogger);
-      } catch (error) {
-        testLogger.showUser?.(
-          `Warning: unable to preload test image '${TEST_POD_IMAGE}'. The cluster will pull it directly. Reason: ${
-            (error as Error).message
-          }`,
-        );
       }
       await createPod(podReference, containerName, podLabelValue, k8Factory, TEST_POD_IMAGE);
 
