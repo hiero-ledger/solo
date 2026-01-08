@@ -22,7 +22,7 @@ import {
 import * as versions from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
-import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -33,7 +33,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {gte, lt, SemVer} from 'semver';
 import {injectable} from 'tsyringe-neo';
 import {Templates} from '../core/templates.js';
-import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
+import {BLOCK_NODE_IMAGE_NAME, HEDERA_HAPI_PATH, RESOURCES_DIR} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
 import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -42,6 +42,7 @@ import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
+import {Container} from '../integration/kube/resources/container/container.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -265,10 +266,75 @@ export class BlockNodeCommand extends BaseCommand {
         const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [this.updateConsensusNodesInRemoteConfig()];
 
         if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
-          subTasks.push(this.updateConsensusNodesPostGenesis());
+          subTasks.push(this.updateConsensusNodesPostGenesis(), this.startNodesAgainFromGenesis());
         }
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+      },
+    };
+  }
+
+  private startNodesAgainFromGenesis(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Start nodes from genesis',
+      task: async ({config: {nodeAliases}}, task): Promise<SoloListr<BlockNodeDeployContext>> => {
+        const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [];
+        const nodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+        console.log({nodeAliases});
+
+        for (const nodeAlias of nodeAliases) {
+          subTasks.push({
+            title: `Start node: ${chalk.yellow(nodeAlias)}`,
+            task: async (): Promise<void> => {
+              const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
+
+              const podReference: PodReference = await this.k8Factory
+                .getK8(node.context)
+                .pods()
+                .list(NamespaceName.of(node.namespace), [
+                  `solo.hedera.com/node-name=${nodeAlias}`,
+                  'solo.hedera.com/type=network-node',
+                ])
+                .then((pods): Pod => pods[0])
+                .then((pod): PodReference => pod.podReference);
+
+              console.log(podReference);
+
+              const containerReference: ContainerReference = ContainerReference.of(
+                podReference,
+                constants.ROOT_CONTAINER,
+              );
+              console.log(containerReference);
+
+              const container: Container = this.k8Factory
+                .getK8(node.context)
+                .containers()
+                .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
+
+              console.log(await container.execContainer(['pwd']));
+
+              await container.execContainer([
+                'bash',
+                '-c',
+                'systemctl stop network-node || true',
+                // 'systemctl stop network-node || true && systemctl enable --now network-node',
+              ]);
+
+              const scriptName: string = 'startPodJava.sh';
+              const scriptOriginPath: string = `${constants.RESOURCES_DIR}/${scriptName}`;
+              const scriptTargetPath: string = `${constants.HEDERA_HAPI_PATH}/${scriptName}`;
+
+              await container.copyTo(scriptOriginPath, constants.HEDERA_HAPI_PATH);
+
+              await container.execContainer(['bash', '-c', `chmod -x ${scriptTargetPath}`]);
+              await container.execContainer(['sh', scriptTargetPath, node.nodeId.toString(), 'clean']);
+            },
+          });
+        }
+
+        // set up the sub-tasks
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }

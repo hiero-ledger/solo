@@ -1411,9 +1411,7 @@ export class NetworkCommand extends BaseCommand {
     remoteConfig: RemoteConfigRuntimeStateApi,
     shouldCreateConfigMaps: boolean,
   ): Promise<void> {
-    const nodeId: NodeId = consensusNode.nodeId;
-    const nodeAlias: NodeAlias = consensusNode.name;
-    const context: Context = consensusNode.context;
+    const {nodeId, context, name: nodeAlias} = consensusNode;
 
     const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
     const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
@@ -1484,25 +1482,28 @@ export class NetworkCommand extends BaseCommand {
     const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
-    let shouldUpdateApplicationProperties: boolean = false;
+    for (const line of lines) {
+      if (line === 'blockStream.streamMode=RECORDS') {
+        lines.splice(lines.indexOf(line), 1);
+      }
+    }
 
     if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
       lines.push(`blockStream.streamMode=${streamMode}`);
-      shouldUpdateApplicationProperties = true;
-    }
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
-      lines.push(`blockStream.writerMode=${writerMode}`);
-      shouldUpdateApplicationProperties = true;
     }
 
-    if (shouldUpdateApplicationProperties) {
-      await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-        ['applicationProperties']: lines.join('\n'),
-      });
+    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+      lines.push(`blockStream.writerMode=${writerMode}`);
     }
+
+    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+      ['applicationProperties']: lines.join('\n'),
+      ['application.properties']: lines.join('\n'),
+    });
 
     if (shouldCreateConfigMaps) {
       logger.debug('No block nodes found in remote config');
+
       await k8.configMaps().create(
         namespace,
         `network-${nodeAlias}-data-config-cm`,
@@ -1518,6 +1519,14 @@ export class NetworkCommand extends BaseCommand {
     }
 
     logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
+
+    const updatedApplicationPropertiesFilePath: string = PathEx.join(
+      constants.SOLO_CACHE_DIR,
+      'application.properties',
+    );
+
+    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
+    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
