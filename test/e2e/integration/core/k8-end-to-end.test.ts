@@ -79,8 +79,8 @@ async function createPod(
       {app: podLabelValue},
       containerName,
       'alpine:latest',
-      ['/bin/sh', '-c', 'apk update && apk upgrade && apk add --update bash && sleep 7200'],
-      ['bash', '-c', 'exit 0'],
+      ['/bin/sh', '-c', 'sleep 7200'],
+      ['/bin/sh', '-c', 'exit 0'],
     );
 }
 
