@@ -33,6 +33,8 @@ import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
+const TEST_POD_IMAGE: string = process.env.K8_E2E_TEST_IMAGE ?? 'alpine:3.18';
+let testImagePreloaded: boolean = false;
 
 async function logPodDiagnostics(
   namespace: NamespaceName,
@@ -99,11 +101,42 @@ async function describePods(namespace: NamespaceName, pods: Pod[], logger: SoloL
   }
 }
 
+async function ensureTestImageAvailable(image: string, contexts: string[], logger: SoloLogger): Promise<void> {
+  if (testImagePreloaded) {
+    return;
+  }
+
+  const shellRunner: ShellRunner = new ShellRunner(logger);
+  logger.showUser?.(`Preloading test image '${image}' into kind clusters...`);
+
+  try {
+    await shellRunner.run(`docker pull ${image}`, [], true, false);
+  } catch (error) {
+    throw new SoloError(`Failed to pull test image '${image}'. Ensure docker is available.`, error as Error);
+  }
+
+  for (const contextName of contexts) {
+    if (!contextName.startsWith('kind-')) {
+      continue;
+    }
+
+    const clusterName: string = contextName.replace(/^kind-/, '');
+    try {
+      await shellRunner.run(`kind load docker-image ${image} --name ${clusterName}`, [], true, false);
+    } catch (error) {
+      throw new SoloError(`Failed to load image '${image}' into kind cluster '${clusterName}'.`, error as Error);
+    }
+  }
+
+  testImagePreloaded = true;
+}
+
 async function createPod(
   podReference: PodReference,
   containerName: ContainerName,
   podLabelValue: string,
   k8Factory: K8Factory,
+  image: string,
 ): Promise<void> {
   await k8Factory
     .default()
@@ -112,7 +145,7 @@ async function createPod(
       podReference,
       {app: podLabelValue},
       containerName,
-      'alpine:latest',
+      image,
       ['/bin/sh', '-c', 'sleep 7200'],
       ['/bin/sh', '-c', 'exit 0'],
     );
@@ -138,7 +171,9 @@ describe('K8', () => {
       if (!(await k8Factory.default().namespaces().has(testNamespace))) {
         await k8Factory.default().namespaces().create(testNamespace);
       }
-      await createPod(podReference, containerName, podLabelValue, k8Factory);
+      const contextsList: string[] = k8Factory.default().contexts().list();
+      await ensureTestImageAvailable(TEST_POD_IMAGE, contextsList, testLogger);
+      await createPod(podReference, containerName, podLabelValue, k8Factory, TEST_POD_IMAGE);
 
       const serviceReference: ServiceReference = ServiceReference.of(testNamespace, ServiceName.of(serviceName));
       await k8Factory.default().services().create(serviceReference, {app: 'svc-test'}, 80, 80);
