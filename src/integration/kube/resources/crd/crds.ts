@@ -3,12 +3,12 @@
 /**
  * Interface for custom resource definitions.
  */
-export interface CustomResourceDefinitions {
+export interface Crds {
   /**
    * Check if a CRD exists.
-   * @param customResourceDefinitionName The name of the CRD to check.
+   * @param crdName The name of the CRD to check.
    * @returns True if the CRD exists, false otherwise.
    * @throws An error if an unexpected error occurs.
    **/
-  ifExists(customResourceDefinitionName: string): Promise<boolean>;
+  ifExists(crdName: string): Promise<boolean>;
 }

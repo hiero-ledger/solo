@@ -27,8 +27,8 @@ import {type Secrets} from '../resources/secret/secrets.js';
 import {K8ClientSecrets} from './resources/secret/k8-client-secrets.js';
 import {type Ingresses} from '../resources/ingress/ingresses.js';
 import {K8ClientIngresses} from './resources/ingress/k8-client-ingresses.js';
-import {type CustomResourceDefinitions} from '../resources/crd/custom-resource-definitions.js';
-import {K8ClientCustomResourceDefinitions} from './resources/crd/k8-client-custom-resource-definitions.js';
+import {type Crds} from '../resources/crd/crds.js';
+import {K8ClientCrds} from './resources/crd/k8-client-crds.js';
 import {KubeConfig} from '@kubernetes/client-node';
 import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.js';
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
@@ -61,7 +61,7 @@ export class K8Client implements K8 {
   private k8IngressClasses: IngressClasses;
   private k8Secrets: Secrets;
   private k8Ingresses: Ingresses;
-  private k8CustomResourceDefinitions: CustomResourceDefinitions;
+  private k8Crds: Crds;
   private k8Manifests: K8ClientManifests;
 
   /**
@@ -103,7 +103,7 @@ export class K8Client implements K8 {
     this.k8IngressClasses = new K8ClientIngressClasses(this.networkingApi);
     this.k8Secrets = new K8ClientSecrets(this.kubeClient);
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
-    this.k8CustomResourceDefinitions = new K8ClientCustomResourceDefinitions(this.extensionApi);
+    this.k8Crds = new K8ClientCrds(this.extensionApi);
     this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
 
     return this;
@@ -180,8 +180,8 @@ export class K8Client implements K8 {
     return this.k8Ingresses;
   }
 
-  public customResourceDefinitions(): CustomResourceDefinitions {
-    return this.k8CustomResourceDefinitions;
+  public crds(): Crds {
+    return this.k8Crds;
   }
 
   public rbac(): k8s.RbacAuthorizationV1Api {
