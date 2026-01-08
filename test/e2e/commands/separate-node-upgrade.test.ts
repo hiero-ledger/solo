@@ -16,6 +16,7 @@ import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
+import {main} from '../../../src/index.js';
 
 export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
@@ -24,8 +25,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
   const zipFile: string = 'upgrade.zip';
 
   const {
-    opts: {k8Factory, logger, commandInvoker},
-    cmd: {nodeCmd},
+    opts: {k8Factory, logger},
   } = bootstrapResp;
 
   describe('Node upgrade', async (): Promise<void> => {
@@ -43,33 +43,30 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
       const argvPrepare: Argv = argv.clone();
       argvPrepare.setArg(flags.upgradeZipFile, zipFile);
       argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
+      argvPrepare.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+      );
+      await main(argvPrepare.asStringArray());
+
+      const argvSubmit: Argv = argv.clone();
+      argvSubmit.setArg(flags.inputDir, temporaryDirectory2);
+      argvSubmit.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+      );
+      await main(argvSubmit.asStringArray());
 
       const argvExecute: Argv = argv.clone();
       argvExecute.setArg(flags.inputDir, temporaryDirectory2);
-
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradePrepare(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeSubmitTransactions(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeExecute(argv),
-      });
+      argvExecute.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+      );
+      await main(argvExecute.asStringArray());
     }).timeout(Duration.ofMinutes(5).toMillis());
 
     it('network nodes version file was upgraded', async (): Promise<void> => {
