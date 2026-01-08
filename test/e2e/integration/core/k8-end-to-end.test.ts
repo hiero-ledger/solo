@@ -30,6 +30,7 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
@@ -60,8 +61,41 @@ async function logPodDiagnostics(
         }, labels=${JSON.stringify(pod.labels ?? {})}`,
       );
     });
+
+    await describePods(namespace, pods, logger);
   } catch (diagnosticError) {
     logger.showUser?.(`Failed to capture pod diagnostics: ${(diagnosticError as Error).message}`);
+  }
+}
+
+async function describePods(namespace: NamespaceName, pods: Pod[], logger: SoloLogger): Promise<void> {
+  const shellRunner: ShellRunner = new ShellRunner(logger);
+
+  for (const pod of pods) {
+    const podName: string = pod.podReference.name.name;
+    try {
+      const describeOutput: string[] = await shellRunner.run(
+        `kubectl describe pod ${podName} -n ${namespace.toString()}`,
+        [],
+        false,
+        false,
+      );
+      logger.showUser?.(`kubectl describe pod ${podName}:\n${describeOutput.join('\n')}`);
+    } catch (error) {
+      logger.showUser?.(`Failed to describe pod ${podName}: ${(error as Error).message}`);
+    }
+
+    try {
+      const statusOutput: string[] = await shellRunner.run(
+        `kubectl get pod ${podName} -n ${namespace.toString()} -o jsonpath='{.status.containerStatuses}'`,
+        [],
+        false,
+        false,
+      );
+      logger.showUser?.(`kubectl get pod ${podName} containerStatuses: ${statusOutput.join('\n')}`);
+    } catch (error) {
+      logger.showUser?.(`Failed to get pod status for ${podName}: ${(error as Error).message}`);
+    }
   }
 }
 
