@@ -12,7 +12,6 @@ import {
 } from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
-import {KubeApiResponse} from '../../../kube-api-response.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
@@ -58,11 +57,13 @@ export class K8ClientConfigMaps implements ConfigMaps {
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<ConfigMap> {
-    const {response, body} = await this.kubeClient
-      .readNamespacedConfigMap({name, namespace: namespace?.name})
-      .catch((error): any => error);
+    let body: V1ConfigMap;
+    try {
+      body = await this.kubeClient.readNamespacedConfigMap({name, namespace: namespace?.name});
+    } catch (error) {
+      throw new ResourceNotFoundError(ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name, error);
+    }
 
-    KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
     return K8ClientConfigMap.fromV1ConfigMap(body);
   }
 

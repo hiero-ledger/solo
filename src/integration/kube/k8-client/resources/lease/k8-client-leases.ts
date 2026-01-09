@@ -22,6 +22,9 @@ import {
   ResourceReplaceError,
 } from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
+import {sleep} from '../../../../../core/helpers.js';
+import {Duration} from '../../../../../core/time/duration.js';
+import {getReasonPhrase, StatusCodes} from 'http-status-codes';
 
 export class K8ClientLeases implements Leases {
   private readonly logger: SoloLogger;
@@ -70,12 +73,25 @@ export class K8ClientLeases implements Leases {
     return result;
   }
 
-  public async read(namespace: NamespaceName, leaseName: string): Promise<Lease> {
+  public async read(namespace: NamespaceName, leaseName: string, timesCalled: number = 0): Promise<Lease> {
     let result: V1Lease;
     try {
       result = await this.coordinationApiClient.readNamespacedLease({name: leaseName, namespace: namespace.name});
     } catch (error) {
-      throw new ResourceReadError(ResourceType.LEASE, namespace, leaseName, error);
+      if (error.code === StatusCodes.INTERNAL_SERVER_ERROR && timesCalled < 4) {
+        // could be k8s control plane has no resources available
+        this.logger.debug(
+          `Retrying readNamespacedLease(${leaseName}, ${namespace}) in 5 seconds because of ${getReasonPhrase(StatusCodes.INTERNAL_SERVER_ERROR)}`,
+        );
+        await sleep(Duration.ofSeconds(5));
+        try {
+          return await this.read(namespace, leaseName, timesCalled + 1);
+        } catch (error) {
+          throw new ResourceReadError(ResourceType.LEASE, namespace, leaseName, error);
+        }
+      } else {
+        throw new ResourceReadError(ResourceType.LEASE, namespace, leaseName, error);
+      }
     }
 
     return K8ClientLease.fromV1Lease(result);
