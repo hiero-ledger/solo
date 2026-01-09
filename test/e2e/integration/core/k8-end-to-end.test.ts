@@ -32,8 +32,7 @@ import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
-const TEST_POD_IMAGE: string =
-  process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
+const TEST_POD_IMAGE: string = process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
 
 async function createPod(
   podReference: PodReference,
