@@ -82,6 +82,9 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_PREPARE,
       );
+
+      logger.debug(`Executing prepare command to add node with args: ${argvPrepare.asStringArray().join(' ')}`);
+
       await main(argvPrepare.asStringArray());
 
       const argvSubmit: Argv = argv.clone();
