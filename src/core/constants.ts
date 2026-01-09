@@ -8,6 +8,7 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
+import {type NodeAlias} from '../types/aliases.js';
 
 export function getEnvironmentVariable(name: string): string | undefined {
   if (process.env[name]) {
@@ -256,26 +257,23 @@ export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAI
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: typeof PRESET_TIMER & {
-  condition: (duration: number) => boolean;
-  format: (typeof PRESET_TIMER)['format'];
-} = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
-  format: ((duration: number) => {
+  format: (duration: number) => {
     if (duration > 30_000) {
       return color.red;
     }
 
     return color.green;
-  }) as (typeof PRESET_TIMER)['format'],
+  },
 };
 
 export const LISTR_DEFAULT_RENDERER_OPTION: {
   collapseSubtasks: boolean;
   timer: {
     condition: (duration: number) => boolean;
-    format: (duration: number) => unknown;
+    format: (duration: number) => any;
     field: string | ((arguments_0: number) => string);
     args?: [number];
   };
@@ -357,7 +355,7 @@ export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL: number =
 // ---- New Node Related ----
 export const ENDPOINT_TYPE_IP: string = 'IP';
 export const ENDPOINT_TYPE_FQDN: string = 'FQDN';
-export const DEFAULT_NETWORK_NODE_NAME: string = 'node1';
+export const DEFAULT_NETWORK_NODE_NAME: NodeAlias = 'node1';
 
 // file-id must be between 0.0.150 and 0.0.159
 // file must be uploaded using FileUpdateTransaction in maximum of 5Kb chunks
