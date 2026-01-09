@@ -351,9 +351,6 @@ export class ClusterCommandTasks {
         } catch {
           // ClusterRole doesn't exist, create it
           try {
-            // const yamlContent = fs.readFileSync(constants.POD_MONITOR_ROLE_TEMPLATE, 'utf8');
-            // const clusterRole = yaml.parse(yamlContent);
-
             await k8.rbac().createClusterRole(
               constants.POD_MONITOR_ROLE,
               [
