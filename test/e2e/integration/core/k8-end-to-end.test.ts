@@ -32,12 +32,14 @@ import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
+const TEST_POD_IMAGE: string = process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
 
 async function createPod(
   podReference: PodReference,
   containerName: ContainerName,
   podLabelValue: string,
   k8Factory: K8Factory,
+  image: string,
 ): Promise<void> {
   await k8Factory
     .default()
@@ -46,9 +48,9 @@ async function createPod(
       podReference,
       {app: podLabelValue},
       containerName,
-      'alpine:latest',
-      ['/bin/sh', '-c', 'apk update && apk upgrade && apk add --update bash && sleep 7200'],
-      ['bash', '-c', 'exit 0'],
+      image,
+      ['/bin/sh', '-c', 'sleep 7200'],
+      ['/bin/sh', '-c', 'exit 0'],
     );
 }
 
@@ -72,7 +74,7 @@ describe('K8', () => {
       if (!(await k8Factory.default().namespaces().has(testNamespace))) {
         await k8Factory.default().namespaces().create(testNamespace);
       }
-      await createPod(podReference, containerName, podLabelValue, k8Factory);
+      await createPod(podReference, containerName, podLabelValue, k8Factory, TEST_POD_IMAGE);
 
       const serviceReference: ServiceReference = ServiceReference.of(testNamespace, ServiceName.of(serviceName));
       await k8Factory.default().services().create(serviceReference, {app: 'svc-test'}, 80, 80);
@@ -273,7 +275,7 @@ describe('K8', () => {
     const podName = PodName.of(`test-pod-${uuid4()}`);
     const podReference = PodReference.of(testNamespace, podName);
     const podLabelValue = `test-${uuid4()}`;
-    await createPod(podReference, containerName, podLabelValue, k8Factory);
+    await createPod(podReference, containerName, podLabelValue, k8Factory, TEST_POD_IMAGE);
     await k8Factory.default().pods().readByReference(podReference).killPod();
     const newPods = await k8Factory
       .default()

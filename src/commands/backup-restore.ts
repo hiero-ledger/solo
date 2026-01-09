@@ -455,7 +455,11 @@ export class BackupRestoreCommand extends BaseCommand {
     }
   }
 
-  private async readSecretDataSafe(k8: K8, namespace: NamespaceName, name: string): Promise<Record<string, string> | undefined> {
+  private async readSecretDataSafe(
+    k8: K8,
+    namespace: NamespaceName,
+    name: string,
+  ): Promise<Record<string, string> | undefined> {
     try {
       const secret: Secret = await k8.secrets().read(namespace, name);
       return secret.data || {};
@@ -518,6 +522,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Get all log zip files directly from logs directory
       const allFiles: string[] = fs.readdirSync(logsDirectory);
+      this.logger.showUser(`Files are found in ${logsDirectory} are : ${allFiles.join(', ')}`);
       const logFiles: string[] = allFiles.filter(file => file.endsWith(constants.LOG_CONFIG_ZIP_SUFFIX));
 
       if (logFiles.length === 0) {
@@ -569,7 +574,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Fix ownership of extracted files to hedera user
         this.logger.showUser(chalk.gray(`    Setting ownership for extracted files in pod: ${podName}`));
-        await container.execContainer(['bash', '-c', `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}`]);
+        await container.execContainer(['bash', '-c', `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}`]);
 
         this.logger.showUser(chalk.green(`    ✓ Restored log for pod: ${podName}`));
       }

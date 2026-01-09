@@ -1183,7 +1183,12 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
-            const statesDirectory: string = path.join(stateFileDirectory, 'states', clusterReference, config.namespace.name);
+            const statesDirectory: string = path.join(
+              stateFileDirectory,
+              'states',
+              clusterReference,
+              config.namespace.name,
+            );
             console.log(`Looking for state files in directory: ${statesDirectory}`);
 
             if (!fs.existsSync(statesDirectory)) {
@@ -1214,7 +1219,7 @@ export class NodeCommandTasks {
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
-          await container.execContainer(['bash', '-c', `sudo rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
           await container.execContainer([
             'unzip',
             '-o',
@@ -1231,7 +1236,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 
           // Clean up old rounds - keep only the latest/biggest round
