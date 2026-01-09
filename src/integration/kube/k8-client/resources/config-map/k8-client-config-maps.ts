@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type CoreV1Api, V1ConfigMap, type V1ConfigMapList, V1ObjectMeta} from '@kubernetes/client-node';
+import {
+  type CoreV1Api,
+  PatchStrategy,
+  setHeaderOptions,
+  V1ConfigMap,
+  type V1ConfigMapList,
+  V1ObjectMeta,
+} from '@kubernetes/client-node';
 import {type ConfigMaps} from '../../../resources/config-map/config-maps.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {
@@ -175,11 +182,14 @@ export class K8ClientConfigMaps implements ConfigMaps {
 
     let result: V1ConfigMap;
     try {
-      result = await this.kubeClient.patchNamespacedConfigMap({
-        name,
-        namespace: namespace.name,
-        body: patch,
-      });
+      result = await this.kubeClient.patchNamespacedConfigMap(
+        {
+          name,
+          namespace: namespace.name,
+          body: patch,
+        },
+        setHeaderOptions('Content-Type', PatchStrategy.MergePatch),
+      );
       this.logger.info(`Patched ConfigMap ${name} in namespace ${namespace}`);
     } catch (error) {
       throw new ResourceUpdateError(ResourceType.CONFIG_MAP, namespace, name, error);
