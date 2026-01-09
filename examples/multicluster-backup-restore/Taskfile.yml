@@ -209,7 +209,6 @@ tasks:
           fi
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -324,8 +323,6 @@ tasks:
     cmds:
       # freeze first before restoring
       - cmd: |
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
-
           # freeze before restore
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
@@ -334,16 +331,12 @@ tasks:
           fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
-
           # restart pod to make new configMaps/Secrets effective
           kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
           kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
 
 
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
-          
 
       - cmd: echo "Restoring database from dump..."
       - cmd: |

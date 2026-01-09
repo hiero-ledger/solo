@@ -47,7 +47,6 @@ import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-ki
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
-import {ResourceNotFoundError} from '../integration/kube/errors/resource-operation-errors.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -437,7 +436,6 @@ export class BackupRestoreCommand extends BaseCommand {
       throw new SoloError(`Failed to import ${resourceType}: ${error.message}`, error);
     }
   }
-
 
   /**
    * Import all configmaps to the cluster from YAML files

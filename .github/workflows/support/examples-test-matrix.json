@@ -3,5 +3,10 @@
     "name": "Multicluster Backup and Restore",
     "directory": "multicluster-backup-restore",
     "local-java-build": false
+  },
+  {
+    "name": "State Save and Restore",
+    "directory": "state-save-and-restore",
+    "local-java-build": false
   }
 ]
