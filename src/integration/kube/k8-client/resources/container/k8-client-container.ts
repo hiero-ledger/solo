@@ -282,13 +282,19 @@ export class K8ClientContainer implements Container {
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {
-    const result: string = await this.execContainer([
-      'bash',
-      '-c',
-      `[[ -d "${destinationPath}" ]] && echo -n "true" || echo -n "false"`,
-    ]);
-
-    return result === 'true';
+    const bashScript: string = `[[ -d "${destinationPath}" ]] && echo -n "true" || echo -n "false"`;
+    try {
+      const result: string = await this.execContainer(['bash', '-c', bashScript]);
+      return result === 'true';
+    } catch (error) {
+      this.logger.debug(
+        `hasDir failed using bash for ${this.containerReference.parentReference.name}:${this.containerReference.name}, retrying with /bin/sh`,
+        error,
+      );
+      const shScript: string = `[ -d "${destinationPath}" ] && echo -n "true" || echo -n "false"`;
+      const result: string = await this.execContainer(['/bin/sh', '-c', shScript]);
+      return result === 'true';
+    }
   }
 
   public async hasFile(destinationPath: string, filters: object = {}): Promise<boolean> {
