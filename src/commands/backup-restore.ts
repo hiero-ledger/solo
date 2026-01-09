@@ -297,7 +297,7 @@ export class BackupRestoreCommand extends BaseCommand {
               const nodeAlias: string = node.name;
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
-              const statesDirectory: string = path.join(outputDirectory, clusterReference, 'states');
+              const statesDirectory: string = path.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
@@ -407,8 +407,8 @@ export class BackupRestoreCommand extends BaseCommand {
                 namespace,
                 secretName,
               );
-              this.logSecretDataSnapshot('Existing secret data', secretName, existingSecretData);
-              this.logSecretDataSnapshot('New input data', secretName, resource.data || {});
+              // this.logSecretDataSnapshot('Existing secret data', secretName, existingSecretData);
+              // this.logSecretDataSnapshot('New input data', secretName, resource.data || {});
             }
             await (resourceType === 'configmaps'
               ? k8
@@ -434,7 +434,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 namespace,
                 secretName,
               );
-              this.logSecretDataSnapshot('Secret data after import', secretName, updatedSecretData);
+              // this.logSecretDataSnapshot('Secret data after import', secretName, updatedSecretData);
             }
             this.logger.showUser(chalk.gray(`    ✓ Imported: ${resource.metadata.name}`));
             totalImportedCount++;

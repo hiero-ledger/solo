@@ -8,6 +8,15 @@ env:
       else
         echo "npm run solo-test --"
       fi
+  TIMEOUT_COMMAND:
+    sh: |
+      if command -v gtimeout >/dev/null 2>&1; then
+        echo "gtimeout"
+      elif command -v timeout >/dev/null 2>&1; then
+        echo "timeout"
+      else
+        echo ""
+      fi
 
 vars:
   # Network Configuration
@@ -47,18 +56,13 @@ tasks:
       - task: restore-config
       - cmd: |
           echo "********** after restore before restart ***********"
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
-          
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
           
           helm get all solo-deployment -n external-database-test > after-restore-config-helm.txt || true  
-          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} || {
-            status=$?
-            $SOLO_COMMAND deployment diagnostics all --deployment {{ .DEPLOYMENT }}
-            exit "$status"
-          }
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+          else
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+          fi
       - task: verify
 
   initial-deploy:
@@ -147,7 +151,11 @@ tasks:
       - cmd: echo "▶️  Starting consensus nodes..."
       - cmd: |
           # Kill the start command if it hangs for more than 60 seconds
-          gtimeout 60s $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          else
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          fi
 
       # Install PostgreSQL on Cluster 2
       - cmd: kubectl config use-context kind-solo-e2e-c2
@@ -200,7 +208,11 @@ tasks:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
       - cmd: |
-          gtimeout 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          else
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          fi
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           helm get all solo-deployment -n external-database-test > before-backup-helm.txt || true
@@ -209,11 +221,6 @@ tasks:
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo "********** after backup ***********"
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key
-
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key
           echo ""
           echo "📊 Backup Contents:"
           echo "  ConfigMaps/Secrets: {{ .BACKUP_DIR }}"
@@ -243,19 +250,30 @@ tasks:
           #rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
           rm ~/.solo/local-config.yaml || true
           $SOLO_COMMAND init
-          gtimeout 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+              --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+          else
+            $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+              --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+          fi
           --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
       - cmd: |
-          gtimeout 500s $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 500s $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+          else
+            $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+          fi
           helm get all solo-deployment -n external-database-test > after-restore-helm.txt || true
       - task: deploy-mirror-external
 
@@ -317,26 +335,20 @@ tasks:
       # freeze first before restoring
       - cmd: |
           echo "********** before restore config ***********"
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key  || true
-
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
 
           kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
 
           # freeze before restore
-          gtimeout 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          else
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
           kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
 
           echo "********** after restore config ***********"
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
-
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
 
           # restart pod to make new configMaps/Secrets effective
           kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
@@ -347,14 +359,10 @@ tasks:
           --kube-context kind-solo-e2e-c1 solo-deployment oci://ghcr.io/hashgraph/solo-charts/solo-deployment || true
 
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
           
           sleep 30
           echo "********** after restart pods  ***********"
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node1-0 -c root-container -n external-database-test --context kind-solo-e2e-c1 -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
-
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt || true
-          kubectl exec -it network-node2-0 -c root-container -n external-database-test -- cat /opt/hgcapp/services-hedera/HapiApp2.0/hedera.key || true
 
       - cmd: kubectl get secret network-node2-keys-secrets -n external-database-test -o yaml
       - cmd: echo "Restoring database from dump..."

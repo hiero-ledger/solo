@@ -1156,14 +1156,21 @@ export class NodeCommandTasks {
         const sourceNodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const k8 = this.k8Factory.getK8(context);
+          const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
+            nodeAlias,
+            config.consensusNodes,
+          );
+          if (!kubeContext) {
+            throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
+          }
+          const k8 = this.k8Factory.getK8(kubeContext);
           const podReference = context_.config.podRefs[nodeAlias];
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
           if (!consensusNode) {
             throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
           }
+          const clusterReference = consensusNode.cluster ?? kubeContext;
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
 
@@ -1176,19 +1183,21 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
-            const statesDirectory = path.join(stateFileDirectory, context, 'states');
+            const statesDirectory: string = path.join(stateFileDirectory, 'states', clusterReference, config.namespace.name);
+            console.log(`Looking for state files in directory: ${statesDirectory}`);
 
             if (!fs.existsSync(statesDirectory)) {
-              self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              continue;
+              self.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
             }
 
-            const stateFiles = fs
+            const stateFiles: string[] = fs
               .readdirSync(statesDirectory)
               .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
 
             if (stateFiles.length === 0) {
               self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              self.logger.showUserError(`No state file found for pod ${podName} (node: ${nodeAlias})`);
               continue;
             }
 
