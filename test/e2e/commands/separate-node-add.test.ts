@@ -31,11 +31,10 @@ import {
 } from '@hiero-ledger/sdk';
 import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {SOLO_CACHE_DIR, SOLO_LOGS_DIR} from '../../../src/core/constants.js';
+import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
-import fs from 'node:fs';
-import type {CommandFlag} from '../../../src/types/flag-types.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
