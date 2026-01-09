@@ -47,17 +47,11 @@ tasks:
   default:
     desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
     cmds:
-      - task: initial-deploy
-      - task: generate-transactions
-      - task: backup
       - task: destroy-cluster
       - task: restore-clusters
       - task: restore-network
       - task: restore-config
       - cmd: |
-          echo "********** after restore before restart ***********"
-          
-          helm get all solo-deployment -n external-database-test > after-restore-config-helm.txt || true  
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
           else
@@ -215,12 +209,9 @@ tasks:
           fi
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
-          helm get all solo-deployment -n external-database-test > before-backup-helm.txt || true
           kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
-      - cmd: kubectl get secret network-node2-keys-secrets -n external-database-test -o yaml
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
-          echo "********** after backup ***********"
           echo ""
           echo "📊 Backup Contents:"
           echo "  ConfigMaps/Secrets: {{ .BACKUP_DIR }}"
@@ -247,8 +238,8 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
      - cmd: |
-          #rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
-          rm ~/.solo/local-config.yaml || true
+          rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
+          #rm ~/.solo/local-config.yaml || true
           $SOLO_COMMAND init
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
@@ -274,7 +265,6 @@ tasks:
           else
             $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
           fi
-          helm get all solo-deployment -n external-database-test > after-restore-helm.txt || true
       - task: deploy-mirror-external
 
   # ==================== External Database Tasks ====================
@@ -334,8 +324,6 @@ tasks:
     cmds:
       # freeze first before restoring
       - cmd: |
-          echo "********** before restore config ***********"
-
           kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
 
           # freeze before restore
@@ -348,23 +336,15 @@ tasks:
 
           kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
 
-          echo "********** after restore config ***********"
-
           # restart pod to make new configMaps/Secrets effective
           kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
           kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
 
-          # refresh Helm release state so helm get all reflects restored values
-          helm upgrade --reuse-values --namespace external-database-test \
-          --kube-context kind-solo-e2e-c1 solo-deployment oci://ghcr.io/hashgraph/solo-charts/solo-deployment || true
 
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
           kubectl exec -it network-node2-0 -c root-container -n external-database-test -- ls -ltr /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/1/123/ || true
           
-          sleep 30
-          echo "********** after restart pods  ***********"
 
-      - cmd: kubectl get secret network-node2-keys-secrets -n external-database-test -o yaml
       - cmd: echo "Restoring database from dump..."
       - cmd: |
           kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
