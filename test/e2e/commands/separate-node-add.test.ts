@@ -31,8 +31,11 @@ import {
 } from '@hiero-ledger/sdk';
 import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
+import {SOLO_CACHE_DIR, SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {main} from '../../../src/index.js';
+import {BaseCommandTest} from './tests/base-command-test.js';
+import fs from 'node:fs';
+import type {CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
@@ -64,13 +67,14 @@ export function testSeparateNodeAdd(
     }).timeout(timeout);
 
     it('should succeed with init command', async (): Promise<void> => {
-      const argvSystemInit: Argv = argv.clone();
-      argvSystemInit.setCommand(
-        LedgerCommandDefinition.COMMAND_NAME,
-        LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-        LedgerCommandDefinition.SYSTEM_INIT,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          LedgerCommandDefinition.COMMAND_NAME,
+          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.SYSTEM_INIT,
+        ),
       );
-      await main(argvSystemInit.asStringArray());
     }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
@@ -83,40 +87,59 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.DEV_NODE_PREPARE,
       );
 
-      logger.debug(`Executing prepare command to add node with args: ${argvPrepare.asStringArray().join(' ')}`);
-
-      await main(argvPrepare.asStringArray());
-
-      const argvSubmit: Argv = argv.clone();
-      argvSubmit.setArg(flags.inputDir, temporaryDirectory);
-      argvSubmit.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([
+            [flags.outputDir, temporaryDirectory],
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+          ]),
+        ),
       );
-      await main(argvSubmit.asStringArray());
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory);
-      argvExecute.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([
+            [flags.inputDir, temporaryDirectory],
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+          ]),
+        ),
       );
-      await main(argvExecute.asStringArray());
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([
+            [flags.inputDir, temporaryDirectory],
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+          ]),
+        ),
+      );
 
       await accountManager.close();
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
     }).timeout(Duration.ofMinutes(12).toMillis());
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
-      const argvAccountCreate: Argv = argv.clone();
-      argvAccountCreate.setCommand(
-        LedgerCommandDefinition.COMMAND_NAME,
-        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-        LedgerCommandDefinition.ACCOUNT_CREATE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          LedgerCommandDefinition.COMMAND_NAME,
+          LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.ACCOUNT_CREATE,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
       );
-      await main(argvAccountCreate.asStringArray());
     });
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
@@ -173,35 +196,49 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
       );
-      await main(argvAccountCreate.asStringArray());
+
+      const accountCreateArgv: string[] = buildMainArgv(
+        namespace.toString(),
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_CREATE,
+        new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+      );
+      await main(accountCreateArgv);
 
       await sleep(Duration.ofSeconds(1));
 
-      await main(argvAccountCreate.asStringArray());
+      await main(accountCreateArgv);
 
-      const argvNetworkFreeze: Argv = argv.clone();
-      argvNetworkFreeze.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.NETWORK_FREEZE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_FREEZE,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
       );
-      await main(argvNetworkFreeze.asStringArray());
 
-      const argvStateDownload: Argv = argv.clone();
-      argvStateDownload.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.STATE_DOWNLOAD,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.STATE_DOWNLOAD,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
       );
-      await main(argvStateDownload.asStringArray());
 
-      const argvNodeRestart: Argv = argv.clone();
-      argvNodeRestart.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.NODE_RESTART,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NODE_RESTART,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
       );
-      await main(argvNodeRestart.asStringArray());
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 
@@ -220,4 +257,21 @@ export function testSeparateNodeAdd(
       expect(balance.hbars).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }).timeout(Duration.ofMinutes(3).toMillis());
+}
+
+export function buildMainArgv(
+  testName: string,
+  command: string,
+  subCommand: string,
+  action: string,
+  flagsAndValues: Map<CommandFlag, string> = new Map<CommandFlag, string>(),
+): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push(command, subCommand, action);
+  for (const [flag, value] of flagsAndValues.entries()) {
+    argv.push(optionFromFlag(flag), value);
+  }
+  argvPushGlobalFlags(argv, testName);
+  return argv;
 }
