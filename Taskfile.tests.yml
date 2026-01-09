@@ -50,7 +50,7 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Integration Tests\"
         {{ .reporter_prefix }}='coverage/e2e-integration'
-        {{ .mocha_bin }} 'test/e2e/integration/core/k8-end-to-end.test.ts'
+        {{ .mocha_bin }} 'test/e2e/integration/core/*.ts'
         {{ .reporter_options_prefix }}-e2e-integration.xml"
 
   test-e2e-leases:
