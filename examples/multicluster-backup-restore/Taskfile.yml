@@ -47,6 +47,9 @@ tasks:
   default:
     desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
     cmds:
+      - task: initial-deploy
+      - task: generate-transactions
+      - task: backup
       - task: destroy-cluster
       - task: restore-clusters
       - task: restore-network
