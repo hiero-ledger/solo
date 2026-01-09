@@ -31,8 +31,7 @@ export class K8ClientRbacs implements Rbacs {
     return true;
   }
 
-  async deleteClusterRole(): Promise<void> {
-    // Implementation for deleting a ClusterRole using k8-client
-    throw new Error('Method not implemented.');
+  public async deleteClusterRole(name: string): Promise<void> {
+    await this.k8sRbacApi.deleteClusterRole({name});
   }
 }

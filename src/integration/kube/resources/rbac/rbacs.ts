@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Interface for RBAC operations
+ */
 export interface Rbacs {
   /**
    * Create a ClusterRole
@@ -24,5 +27,9 @@ export interface Rbacs {
    */
   clusterRoleExists(name: string): Promise<boolean>;
 
-  deleteClusterRole(): Promise<void>;
+  /**
+   * Delete a ClusterRole
+   * @param name The name of the cluster role
+   */
+  deleteClusterRole(name: string): Promise<void>;
 }

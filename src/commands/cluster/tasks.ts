@@ -30,7 +30,6 @@ import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remo
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
-import {K8} from '../../integration/kube/k8.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -389,7 +388,7 @@ export class ClusterCommandTasks {
       task: async ({config: {context}}): Promise<void> => {
         try {
           // Check if ClusterRole exists using Kubernetes JavaScript API
-          await this.k8Factory.getK8(context).rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          await this.k8Factory.getK8(context).rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
 
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
