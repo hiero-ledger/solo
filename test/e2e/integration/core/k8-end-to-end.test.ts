@@ -119,6 +119,7 @@ describe('K8', () => {
     expect(await k8Factory.default().namespaces().delete(NamespaceName.of(name))).to.be.true;
   }).timeout(defaultTimeout);
 
+  // this
   it('should be able to run wait for pod', async () => {
     const labels = [`app=${podLabelValue}`];
 
@@ -129,6 +130,7 @@ describe('K8', () => {
     expect(pods).to.have.lengthOf(1);
   }).timeout(defaultTimeout);
 
+  // this
   it('should be able to run wait for pod ready', async () => {
     const labels = [`app=${podLabelValue}`];
 
@@ -136,6 +138,7 @@ describe('K8', () => {
     expect(pods).to.have.lengthOf(1);
   }).timeout(defaultTimeout);
 
+  // this
   it('should be able to check if a path is directory inside a container', async () => {
     const pods: Pod[] = await k8Factory
       .default()
@@ -153,6 +156,7 @@ describe('K8', () => {
   const testCases = ['test/data/pem/keys/a-private-node0.pem', 'test/data/build-v0.54.0-alpha.4.zip'];
 
   each(testCases).describe('test copyTo and copyFrom', localFilePath => {
+    // this
     it('should be able to copy a file to and from a container', async () => {
       const pods = await k8Factory
         .default()
@@ -204,6 +208,7 @@ describe('K8', () => {
     }).timeout(defaultTimeout);
   });
 
+  // this
   it('should be able to port forward gossip port', done => {
     const localPort = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
     try {
@@ -241,6 +246,7 @@ describe('K8', () => {
     // TODO enhance this test to do something with the port, this pod isn't even running, but it is still passing
   }).timeout(defaultTimeout);
 
+  // this
   it('should be able to cat a file inside the container', async () => {
     const pods: Pod[] = await k8Factory
       .default()
