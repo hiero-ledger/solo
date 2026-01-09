@@ -240,8 +240,8 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
      - cmd: |
-          rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
-          #rm ~/.solo/local-config.yaml || true
+          #rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
+          rm ~/.solo/local-config.yaml || true
           $SOLO_COMMAND init
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
@@ -356,13 +356,13 @@ tasks:
     desc: Verify restored network functionality
     cmds:
       - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
+      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
           for i in 1 2 3; do
             echo "  Creating new account $i/3 on restored network..."
-            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50 || echo "⚠️  Transaction test may have failed"
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
             sleep 3
           done
 
