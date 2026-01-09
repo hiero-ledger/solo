@@ -43,6 +43,7 @@ import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-stat
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {Container} from '../integration/kube/resources/container/container.js';
+import {K8} from '../integration/kube/k8.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -288,47 +289,31 @@ export class BlockNodeCommand extends BaseCommand {
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
+              const context: Context = node.context;
+              const namespace: NamespaceName = NamespaceName.of(node.namespace);
 
-              const podReference: PodReference = await this.k8Factory
-                .getK8(node.context)
+              const k8: K8 = this.k8Factory.getK8(context);
+
+              const container: Container = await k8
                 .pods()
-                .list(NamespaceName.of(node.namespace), [
-                  `solo.hedera.com/node-name=${nodeAlias}`,
-                  'solo.hedera.com/type=network-node',
-                ])
+                .list(namespace, Templates.renderNodeLabelsFromNodeAlias(nodeAlias))
                 .then((pods): Pod => pods[0])
-                .then((pod): PodReference => pod.podReference);
+                .then((pod): PodReference => pod.podReference)
+                .then((reference): ContainerReference => ContainerReference.of(reference, constants.ROOT_CONTAINER))
+                .then((reference): Container => k8.containers().readByRef(reference));
 
-              console.log(podReference);
-
-              const containerReference: ContainerReference = ContainerReference.of(
-                podReference,
-                constants.ROOT_CONTAINER,
-              );
-              console.log(containerReference);
-
-              const container: Container = this.k8Factory
-                .getK8(node.context)
-                .containers()
-                .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
-
-              console.log(await container.execContainer(['pwd']));
-
-              await container.execContainer([
-                'bash',
-                '-c',
-                'systemctl stop network-node || true',
-                // 'systemctl stop network-node || true && systemctl enable --now network-node',
-              ]);
+              await container.execContainer(['bash', '-c', 'systemctl stop network-node || true']);
 
               const scriptName: string = 'startPodJava.sh';
-              const scriptOriginPath: string = `${constants.RESOURCES_DIR}/${scriptName}`;
-              const scriptTargetPath: string = `${constants.HEDERA_HAPI_PATH}/${scriptName}`;
+              const localPath: string = `${constants.RESOURCES_DIR}/${scriptName}`;
+              const containerPath: string = `${constants.HEDERA_HAPI_PATH}/${scriptName}`;
 
-              await container.copyTo(scriptOriginPath, constants.HEDERA_HAPI_PATH);
+              await container.copyTo(localPath, constants.HEDERA_HAPI_PATH);
 
-              await container.execContainer(['bash', '-c', `chmod -x ${scriptTargetPath}`]);
-              await container.execContainer(['sh', scriptTargetPath, node.nodeId.toString(), 'clean']);
+              await container.execContainer(['bash', '-c', `chmod -x ${containerPath}`]);
+
+              const nodeId: string = node.nodeId.toString();
+              await container.execContainer(['sh', containerPath, nodeId, 'clean']);
             },
           });
         }

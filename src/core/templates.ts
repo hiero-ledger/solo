@@ -401,4 +401,8 @@ export class Templates {
   public static renderConfigMapRemoteConfigLabels(): string[] {
     return ['solo.hedera.com/type=remote-config'];
   }
+
+  public static renderNodeLabelsFromNodeAlias(nodeAlias: NodeAlias): string[] {
+    return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+  }
 }
