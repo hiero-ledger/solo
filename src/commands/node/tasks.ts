@@ -3185,7 +3185,7 @@ export class NodeCommandTasks {
           await this.k8Factory
             .getK8(context)
             .secrets()
-            .create(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+            .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
               'solo.hedera.com/node-admin-key': 'true',
             });
 
