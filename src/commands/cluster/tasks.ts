@@ -29,6 +29,8 @@ import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
+import {K8} from '../../integration/kube/k8.js';
+import {K8} from '../../integration/kube/k8.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -339,11 +341,11 @@ export class ClusterCommandTasks {
     return {
       title: 'Install pod-monitor-role ClusterRole',
       task: async context_ => {
-        const k8 = this.k8Factory.getK8(context_.config.context);
+        const k8: K8 = this.k8Factory.getK8(context_.config.context);
 
         try {
           // Check if ClusterRole already exists using Kubernetes JavaScript API
-          await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
           self.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );

@@ -21,9 +21,14 @@ export class K8ClientRbacs implements Rbacs {
     await this.k8sRbacApi.createClusterRole({body: clusterRole.toV1ClusterRole()});
   }
 
-  async clusterRoleExists(): Promise<boolean> {
-    // Implementation for checking if a ClusterRole exists using k8-client
-    throw new Error('Method not implemented.');
+  public async clusterRoleExists(name: string): Promise<boolean> {
+    try {
+      await this.k8sRbacApi.readClusterRole({name});
+    } catch {
+      return false;
+    }
+
+    return true;
   }
 
   async deleteClusterRole(): Promise<void> {
