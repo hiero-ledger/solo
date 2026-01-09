@@ -9,18 +9,18 @@ import {gte} from 'semver';
 import {SemanticVersion} from '../../../../../src/integration/helm/base/api/version/semantic-version.js';
 import {HelmSoftwareLoader} from '../../../../../src/integration/helm/resource/helm-software-loader.js';
 
-describe('Helm Software Loader Test', () => {
-  const currentPlatform = platform();
-  const currentArch = arch();
+describe('Helm Software Loader Test', (): void => {
+  const currentPlatform: NodeJS.Platform = platform();
+  const currentArch: string = arch();
 
-  const supportedPlatforms = {
+  const supportedPlatforms: {linux: string[]; darwin: string[]; win32: string[]} = {
     linux: ['x64', 'arm64'],
     darwin: ['x64', 'arm64'],
     win32: ['x64'],
   };
 
-  const installHelmAndVerify = async () => {
-    const helmPath = await HelmSoftwareLoader.getHelmExecutablePath();
+  const installHelmAndVerify: () => Promise<void> = async (): Promise<void> => {
+    const helmPath: string = await HelmSoftwareLoader.getHelmExecutablePath();
     expect(helmPath).to.not.be.null;
     expect(existsSync(helmPath)).to.be.true;
 
@@ -32,7 +32,7 @@ describe('Helm Software Loader Test', () => {
     }
 
     // Check filename
-    const expectedFilename = currentPlatform === 'win32' ? 'helm.exe' : 'helm';
+    const expectedFilename: string = currentPlatform === 'win32' ? 'helm.exe' : 'helm';
     expect(helmPath.endsWith(expectedFilename)).to.be.true;
 
     // Check version
@@ -48,8 +48,8 @@ describe('Helm Software Loader Test', () => {
       helmVersion = helmVersion.slice(1);
     }
 
-    const actualVersion = SemanticVersion.parse(helmVersion);
-    const minimumVersion = SemanticVersion.parse('3.12.0');
+    const actualVersion: SemanticVersion = SemanticVersion.parse(helmVersion);
+    const minimumVersion: SemanticVersion = SemanticVersion.parse('3.12.0');
     expect(actualVersion).to.not.be.null;
     expect(gte(actualVersion.toString(), minimumVersion.toString())).to.be.true;
   };
@@ -59,7 +59,7 @@ describe('Helm Software Loader Test', () => {
     currentPlatform in supportedPlatforms &&
     supportedPlatforms[currentPlatform as keyof typeof supportedPlatforms].includes(currentArch)
   ) {
-    it(`${currentPlatform}: Install Supported Helm Version`, async () => {
+    it(`${currentPlatform}: Install Supported Helm Version`, async (): Promise<void> => {
       await installHelmAndVerify();
     });
   }
