@@ -26,7 +26,7 @@ vars:
   NAMESPACE: "external-database-test"
   CLUSTER_NAME: "backup-restore-cluster"
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
-  ZIP_PASSWORD: "1234"
+  ZIP_PASSWORD: "xxxx"
   ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 

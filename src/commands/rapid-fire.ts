@@ -297,7 +297,7 @@ export class RapidFireCommand extends BaseCommand {
           },
         },
         this.deployNlgChart(),
-        this.startLoadTest(leaseReference),
+        // this.startLoadTest(leaseReference),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
