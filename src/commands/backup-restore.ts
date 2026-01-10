@@ -12,7 +12,6 @@ import path from 'node:path';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {type Context, type ClusterReferences} from '../types/index.js';
@@ -186,44 +185,6 @@ export class BackupRestoreCommand extends BaseCommand {
       return totalExportedCount;
     } catch (error) {
       throw new SoloError(`Failed to export ${resourceType}: ${error.message}`, error);
-    }
-  }
-
-  private async restartConsensusPods(): Promise<void> {
-    const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-
-    for (const consensusNode of consensusNodes) {
-      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name as any, consensusNodes);
-      const k8: K8 = this.k8Factory.getK8(context);
-
-      this.logger.showUser(
-        chalk.gray(
-          `  Restarting pod for node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
-        ),
-      );
-
-      const pods: Pod[] = await k8
-        .pods()
-        .list(namespace, [`solo.hedera.com/node-name=${consensusNode.name}`, 'solo.hedera.com/type=network-node']);
-
-      if (!pods.length) {
-        this.logger.showUser(chalk.yellow(`    No pods found for node ${consensusNode.name}; skipping restart`));
-        continue;
-      }
-
-      for (const pod of pods) {
-        const podName: string = pod.podReference.name.toString();
-        const deleteCommand: string = `kubectl delete pod ${podName} -n ${namespace.toString()} --context ${context}`;
-        try {
-          await this.run(deleteCommand);
-          this.logger.showUser(chalk.gray(`    Deleted pod ${podName}`));
-        } catch (error) {
-          this.logger.showUser(
-            chalk.yellow(`    Failed to delete pod ${podName}: ${(error as Error).message ?? String(error)}`),
-          );
-        }
-      }
     }
   }
 
@@ -667,13 +628,6 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task) => {
             context_.secretCount = await this.importSecrets(inputDirectory);
             task.title = `Import Secrets: ${context_.secretCount} imported`;
-          },
-        },
-        {
-          title: 'Restart consensus node pods',
-          task: async (context_, task) => {
-            await this.restartConsensusPods();
-            task.title = 'Restart consensus node pods: completed';
           },
         },
         {
