@@ -356,7 +356,12 @@ tasks:
     desc: Verify restored network functionality
     cmds:
       - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
+      - cmd: |
+          if ! {{ .SOLO_COMMAND }} ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3; then
+            status=$?
+            {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }}
+            exit "$status"
+          fi
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
