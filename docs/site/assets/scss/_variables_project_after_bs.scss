@@ -1,0 +1,15 @@
+$custom-colors: (
+  'primary': #C91F47,
+  'primary-dark': #A31835,
+  'primary-light': #E54B79,
+  'primary-very-light': #F9E4ED,
+  'secondary': #1EBDC4,
+  'bg-white': #FFFFFF,
+  'bg-light': #F5F5F5,
+  'border': #E0E0E0,
+  'text-dark': #333333,
+  'text-body': #666666,
+  'text-light': #888888,
+);
+
+$theme-colors: map-merge($theme-colors, $custom-colors);
