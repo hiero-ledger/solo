@@ -1339,7 +1339,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const zipInputFile: string = this.configManager.getFlag<string>(flags.zipFile);
     if (!zipInputFile) {
-      throw new SoloError('--zip-input-file is required when using --zip-password.');
+      throw new SoloError('--zip-file is required when using --zip-password.');
     }
 
     const inputPath: string = path.resolve(zipInputFile);
