@@ -3381,7 +3381,7 @@ export class NodeCommandTasks {
         this.logger.info(`Saved logs to ${logFile}`);
       }
     } catch (error) {
-      this.logger.showUser(chalk.green(`Failed to download logs from pod ${podName}: ${error}`));
+      this.logger.showUser(red(`Failed to download logs from pod ${podName}: ${error}`));
       this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);
       // Continue with other pods even if one fails
     }

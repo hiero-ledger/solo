@@ -100,7 +100,9 @@ export class NetworkNodes {
         `${HEDERA_HAPI_PATH}/data/${podReference.name}${LOG_CONFIG_ZIP_SUFFIX}`,
         targetDirectory,
       );
-      this.logger.showUser(`Log zip file ${podReference.name}.zip downloaded to ${targetDirectory}`);
+      this.logger.showUser(
+        `Log zip file ${podReference.name}${LOG_CONFIG_ZIP_SUFFIX} downloaded to ${targetDirectory}`,
+      );
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
       // and also delete namespace in the end
