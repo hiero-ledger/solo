@@ -241,7 +241,6 @@ tasks:
     cmds:
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
-          #rm ~/.solo/local-config.yaml || true
           $SOLO_COMMAND init
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \

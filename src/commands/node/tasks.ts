@@ -1189,8 +1189,6 @@ export class NodeCommandTasks {
               clusterReference,
               config.namespace.name,
             );
-            console.log(`Looking for state files in directory: ${statesDirectory}`);
-
             if (!fs.existsSync(statesDirectory)) {
               self.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
               throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
