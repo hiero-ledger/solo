@@ -6,8 +6,6 @@ menu:
     - name: Release Notes
       weight: 40
       url: https://github.com/hiero-ledger/solo/releases
-      post: <sup><i class="ps-1 fa-solid fa-up-right-from-square fa-xs"
-        aria-hidden="true"></i></sup>
 
 module:
   # Uncomment the next line to build and serve using local docsy clone declared in the named Hugo workspace:
@@ -73,12 +71,12 @@ taxonomies:
 
 # Highlighting config
 pygmentsCodeFences: true
-pygmentsUseClasses: false
+pygmentsUseClasses: true
 # Use the new Chroma Go highlighter in Hugo.
 pygmentsUseClassic: false
 # pygmentsOptions: "linenos=table"
 # See https://help.farbox.com/pygments.html
-pygmentsStyle: tango
+pygmentsStyle: github-dark
 
 # Configure how URLs look like per section.
 permalinks:
@@ -108,9 +106,9 @@ markup:
       unsafe: true
   highlight:
     # See a complete list of available styles at https://xyproto.github.io/splash/docs/all.html
-    style: tango
+    style: github-dark
     # Uncomment if you want your chosen highlight style used for code blocks without a specified language
-    # guessSyntax: true
+    guessSyntax: true
   tableOfContents:
     endLevel: 5
     ordered: false
@@ -189,7 +187,7 @@ params:
     # Enable to show the side bar menu in its compact state.
     sidebar_menu_compact: false
     # Set to true to hide the sidebar search box (the top nav search box will still be displayed if search is enabled)
-    sidebar_search_disable: false
+    sidebar_search_disable: true
 
     # Adds a H2 section titled "Feedback" to the bottom of each doc. The responses are sent to Google Analytics as events.
     # This feature depends on [services.googleAnalytics] and will be disabled if "services.googleAnalytics.id" is not set.
