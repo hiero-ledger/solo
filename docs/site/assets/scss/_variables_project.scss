@@ -1,9 +1,561 @@
-/*
+// ============================================================================
+// HIERO DOCUMENTATION THEME
+// ============================================================================
+// Hugo Docsy SCSS variables and component overrides aligned with Hiero
+// branding guidelines. This file defines the complete design system including
+// color palette, typography, spacing, shadows, and component styling.
+// ============================================================================
 
-Add styles or override variables from the theme here.
+// CONFIGURATION
+// ============================================================================
+// Theme feature flags and Google Fonts setup
 
-*/
+$enable-dark-mode: false;
+$td-enable-google-fonts: true;
+$td-google-font-name: 'Inter';
+$td-google-font-family: 'Inter:300,300i,400,400i,700,700i';
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+
+// DESIGN TOKENS: COLOR PALETTE
+// ============================================================================
+// Semantic color tokens organized by role (primary, secondary, neutral)
+
+:root {
+  /* Primary palette – Hiero red/pink spectrum */
+  --color-primary: #C91F47;
+  --color-primary-dark: #A31835;
+  --color-primary-light: #E54B79;
+  --color-primary-very-light: #F9E4ED;
+
+  /* Secondary accent */
+  --color-secondary: #1EBDC4;
+
+  /* Neutral palette – grayscale for backgrounds, borders, and text */
+  --color-bg-white: #FFFFFF;
+  --color-bg-light: #F5F5F5;
+  --color-border: #E0E0E0;
+  --color-text-dark: #333333;
+  --color-text-body: #666666;
+  --color-text-light: #888888;
+}
+
+
+// DESIGN TOKENS: TYPOGRAPHY
+// ============================================================================
+// Font families with fallback stacks for web and system fonts
+
+:root {
+  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Roboto', 'Helvetica', 'Arial', sans-serif;
+  --font-family-mono: 'Courier New', 'Courier', monospace;
+}
+
+$font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+  "Roboto", "Helvetica", "Arial", sans-serif !default;
+$font-family-monospace: "Courier New", monospace !default;
+
+
+// DESIGN TOKENS: SPACING
+// ============================================================================
+// Consistent spacing scale (4px base unit)
+
+:root {
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+}
+
+
+// DESIGN TOKENS: BORDER RADIUS
+// ============================================================================
+// Border radius utilities for consistency across components
+
+:root {
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 16px;
+}
+
+$border-radius: 4px !default;
+$border-radius-lg: 8px !default;
+
+
+// DESIGN TOKENS: SHADOWS
+// ============================================================================
+// Elevation system using shadow depth (subtle, medium, prominent)
+
+:root {
+  --shadow-sm: 0px 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0px 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0px 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+
+// DESIGN TOKENS: MOTION
+// ============================================================================
+// Animation timing for smooth transitions and interactions
+
+:root {
+  --transition-duration: 0.2s;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+// BOOTSTRAP/DOCSY COMPATIBILITY
+// ============================================================================
+// Map custom tokens to Bootstrap/Docsy variables for theme compatibility
+
+:root {
+  --bs-body-color: var(--color-text-dark);
+  --bs-body-bg: var(--color-bg-white);
+  --bs-border-color: var(--color-border);
+  --bs-link-color: var(--color-primary);
+}
+
+
+// SCSS VARIABLES
+// ============================================================================
+// SCSS equivalents for compile-time variable usage (Bootstrap compatibility)
+
+$primary: #C91F47 !default;
+$primary-dark: #A31835 !default;
+$secondary: #1EBDC4 !default;
+$light: #F5F5F5 !default;
+$white: #FFFFFF !default;
+$dark: #333333 !default;
+$body-bg: #FFFFFF !default;
+$text-muted: #888888 !default;
+
+
+// BASE TYPOGRAPHY
+// ============================================================================
+// Global typography rules for body text, headings, and semantic elements
+
+body {
+  font-family: var(--font-family-primary);
+  font-size: 0.9375rem; // 15px – slightly reduced for refined appearance
+  color: var(--color-text-body);
+  line-height: 1.6;
+  letter-spacing: 0.3px;
+  background-color: var(--color-bg-white);
+}
+
+// Force light color scheme to disable dark mode in browser settings
+:root {
+  color-scheme: light;
+}
+
+// Heading styles – consistent hierarchy with reduced weights for modernity
+h1 {
+  font-size: 3rem; // 48px
+  font-weight: 600;
+  color: var(--color-text-dark);
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+  margin-top: 40px;
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-size: 2rem; // 32px
+  font-weight: 600;
+  color: var(--color-text-dark);
+  line-height: 1.3;
+  margin-top: 28px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: 8px;
+}
+
+h3 {
+  font-size: 1.5rem; // 24px
+  font-weight: 500;
+  color: var(--color-text-dark);
+  line-height: 1.3;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+h4 {
+  font-size: 1.125rem; // 18px
+  font-weight: 500;
+  color: var(--color-text-dark);
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+
+h5,
+h6 {
+  font-size: 0.9375rem; // 15px
+  font-weight: 500;
+  color: var(--color-text-dark);
+}
+
+// Body paragraphs
+p {
+  font-size: 0.9375rem; // 15px
+  font-weight: 400;
+  color: var(--color-text-body);
+  line-height: 1.6;
+  letter-spacing: 0.3px;
+  margin-bottom: 16px;
+}
+
+// Small text and supplementary content
+.small,
+small {
+  font-size: 0.8125rem; // 13px
+  font-weight: 400;
+  color: var(--color-text-light);
+  line-height: 1.5;
+}
+
+
+// NAVIGATION & SIDEBAR
+// ============================================================================
+// Sidebar and navigation link styling for the main documentation sidebar
+
+.td-sidebar {
+  background: var(--color-bg-white);
+  width: 300px;
+  border-right: 1px solid var(--color-border);
+}
+
+// Navigation links in sidebar – light weight for clean appearance
+.td-sidebar .nav-link,
+.td-sidebar-nav .nav-link {
+  font-size: 0.875rem; // 14px
+  font-weight: 300 !important; // Light weight
+  color: var(--color-text-body);
+  padding: 12px 16px;
+  line-height: 1.5;
+  transition: background-color var(--transition-duration) var(--transition-timing),
+    box-shadow var(--transition-duration) var(--transition-timing);
+  text-decoration: none;
+}
+
+// Hover state – subtle background lift
+.td-sidebar .nav-link:hover,
+.td-sidebar-nav .nav-link:hover {
+  background: var(--color-bg-light);
+  color: var(--color-text-dark);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  border-radius: 6px;
+}
+
+// Active link indicator – primary color background with left border accent
+.td-sidebar .nav-link.active,
+.td-sidebar .nav-link.is-active,
+.td-sidebar-nav-active-item {
+  // background: var(--color-primary-very-light);
+  color: var(--color-primary);
+  border-left: 4px solid var(--color-primary);
+  padding-left: 10px;
+  font-weight: 300 !important;
+}
+
+.tree-root .td-sidebar-nav-active-item {
+  border-left: 0;
+  padding-left: 0;
+  font-weight: 700 !important;
+}
+
+
+// LINKS & INLINE ELEMENTS
+// ============================================================================
+// Global link styling with hover, visited, and external link indicators
+
+a, main a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover, main a:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+a:visited, main a:visited {
+  color: #8B0E28;
+}
+
+// External link indicator – subtle icon with secondary accent color
+/* External link indicator: show for text links, hide for icon-only links */
+a[target="_blank"] {
+  --ext-indicator: '';
+}
+a[target="_blank"]::after {
+  content: " \f35d"; /* Font Awesome up-right-from-square */
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.75em;
+  color: inherit;
+  margin-left: 4px;
+  speak-as: none;
+  font-style: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide the indicator when the anchor contains only an icon (i, svg, or img) */
+a[target="_blank"]:has(> i:only-child)::after,
+a[target="_blank"]:has(> svg:only-child)::after,
+a[target="_blank"]:has(> img:only-child)::after {
+  content: '';
+}
+
+
+// BUTTONS
+// ============================================================================
+// Primary and secondary button styles with consistent interaction states
+
+.btn {
+  border-radius: 4px;
+  transition: all var(--transition-duration) var(--transition-timing);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+// Primary button – filled with Hiero red
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #fff !important;
+  padding: 10px 20px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-dark);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-primary:active {
+  background-color: #8B0E28;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:disabled,
+.btn-primary[disabled] {
+  background-color: #CCCCCC;
+  color: #888888;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+// Secondary button – outlined with primary color
+.btn-secondary {
+  background: transparent;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  padding: 10px 22px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.btn-secondary:hover {
+  background: var(--color-primary-very-light);
+}
+
+
+// CARDS
+// ============================================================================
+// Card component styling for content containers and feature blocks
+
+.card,
+.td-card {
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md, 8px);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.3s var(--transition-timing);
+}
+
+.card:hover,
+.td-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+
+// FORM ELEMENTS
+// ============================================================================
+// Input, textarea, and select field styling with focus states
+
+input,
+textarea,
+select {
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 0.875rem; // 14px
+  color: var(--color-text-dark);
+}
+
+// Focus state – primary color border with elevated shadow
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border: 2px solid var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+
+// BADGES & TAGS
+// ============================================================================
+// Badge styling for labels, tags, and status indicators
+
+.badge,
+.tag,
+.badge-primary {
+  background: var(--color-primary-very-light);
+  color: var(--color-primary);
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+// ALERTS & CALLOUTS
+// ============================================================================
+// Alert box styling for informational callouts and emphasis blocks
+
+.alert-callout,
+.callout {
+  background: var(--color-primary-very-light);
+  border-left: 4px solid var(--color-primary);
+  padding: 16px;
+  border-radius: 4px;
+  color: var(--color-text-dark);
+}
+
+
+// PAGE METADATA
+// ============================================================================
+// Styling for page meta information (updated date, authors, etc.)
+
+.td-page-meta {
+  display: none;
+}
+// .td-page-meta a,
+// .td-page-meta .meta-item {
+//   display: block;
+//   margin-bottom: 8px;
+// }
+
+// .td-page-meta a:last-child,
+// .td-page-meta .meta-item:last-child {
+//   margin-bottom: 0;
+// }
+
+
+// CODE & PREFORMATTED TEXT
+// ============================================================================
+// Styling for code blocks, inline code, and monospace content
+
+pre,
+code,
+kbd,
+samp {
+  font-family: var(--font-family-mono);
+  font-size: 0.875rem;
+  background: var(--color-bg-light);
+  color: var(--color-text-dark);
+}
+
+pre {
+  padding: 12px 16px;
+  border-radius: 4px;
+  overflow: auto;
+}
+
+
+// NAVIGATION BAR / HEADER
+// ============================================================================
+// Top navigation bar styling – forces light theme consistently
+
+.td-navbar {
+  background-color: var(--color-bg-white) !important;
+  box-shadow: none;
+}
+
+// Navbar branding and links – light weight, dark text for clarity
+.navbar-brand__name {
+  color: var(--color-text-dark) !important;
+  font-weight: 500 !important;
+  text-shadow: none !important;
+  text-decoration: none !important;
+}
+
+.td-navbar .nav-link,
+.td-site-title {
+  color: var(--color-text-dark) !important;
+  font-weight: 300 !important;
+  text-shadow: none !important;
+}
+
+// Prevent underline on hover and maintain light weight
+.td-navbar .nav-link:hover {
+  text-decoration: none;
+  color: var(--color-text-dark) !important;
+  font-weight: 300 !important;
+  text-shadow: none !important;
+}
+
+// Override Bootstrap dark mode classes to maintain light theme
+.td-navbar[data-bs-theme="dark"] {
+  background-color: var(--color-bg-white) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.td-navbar[data-bs-theme="dark"] .nav-link,
+.td-navbar[data-bs-theme="dark"] .td-site-title,
+.td-navbar[data-bs-theme="dark"] .td-search__icon,
+.td-navbar[data-bs-theme="dark"] .td-search__input {
+  color: var(--color-text-dark) !important;
+  font-weight: 300 !important;
+  text-shadow: none !important;
+}
+
+
+// TEXT UTILITIES
+// ============================================================================
+// Utility classes for common text styling needs
+
+.text-muted,
+.td-muted {
+  color: var(--color-text-light) !important;
+}
+
+// Expand/collapse control sizing
 .expandCollapse {
   font-size: x-small;
   vertical-align: sub;
 }
+
+
+// ACCESSIBILITY NOTES
+// ============================================================================
+// Design notes for accessibility and contrast compliance:
+// - Primary red (#C91F47) on white background meets WCAG AA contrast ratio
+// - Text sizes maintain 1.6 line-height for improved readability
+// - Focus states include visible indicators via border and shadow
+// - Color scheme: light is forced to prevent accidental dark mode rendering
