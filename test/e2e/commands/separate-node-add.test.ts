@@ -77,10 +77,7 @@ export function testSeparateNodeAdd(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_INIT,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
-          ]),
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
     }).timeout(Duration.ofMinutes(8).toMillis());
