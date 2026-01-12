@@ -12,47 +12,55 @@ import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {main} from '../../../src/index.js';
+import {buildMainArgv} from '../../test-utility.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   const nodeAlias: NodeAlias = 'node1';
-
-  argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
-  argv.setArg(flags.nodeAlias, nodeAlias);
-
   const temporaryDirectory: string = 'contextDir';
 
   const {
     opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
+  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
+    [flags.nodeAliasesUnparsed, 'node1,node2,node3'],
+    [flags.nodeAlias, nodeAlias],
+    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
+    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
+  ]);
+
   describe('Node delete via separated commands', async (): Promise<void> => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory);
-      argvPrepare.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([[flags.outputDir, temporaryDirectory], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvPrepare.asStringArray());
 
-      const argvSubmit: Argv = argv.clone();
-      argvSubmit.setArg(flags.inputDir, temporaryDirectory);
-      argvSubmit.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvSubmit.asStringArray());
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory);
-      argvExecute.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvExecute.asStringArray());
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());

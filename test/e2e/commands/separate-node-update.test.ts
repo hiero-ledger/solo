@@ -25,6 +25,8 @@ import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {main} from '../../../src/index.js';
+import {buildMainArgv} from '../../test-utility.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -34,13 +36,11 @@ export function testSeparateNodeUpdate(
 ): void {
   const updateNodeId: NodeAlias = 'node2';
   const newAccountId: string = '0.0.7';
-  argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
-  argv.setArg(flags.nodeAlias, updateNodeId);
-  argv.setArg(flags.newAccountNumber, newAccountId);
-  argv.setArg(
-    flags.newAdminKey,
-    '302e020100300506032b6570042204200cde8d512569610f184b8b399e91e46899805c6171f7c2b8666d2a417bcc66c2',
-  );
+
+  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
+    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
+    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
+  ]);
 
   const {
     opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
@@ -90,32 +90,43 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
       const temporaryDirectory2: string = 'contextDir';
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
-      argvPrepare.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([
+            [flags.outputDir, temporaryDirectory2],
+            [flags.nodeAlias, updateNodeId],
+            [
+              flags.newAdminKey,
+              '302e020100300506032b6570042204200cde8d512569610f184b8b399e91e46899805c6171f7c2b8666d2a417bcc66c2',
+            ],
+            ...flagsMap.entries(),
+          ]),
+        ),
       );
-      await main(argvPrepare.asStringArray());
 
-      const argvUpdateSubmit: Argv = argv.clone();
-      argvUpdateSubmit.setArg(flags.inputDir, temporaryDirectory2);
-      argvUpdateSubmit.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvUpdateSubmit.asStringArray());
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
-      argvExecute.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvExecute.asStringArray());
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());

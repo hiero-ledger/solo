@@ -8,7 +8,7 @@ import 'dotenv/config';
 
 import fs from 'node:fs';
 import os from 'node:os';
-import {Flags as flags} from '../src/commands/flags.js';
+import {Flags, Flags as flags} from '../src/commands/flags.js';
 import {type ClusterCommand} from '../src/commands/cluster/index.js';
 import {InitCommand} from '../src/commands/init/init.js';
 import {type NetworkCommand} from '../src/commands/network.js';
@@ -70,6 +70,7 @@ import {DeploymentCommandDefinition} from '../src/commands/command-definitions/d
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
+import type {CommandFlag} from '../src/types/flag-types.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -638,4 +639,21 @@ export function destroyEnabled(): boolean {
     console.log('Skipping destroy of test namespace as SOLO_E2E_DESTROY is set to false');
   }
   return destroyEnabledEnvironment;
+}
+
+export function buildMainArgv(
+  testName: string,
+  command: string,
+  subCommand: string,
+  action: string,
+  flagsAndValues: Map<CommandFlag, string> = new Map<CommandFlag, string>(),
+): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push(command, subCommand, action);
+  for (const [flag, value] of flagsAndValues.entries()) {
+    argv.push(optionFromFlag(flag), value);
+  }
+  argvPushGlobalFlags(argv, testName);
+  return argv;
 }

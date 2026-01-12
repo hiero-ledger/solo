@@ -33,8 +33,8 @@ import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {main} from '../../../src/index.js';
-import {BaseCommandTest} from './tests/base-command-test.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {buildMainArgv} from '../../test-utility.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
@@ -47,6 +47,11 @@ export function testSeparateNodeAdd(
   const {
     opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
+
+  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
+    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
+    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
+  ]);
 
   describe('Node add via separated commands should success', async (): Promise<void> => {
     let existingServiceMap: NodeServiceMapping;
@@ -72,20 +77,12 @@ export function testSeparateNodeAdd(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_INIT,
+          new Map<CommandFlag, string>(flagsMap.entries()),
         ),
       );
     }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory);
-
-      argvPrepare.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_PREPARE,
-      );
-
       await main(
         buildMainArgv(
           namespace.toString(),
@@ -95,6 +92,7 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.outputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -108,6 +106,7 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.inputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -121,6 +120,7 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.inputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -136,7 +136,10 @@ export function testSeparateNodeAdd(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
           LedgerCommandDefinition.ACCOUNT_CREATE,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
+          ]),
         ),
       );
     });
@@ -189,19 +192,15 @@ export function testSeparateNodeAdd(
       };
 
       // create more transactions to save more round of states
-      const argvAccountCreate: Argv = argv.clone();
-      argvAccountCreate.setCommand(
-        LedgerCommandDefinition.COMMAND_NAME,
-        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-        LedgerCommandDefinition.ACCOUNT_CREATE,
-      );
-
       const accountCreateArgv: string[] = buildMainArgv(
         namespace.toString(),
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
-        new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        new Map<CommandFlag, string>([
+          [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+          ...flagsMap.entries(),
+        ]),
       );
       await main(accountCreateArgv);
 
@@ -215,7 +214,10 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.NETWORK_FREEZE,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
+          ]),
         ),
       );
 
@@ -225,7 +227,10 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.STATE_DOWNLOAD,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
+          ]),
         ),
       );
 
@@ -235,7 +240,10 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.NODE_RESTART,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            ...flagsMap.entries(),
+          ]),
         ),
       );
 
@@ -256,21 +264,4 @@ export function testSeparateNodeAdd(
       expect(balance.hbars).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }).timeout(Duration.ofMinutes(3).toMillis());
-}
-
-export function buildMainArgv(
-  testName: string,
-  command: string,
-  subCommand: string,
-  action: string,
-  flagsAndValues: Map<CommandFlag, string> = new Map<CommandFlag, string>(),
-): string[] {
-  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
-  const argv: string[] = newArgv();
-  argv.push(command, subCommand, action);
-  for (const [flag, value] of flagsAndValues.entries()) {
-    argv.push(optionFromFlag(flag), value);
-  }
-  argvPushGlobalFlags(argv, testName);
-  return argv;
 }

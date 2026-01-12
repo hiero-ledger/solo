@@ -4,7 +4,12 @@ import {describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {type BootstrapResponse, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {
+  type BootstrapResponse,
+  buildMainArgv,
+  getTemporaryDirectory,
+  HEDERA_PLATFORM_VERSION_TAG,
+} from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -17,6 +22,7 @@ import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
 import {main} from '../../../src/index.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
@@ -27,6 +33,11 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
   const {
     opts: {k8Factory, logger},
   } = bootstrapResp;
+
+  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
+    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
+    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
+  ]);
 
   describe('Node upgrade', async (): Promise<void> => {
     it('should succeed with separate upgrade command', async (): Promise<void> => {
@@ -40,33 +51,39 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
 
       const temporaryDirectory2: string = 'contextDir';
 
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.upgradeZipFile, zipFile);
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
-      argvPrepare.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([
+            [flags.upgradeZipFile, zipFile],
+            [flags.outputDir, temporaryDirectory2],
+            ...flagsMap.entries(),
+          ]),
+        ),
       );
-      await main(argvPrepare.asStringArray());
 
-      const argvSubmit: Argv = argv.clone();
-      argvSubmit.setArg(flags.inputDir, temporaryDirectory2);
-      argvSubmit.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvSubmit.asStringArray());
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
-      argvExecute.setCommand(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+        ),
       );
-      await main(argvExecute.asStringArray());
     }).timeout(Duration.ofMinutes(5).toMillis());
 
     it('network nodes version file was upgraded', async (): Promise<void> => {
