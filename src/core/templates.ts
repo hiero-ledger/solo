@@ -405,4 +405,9 @@ export class Templates {
   public static renderNodeLabelsFromNodeAlias(nodeAlias: NodeAlias): string[] {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
   }
+
+  public static parseExternalBlockAddress(raw: string): [string, number] {
+    const [address, port] = raw.includes(':') ? raw.split(':') : [raw, constants.BLOCK_NODE_PORT];
+    return [address, +port];
+  }
 }

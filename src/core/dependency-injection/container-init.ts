@@ -55,7 +55,7 @@ import {Middlewares} from '../middlewares.js';
 import {SoloPinoLogger} from '../logging/solo-pino-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
-import {BlockNodeCommand} from '../../commands/block-node.js';
+import BlockNodeCommand from '../../commands/block-node.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';

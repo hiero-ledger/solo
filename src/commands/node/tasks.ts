@@ -142,6 +142,7 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
+import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1576,18 +1577,16 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string) {
+  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task) => {
-        const config = context_.config;
-        const nodeAliases = config[nodeAliasesProperty];
-        const subTasks = [
+      task: ({config}, task): Promise<void> => {
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
-            task: async context_ => {
-              const config = context_.config;
-              const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            task: async ({config}): Promise<void> => {
+              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
                 config.cacheDir,
                 'templates',
@@ -1598,7 +1597,7 @@ export class NodeCommandTasks {
               const yamlRoot: AnyObject = {};
               const emptyDomainNamesMapping: Record<string, IP> = {};
 
-              const stagingDirectory = Templates.renderStagingDir(
+              const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
                 this.configManager.getFlag(flags.releaseTag),
               );
@@ -1611,6 +1610,7 @@ export class NodeCommandTasks {
                   emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
+                  config.externalBlockNodes,
                 );
               }
             },
@@ -2371,8 +2371,9 @@ export class NodeCommandTasks {
   public prepareGossipEndpoints(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Prepare gossip endpoints',
-      task: async context_ => {
-        const config: any = context_.config;
+      task: async (context_): Promise<void> => {
+        const config: NodeAddConfigClass = context_.config;
+
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
@@ -2388,13 +2389,13 @@ export class NodeCommandTasks {
             new ConsensusNode(
               config.nodeAlias,
               Templates.nodeIdFromNodeAlias(config.nodeAlias),
-              config.namespace,
+              config.namespace.name,
               undefined,
               context,
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
-              [],
+              config.blockNodeIds,
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
@@ -3000,10 +3001,8 @@ export class NodeCommandTasks {
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
-        const container: Container = this.k8Factory
-          .getK8(consensusNodes[0].context)
-          .containers()
-          .readByRef(containerReference);
+        const context: Context = consensusNodes[0].context;
+        const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
@@ -3198,10 +3197,9 @@ export class NodeCommandTasks {
     return {
       title: 'Add new node to remote config',
       task: async ({config}, task): Promise<void> => {
-        const nodeAlias: NodeAlias = config.nodeAlias;
+        const {nodeAlias, namespace, clusterRef: clusterReference} = config;
+
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const namespace: NamespaceName = config.namespace;
-        const clusterReference: ClusterReferenceName = config.clusterRef;
         const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;
@@ -3231,19 +3229,18 @@ export class NodeCommandTasks {
         config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
         // if the consensusNodes does not contain the nodeAlias then add it
-        if (!config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
+        if (!config.consensusNodes.some((node): boolean => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
             (cluster): boolean => cluster.name === clusterReference,
           );
 
-          config.blockNodeIds = this.configManager
-            .getFlag(flags.blockNodeIds)
-            ?.split(',')
-            .map((id): number => +id);
+          const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes;
 
-          const blockNodeIds: number[] =
-            config.blockNodeIds ||
-            this.remoteConfig.configuration.state.blockNodes.map((blockNode): number => blockNode.metadata.id);
+          config.blockNodeIds =
+            this.configManager
+              .getFlag(flags.blockNodeIds)
+              ?.split(',')
+              .map((id): number => +id) || blockNodes.map(({metadata}): number => metadata.id);
 
           config.consensusNodes.push(
             new ConsensusNode(
@@ -3262,7 +3259,7 @@ export class NodeCommandTasks {
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
-              blockNodeIds,
+              config.blockNodeIds,
             ),
           );
         }

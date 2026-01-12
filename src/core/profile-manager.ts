@@ -209,6 +209,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    externalBlockNodes: string[],
   ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
       consensusNodes.map((node): NodeAlias => node.name),
@@ -312,6 +313,7 @@ export class ProfileManager {
         filteredBlockNodes,
         this.remoteConfig.configuration.clusters,
         this.remoteConfig.configuration.versions,
+        externalBlockNodes,
       ).toJSON();
 
       let nodeIndex: number = 0;
@@ -339,6 +341,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    externalBlockNodes: string[],
   ): Promise<AnyObject> {
     if (!profile) {
       throw new MissingArgumentError('profile is required');
@@ -351,6 +354,7 @@ export class ProfileManager {
       domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
+      externalBlockNodes,
     );
 
     if (profile.consensus) {
@@ -427,6 +431,7 @@ export class ProfileManager {
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
+   * @param externalBlockNodes
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
@@ -435,6 +440,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    externalBlockNodes: string[],
   ): Promise<Record<ClusterReferenceName, string>> {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
@@ -458,6 +464,7 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
+        externalBlockNodes,
       );
       this.resourcesForHaProxyPod(profile, yamlRoot);
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);

@@ -165,6 +165,7 @@ describe('ProfileManager', () => {
           {},
           deploymentName,
           applicationPropertiesFile,
+          [],
         );
         const valuesFile = Object.values(valuesFileMapping)[0];
 
@@ -212,6 +213,7 @@ describe('ProfileManager', () => {
           {},
           deploymentName,
           applicationPropertiesFile,
+          [],
         );
         const cachedValuesFile = Object.values(cachedValuesFileMapping)[0];
         const valuesYaml: any = yaml.parse(fs.readFileSync(cachedValuesFile).toString());

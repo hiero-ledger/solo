@@ -9,8 +9,16 @@ export class ConsensusNodeStateSchema extends BaseStateSchema {
   @Expose()
   public blockNodeIds: number[];
 
-  public constructor(metadata?: ComponentStateMetadataSchema, blockNodeIds?: number[]) {
+  @Expose()
+  public externalBlockNodeIds: number[];
+
+  public constructor(
+    metadata?: ComponentStateMetadataSchema,
+    blockNodeIds?: number[],
+    externalBlockNodeIds?: number[],
+  ) {
     super(metadata);
     this.blockNodeIds = blockNodeIds || [];
+    this.externalBlockNodeIds = externalBlockNodeIds || [];
   }
 }
