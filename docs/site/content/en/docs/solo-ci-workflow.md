@@ -46,7 +46,7 @@ Next, install Kind to create and manage a local Kubernetes cluster in your workf
     uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3
     with:
       install_only: true
-      node_image: kindest/node:v1.34.3@sha256:08497ee19eace7b4b5348db5c6a1591d7752b164530a36f855cb0f2bdcbadd48
+      node_image: kindest/node:v1.33.7@sha256:d26ef333bdb2cbe9862a0f7c3803ecc7b4303d8cea8e814b481b09949d353040
       version: v0.31.0
       kubectl_version: v1.34.0
       verbosity: 3
@@ -109,7 +109,7 @@ Here’s the full workflow combining all the steps above:
     uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3
     with:
       install_only: true
-      node_image: kindest/node:v1.34.3@sha256:08497ee19eace7b4b5348db5c6a1591d7752b164530a36f855cb0f2bdcbadd48
+      node_image: kindest/node:v1.33.7@sha256:d26ef333bdb2cbe9862a0f7c3803ecc7b4303d8cea8e814b481b09949d353040
       version: v0.31.0
       kubectl_version: v1.34.0
       verbosity: 3
