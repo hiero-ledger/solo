@@ -8,7 +8,7 @@ import 'dotenv/config';
 
 import fs from 'node:fs';
 import os from 'node:os';
-import {Flags, Flags as flags} from '../src/commands/flags.js';
+import {Flags as flags} from '../src/commands/flags.js';
 import {type ClusterCommand} from '../src/commands/cluster/index.js';
 import {InitCommand} from '../src/commands/init/init.js';
 import {type NetworkCommand} from '../src/commands/network.js';
@@ -70,7 +70,7 @@ import {DeploymentCommandDefinition} from '../src/commands/command-definitions/d
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
-import type {CommandFlag} from '../src/types/flag-types.js';
+import {type CommandFlag} from '../src/types/flag-types.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
