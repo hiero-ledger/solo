@@ -1,0 +1,43 @@
+{
+  "extends": "./../../tsconfig-google.json",
+  "compilerOptions": {
+    "isolatedModules": true,
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "dom"
+    ],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "moduleDetection": "force",
+    "importsNotUsedAsValues": "remove",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": [
+      "node",
+      "mocha",
+      "reflect-metadata"
+    ],
+    "sourceMap": true,
+    "outDir": "dist",
+    "removeComments": false,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": false, // TODO: set to true (which is default), fix a few issues as often as possible, until we can leave true
+    "noImplicitReturns": true,
+    "skipLibCheck": true,
+    "noImplicitOverride": true
+  },
+  "include": [
+    "src"
+  ],
+  "ts-node": {
+    "esm": true,
+    "experimentalResolver": true,
+    "showConfig": true,
+    "compilerHost": true,
+    "emit": true,
+    "experimentalSpecifierResolution": "node"
+  }
+}
