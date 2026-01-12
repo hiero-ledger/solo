@@ -7,9 +7,6 @@ nodes:
         kind: ClusterConfiguration
         networking:
           dnsDomain: "cluster.local"
-      - |
-        kind: KubeletConfiguration
-        cgroupDriver: "systemd"
 networking:
 #  apiServerAddress: "172.19.0.2"
 #  apiServerPort: 6443
