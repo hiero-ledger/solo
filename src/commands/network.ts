@@ -61,7 +61,6 @@ import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -840,9 +839,7 @@ export class NetworkCommand extends BaseCommand {
       fs.mkdirSync(config.keysDir);
     }
 
-    if (config.externalBlockNodes) {
-      config.externalBlockNodes = (config.externalBlockNodes as any as string).split(',') ?? [];
-    }
+    config.externalBlockNodes = config.externalBlockNodes ? ((config.externalBlockNodes as any).split(',') ?? []) : [];
 
     this.logger.debug('Preparing storage secrets');
     await this.prepareStorageSecrets(config);
@@ -1378,7 +1375,7 @@ export class NetworkCommand extends BaseCommand {
                   this.logger,
                   this.k8Factory,
                   this.remoteConfig,
-                  this.remoteConfig.configuration.state.blockNodes.length === 0 || externalBlockNodes.length === 0,
+                  this.remoteConfig.configuration.state.blockNodes.length === 0 && externalBlockNodes.length === 0,
                   externalBlockNodes,
                 );
               }
@@ -1397,6 +1394,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
@@ -1425,7 +1423,7 @@ export class NetworkCommand extends BaseCommand {
     const {nodeId, context, name: nodeAlias} = consensusNode;
 
     // Check if the node has block nodes assigned (use node name as key)
-    if (blockNodeIds.length === 0 || externalBlockNodes.length === 0) {
+    if (blockNodeIds.length === 0 && externalBlockNodes.length === 0) {
       logger.debug(
         `Skipping consensus node ${nodeAlias} - no block nodes assigned and no external block nodes provided`,
       );
@@ -1479,14 +1477,6 @@ export class NetworkCommand extends BaseCommand {
 
     const lines: string[] = applicationPropertiesData.split('\n');
 
-    if (lines.length === 0) {
-      logger.error(`Failed to read application.properties file: ${applicationPropertiesFilePath}, insufficient lines`);
-      return;
-    }
-
-    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
-    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
-
     // Remove line to enable overriding below.
     for (const line of lines) {
       if (line === 'blockStream.streamMode=RECORDS') {
@@ -1497,11 +1487,11 @@ export class NetworkCommand extends BaseCommand {
     // Switch to block streaming.
 
     if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
-      lines.push(`blockStream.streamMode=${streamMode}`);
+      lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
     }
 
     if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
-      lines.push(`blockStream.writerMode=${writerMode}`);
+      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
     await k8.configMaps().update(namespace, 'network-node-data-config-cm', {

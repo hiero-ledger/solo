@@ -26,7 +26,9 @@ export class BlockNodesJsonWrapper implements ToJSON {
     private readonly clusters: Readonly<ClusterSchema[]>,
     private readonly versions: Readonly<ApplicationVersionsSchema>,
     private readonly externalBlockNodes: string[],
-  ) {}
+  ) {
+    this.externalBlockNodes ||= [];
+  }
 
   public toJSON(): string {
     const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeComponents.map(
@@ -52,8 +54,8 @@ export class BlockNodesJsonWrapper implements ToJSON {
       },
     );
 
-    for (const rawAddress of this.externalBlockNodes) {
-      const [address, port] = Templates.parseExternalBlockAddress(rawAddress);
+    for (const externalBlockNode of this.externalBlockNodes) {
+      const [address, port] = Templates.parseExternalBlockAddress(externalBlockNode);
       blockNodeConnectionData.push({address, port, priority: 1});
     }
 

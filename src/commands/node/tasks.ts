@@ -143,6 +143,7 @@ import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
+import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1585,10 +1586,10 @@ export class NodeCommandTasks {
         const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
-            task: async ({config}): Promise<void> => {
+            task: async ({config: {cacheDir, externalBlockNodes}}): Promise<void> => {
               const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
-                config.cacheDir,
+                cacheDir,
                 'templates',
                 'application.properties',
               );
@@ -1610,7 +1611,7 @@ export class NodeCommandTasks {
                   emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
-                  config.externalBlockNodes,
+                  externalBlockNodes,
                 );
               }
             },
@@ -2396,6 +2397,7 @@ export class NodeCommandTasks {
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
               config.blockNodeIds,
+              [],
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
@@ -2996,34 +2998,29 @@ export class NodeCommandTasks {
         const {consensusNodes, namespace, stagingDir} = config;
 
         // TODO: currently only supports downloading from the first existing node
-        const node1FullyQualifiedPodName: PodName = Templates.renderNetworkPodName(consensusNodes[0].name);
-        const podReference: PodReference = PodReference.of(namespace, node1FullyQualifiedPodName);
-        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
+        const node: ConsensusNode = consensusNodes[0];
 
-        const context: Context = consensusNodes[0].context;
-        const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+       const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
+
+        const container: Container = await this.k8Factory
+          .getK8(node.context)
+          .helpers()
+          .getConsensusNodeRootContainer(namespace, node.name);
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
           'cd "${states[0]}" && zip -rqX "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
-        let zipFileName: string;
+        // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
+        const zipFileName: string = await container.execContainer([
+          'bash',
+          '-c',
+          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+        ]);
 
-        try {
-          // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-          zipFileName = await container.execContainer([
-            'bash',
-            '-c',
-            `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
-          ]);
+        this.logger.debug(`state zip file to download is = ${zipFileName}`);
 
-          this.logger.debug(`state zip file to download is = ${zipFileName}`);
-
-          await container.copyFrom(`${upgradeDirectory}/${zipFileName}`, stagingDir);
-        } catch (error) {
-          throw new SoloError(`Failed to download state from node ${consensusNodes[0].name}: ${error}`);
-        }
+        await container.copyFrom(`${upgradeDirectory}/${zipFileName}`, stagingDir);
 
         config.lastStateZipPath = PathEx.joinWithRealPath(stagingDir, zipFileName);
       },
@@ -3197,30 +3194,32 @@ export class NodeCommandTasks {
     return {
       title: 'Add new node to remote config',
       task: async ({config}, task): Promise<void> => {
-        const {nodeAlias, namespace, clusterRef: clusterReference} = config;
+        const {nodeAlias, namespace, clusterRef} = config;
 
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
+        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
 
         task.title += `: ${nodeAlias}`;
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewConsensusNodeComponent(
             Templates.renderComponentIdFromNodeId(nodeId),
-            clusterReference,
+            clusterRef,
             namespace,
             DeploymentPhase.STARTED,
+            undefined,
+            config.blockNodeIds,
           ),
           ComponentTypes.ConsensusNode,
         );
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+          this.componentFactory.createNewEnvoyProxyComponent(clusterRef, namespace),
           ComponentTypes.EnvoyProxy,
         );
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+          this.componentFactory.createNewHaProxyComponent(clusterRef, namespace),
           ComponentTypes.HaProxy,
         );
 
@@ -3231,7 +3230,7 @@ export class NodeCommandTasks {
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!config.consensusNodes.some((node): boolean => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
-            (cluster): boolean => cluster.name === clusterReference,
+            (cluster): boolean => cluster.name === clusterRef,
           );
 
           const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes;
@@ -3247,7 +3246,7 @@ export class NodeCommandTasks {
               nodeAlias,
               nodeId,
               namespace.name,
-              clusterReference,
+              clusterRef,
               context.toString(),
               cluster.dnsBaseDomain,
               cluster.dnsConsensusNodePattern,
@@ -3255,11 +3254,12 @@ export class NodeCommandTasks {
                 nodeAlias,
                 nodeId,
                 namespace.name,
-                clusterReference,
+                clusterRef,
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
               config.blockNodeIds,
+              [],
             ),
           );
         }
@@ -3273,9 +3273,7 @@ export class NodeCommandTasks {
       task: async (_, task) => {
         // Iterate all k8 contexts to find solo-remote-config configmaps
         this.logger.info('Discovering Hiero components from remote configuration...');
-        const contexts: ReturnType<ReturnType<typeof this.k8Factory.default>['contexts']> = this.k8Factory
-          .default()
-          .contexts();
+        const contexts: Contexts = this.k8Factory.default().contexts();
         const allPods: Array<{pod: Pod; context: string; namespace: NamespaceName}> = [];
 
         // Define component types and their label selectors

@@ -525,6 +525,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
       const nodeId: NodeId = Templates.renderNodeIdFromComponentId(node.metadata.id);
+      const externalBlockNodes: string[] = this.configuration.state.externalBlockNodes
+        .filter((blockNode): boolean => node.externalBlockNodeIds.includes(blockNode.id))
+        .map((blockNode): string => `${blockNode.address}:${blockNode.port}`);
 
       consensusNodes.push(
         new ConsensusNode(
@@ -543,7 +546,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             cluster.dnsBaseDomain,
             cluster.dnsConsensusNodePattern,
           ),
-          node.blockNodeIds || [],
+          node.blockNodeIds,
+          externalBlockNodes,
         ),
       );
     }

@@ -250,8 +250,6 @@ class BlockNodeCommand extends BaseCommand {
           node.blockNodeIds.push(newBlockNodeComponent.metadata.id);
         }
 
-        this.remoteConfig.configuration.state.consensusNodes = state.consensusNodes;
-
         await this.remoteConfig.persist();
       },
     };
@@ -287,12 +285,17 @@ class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesPostGenesisForExternal(): SoloListrTask<BlockNodeAddExternalContext> {
     return {
       title: 'Copy block-nodes.json to consensus nodes',
-      task: async ({config: {nodeAliases, namespace, externalBlockNodeAddress}}): Promise<void> => {
+      task: async ({
+        config: {nodeAliases, namespace, externalBlockNodeAddress, newExternalBlockNodeComponent},
+      }): Promise<void> => {
         const nodes: ConsensusNode[] = this.remoteConfig
           .getConsensusNodes()
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of nodes) {
+          const externalBlockNodes: string[] = node.externalBlockNodes;
+          externalBlockNodes.push(`${newExternalBlockNodeComponent.address}:${newExternalBlockNodeComponent.port}`);
+
           await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
             node,
             [],
@@ -301,7 +304,7 @@ class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             this.remoteConfig,
             true,
-            [externalBlockNodeAddress],
+            externalBlockNodes,
           );
         }
       },
@@ -364,45 +367,34 @@ class BlockNodeCommand extends BaseCommand {
         {config: {nodeAliases}},
         task,
       ): Promise<SoloListr<BlockNodeDeployContext | BlockNodeAddExternalContext>> => {
-        const subTasks: SoloListrTask<BlockNodeDeployContext | BlockNodeAddExternalContext>[] = [];
         const nodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
-        for (const nodeAlias of nodeAliases) {
-          subTasks.push({
-            title: `Start node: ${chalk.yellow(nodeAlias)}`,
-            task: async (): Promise<void> => {
-              const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
-              const context: Context = node.context;
-              const namespace: NamespaceName = NamespaceName.of(node.namespace);
-
-              const k8: K8 = this.k8Factory.getK8(context);
-
-              const container: Container = await k8
-                .pods()
-                .list(namespace, Templates.renderNodeLabelsFromNodeAlias(nodeAlias))
-                .then((pods): Pod => pods[0])
-                .then((pod): PodReference => pod.podReference)
-                .then((reference): ContainerReference => ContainerReference.of(reference, constants.ROOT_CONTAINER))
-                .then((reference): Container => k8.containers().readByRef(reference));
-
-              await container.execContainer(['bash', '-c', 'systemctl stop network-node || true']);
-
-              const scriptName: string = 'startPodJava.sh';
-              const localPath: string = `${constants.RESOURCES_DIR}/${scriptName}`;
-              const containerPath: string = `${constants.HEDERA_HAPI_PATH}/${scriptName}`;
-
-              await container.copyTo(localPath, constants.HEDERA_HAPI_PATH);
-
-              await container.execContainer(['bash', '-c', `chmod -x ${containerPath}`]);
-
-              const nodeId: string = node.nodeId.toString();
-              await container.execContainer(['sh', containerPath, nodeId, 'clean']);
-            },
-          });
-        }
-
         // set up the sub-tasks
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+        return task.newListr(
+          nodeAliases.map(
+            (nodeAlias): SoloListrTask<BlockNodeDeployContext | BlockNodeAddExternalContext> => ({
+              title: `Start node: ${chalk.yellow(nodeAlias)}`,
+              task: async (): Promise<void> => {
+                const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
+                const namespace: NamespaceName = NamespaceName.of(node.namespace);
+
+                const k8: K8 = this.k8Factory.getK8(node.context);
+
+                const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
+
+                await container.execContainer(['bash', '-c', 'systemctl stop network-node || true']);
+
+                const scriptName: string = 'startPodJava.sh';
+                await container.copyTo(`${constants.RESOURCES_DIR}/${scriptName}`, constants.HEDERA_HAPI_PATH);
+
+                const containerPath: string = `${constants.HEDERA_HAPI_PATH}/${scriptName}`;
+                await container.execContainer(['bash', '-c', `chmod -x ${containerPath}`]);
+                await container.execContainer(['sh', containerPath, node.nodeId.toString(), 'clean']);
+              },
+            }),
+          ),
+          constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+        );
       },
     };
   }

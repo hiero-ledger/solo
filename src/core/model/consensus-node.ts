@@ -14,6 +14,7 @@ export class ConsensusNode {
     public readonly dnsConsensusNodePattern: string,
     public readonly fullyQualifiedDomainName: string,
     public readonly blockNodeIds: number[],
+    public readonly externalBlockNodes: string[],
   ) {
     if (!context) {
       throw new Error(`ConsensusNode context cannot be empty or null. Call stack: ${new Error().stack}`);
