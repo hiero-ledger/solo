@@ -264,7 +264,7 @@ jobs:
         if: ${{ env.SOLO_CHARTS_BRANCH != '' }}
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          repository: hiero-ledger/solo-charts
+          repository: hashgraph/solo-charts
           ref: ${{ inputs.solo-charts-branch }}
           path: solo-charts
           token: ${{ secrets.GITHUB_TOKEN }}
