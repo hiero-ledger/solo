@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: ""
+      solo-charts-branch:
+        description: "Solo-Charts Branch:"
+        type: string
+        required: false
+        default: ""
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -82,6 +87,11 @@ on:
         default: "22"
       consensus-node-version:
         description: "Consensus Node Version:"
+        type: string
+        required: false
+        default: ""
+      solo-charts-branch:
+        description: "Solo-Charts Branch:"
         type: string
         required: false
         default: ""
@@ -250,6 +260,27 @@ jobs:
           command: |
             npm ci
 
+      - name: Checkout Solo-Charts Branch
+        if: ${{ env.SOLO_CHARTS_BRANCH != '' }}
+        run: |
+          echo "Checking out solo-charts branch: ${SOLO_CHARTS_BRANCH}"
+          cd ..
+          if [ -d "solo-charts" ]; then
+            cd solo-charts
+            git fetch origin
+            git checkout ${SOLO_CHARTS_BRANCH}
+            git pull origin ${SOLO_CHARTS_BRANCH}
+          else
+            git clone https://github.com/hiero-ledger/solo-charts.git --branch ${SOLO_CHARTS_BRANCH}"
+            cd solo-charts
+          fi
+          pwd
+          git status
+          git branch
+          echo "SOLO_CHARTS_DIR=$(pwd)/charts" >> $GITHUB_ENV
+        env:
+          SOLO_CHARTS_BRANCH: ${{ inputs.solo-charts-branch }}
+
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
@@ -367,6 +398,12 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
+          
+          # Add chart directory to environment if solo-charts branch is provided
+          if [[ -n "${{ env.SOLO_CHARTS_DIR }}" ]]; then
+            echo "SOLO_CHARTS_DIR=${{ env.SOLO_CHARTS_DIR }}" >> .env
+            echo "Using solo-charts from: ${{ env.SOLO_CHARTS_DIR }}"
+          fi
           
           if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
             # Verify cluster connectivity before running tests
