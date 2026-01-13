@@ -47,7 +47,7 @@ on:
         default: false
   push:
     branches:
-      - '**'
+      - trunk-merge/**
 defaults:
   run:
     shell: bash
