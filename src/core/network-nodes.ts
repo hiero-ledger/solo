@@ -18,6 +18,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import path from 'node:path';
 import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
+import chalk from 'chalk';
 
 /**
  * Class to manage network nodes
@@ -90,16 +91,18 @@ export class NetworkNodes {
       await container.execContainer([
         'bash',
         '-c',
-        `sync ${HEDERA_HAPI_PATH} && sudo chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
+        `sync ${HEDERA_HAPI_PATH} && chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
       ]);
 
-      await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
+      await container.execContainer(['bash', '-c', `chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
       await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
       await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
+      this.logger.showUser(`Log zip file ${podReference.name}.zip downloaded to ${targetDirectory}`);
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
       // and also delete namespace in the end
       this.logger.error(`${constants.NODE_LOG_FAILURE_MSG} ${podReference}`, error);
+      this.logger.showUser(chalk.red(`${constants.NODE_LOG_FAILURE_MSG} ${podReference}`));
     }
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): ...end`);
   }
