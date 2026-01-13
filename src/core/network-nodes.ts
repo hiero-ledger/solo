@@ -19,6 +19,8 @@ import path from 'node:path';
 import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
+import {ShellRunner} from './shell-runner.js';
+import {Templates} from './templates.js';
 
 /**
  * Class to manage network nodes
@@ -164,14 +166,29 @@ export class NetworkNodes {
   }
 
   public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {
-    return this.k8Factory
-      .getK8(context)
-      .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .execContainer([
-        'bash',
-        '-c',
-        String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-      ]);
+    void context; // Host fetch does not require kube context, keep signature parity
+    return await this.fetchPodStatusFromHost(podReference);
+  }
+
+  private async fetchPodStatusFromHost(podReference: PodReference): Promise<string> {
+    const nodeAlias = Templates.extractNodeAliasFromPodName(podReference.name);
+    const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+    const localPort = constants.HEDERA_NODE_METRICS_LOCAL_PORT + nodeId;
+
+    const shellRunner = new ShellRunner(this.logger);
+    
+    // First fetch all metrics
+    const metricsOutput = await Promise.race([
+      shellRunner.run(`curl -sf http://localhost:${localPort}/metrics`),
+      new Promise<string[]>((_, reject) => 
+        setTimeout(() => reject(new Error('Metrics fetch timeout after 5 seconds')), 5000)
+      )
+    ]);
+    
+    // Then filter for platform status
+    const statusLines = metricsOutput
+      .filter(line => line.startsWith('platform_PlatformStatus') && !line.startsWith('#'));
+    
+    return statusLines.join('\n');
   }
 }

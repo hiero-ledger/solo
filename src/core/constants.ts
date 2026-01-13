@@ -35,6 +35,7 @@ export const DOCKER = 'docker';
 export const KUBECTL = 'kubectl';
 export const DEFAULT_CLUSTER = 'solo-cluster';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
+export const COPY_NODE_CONFIGS_SCRIPT = PathEx.joinWithRealPath(RESOURCES_DIR, 'copy-node-configs.sh');
 
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
@@ -62,6 +63,8 @@ export const HEDERA_BUILDS_URL = 'https://builds.hedera.com';
 export const HEDERA_NODE_INTERNAL_GOSSIP_PORT = getEnvironmentVariable('SOLO_NODE_INTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT = getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT = +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
+export const HEDERA_NODE_METRICS_PORT = 9999;
+export const HEDERA_NODE_METRICS_LOCAL_PORT = 9999;
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');

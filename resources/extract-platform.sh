@@ -99,7 +99,20 @@ if [[ ! -d "${HAPI_DIR}" ]]; then
 fi
 
 # extract
-echo "Using unzip to extract files"
+echo "Extracting Hedera platform artifact"
+
+extract_with_available_tool() {
+  if command -v jar >/dev/null 2>&1; then
+    (
+      cd /tmp/extract || exit 1
+      jar -xf "${BUILD_ZIP_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
+    )
+    return $?
+  fi
+
+  log "jar command is not available to extract ${BUILD_ZIP_FILE}"
+  return 127
+}
 
 # To avoid "Device or resource busy" error when unzip tries to delete pre-existing file first before extracting
 # Uncompress to a temporary directory and then move the files to the target directory
@@ -111,10 +124,10 @@ if [[ "${ec}" -ne 0 ]]; then
   exit 1
 fi
 
-unzip -o "${BUILD_ZIP_FILE}" -d /tmp/extract > >(tee -a "${LOG_FILE}") 2>&1
+extract_with_available_tool
 ec="${?}"
 if [[ "${ec}" -ne 0 ]]; then
-  log "Failed to unzip ${BUILD_ZIP_FILE}. Error code: ${ec}"
+  log "Failed to extract ${BUILD_ZIP_FILE}. Error code: ${ec}"
   exit 1
 fi
 

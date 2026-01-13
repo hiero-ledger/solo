@@ -1636,6 +1636,41 @@ export class NodeCommandTasks {
     };
   }
 
+  public copyNodeConfigFiles(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Copy node config files before start',
+      task: (context_, task) => {
+        const config = context_.config;
+        const nodeAliases = config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<NodeStartContext>[] = [];
+
+        for (const nodeAlias of nodeAliases) {
+          subTasks.push({
+            title: `Node: ${chalk.yellow(nodeAlias)}`,
+            task: async () => {
+              const podReference = config.podRefs[nodeAlias];
+              if (!podReference) {
+                throw new SoloError(`Pod reference not found for node ${nodeAlias}`);
+              }
+
+              const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+              const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+              const scriptName = path.basename(constants.COPY_NODE_CONFIGS_SCRIPT);
+              const remoteScriptPath = `/tmp/${scriptName}`;
+
+              await container.copyTo(constants.COPY_NODE_CONFIGS_SCRIPT, '/tmp');
+              await container.execContainer(['bash', '-c', `chmod +x ${remoteScriptPath}`]);
+              await container.execContainer(['bash', '-c', remoteScriptPath]);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
+
   public startNodes(nodeAliasesProperty: string) {
     return {
       title: 'Starting nodes',
@@ -1658,7 +1693,7 @@ export class NodeCommandTasks {
                 .execContainer([
                   'bash',
                   '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                  '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus',
                 ]);
             },
           });
@@ -1714,6 +1749,37 @@ export class NodeCommandTasks {
           );
           await this.remoteConfig.persist();
         }
+
+        if (context_.config.forcePortForward) {
+          const aliases: NodeAliases =
+            context_.config.nodeAliases && context_.config.nodeAliases.length > 0
+              ? context_.config.nodeAliases
+              : [nodeAlias];
+
+          for (const alias of aliases) {
+            const aliasContext = helpers.extractContextFromConsensusNodes(alias, context_.config.consensusNodes);
+            const aliasPodReference: PodReference = PodReference.of(
+              context_.config.namespace,
+              PodName.of(`network-${alias}-0`),
+            );
+            const aliasNodeId: number = Templates.nodeIdFromNodeAlias(alias);
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              undefined,
+              aliasPodReference,
+              constants.HEDERA_NODE_METRICS_PORT,
+              constants.HEDERA_NODE_METRICS_LOCAL_PORT + aliasNodeId,
+              this.k8Factory.getK8(aliasContext),
+              this.logger,
+              ComponentTypes.ConsensusNode,
+              `Consensus Node Metrics (${alias})`,
+              context_.config.isChartInstalled,
+              aliasNodeId,
+            );
+          }
+        }
+
+        console.log('=== enablePortForwarding TASK COMPLETED ===');
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
     };
@@ -1723,7 +1789,12 @@ export class NodeCommandTasks {
     return {
       title: 'Check all nodes are ACTIVE',
       task: (context_, task) => {
-        return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
+        // Add small delay to ensure port-forwarding is ready
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            resolve(this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]));
+          }, 2000); // 2 second delay
+        });
       },
     };
   }
@@ -1900,7 +1971,11 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
+                  .execContainer([
+                    'bash',
+                    '-c',
+                    'set -euo pipefail; /command/s6-rc -d stop consensus',
+                  ]),
             });
           }
         }

@@ -776,6 +776,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
+        this.tasks.copyNodeConfigFiles('nodeAliases'),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
         this.tasks.checkAllNodesAreActive('nodeAliases'),
