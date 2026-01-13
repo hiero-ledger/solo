@@ -37,7 +37,7 @@ on:
         description: "Solo-Charts Branch:"
         type: string
         required: false
-        default: ""
+        default: "s6-support"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -94,7 +94,7 @@ on:
         description: "Solo-Charts Branch:"
         type: string
         required: false
-        default: ""
+        default: "s6-support"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
