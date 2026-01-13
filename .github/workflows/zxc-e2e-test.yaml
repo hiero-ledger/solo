@@ -262,22 +262,14 @@ jobs:
 
       - name: Checkout Solo-Charts Branch
         if: ${{ env.SOLO_CHARTS_BRANCH != '' }}
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: hiero-ledger/solo-charts
+          ref: ${{ inputs.solo-charts-branch }}
+          path: ../solo-charts
+          token: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Checking out solo-charts branch: ${SOLO_CHARTS_BRANCH}"
-          cd ..
-          if [ -d "solo-charts" ]; then
-            cd solo-charts
-            git fetch origin
-            git checkout ${SOLO_CHARTS_BRANCH}
-            git pull origin ${SOLO_CHARTS_BRANCH}
-          else
-            git clone https://github.com/hiero-ledger/solo-charts.git --branch ${SOLO_CHARTS_BRANCH}
-            cd solo-charts
-          fi
-          pwd
-          git status
-          git branch
-          echo "SOLO_CHARTS_DIR=$(pwd)/charts" >> $GITHUB_ENV
+          echo "SOLO_CHARTS_DIR=$(pwd)/../solo-charts/charts" >> $GITHUB_ENV
         env:
           SOLO_CHARTS_BRANCH: ${{ inputs.solo-charts-branch }}
 
