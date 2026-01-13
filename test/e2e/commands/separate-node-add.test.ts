@@ -35,6 +35,7 @@ import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {main} from '../../../src/index.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {buildMainArgv} from '../../test-utility.js';
+import {BaseCommandTest} from './tests/base-command-test.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
@@ -71,15 +72,16 @@ export function testSeparateNodeAdd(
     }).timeout(timeout);
 
     it('should succeed with init command', async (): Promise<void> => {
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          LedgerCommandDefinition.COMMAND_NAME,
-          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.SYSTEM_INIT,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
-        ),
+      const {newArgv, optionFromFlag} = BaseCommandTest;
+      const initArgv: string[] = newArgv();
+      initArgv.push(
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.SYSTEM_INIT,
+        optionFromFlag(flags.deployment),
+        argv.getArg<DeploymentName>(flags.deployment),
       );
+      await main(initArgv);
     }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
