@@ -271,7 +271,7 @@ jobs:
             git checkout ${SOLO_CHARTS_BRANCH}
             git pull origin ${SOLO_CHARTS_BRANCH}
           else
-            git clone https://github.com/hiero-ledger/solo-charts.git --branch ${SOLO_CHARTS_BRANCH}"
+            git clone https://github.com/hiero-ledger/solo-charts.git --branch ${SOLO_CHARTS_BRANCH}
             cd solo-charts
           fi
           pwd
