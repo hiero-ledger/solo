@@ -397,9 +397,9 @@ jobs:
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           
           # Add chart directory to environment if solo-charts branch is provided
-          if [[ -n "${{ env.SOLO_CHARTS_DIR }}" ]]; then
-            echo "SOLO_CHARTS_DIR=${{ env.SOLO_CHARTS_DIR }}" >> .env
-            echo "Using solo-charts from: ${{ env.SOLO_CHARTS_DIR }}"
+          if [[ -n "$SOLO_CHARTS_DIR" ]]; then
+            echo "SOLO_CHARTS_DIR=$SOLO_CHARTS_DIR" >> .env
+            echo "Using solo-charts from: $SOLO_CHARTS_DIR"
           fi
           
           if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
