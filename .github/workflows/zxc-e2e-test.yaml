@@ -266,7 +266,7 @@ jobs:
         with:
           repository: hiero-ledger/solo-charts
           ref: ${{ inputs.solo-charts-branch }}
-          path: ../solo-charts
+          path: solo-charts
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
           SOLO_CHARTS_BRANCH: ${{ inputs.solo-charts-branch }}
@@ -274,7 +274,7 @@ jobs:
       - name: Set Solo-Charts Directory
         if: ${{ env.SOLO_CHARTS_BRANCH != '' }}
         run: |
-          echo "SOLO_CHARTS_DIR=$(pwd)/../solo-charts/charts" >> $GITHUB_ENV
+          echo "SOLO_CHARTS_DIR=$(pwd)/solo-charts/charts" >> $GITHUB_ENV
         env:
           SOLO_CHARTS_BRANCH: ${{ inputs.solo-charts-branch }}
 
