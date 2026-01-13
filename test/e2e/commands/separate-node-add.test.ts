@@ -130,9 +130,7 @@ export function testSeparateNodeAdd(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
           LedgerCommandDefinition.ACCOUNT_CREATE,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-          ]),
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
     });
@@ -190,9 +188,7 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
-        new Map<CommandFlag, string>([
-          [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-        ]),
+        new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
       );
       await main(accountCreateArgv);
 
@@ -206,9 +202,7 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.NETWORK_FREEZE,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-          ]),
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
 
@@ -218,9 +212,7 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.STATE_DOWNLOAD,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-          ]),
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
 
@@ -230,9 +222,7 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.NODE_RESTART,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-          ]),
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
 
