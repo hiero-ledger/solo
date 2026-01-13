@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json && esbuild dist/src/plot_metrics.js --bundle --outfile=src/static/bundle.js --platform=browser --minify",
+    "build": "tsc -p tsconfig.json && esbuild dist/src/plot-metrics.js --bundle --outfile=src/static/bundle.js --platform=browser --minify",
     "start": "npx http-server src -c-1 -p 8123",
     "screenshot": "node dist/src/screenshot.js"
   },

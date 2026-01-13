@@ -1,5 +1,4 @@
-// TypeScript file for plotting metrics with Plotly in the browser.
-// Build with: npm run build (uses esbuild) and open src/index.html in a browser-served folder.
+// SPDX-License-Identifier: Apache-2.0
 
 declare const Plotly: any;
 
@@ -13,29 +12,39 @@ declare const Plotly: any;
  */
 function groupJsonData(raw: any, groups: string[]) {
   // produce a deep copy of the raw object so we don't mutate the original
-  const out = JSON.parse(JSON.stringify(raw || {}));
+  // eslint-disable-next-line n/no-unsupported-features/node-builtins
+  const out = structuredClone(raw || {});
 
   // normalized group list and ensure 'other' exists
-  const groupList = (groups || []).slice();
-  if (!groupList.includes('other')) groupList.push('other');
+  const groupList = [...(groups || [])];
+  if (!groupList.includes('other')) {
+    groupList.push('other');
+  }
 
   // iterate timestamps
-  const keys = Object.keys(out).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  // eslint-disable-next-line unicorn/no-array-sort
+  const keys = Object.keys(out).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
   for (const k of keys) {
     const entry = out[k];
-    if (!entry || typeof entry !== 'object') continue;
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
 
     const clusterMetrics = entry.clusterMetrics || [];
     const clusters = Array.isArray(clusterMetrics) ? clusterMetrics : [clusterMetrics];
 
     // process each cluster separately
     for (const cluster of clusters) {
-      if (!cluster || typeof cluster !== 'object') continue;
+      if (!cluster || typeof cluster !== 'object') {
+        continue;
+      }
 
       const pm = cluster.podMetrics;
       // accumulator map group -> { cpu, mem }
-      const accum: Record<string, { cpu: number; mem: number }> = {};
-      for (const g of groupList) accum[g] = { cpu: 0, mem: 0 };
+      const accum: Record<string, {cpu: number; mem: number}> = {};
+      for (const g of groupList) {
+        accum[g] = {cpu: 0, mem: 0};
+      }
 
       if (Array.isArray(pm)) {
         for (const pod of pm) {
@@ -44,8 +53,10 @@ function groupJsonData(raw: any, groups: string[]) {
           const mem = (pod && pod.memoryInMebibytes) || 0;
           let matched = false;
           for (const g of groups) {
-            if (!g) continue;
-            if (podName.indexOf(g) !== -1) {
+            if (!g) {
+              continue;
+            }
+            if (podName.includes(g)) {
               accum[g].cpu += cpu;
               accum[g].mem += mem;
               matched = true;
@@ -64,8 +75,10 @@ function groupJsonData(raw: any, groups: string[]) {
           const mem = metrics.memoryInMebibytes || 0;
           let matched = false;
           for (const g of groups) {
-            if (!g) continue;
-            if (podName.indexOf(g) !== -1) {
+            if (!g) {
+              continue;
+            }
+            if (podName.includes(g)) {
               accum[g].cpu += cpu;
               accum[g].mem += mem;
               matched = true;
@@ -83,14 +96,16 @@ function groupJsonData(raw: any, groups: string[]) {
       const groupedPods: any[] = [];
       for (const g of groupList) {
         const totals = accum[g];
-        if (!totals) continue;
+        if (!totals) {
+          continue;
+        }
         // include group if there is any usage recorded (or always include 'other' to show absence)
         if (totals.cpu !== 0 || totals.mem !== 0 || g === 'other') {
           groupedPods.push({
             namespace: 'grouped',
             podName: g,
             cpuInMillicores: totals.cpu,
-            memoryInMebibytes: totals.mem
+            memoryInMebibytes: totals.mem,
           });
         }
       }
@@ -109,42 +124,56 @@ function groupJsonData(raw: any, groups: string[]) {
 }
 
 async function loadJson(path: string): Promise<any> {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`Failed to load ${path}: ${res.statusText}`);
-  return res.json();
+  // eslint-disable-next-line
+  const response: Response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`Failed to load ${path}: ${response.statusText}`);
+  }
+  return response.json();
 }
 
 function parseData(data: any) {
-  const keysMs = Object.keys(data).map(k => parseInt(k, 10)).sort((a, b) => a - b);
+  const keysMs: number[] = Object.keys(data)
+    .map(k => Number.parseInt(k, 10))
+    // eslint-disable-next-line unicorn/no-array-sort
+    .sort((a, b) => a - b);
 
   const transaction_counts = keysMs.map(k => data[String(k)].transactionCount || 0);
 
   // collect events per timestamp (join multiple events into a single string or empty)
   const eventsPerTime: string[] = keysMs.map(k => {
     const entry = data[String(k)] || {};
-    const ev = entry.events || [];
-    if (!Array.isArray(ev)) return '';
-    return ev.length ? ev.join('; ') : '';
+    const event = entry.events || [];
+    if (!Array.isArray(event)) {
+      return '';
+    }
+    return event.length > 0 ? event.join('; ') : '';
   });
 
   // Collect pod names and per-time pod metrics
   const podNamesSet = new Set<string>();
-  const podMetricsByTime: Array<Record<string, { cpuInMillicores: number; memoryInMebibytes: number }>> = [];
+  const podMetricsByTime: Array<Record<string, {cpuInMillicores: number; memoryInMebibytes: number}>> = [];
 
   for (const k of keysMs) {
     const entry = data[String(k)] || {};
     const cluster = entry.clusterMetrics || [];
     const clusters = Array.isArray(cluster) ? cluster : [cluster];
-    const merged: Record<string, { cpuInMillicores: number; memoryInMebibytes: number }> = {};
+    const merged: Record<string, {cpuInMillicores: number; memoryInMebibytes: number}> = {};
 
     for (const c of clusters) {
-      if (!c || typeof c !== 'object') continue;
+      if (!c || typeof c !== 'object') {
+        continue;
+      }
       const pm = c.podMetrics;
       if (Array.isArray(pm)) {
         for (const pod of pm) {
           const podName = pod.podName || pod.name;
-          if (!podName) continue;
-          if (!merged[podName]) merged[podName] = { cpuInMillicores: 0, memoryInMebibytes: 0 };
+          if (!podName) {
+            continue;
+          }
+          if (!merged[podName]) {
+            merged[podName] = {cpuInMillicores: 0, memoryInMebibytes: 0};
+          }
           merged[podName].cpuInMillicores += pod.cpuInMillicores || 0;
           merged[podName].memoryInMebibytes += pod.memoryInMebibytes || 0;
           podNamesSet.add(podName);
@@ -152,8 +181,12 @@ function parseData(data: any) {
       } else if (pm && typeof pm === 'object') {
         for (const podName of Object.keys(pm)) {
           const metrics = (pm as any)[podName];
-          if (!metrics || typeof metrics !== 'object') continue;
-          if (!merged[podName]) merged[podName] = { cpuInMillicores: 0, memoryInMebibytes: 0 };
+          if (!metrics || typeof metrics !== 'object') {
+            continue;
+          }
+          if (!merged[podName]) {
+            merged[podName] = {cpuInMillicores: 0, memoryInMebibytes: 0};
+          }
           merged[podName].cpuInMillicores += metrics.cpuInMillicores || 0;
           merged[podName].memoryInMebibytes += metrics.memoryInMebibytes || 0;
           podNamesSet.add(podName);
@@ -164,7 +197,8 @@ function parseData(data: any) {
     podMetricsByTime.push(merged);
   }
 
-  const podNames = Array.from(podNamesSet).sort();
+  // eslint-disable-next-line unicorn/no-array-sort
+  const podNames = [...podNamesSet].sort();
 
   const podCpuSeries: Record<string, number[]> = {};
   const podMemSeries: Record<string, number[]> = {};
@@ -175,7 +209,7 @@ function parseData(data: any) {
 
   for (const pm of podMetricsByTime) {
     for (const pod of podNames) {
-      const m = pm[pod] || { cpuInMillicores: 0, memoryInMebibytes: 0 };
+      const m = pm[pod] || {cpuInMillicores: 0, memoryInMebibytes: 0};
       podCpuSeries[pod].push(m.cpuInMillicores || 0);
       podMemSeries[pod].push(m.memoryInMebibytes || 0);
     }
@@ -183,34 +217,53 @@ function parseData(data: any) {
 
   // compute tx per sec
   const tx_per_sec: number[] = [];
-  for (let i = 0; i < transaction_counts.length; i++) {
-    if (i === 0) { tx_per_sec.push(0); continue; }
-    const deltaTx = transaction_counts[i] - transaction_counts[i - 1];
-    const deltaMs = keysMs[i] - keysMs[i - 1];
-    tx_per_sec.push(deltaMs > 0 ? deltaTx / (deltaMs / 1000.0) : 0);
+  for (let index = 0; index < transaction_counts.length; index++) {
+    if (index === 0) {
+      tx_per_sec.push(0);
+      continue;
+    }
+    const deltaTx = transaction_counts[index] - transaction_counts[index - 1];
+    const deltaMs = keysMs[index] - keysMs[index - 1];
+    tx_per_sec.push(deltaMs > 0 ? deltaTx / (deltaMs / 1000) : 0);
   }
 
-  return { keysMs, podNames, podCpuSeries, podMemSeries, tx_per_sec, eventsPerTime };
+  return {keysMs, podNames, podCpuSeries, podMemSeries, tx_per_sec, eventsPerTime};
 }
 
-function makeTracesForPods(podNames: string[], seriesMap: Record<string, number[]>, keysX: number[], keysText: string[], stackGroup: string) {
+function makeTracesForPods(
+  podNames: string[],
+  seriesMap: Record<string, number[]>,
+  keysX: number[],
+  keysText: string[],
+  stackGroup: string,
+) {
   // produce stacked filled-area (scatter) traces using Plotly stackgroup
   const traces: any[] = [];
 
   // palette and helper
-  const palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+  const palette = [
+    '#1f77b4',
+    '#ff7f0e',
+    '#2ca02c',
+    '#d62728',
+    '#9467bd',
+    '#8c564b',
+    '#e377c2',
+    '#7f7f7f',
+    '#bcbd22',
+    '#17becf',
+  ];
   function hexToRgba(hex: string, alpha: number) {
     const h = (hex || '#000000').replace('#', '');
-    const bigint = parseInt(h, 16) || 0;
+    const bigint = Number.parseInt(h, 16) || 0;
     const r = (bigint >> 16) & 255;
     const g = (bigint >> 8) & 255;
     const b = bigint & 255;
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
-  for (let i = 0; i < podNames.length; i++) {
-    const pod = podNames[i];
-    const color = palette[i % palette.length];
+  for (const [index, pod] of podNames.entries()) {
+    const color = palette[index % palette.length];
     traces.push({
       x: keysX,
       y: seriesMap[pod],
@@ -225,10 +278,10 @@ function makeTracesForPods(podNames: string[], seriesMap: Record<string, number[
       // store base fillcolor with alpha 0.6 and save base color for hover handler
       fillcolor: hexToRgba(color, 0.6),
       opacity: 0.85,
-      line: { color: color, width: 1 },
+      line: {color: color, width: 1},
       _baseColor: color,
       _baseFillAlpha: 0.6,
-      hovertemplate: '%{fullData.name}<br>Elapsed: %{text}<br>%{y} <extra></extra>'
+      hovertemplate: '%{fullData.name}<br>Elapsed: %{text}<br>%{y} <extra></extra>',
     });
   }
   return traces;
@@ -236,9 +289,13 @@ function makeTracesForPods(podNames: string[], seriesMap: Record<string, number[
 
 // helper to format seconds into human-friendly elapsed string
 function formatDuration(seconds: number) {
-  if (!isFinite(seconds)) return '';
+  if (!Number.isFinite(seconds)) {
+    return '';
+  }
   const s = Math.round(seconds);
-  if (s < 60) return s + 's';
+  if (s < 60) {
+    return s + 's';
+  }
   const hrs = Math.floor(s / 3600);
   const mins = Math.floor((s % 3600) / 60);
   const rem = s % 60;
@@ -249,84 +306,95 @@ function formatDuration(seconds: number) {
   return mins + 'm' + (rem > 0 ? ' ' + rem + 's' : '');
 }
 
-function attachHoverHandlers(divId: string) {
-  const gd = document.getElementById(divId) as any;
-  if (!gd) return;
+// helper to convert hex to rgba
+function hexToRgba(hex: string, alpha: number): string {
+  const h = (hex || '#000000').replace('#', '');
+  const bigint = Number.parseInt(h, 16) || 0;
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
-  // helper to convert hex to rgba
-  function hexToRgba(hex: string, alpha: number) {
-    const h = (hex || '#000000').replace('#', '');
-    const bigint = parseInt(h, 16) || 0;
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return `rgba(${r},${g},${b},${alpha})`;
+function attachHoverHandlers(divId: string) {
+  const container: any = document.querySelector(`#${divId}`);
+  if (!container) {
+    return;
   }
 
-  let lastHighlighted: number | null = null;
-
-  gd.on('plotly_hover', (eventData: any) => {
-    if (!eventData || !eventData.points || !eventData.points.length) return;
+  container.on('plotly_hover', (eventData: any) => {
+    if (!eventData || !eventData.points || eventData.points.length === 0) {
+      return;
+    }
     const pt = eventData.points[0];
     const traceIndex = pt.curveNumber;
-    const trace = gd.data[traceIndex];
-    if (!trace) return;
+    const trace = container.data[traceIndex];
+    if (!trace) {
+      return;
+    }
 
-    // highlight full filled area for stacked-area traces
+    // highlight fulfilled area for stacked-area traces
     if (trace.type === 'scatter' && trace.stackgroup) {
       const allStackIndices: number[] = [];
-      for (let i = 0; i < gd.data.length; i++) {
-        const t = gd.data[i];
-        if (t && t.type === 'scatter' && t.stackgroup) allStackIndices.push(i);
+      for (let index = 0; index < container.data.length; index++) {
+        const t = container.data[index];
+        if (t && t.type === 'scatter' && t.stackgroup) {
+          allStackIndices.push(index);
+        }
       }
-      const dimIndices = allStackIndices.filter(i => i !== traceIndex);
+      const dimIndices = allStackIndices.filter(index => index !== traceIndex);
 
       // hovered: set fill alpha to 1.0 (keep same RGB)
       const baseColor = trace._baseColor || (trace.line && trace.line.color) || '#1f77b4';
-      Plotly.restyle(gd, { fillcolor: hexToRgba(baseColor, 1.0), opacity: 0.9, 'line.width': 2 }, [traceIndex]);
+      Plotly.restyle(container, {fillcolor: hexToRgba(baseColor, 1), opacity: 0.9, 'line.width': 2}, [traceIndex]);
 
       // dim others by lowering opacity (preserve their fillcolor RGB)
-      if (dimIndices.length) Plotly.restyle(gd, { opacity: 0.25 }, dimIndices);
+      if (dimIndices.length > 0) {
+        Plotly.restyle(container, {opacity: 0.25}, dimIndices);
+      }
 
-      lastHighlighted = traceIndex;
       return;
     }
 
     // fallback: emphasize non-stacked scatter lines/markers
-    if (trace.type === 'scatter' && (!trace.stackgroup)) {
-      Plotly.restyle(gd, { 'line.width': 4 }, [traceIndex]);
-      lastHighlighted = traceIndex;
+    if (trace.type === 'scatter' && !trace.stackgroup) {
+      Plotly.restyle(container, {'line.width': 4}, [traceIndex]);
       return;
     }
   });
 
-  gd.on('plotly_unhover', (_eventData: any) => {
-    if (!gd || !gd.data) return;
+  container.on('plotly_unhover', (_eventData: any) => {
+    if (!container || !container.data) {
+      return;
+    }
     const stackIndices: number[] = [];
-    for (let i = 0; i < gd.data.length; i++) {
-      const t = gd.data[i];
-      if (!t) continue;
+    for (let index = 0; index < container.data.length; index++) {
+      const t = container.data[index];
+      if (!t) {
+        continue;
+      }
       if (t.type === 'scatter') {
-        if (t.stackgroup) stackIndices.push(i);
-        else Plotly.restyle(gd, { 'line.width': 2 }, [i]);
+        if (t.stackgroup) {
+          stackIndices.push(index);
+        } else {
+          Plotly.restyle(container, {'line.width': 2}, [index]);
+        }
       }
     }
 
     // restore original fill alpha and opacity for stacked traces
-    for (const idx of stackIndices) {
-      const t = gd.data[idx];
+    for (const index of stackIndices) {
+      const t = container.data[index];
       const baseColor = (t && (t._baseColor || (t.line && t.line.color))) || '#1f77b4';
-      const baseAlpha = (t && (typeof t._baseFillAlpha === 'number' ? t._baseFillAlpha : 0.6));
-      Plotly.restyle(gd, { fillcolor: hexToRgba(baseColor, baseAlpha), opacity: 0.85, 'line.width': 1 }, [idx]);
+      const baseAlpha = t && (typeof t._baseFillAlpha === 'number' ? t._baseFillAlpha : 0.6);
+      Plotly.restyle(container, {fillcolor: hexToRgba(baseColor, baseAlpha), opacity: 0.85, 'line.width': 1}, [index]);
     }
-
-    lastHighlighted = null;
   });
 }
 
 async function render(filePath: string, divCpu: string, divMem: string, dataGroups: string[] = []) {
   let raw = await loadJson(filePath);
-  if (dataGroups.length) {
+  if (dataGroups.length > 0) {
     raw = groupJsonData(raw, dataGroups);
   }
   const parsed = parseData(raw);
@@ -334,21 +402,21 @@ async function render(filePath: string, divCpu: string, divMem: string, dataGrou
 }
 
 function createPlots(parsed: any, filePath: string, divCpu: string, divMem: string) {
-  const { keysMs, podNames, podCpuSeries, podMemSeries, tx_per_sec } = parsed;
+  const {keysMs, podNames, podCpuSeries, podMemSeries, tx_per_sec} = parsed;
   const eventsPerTime: string[] = parsed.eventsPerTime || [];
 
   // compute elapsed seconds relative to the first timestamp
-  const startMs = keysMs.length ? keysMs[0] : 0;
+  const startMs = keysMs.length > 0 ? keysMs[0] : 0;
   const elapsedSec = keysMs.map(ms => (ms - startMs) / 1000);
   const elapsedText = elapsedSec.map(s => formatDuration(s));
 
   // compute tick values and labels for the elapsed axis (6 ticks)
-  const maxSec = elapsedSec.length ? Math.max(...elapsedSec) : 0;
-  const numTicks = 6;
+  const maxSec = elapsedSec.length > 0 ? Math.max(...elapsedSec) : 0;
+  const numberTicks = 6;
   const tickVals: number[] = [];
   const tickText: string[] = [];
-  for (let i = 0; i <= numTicks; i++) {
-    const v = (maxSec * i) / numTicks;
+  for (let index = 0; index <= numberTicks; index++) {
+    const v = (maxSec * index) / numberTicks;
     tickVals.push(Math.round(v));
     tickText.push(formatDuration(Math.round(v)));
   }
@@ -358,7 +426,9 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
   // CPU chart (stacked filled area)
   const cpuTraces = makeTracesForPods(podNames, podCpuSeries, elapsedSec, elapsedText, 'cpu');
   // compute total CPU per timestamp so we can place event markers above the stacked bars
-  const totalCpu: number[] = elapsedSec.map((_, i) => podNames.reduce((acc, p) => acc + (podCpuSeries[p][i] || 0), 0));
+  const totalCpu: number[] = elapsedSec.map((_, index) =>
+    podNames.reduce((accumulator, p) => accumulator + (podCpuSeries[p][index] || 0), 0),
+  );
   // place event markers in paper coordinates so they stay visually at the bottom of the chart
   // paper y is 0..1 where 0 is bottom of plotting area; use a small offset (0.03)
   const cpuTpsTrace = {
@@ -368,42 +438,43 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
     name: 'Transactions/sec',
     type: 'scatter',
     mode: 'lines+markers',
-    marker: { color: 'red' },
+    marker: {color: 'red'},
     yaxis: 'y2',
     // show formatted elapsed time in tooltip
-    hovertemplate: '%{fullData.name}<br>Elapsed: %{text}<br>%{y:.2f} <extra></extra>'
+    hovertemplate: '%{fullData.name}<br>Elapsed: %{text}<br>%{y:.2f} <extra></extra>',
   };
   const cpuEventsTrace = {
     x: elapsedSec,
-    y: totalCpu.map((_, i) => eventsPerTime[i] ? 0.03 : NaN),
+    y: totalCpu.map((_, index) => (eventsPerTime[index] ? 0.03 : Number.NaN)),
     text: eventsPerTime,
     customdata: elapsedText,
     name: 'Events',
     type: 'scatter',
     mode: 'markers',
-    marker: { color: 'green', symbol: 'circle', size: 10, line: { color: 'black', width: 1 } },
+    marker: {color: 'green', symbol: 'circle', size: 10, line: {color: 'black', width: 1}},
     hovertemplate: 'Event: %{text}<br>Elapsed: %{customdata}<extra></extra>',
     // use paper coordinates for vertical placement so y is fraction of plotting area
     yref: 'paper',
-    showlegend: false
+    showlegend: false,
   };
-  const cpuData = cpuTraces.concat([cpuTpsTrace]);
+  const cpuData = [...cpuTraces, cpuTpsTrace, cpuEventsTrace];
 
   // add event markers after TPS so they render on top of areas/lines
-  cpuData.push(cpuEventsTrace);
   const cpuShapes: any[] = [];
-  for (let i = 0; i < elapsedSec.length; i++) {
-    if (!eventsPerTime[i]) continue;
+  for (const [index, element] of elapsedSec.entries()) {
+    if (!eventsPerTime[index]) {
+      continue;
+    }
     cpuShapes.push({
       type: 'line',
-      x0: elapsedSec[i],
-      x1: elapsedSec[i],
+      x0: element,
+      x1: element,
       y0: 0,
       y1: 1,
       xref: 'x',
       yref: 'paper',
-      line: { color: 'green', width: 3, dash: 'dot' },
-      opacity: 0.9
+      line: {color: 'green', width: 3, dash: 'dot'},
+      opacity: 0.9,
     });
   }
 
@@ -417,7 +488,7 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
       xref: 'x',
       yref: 'paper',
       text: text,
-      font: { size: 10, color: 'green' },
+      font: {size: 10, color: 'green'},
       align: 'center',
       showarrow: false,
     };
@@ -425,14 +496,16 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
   }
 
   const cpuAnnotations: any[] = [];
-  for (let i = 0; i < elapsedSec.length; i++) {
-    const ev = eventsPerTime[i];
-    if (!ev) continue;
+  for (const [index, element] of elapsedSec.entries()) {
+    const event = eventsPerTime[index];
+    if (!event) {
+      continue;
+    }
     // pick the first event and truncate for brevity in-chart; full text remains on hover of the marker
-    const first = (ev.split(';')[0] || '').trim();
-    const shortLabel = first.length > 40 ? first.slice(0, 40) + '…' : first + (ev.indexOf(';') !== -1 ? '…' : '');
+    const first = (event.split(';')[0] || '').trim();
+    const shortLabel = first.length > 40 ? first.slice(0, 40) + '…' : first + (event.includes(';') ? '…' : '');
     // place at the top of the chart with no angle
-    cpuAnnotations.push(buildEventAnnotation(elapsedSec[i], shortLabel));
+    cpuAnnotations.push(buildEventAnnotation(element, shortLabel));
   }
   const cpuLayout = {
     title: 'CPU Metrics',
@@ -440,17 +513,17 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
     hovermode: 'closest',
     shapes: cpuShapes,
     annotations: cpuAnnotations,
-    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+    legend: {orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2},
     xaxis: {
       type: 'linear',
       tickvals: tickVals,
       ticktext: tickText,
       tickangle: -45,
-      automargin: true
+      automargin: true,
     },
-    yaxis: { title: 'CPU (millicores)' },
-    yaxis2: { title: 'Transactions/sec', overlaying: 'y', side: 'right' },
-    margin: { t: 70, b: 140 }
+    yaxis: {title: 'CPU (millicores)'},
+    yaxis2: {title: 'Transactions/sec', overlaying: 'y', side: 'right'},
+    margin: {t: 70, b: 140},
   };
 
   Plotly.newPlot(divCpu, cpuData, cpuLayout, {responsive: true});
@@ -459,7 +532,9 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
   // Memory chart (stacked filled area)
   const memTraces = makeTracesForPods(podNames, podMemSeries, elapsedSec, elapsedText, 'mem');
   // compute total Memory per timestamp for event placement
-  const totalMem: number[] = elapsedSec.map((_, i) => podNames.reduce((acc, p) => acc + (podMemSeries[p][i] || 0), 0));
+  const totalMem: number[] = elapsedSec.map((_, index) =>
+    podNames.reduce((accumulator, p) => accumulator + (podMemSeries[p][index] || 0), 0),
+  );
   // place memory event markers in paper coordinates at the bottom (same fraction)
   const memTpsTrace = {
     x: elapsedSec,
@@ -468,52 +543,55 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
     name: 'Transactions/sec',
     type: 'scatter',
     mode: 'lines+markers',
-    marker: { color: 'red' },
+    marker: {color: 'red'},
     yaxis: 'y2',
-    hovertemplate: '%{fullData.name}<br>Elapsed: %{text}<br>%{y:.2f} <extra></extra>'
+    hovertemplate: '%{fullData.name}<br>Elapsed: %{text}<br>%{y:.2f} <extra></extra>',
   };
   // restore memory event markers as circles as well
   const memEventsTrace = {
     x: elapsedSec,
-    y: totalMem.map((_, i) => eventsPerTime[i] ? 0.03 : NaN),
+    y: totalMem.map((_, index) => (eventsPerTime[index] ? 0.03 : Number.NaN)),
     text: eventsPerTime,
     customdata: elapsedText,
     name: 'Events',
     type: 'scatter',
     mode: 'markers',
-    marker: { color: 'green', symbol: 'circle', size: 10, line: { color: 'black', width: 1 } },
+    marker: {color: 'green', symbol: 'circle', size: 10, line: {color: 'black', width: 1}},
     hovertemplate: 'Event: %{text}<br>Elapsed: %{customdata}<extra></extra>',
     yref: 'paper',
-    showlegend: false
+    showlegend: false,
   };
-  const memData = memTraces.concat([memTpsTrace]);
-  memData.push(memEventsTrace);
+  const memData = [...memTraces, memTpsTrace, memEventsTrace];
   // Build vertical line shapes for memory events
   const memShapes: any[] = [];
-  for (let i = 0; i < elapsedSec.length; i++) {
-    if (!eventsPerTime[i]) continue;
+  for (const [index, element] of elapsedSec.entries()) {
+    if (!eventsPerTime[index]) {
+      continue;
+    }
     memShapes.push({
       type: 'line',
-      x0: elapsedSec[i],
-      x1: elapsedSec[i],
+      x0: element,
+      x1: element,
       y0: 0,
       y1: 1,
       xref: 'x',
       yref: 'paper',
-      line: { color: 'green', width: 3, dash: 'dot' },
-      opacity: 0.9
+      line: {color: 'green', width: 3, dash: 'dot'},
+      opacity: 0.9,
     });
   }
 
   // build annotations (visible labels) for Memory events
   const memAnnotations: any[] = [];
-  for (let i = 0; i < elapsedSec.length; i++) {
-    const ev = eventsPerTime[i];
-    if (!ev) continue;
-    const first = (ev.split(';')[0] || '').trim();
-    const shortLabel = first.length > 40 ? first.slice(0, 40) + '…' : first + (ev.indexOf(';') !== -1 ? '…' : '');
+  for (const [index, element] of elapsedSec.entries()) {
+    const event = eventsPerTime[index];
+    if (!event) {
+      continue;
+    }
+    const first = (event.split(';')[0] || '').trim();
+    const shortLabel = first.length > 40 ? first.slice(0, 40) + '…' : first + (event.includes(';') ? '…' : '');
     // place under the chart and angle the label
-    memAnnotations.push(buildEventAnnotation(elapsedSec[i], shortLabel));
+    memAnnotations.push(buildEventAnnotation(element, shortLabel));
   }
   const memLayout = {
     title: 'Memory Metrics',
@@ -521,49 +599,44 @@ function createPlots(parsed: any, filePath: string, divCpu: string, divMem: stri
     hovermode: 'closest',
     shapes: memShapes,
     annotations: memAnnotations,
-    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2 },
+    legend: {orientation: 'h', x: 0.5, xanchor: 'center', y: -0.2},
     xaxis: {
       type: 'linear',
       tickvals: tickVals,
       ticktext: tickText,
       tickangle: -45,
-      automargin: true
+      automargin: true,
     },
-    yaxis: { title: 'Memory (MiB)' },
-    yaxis2: { title: 'Transactions/sec', overlaying: 'y', side: 'right' },
-    margin: { t: 70, b: 140 }
+    yaxis: {title: 'Memory (MiB)'},
+    yaxis2: {title: 'Transactions/sec', overlaying: 'y', side: 'right'},
+    margin: {t: 70, b: 140},
   };
 
   Plotly.newPlot(divMem, memData, memLayout, {responsive: true});
   attachHoverHandlers(divMem);
 }
 
-function renderFromObject(obj: any, divCpu: string, divMem: string, dataGroups: string[] = []) {
-  let copiedObj = JSON.parse(JSON.stringify(obj));
-  if (dataGroups.length) {
-    copiedObj = groupJsonData(copiedObj, dataGroups);
+function renderFromObject(object: any, divCpu: string, divMem: string, dataGroups: string[] = []) {
+  // eslint-disable-next-line n/no-unsupported-features/node-builtins
+  let copiedObject: any = structuredClone(object);
+  if (dataGroups.length > 0) {
+    copiedObject = groupJsonData(copiedObject, dataGroups);
   }
 
-  const parsed = parseData(copiedObj);
+  const parsed = parseData(copiedObject);
 
   createPlots(parsed, 'uploaded-file.json', divCpu, divMem);
 }
 
 // Expose a global boot function for the HTML page
-(window as any).renderMetrics = render;
-(window as any).renderMetricsFromObject = renderFromObject;
-(window as any).dataGroups = [
-  'network-node',
-  'mirror',
-  'relay',
-  'explorer',
-  'block-node'
-];
+(globalThis as any).renderMetrics = render;
+(globalThis as any).renderMetricsFromObject = renderFromObject;
+(globalThis as any).dataGroups = ['network-node', 'mirror', 'relay', 'explorer', 'block-node'];
 
 function resolveDefaultFile(): string {
-  const params = new URLSearchParams(window.location.search);
-  const fileParam = params.get('data');
-  return fileParam ? `/data/${fileParam}.json` : undefined;
+  const parameters = new URLSearchParams(globalThis.location.search);
+  const fileParameter = parameters.get('data');
+  return fileParameter ? `/data/${fileParameter}.json` : undefined;
 }
 
 function loadDefaultCharts() {
@@ -571,11 +644,11 @@ function loadDefaultCharts() {
   window.addEventListener('load', () => {
     try {
       // determine default grouping from GET params: ?grouped=1|true or ?mode=grouped
-      const params = new URLSearchParams(window.location.search);
-      const groupedDefault = (params.get('grouped') || '').toLowerCase() === 'true';
+      const parameters = new URLSearchParams(globalThis.location.search);
+      const groupedDefault = (parameters.get('grouped') || '').toLowerCase() === 'true';
 
       // if the page has the toggle button, set its state/text before rendering
-      const tg = (window as any).toggleGrouping;
+      const tg = (globalThis as any).toggleGrouping;
       if (tg) {
         tg.grouped = groupedDefault;
         tg.textContent = groupedDefault ? 'Show all data' : 'Show grouped data';
@@ -583,17 +656,24 @@ function loadDefaultCharts() {
 
       const defaultFile = resolveDefaultFile();
       if (defaultFile) {
-        (window as any).renderMetrics(defaultFile, 'cpuDiv', 'memDiv', (window as any).toggleGrouping && (window as any).toggleGrouping.grouped ? (window as any).dataGroups : []);
+        (globalThis as any).renderMetrics(
+          defaultFile,
+          'cpuDiv',
+          'memDiv',
+          (globalThis as any).toggleGrouping && (globalThis as any).toggleGrouping.grouped
+            ? (globalThis as any).dataGroups
+            : [],
+        );
       }
-    } catch (e) {
-      console.error('Failed to render:', e);
+    } catch (error) {
+      console.error('Failed to render:', error);
     }
   });
 }
 
-(window as any).loadDefaultCharts = loadDefaultCharts;
+(globalThis as any).loadDefaultCharts = loadDefaultCharts;
 
 // If loaded directly, auto-run with example data
-if (typeof window !== 'undefined') {
+if (globalThis.window !== undefined) {
   loadDefaultCharts();
 }

@@ -32,6 +32,11 @@
   "include": [
     "src"
   ],
+  "exclude": [
+    "dist",
+    "dist/**",
+    "node_modules"
+  ],
   "ts-node": {
     "esm": true,
     "experimentalResolver": true,
