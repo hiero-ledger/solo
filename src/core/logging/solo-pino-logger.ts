@@ -74,8 +74,6 @@ export class SoloPinoLogger implements SoloLogger {
       },
     };
 
-    const transport: pino.ThreadStream = pino.transport({targets: [ndjsonTarget, prettyTarget]});
-
     this.pinoLogger = pino(
       {
         level: logLevel,
@@ -87,7 +85,7 @@ export class SoloPinoLogger implements SoloLogger {
           remove: true,
         },
       },
-      transport,
+      pino.transport({targets: [ndjsonTarget, prettyTarget]}),
     );
   }
 
