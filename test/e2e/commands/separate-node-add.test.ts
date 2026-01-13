@@ -89,6 +89,7 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.outputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.persistentVolumeClaims, argv.getArg<DeploymentName>(flags.persistentVolumeClaims)],
           ]),
         ),
       );
