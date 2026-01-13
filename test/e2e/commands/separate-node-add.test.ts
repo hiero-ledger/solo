@@ -49,11 +49,6 @@ export function testSeparateNodeAdd(
     opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
-  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
-    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
-    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
-  ]);
-
   describe('Node add via separated commands should success', async (): Promise<void> => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
@@ -94,7 +89,6 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.outputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -108,7 +102,6 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.inputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -122,7 +115,6 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.inputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -140,7 +132,6 @@ export function testSeparateNodeAdd(
           LedgerCommandDefinition.ACCOUNT_CREATE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -201,7 +192,6 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.ACCOUNT_CREATE,
         new Map<CommandFlag, string>([
           [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-          ...flagsMap.entries(),
         ]),
       );
       await main(accountCreateArgv);
@@ -218,7 +208,6 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.NETWORK_FREEZE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -231,7 +220,6 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.STATE_DOWNLOAD,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -244,7 +232,6 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.NODE_RESTART,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            ...flagsMap.entries(),
           ]),
         ),
       );

@@ -23,13 +23,6 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
     opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
-  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
-    [flags.nodeAliasesUnparsed, 'node1,node2,node3'],
-    [flags.nodeAlias, nodeAlias],
-    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
-    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
-  ]);
-
   describe('Node delete via separated commands', async (): Promise<void> => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
       await main(
@@ -38,7 +31,10 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
-          new Map<CommandFlag, string>([[flags.outputDir, temporaryDirectory], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([
+            [flags.outputDir, temporaryDirectory],
+            [flags.nodeAlias, nodeAlias],
+          ]),
         ),
       );
 
@@ -48,7 +44,10 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([
+            [flags.inputDir, temporaryDirectory],
+            [flags.nodeAlias, nodeAlias],
+          ]),
         ),
       );
 
@@ -58,7 +57,10 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([
+            [flags.inputDir, temporaryDirectory],
+            [flags.nodeAlias, nodeAlias],
+          ]),
         ),
       );
 

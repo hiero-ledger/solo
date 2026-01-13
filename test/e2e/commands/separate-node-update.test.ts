@@ -37,11 +37,6 @@ export function testSeparateNodeUpdate(
   const updateNodeId: NodeAlias = 'node2';
   const newAccountId: string = '0.0.7';
 
-  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
-    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
-    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
-  ]);
-
   const {
     opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
   } = bootstrapResp;
@@ -103,7 +98,6 @@ export function testSeparateNodeUpdate(
               flags.newAdminKey,
               '302e020100300506032b6570042204200cde8d512569610f184b8b399e91e46899805c6171f7c2b8666d2a417bcc66c2',
             ],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -114,7 +108,7 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2]]),
         ),
       );
 
@@ -124,7 +118,7 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2]]),
         ),
       );
 

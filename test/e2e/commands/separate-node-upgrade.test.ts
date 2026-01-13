@@ -34,11 +34,6 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
     opts: {k8Factory, logger},
   } = bootstrapResp;
 
-  const flagsMap: Map<CommandFlag, string> = new Map<CommandFlag, string>([
-    [flags.devMode, argv.getArg(flags.devMode) ? 'true' : 'false'],
-    [flags.quiet, argv.getArg(flags.quiet) ? 'true' : 'false'],
-  ]);
-
   describe('Node upgrade', async (): Promise<void> => {
     it('should succeed with separate upgrade command', async (): Promise<void> => {
       // Create file version.txt at tmp directory
@@ -60,7 +55,6 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           new Map<CommandFlag, string>([
             [flags.upgradeZipFile, zipFile],
             [flags.outputDir, temporaryDirectory2],
-            ...flagsMap.entries(),
           ]),
         ),
       );
@@ -71,7 +65,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2]]),
         ),
       );
 
@@ -81,7 +75,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2], ...flagsMap.entries()]),
+          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2]]),
         ),
       );
     }).timeout(Duration.ofMinutes(5).toMillis());
