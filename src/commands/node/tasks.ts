@@ -1213,8 +1213,7 @@ export class NodeCommandTasks {
           ]);
 
           // Fix ownership of extracted state files to hedera user
-          // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
-          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
+          // NOTE: jar doesn't preserve Unix ownership - files are owned by whoever runs jar (root).
           // The chown is required so the hedera process can access the extracted state files.
           self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
           await container.execContainer([

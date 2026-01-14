@@ -432,6 +432,7 @@ jobs:
           # Run the test
           TEST_EXIT_CODE=0
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
+          ps -ef |grep port-forward || true
           
           # Stop resource monitoring and display summary
           ./.github/workflows/script/monitor-resources.sh stop
