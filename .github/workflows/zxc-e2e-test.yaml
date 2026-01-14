@@ -421,7 +421,7 @@ jobs:
           # Build chart dependencies if using local charts
           if [[ -n "$SOLO_CHARTS_DIR" ]]; then
             echo "Building chart dependencies..."
-            cd "$SOLO_CHARTS_DIR/charts/solo-deployment"
+            cd "$SOLO_CHARTS_DIR/solo-deployment"
             helm dependency build
             cd - > /dev/null
           fi

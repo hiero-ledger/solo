@@ -97,7 +97,7 @@ export class NetworkNodes {
       ]);
 
       await container.execContainer(['bash', '-c', `chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
+      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} false`);
       await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
       this.logger.showUser(`Log zip file ${podReference.name}.zip downloaded to ${targetDirectory}`);
     } catch (error) {
@@ -140,21 +140,20 @@ export class NetworkNodes {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
-      // Use zip for compression, similar to tar -czf with -C flag
+      // Use jar for Java-native compatibility but keep .zip extension for consistency
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
-      // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
-      // Use the -X to archive for cross-platform compatibility
+      // Use jar for Java-native compatibility but keep .zip extension for consistency
       await k8
         .containers()
         .readByRef(containerReference)
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -rX ${zipFileName} . && sync && test -f ${zipFileName})`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && jar -cf ${zipFileName} . && sync && test -f ${zipFileName})`,
         ]);
       await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
