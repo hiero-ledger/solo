@@ -8,6 +8,15 @@ env:
       else
         echo "npm run solo-test --"
       fi
+  TIMEOUT_COMMAND:
+    sh: |
+      if command -v gtimeout >/dev/null 2>&1; then
+        echo "gtimeout"
+      elif command -v timeout >/dev/null 2>&1; then
+        echo "timeout"
+      else
+        echo ""
+      fi
 
 vars:
   # Network Configuration
@@ -17,6 +26,8 @@ vars:
   NAMESPACE: "external-database-test"
   CLUSTER_NAME: "backup-restore-cluster"
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
+  ZIP_PASSWORD: "xxxx"
+  ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 
   POSTGRES_USERNAME: "postgres"
@@ -44,7 +55,11 @@ tasks:
       - task: restore-network
       - task: restore-config
       - cmd: |
-          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }}
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+          else
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+          fi
       - task: verify
 
   initial-deploy:
@@ -54,20 +69,23 @@ tasks:
       - cmd: echo "🗑️  Cleaning up existing clusters..."
       - cmd: kind delete cluster -n solo-e2e-c1 || true
       - cmd: kind delete cluster -n solo-e2e-c2 || true
-      
+
+      # clean back up directory
+      - cmd: rm -rf {{ .BACKUP_DIR }} || true
+
       # Setup Docker network
       - cmd: echo "🌐 Setting up Docker network..."
       - cmd: docker network rm -f kind || true
       - cmd: docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
-      
+
       # Add Helm repos
       - cmd: echo "📦 Adding Helm repositories..."
       - cmd: helm repo add metallb https://metallb.github.io/metallb
-      
+
       # Create Cluster 1
       - cmd: echo "🏗️  Creating Cluster 1 (solo-e2e-c1)..."
       - cmd: kind create cluster -n solo-e2e-c1 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-1.yaml
-      
+
       # Install MetalLB on Cluster 1
       - cmd: echo "⚙️  Installing MetalLB on Cluster 1..."
       - cmd: |
@@ -76,11 +94,11 @@ tasks:
             --namespace metallb-system --create-namespace --atomic --wait \
             --set speaker.frr.enabled=true
       - cmd: kubectl apply -f metallb-cluster-1.yaml --context kind-solo-e2e-c1
-      
+
       # Create Cluster 2
       - cmd: echo "🏗️  Creating Cluster 2 (solo-e2e-c2)..."
       - cmd: kind create cluster -n solo-e2e-c2 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-2.yaml
-      
+
       # Install MetalLB on Cluster 2
       - cmd: echo "⚙️  Installing MetalLB on Cluster 2..."
       - cmd: |
@@ -89,51 +107,57 @@ tasks:
             --namespace metallb-system --create-namespace --atomic --wait \
             --set speaker.frr.enabled=true
       - cmd: kubectl apply -f metallb-cluster-2.yaml --context kind-solo-e2e-c2
-      
+
       # Setup Cluster 1
       - cmd: echo "🔧 Setting up Cluster 1..."
       - cmd: kubectl config use-context kind-solo-e2e-c1
       - cmd: $SOLO_COMMAND init
       - cmd: $SOLO_COMMAND cluster-ref config setup -s solo-setup --quiet-mode --dev
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref solo-e2e-c1 --context kind-solo-e2e-c1
-      
+
       # Setup Cluster 2
       - cmd: echo "🔧 Setting up Cluster 2..."
       - cmd: kubectl config use-context kind-solo-e2e-c2
       - cmd: $SOLO_COMMAND cluster-ref config setup -s solo-setup --quiet-mode --dev
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref solo-e2e-c2 --context kind-solo-e2e-c2
-      
+
       # Create deployment
       - cmd: echo "📋 Creating deployment..."
       - cmd: kubectl config use-context kind-solo-e2e-c1
       - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 2 --shard 3
-      
+
       # Attach clusters to deployment
       - cmd: echo "🔗 Attaching Cluster 1 to deployment (1 consensus node)..."
       - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref solo-e2e-c1 --deployment {{ .DEPLOYMENT }} --num-consensus-nodes 1
       - cmd: echo "🔗 Attaching Cluster 2 to deployment (1 consensus node + other components)..."
       - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref solo-e2e-c2 --deployment {{ .DEPLOYMENT }} --num-consensus-nodes 1
-      
+
       # Generate keys
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-      
+
       # Deploy consensus network
       - cmd: echo "🚀 Deploying consensus network..."
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer
-      
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs
+
       # Setup nodes
       - cmd: echo "⚙️  Setting up consensus nodes..."
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-      
+
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
-      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-      
+      - cmd: |
+          # Kill the start command if it hangs for more than 60 seconds
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          else
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          fi
+
       # Install PostgreSQL on Cluster 2
       - cmd: kubectl config use-context kind-solo-e2e-c2
       - task: deploy-external-database
-      
+
       # Deploy Mirror Node on Cluster 2
       - cmd: echo "🪞 Deploying Mirror Node on Cluster 2..."
       - cmd: |
@@ -143,24 +167,24 @@ tasks:
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
             --enable-ingress --pinger -q --dev
-      
+
       # Seed database
       - task: deploy-mirror-external
-      
+
       # Deploy Block Node on Cluster 2
       - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
       - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
-      
+
       # Deploy Explorer on Cluster 2
       - cmd: echo "🔍 Deploying Explorer on Cluster 2..."
       - cmd: |
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
             --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
-      
+
       # Deploy Relay on Cluster 2
       - cmd: echo "📡 Deploying Relay on Cluster 2..."
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
-      
+
       - cmd: echo "✅ Initial deployment completed successfully!"
       - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1"
       - cmd: echo "   - Cluster 2 (solo-e2e-c2) - node2, block node, mirror node, explorer, relay"
@@ -181,8 +205,13 @@ tasks:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
       - cmd: |
-          $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-          $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          else
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          fi
+          $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
+          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -211,15 +240,32 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
      - cmd: |
-          rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
-          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml
+          rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
+          $SOLO_COMMAND init
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+              --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+          else
+            $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+              --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+          fi
+          --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+          # keep a copy of zip file for debugging
+          cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
       - cmd: |
-          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 500s $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+          else
+            $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+          fi
       - task: deploy-mirror-external
 
   # ==================== External Database Tasks ====================
@@ -278,8 +324,22 @@ tasks:
     desc: Restore configuration and state from backup
     cmds:
       # freeze first before restoring
-      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+      - cmd: |
+          # freeze before restore
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          else
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+          fi
+          $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+
+          # restart pod to make new configMaps/Secrets effective
+          kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
+          kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
+
+
+          $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+
       - cmd: echo "Restoring database from dump..."
       - cmd: |
           kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
@@ -287,7 +347,7 @@ tasks:
       - cmd: |
           kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
       - cmd: echo "✅ Database restored"
   # ==================== Verification Tasks ====================
 
