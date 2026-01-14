@@ -31,6 +31,8 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
 
+  logger.debug(`EXECUTING WITH ARGS: ${argv.join(' ')}`);
+
   if (context) {
     // save the logger so that solo.ts can use it to properly flush the logs and exit
     context.logger = logger;
