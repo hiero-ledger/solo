@@ -1,5 +1,5 @@
 ##
-# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,6 +158,6 @@ jobs:
   hugo-docs-build:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && github.event_name != 'pull_request' }}
     with:
       ref: ${{ github.ref }}
