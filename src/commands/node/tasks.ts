@@ -1696,7 +1696,10 @@ export class NodeCommandTasks {
         subTasks.push({
           title: 'Enable metrics port forwarding for all nodes',
           task: async () => {
-            for (const alias of config.allNodeAliases) {
+            const nodeAliasesArray = config.allNodeAliases ? 
+              (Array.isArray(config.allNodeAliases) ? config.allNodeAliases : [config.allNodeAliases]) : 
+              nodeAliases;
+            for (const alias of nodeAliasesArray) {
               const aliasContext = helpers.extractContextFromConsensusNodes(alias, config.consensusNodes);
               const aliasPodReference: PodReference = PodReference.of(
                 config.namespace,
@@ -1730,7 +1733,7 @@ export class NodeCommandTasks {
                 this.logger,
                 ComponentTypes.ConsensusNode,
                 `Consensus Node Metrics (${alias})`,
-                config.isChartInstalled,
+                true,
                 aliasNodeId,
               );
             }
@@ -1975,6 +1978,7 @@ export class NodeCommandTasks {
             const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
             const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
+            // stop service, and kill java process
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () =>
@@ -1982,7 +1986,11 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer(['bash', '-c', 'set -euo pipefail; /command/s6-rc -d stop consensus']),
+                  .execContainer([
+                    'bash',
+                    '-c',
+                    'set -euo pipefail; /command/s6-rc -d stop consensus && /command/s6-svc -O /run/service/consensus && for pid in $(ls /proc | grep -E "^[0-9]+$"); do if [ "$(cat /proc/$pid/comm 2>/dev/null)" = "java" ]; then kill $pid 2>/dev/null || true; fi; done',
+                  ]),
             });
           }
         }
