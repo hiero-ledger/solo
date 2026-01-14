@@ -176,25 +176,26 @@ export class NetworkNodes {
     const localPort = constants.HEDERA_NODE_METRICS_LOCAL_PORT + nodeId;
 
     const shellRunner = new ShellRunner(this.logger);
-    
+
     try {
       // First fetch all metrics
       const metricsOutput = await Promise.race([
         shellRunner.run(`curl -sf http://localhost:${localPort}/metrics`),
-        new Promise<string[]>((_, reject) => 
-          setTimeout(() => reject(new Error('Metrics fetch timeout after 5 seconds')), 5000)
-        )
+        new Promise<string[]>((_, reject) =>
+          setTimeout(() => reject(new Error('Metrics fetch timeout after 5 seconds')), 5000),
+        ),
       ]);
-      
+
       // Then filter for platform status
-      const statusLines = metricsOutput
-        .filter(line => line.startsWith('platform_PlatformStatus') && !line.startsWith('#'));
-      
+      const statusLines = metricsOutput.filter(
+        line => line.startsWith('platform_PlatformStatus') && !line.startsWith('#'),
+      );
+
       return statusLines.join('\n');
     } catch (error) {
       throw new SoloError(
         `Failed to fetch metrics from node ${nodeAlias} (port ${localPort}): ${error instanceof Error ? error.message : String(error)}`,
-        error
+        error,
       );
     }
   }

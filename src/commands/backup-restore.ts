@@ -478,11 +478,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Extract log file (using jar since we created it with jar)
         this.logger.showUser(chalk.gray(`    Extracting log file in pod: ${podName}`));
-        await container.execContainer([
-          'jar',
-          '-xf',
-          `${constants.HEDERA_HAPI_PATH}/${logFile}`,
-        ]);
+        await container.execContainer(['jar', '-xf', `${constants.HEDERA_HAPI_PATH}/${logFile}`]);
 
         // Fix ownership of extracted files to hedera user
         this.logger.showUser(chalk.gray(`    Setting ownership for extracted files in pod: ${podName}`));

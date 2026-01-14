@@ -1687,11 +1687,7 @@ export class NodeCommandTasks {
               await k8
                 .containers()
                 .readByRef(containerReference)
-                .execContainer([
-                  'bash',
-                  '-c',
-                  '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus',
-                ]);
+                .execContainer(['bash', '-c', '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus']);
             },
           });
         }
@@ -1747,33 +1743,41 @@ export class NodeCommandTasks {
           await this.remoteConfig.persist();
         }
 
-        if (context_.config.forcePortForward) {
-          const aliases: NodeAliases =
-            context_.config.nodeAliases && context_.config.nodeAliases.length > 0
-              ? context_.config.nodeAliases
-              : [nodeAlias];
+        // must enable metric port forwarding for all nodes
+        const aliases: NodeAliases = context_.config.allNodeAliases;
+        for (const alias of aliases) {
+          const aliasContext = helpers.extractContextFromConsensusNodes(alias, context_.config.consensusNodes);
+          const aliasPodReference: PodReference = PodReference.of(
+            context_.config.namespace,
+            PodName.of(`network-${alias}-0`),
+          );
+          const aliasNodeId: number = Templates.nodeIdFromNodeAlias(alias);
 
-          for (const alias of aliases) {
-            const aliasContext = helpers.extractContextFromConsensusNodes(alias, context_.config.consensusNodes);
-            const aliasPodReference: PodReference = PodReference.of(
-              context_.config.namespace,
-              PodName.of(`network-${alias}-0`),
-            );
-            const aliasNodeId: number = Templates.nodeIdFromNodeAlias(alias);
+          // For s6 images, ensure metrics service is running before port forwarding
+          const container = await this.k8Factory
+            .getK8(aliasContext)
+            .containers()
+            .readByRef(ContainerReference.of(aliasPodReference, constants.ROOT_CONTAINER));
 
-            await this.remoteConfig.configuration.components.managePortForward(
-              undefined,
-              aliasPodReference,
-              constants.HEDERA_NODE_METRICS_PORT,
-              constants.HEDERA_NODE_METRICS_LOCAL_PORT + aliasNodeId,
-              this.k8Factory.getK8(aliasContext),
-              this.logger,
-              ComponentTypes.ConsensusNode,
-              `Consensus Node Metrics (${alias})`,
-              context_.config.isChartInstalled,
-              aliasNodeId,
-            );
+          try {
+            // Check if metrics service is running on port 9999
+            await container.execContainer(['bash', '-c', 'netstat -tlnp | grep :9999 || echo "metrics not running"']);
+          } catch {
+            this.logger.warn(`Metrics service might not be running on ${alias}, attempting to start...`);
           }
+
+          await this.remoteConfig.configuration.components.managePortForward(
+            undefined,
+            aliasPodReference,
+            constants.HEDERA_NODE_METRICS_PORT,
+            constants.HEDERA_NODE_METRICS_LOCAL_PORT + aliasNodeId,
+            this.k8Factory.getK8(aliasContext),
+            this.logger,
+            ComponentTypes.ConsensusNode,
+            `Consensus Node Metrics (${alias})`,
+            context_.config.isChartInstalled,
+            aliasNodeId,
+          );
         }
 
         console.log('=== enablePortForwarding TASK COMPLETED ===');
@@ -1786,11 +1790,11 @@ export class NodeCommandTasks {
     return {
       title: 'Check all nodes are ACTIVE',
       task: (context_, task) => {
-        // Add small delay to ensure port-forwarding is ready
+        // Add longer delay for s6 image services to start and port-forwarding to stabilize
         return new Promise(resolve => {
           setTimeout(async () => {
             resolve(this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]));
-          }, 2000); // 2 second delay
+          }, 15_000); // 15 second delay for s6 image service startup and port forwarding stabilization
         });
       },
     };
@@ -1968,11 +1972,7 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer([
-                    'bash',
-                    '-c',
-                    'set -euo pipefail; /command/s6-rc -d stop consensus',
-                  ]),
+                  .execContainer(['bash', '-c', 'set -euo pipefail; /command/s6-rc -d stop consensus']),
             });
           }
         }
