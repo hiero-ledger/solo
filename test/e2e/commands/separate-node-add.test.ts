@@ -9,7 +9,7 @@ import {
   balanceQueryShouldSucceed,
   type BootstrapResponse,
   getNodeAliasesPrivateKeysHash,
-  getTemporaryDirectory, getTestCluster,
+  getTemporaryDirectory,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
@@ -36,7 +36,6 @@ import {main} from '../../../src/index.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {buildMainArgv} from '../../test-utility.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
-import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,

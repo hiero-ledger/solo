@@ -130,6 +130,7 @@ export function testSeparateNodeUpdate(
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.inputDir, temporaryDirectory2],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );

@@ -59,6 +59,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
             [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
             [flags.upgradeZipFile, zipFile],
             [flags.outputDir, temporaryDirectory2],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
@@ -85,6 +86,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.inputDir, temporaryDirectory2],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
