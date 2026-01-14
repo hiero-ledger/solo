@@ -128,15 +128,16 @@ export function testSeparateNodeAdd(
     }).timeout(Duration.ofMinutes(12).toMillis());
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          LedgerCommandDefinition.COMMAND_NAME,
-          LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.ACCOUNT_CREATE,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
-        ),
+      const {newArgv, optionFromFlag} = BaseCommandTest;
+      const accountCreateArgv: string[] = newArgv();
+      accountCreateArgv.push(
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_CREATE,
+        optionFromFlag(flags.deployment),
+        argv.getArg<DeploymentName>(flags.deployment),
       );
+      await main(accountCreateArgv);
     });
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
@@ -162,6 +163,8 @@ export function testSeparateNodeAdd(
     }).timeout(timeout);
 
     it('should save the state, restart node, and preserve account balances', async (): Promise<void> => {
+      const {newArgv, optionFromFlag} = BaseCommandTest;
+
       // create account before stopping
       await accountManager.loadNodeClient(
         namespace,
@@ -187,12 +190,13 @@ export function testSeparateNodeAdd(
       };
 
       // create more transactions to save more round of states
-      const accountCreateArgv: string[] = buildMainArgv(
-        namespace.toString(),
+      const accountCreateArgv: string[] = newArgv();
+      accountCreateArgv.push(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
-        new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        optionFromFlag(flags.deployment),
+        argv.getArg<DeploymentName>(flags.deployment),
       );
       await main(accountCreateArgv);
 
