@@ -158,6 +158,7 @@ jobs:
   hugo-docs-build:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && github.event_name != 'pull_request' }}
+    # If it is a workflow dispatch AND we are skipping unit test and coverage, skip Hugo Docs Build job
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) }}
     with:
       ref: ${{ github.ref }}
