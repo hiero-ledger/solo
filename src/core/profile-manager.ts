@@ -296,8 +296,11 @@ export class ProfileManager {
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
       yamlRoot,
     );
-
-    if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+    try {
+      if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+        return;
+      }
+    } catch {
       return;
     }
 
@@ -445,8 +448,8 @@ export class ProfileManager {
 
     for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
       const nodeAliases: NodeAliases = consensusNodes
-        .filter(consensusNode => consensusNode.cluster === clusterReference)
-        .map(consensusNode => consensusNode.name);
+        .filter((node): boolean => node.cluster === clusterReference)
+        .map((node): NodeAlias => node.name);
 
       // generate the YAML
       const yamlRoot = {};
