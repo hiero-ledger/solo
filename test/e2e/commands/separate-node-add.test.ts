@@ -89,7 +89,8 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.outputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.persistentVolumeClaims, argv.getArg<DeploymentName>(flags.persistentVolumeClaims)],
+            [flags.persistentVolumeClaims, argv.getArg<string>(flags.persistentVolumeClaims)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
@@ -103,6 +104,7 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.inputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
@@ -116,6 +118,7 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([
             [flags.inputDir, temporaryDirectory],
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );

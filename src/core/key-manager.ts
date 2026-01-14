@@ -303,8 +303,6 @@ export class KeyManager {
 
       const certChain = await new x509.X509ChainBuilder().build(cert);
 
-      this.logger.debug(`generated ${keyPrefix}-key for node: ${nodeAlias}`, {cert: cert.toString('pem')});
-
       return {
         privateKey: keypair.privateKey,
         certificate: cert,
