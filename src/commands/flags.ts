@@ -1724,6 +1724,28 @@ export class Flags {
     },
   };
 
+  public static readonly zipPassword: CommandFlag = {
+    constName: 'zipPassword',
+    name: 'zip-password',
+    definition: {
+      describe: 'Password to encrypt generated backup ZIP archives',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly zipFile: CommandFlag = {
+    constName: 'zipFile',
+    name: 'zip-file',
+    definition: {
+      describe: 'Path to the encrypted backup ZIP archive used during restore',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly inputDir: CommandFlag = {
     constName: 'inputDir',
     name: 'input-dir',
@@ -2928,6 +2950,8 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.zipPassword,
+    Flags.zipFile,
     Flags.maxTps,
     Flags.enableMonitoringSupport,
   ];

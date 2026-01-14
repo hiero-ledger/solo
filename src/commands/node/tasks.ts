@@ -1157,14 +1157,21 @@ export class NodeCommandTasks {
         const sourceNodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const k8 = this.k8Factory.getK8(context);
+          const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
+            nodeAlias,
+            config.consensusNodes,
+          );
+          if (!kubeContext) {
+            throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
+          }
+          const k8 = this.k8Factory.getK8(kubeContext);
           const podReference = context_.config.podRefs[nodeAlias];
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
           if (!consensusNode) {
             throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
           }
+          const clusterReference = consensusNode.cluster ?? kubeContext;
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
 
@@ -1177,19 +1184,24 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
-            const statesDirectory = path.join(stateFileDirectory, context, 'states');
-
+            const statesDirectory: string = path.join(
+              stateFileDirectory,
+              'states',
+              clusterReference,
+              config.namespace.name,
+            );
             if (!fs.existsSync(statesDirectory)) {
-              self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              continue;
+              self.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
             }
 
-            const stateFiles = fs
+            const stateFiles: string[] = fs
               .readdirSync(statesDirectory)
               .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
 
             if (stateFiles.length === 0) {
               self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              self.logger.showUserError(`No state file found for pod ${podName} (node: ${nodeAlias})`);
               continue;
             }
 
@@ -3037,7 +3049,7 @@ export class NodeCommandTasks {
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
-          'cd "${states[0]}" && zip -rqX "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
+          'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName = await container.execContainer([
@@ -3429,6 +3441,7 @@ export class NodeCommandTasks {
         this.logger.info(`Saved logs to ${logFile}`);
       }
     } catch (error) {
+      this.logger.showUser(red(`Failed to download logs from pod ${podName}: ${error}`));
       this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);
       // Continue with other pods even if one fails
     }
