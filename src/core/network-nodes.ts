@@ -8,6 +8,7 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import * as constants from './constants.js';
 import {sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
+import {SoloError} from './errors/solo-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -176,18 +177,25 @@ export class NetworkNodes {
 
     const shellRunner = new ShellRunner(this.logger);
     
-    // First fetch all metrics
-    const metricsOutput = await Promise.race([
-      shellRunner.run(`curl -sf http://localhost:${localPort}/metrics`),
-      new Promise<string[]>((_, reject) => 
-        setTimeout(() => reject(new Error('Metrics fetch timeout after 5 seconds')), 5000)
-      )
-    ]);
-    
-    // Then filter for platform status
-    const statusLines = metricsOutput
-      .filter(line => line.startsWith('platform_PlatformStatus') && !line.startsWith('#'));
-    
-    return statusLines.join('\n');
+    try {
+      // First fetch all metrics
+      const metricsOutput = await Promise.race([
+        shellRunner.run(`curl -sf http://localhost:${localPort}/metrics`),
+        new Promise<string[]>((_, reject) => 
+          setTimeout(() => reject(new Error('Metrics fetch timeout after 5 seconds')), 5000)
+        )
+      ]);
+      
+      // Then filter for platform status
+      const statusLines = metricsOutput
+        .filter(line => line.startsWith('platform_PlatformStatus') && !line.startsWith('#'));
+      
+      return statusLines.join('\n');
+    } catch (error) {
+      throw new SoloError(
+        `Failed to fetch metrics from node ${nodeAlias} (port ${localPort}): ${error instanceof Error ? error.message : String(error)}`,
+        error
+      );
+    }
   }
 }

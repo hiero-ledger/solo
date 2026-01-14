@@ -1207,11 +1207,9 @@ export class NodeCommandTasks {
           );
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
           await container.execContainer([
-            'unzip',
-            '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
-            '-d',
-            `${constants.HEDERA_HAPI_PATH}/data/saved`,
+            'bash',
+            '-c',
+            `cd ${constants.HEDERA_HAPI_PATH}/data/saved && jar -xf ${path.basename(zipFile)}`,
           ]);
 
           // Fix ownership of extracted state files to hedera user
@@ -3132,7 +3130,7 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand = `jar -xf ${path.basename(config.lastStateZipPath)}`;
 
         await k8
           .containers()
