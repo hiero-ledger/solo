@@ -6,7 +6,7 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {BaseCommandTest} from './base-command-test.js';
 import {BlockCommandDefinition} from '../../../../src/commands/command-definitions/block-command-definition.js';
 import {type BaseTestOptions} from './base-test-options.js';
-import {type ClusterReferenceName, ComponentId, type DeploymentName} from '../../../../src/types/index.js';
+import {type ComponentId, type DeploymentName} from '../../../../src/types/index.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {Templates} from '../../../../src/core/templates.js';
 import * as constants from '../../../../src/core/constants.js';
@@ -16,11 +16,9 @@ import {promisify} from 'node:util';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
-import {NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
-import {type K8} from '../../../../src/integration/kube/k8.js';
+import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
-import {getTestLogger} from '../../../test-utility.js';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
@@ -84,7 +82,7 @@ export class BlockNodeTest extends BaseCommandTest {
   }
 
   public static destroy(options: BaseTestOptions): void {
-    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {testName, deployment} = options;
     const {soloBlockNodeDestroyArgv} = BlockNodeTest;
 
     it(`${testName}: block node destroy`, async (): Promise<void> => {
