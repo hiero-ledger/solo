@@ -250,7 +250,6 @@ export class BlockNodeCommand extends BaseCommand {
             this.logger,
             this.k8Factory,
             this.remoteConfig,
-            this.remoteConfig.configuration.state.blockNodes.length <= 1,
           );
         }
       },

@@ -1355,7 +1355,6 @@ export class NetworkCommand extends BaseCommand {
                   this.logger,
                   this.k8Factory,
                   this.remoteConfig,
-                  this.remoteConfig.configuration.state.blockNodes.length === 0,
                 );
               }
             } catch (error) {
@@ -1373,7 +1372,6 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
@@ -1396,7 +1394,6 @@ export class NetworkCommand extends BaseCommand {
     logger: SoloLogger,
     k8Factory: K8Factory,
     remoteConfig: RemoteConfigRuntimeStateApi,
-    shouldCreateConfigMaps: boolean,
   ): Promise<void> {
     const {nodeId, context, name: nodeAlias} = consensusNode;
 
@@ -1474,22 +1471,12 @@ export class NetworkCommand extends BaseCommand {
       ['application.properties']: lines.join('\n'),
     });
 
-    if (shouldCreateConfigMaps) {
-      logger.debug('No block nodes found in remote config or external block nodes provided');
+    const configName: string = `network-${nodeAlias}-data-config-cm`;
+    const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
 
-      await k8.configMaps().create(
-        namespace,
-        `network-${nodeAlias}-data-config-cm`,
-        {},
-        {
-          'block-nodes.json': blockNodesJsonData,
-        },
-      );
-    } else {
-      await k8.configMaps().update(namespace, `network-${nodeAlias}-data-config-cm`, {
-        'block-nodes.json': blockNodesJsonData,
-      });
-    }
+    await (configMapExists
+      ? k8.configMaps().update(namespace, configName, {'block-nodes.json': blockNodesJsonData})
+      : k8.configMaps().create(namespace, configName, {}, {'block-nodes.json': blockNodesJsonData}));
 
     logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
 
