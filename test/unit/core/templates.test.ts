@@ -4,7 +4,7 @@ import {Templates} from '../../../src/core/templates.js';
 import {expect} from 'chai';
 import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
 
-describe('core/templates', () => {
+describe('core/templates', (): void => {
   const consensusNodes: ConsensusNode[] = [
     {
       name: 'node1',
@@ -15,6 +15,7 @@ describe('core/templates', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node1-svc.solo.svc.cluster.local',
+      blockNodeIds: [],
     },
     {
       name: 'node2',
@@ -25,11 +26,13 @@ describe('core/templates', () => {
       dnsBaseDomain: 'us-west-2.gcp.charlie.sphere',
       dnsConsensusNodePattern: '{nodeId}.consensus.prod',
       fullyQualifiedDomainName: '2.consensus.prod.us-west-2.gcp.charlie.sphere',
+      blockNodeIds: [],
     },
   ];
-  it('should render FQDN for a consensus node', () => {
+
+  it('should render FQDN for a consensus node', (): void => {
     for (const node of consensusNodes) {
-      const fqdn = Templates.renderConsensusNodeFullyQualifiedDomainName(
+      const fqdn: string = Templates.renderConsensusNodeFullyQualifiedDomainName(
         node.name,
         node.nodeId,
         node.namespace,
@@ -37,6 +40,7 @@ describe('core/templates', () => {
         node.dnsBaseDomain,
         node.dnsConsensusNodePattern,
       );
+
       expect(fqdn).to.equal(node.fullyQualifiedDomainName);
     }
   });

@@ -33,6 +33,7 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Address} from '../business/address/address.js';
+import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 
 @injectable()
 export class ProfileManager {
@@ -47,7 +48,7 @@ export class ProfileManager {
   private profiles: Map<string, AnyObject>;
   private profileFile: Optional<string>;
 
-  constructor(
+  public constructor(
     @inject(InjectTokens.SoloLogger) logger?: SoloLogger,
     @inject(InjectTokens.ConfigManager) configManager?: ConfigManager,
     @inject(InjectTokens.CacheDir) cacheDirectory?: DirectoryPath,
@@ -210,7 +211,7 @@ export class ProfileManager {
     applicationPropertiesPath: string,
   ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
-      consensusNodes.map(node => node.name),
+      consensusNodes.map((node): NodeAlias => node.name),
       deploymentName,
     );
 
@@ -221,7 +222,7 @@ export class ProfileManager {
       this._setValue(`hedera.nodes.${nodeIndex}.accountId`, accountMap.get(nodeAlias), yamlRoot);
     }
 
-    const stagingDirectory = Templates.renderStagingDir(
+    const stagingDirectory: string = Templates.renderStagingDir(
       this.configManager.getFlag(flags.cacheDir),
       this.configManager.getFlag(flags.releaseTag),
     );
@@ -230,7 +231,7 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const configTxtPath = await this.prepareConfigTxt(
+    const configTxtPath: string = await this.prepareConfigTxt(
       accountMap,
       consensusNodes,
       stagingDirectory,
@@ -251,13 +252,13 @@ export class ProfileManager {
     await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
-      const filePath = this.configManager.getFlagFile(flag);
+      const filePath: string = this.configManager.getFlagFile(flag);
       if (!filePath) {
         throw new SoloError(`Configuration file path is missing for: ${flag.name}`);
       }
 
-      // use the default flag value to rename the file provided by the user
-      const destinationPath: string = PathEx.join(stagingDirectory, flag.definition.defaultValue as string);
+      const fileName: string = path.basename(filePath);
+      const destinationPath: string = PathEx.join(stagingDirectory, 'templates', fileName);
       this.logger.debug(`Copying configuration file to staging: ${filePath} -> ${destinationPath}`);
 
       fs.cpSync(filePath, destinationPath, {force: true});
@@ -295,6 +296,39 @@ export class ProfileManager {
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
       yamlRoot,
     );
+
+    if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+      return;
+    }
+
+    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
+
+    for (const node of consensusNodes) {
+      const filteredBlockNodes: BlockNodeStateSchema[] = blockNodes.filter((blockNode): boolean =>
+        node.blockNodeIds.includes(blockNode.metadata.id),
+      );
+
+      const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+        filteredBlockNodes,
+        this.remoteConfig.configuration.clusters,
+        this.remoteConfig.configuration.versions,
+      ).toJSON();
+
+      let nodeIndex: number = 0;
+
+      for (const [index, nodeAlias] of nodeAliases.entries()) {
+        if (nodeAlias === node.name) {
+          nodeIndex = index;
+        }
+      }
+
+      // Create a unique filename for each consensus node
+      const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${node.name}.json`;
+      const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+
+      fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+      this._setFileContentsAsValue(`hedera.nodes.${nodeIndex}.blockNodesJson`, blockNodesJsonPath, yamlRoot);
+    }
   }
 
   public async resourcesForConsensusPod(

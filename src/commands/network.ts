@@ -42,7 +42,6 @@ import {
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -54,7 +53,6 @@ import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -67,6 +65,9 @@ import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node
 import {Version} from '../business/utils/version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
+import {SoloLogger} from '../core/logging/solo-logger.js';
+import {K8Factory} from '../integration/kube/k8-factory.js';
+import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -123,7 +124,7 @@ export interface NetworkDeployConfigClass {
   domainNamesMapping?: Record<NodeAlias, string>;
   blockNodeComponents: BlockNodeStateSchema[];
   blockNodeCfg: string;
-  consensusNodeToBlockNodesMap?: Record<string, number[]>;
+  consensusNodeToBlockNodesMap?: Record<NodeAlias, number[]>;
   debugNodeAlias: NodeAlias;
   app: string;
   serviceMonitor: string;
@@ -607,20 +608,16 @@ export class NetworkCommand extends BaseCommand {
             throw new SoloError(`Failed to parse blockNodeCfg JSON: ${error.message}`, error);
           }
         } else {
-          // Default behavior: all consensus nodes get all block nodes (use node name as key)
           for (const consensusNode of config.consensusNodes) {
-            config.consensusNodeToBlockNodesMap[consensusNode.name] = config.blockNodeComponents.map(
-              (bn): number => bn.metadata.id,
-            );
+            config.consensusNodeToBlockNodesMap[consensusNode.name] = consensusNode.blockNodeIds;
           }
         }
       }
 
       // Generate separate block-nodes.json files for each consensus node
       for (const consensusNode of config.consensusNodes) {
-        const consensusNodeId: string = consensusNode.nodeId.toString();
-        // Use node name as the key for lookup (e.g., "node1", "node2")
-        const blockNodeIds: number[] = config.consensusNodeToBlockNodesMap[consensusNode.name] || [];
+        const blockNodeIds: number[] =
+          config.consensusNodeToBlockNodesMap[consensusNode.name] || consensusNode.blockNodeIds;
 
         if (blockNodeIds.length > 0) {
           // Filter block node components based on the mapping
@@ -635,37 +632,14 @@ export class NetworkCommand extends BaseCommand {
           ).toJSON();
 
           // Create a unique filename for each consensus node
-          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
+          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNode.nodeId}.json`;
           const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
           // Format JSON with indentation for readability
           const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
           fs.writeFileSync(blockNodesJsonPath, formattedJson);
 
-          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNodeId}`);
+          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNode.nodeId}`);
         }
-      }
-
-      // For cluster-level configuration, use all block nodes (backward compatibility)
-      // Skip this if blockNodeConfiguration is provided, as we're using node-specific files
-      if (!config.blockNodeCfg || config.blockNodeCfg.trim() === '') {
-        for (const clusterReference of clusterReferences) {
-          const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-            config.blockNodeComponents,
-            this.remoteConfig.configuration.clusters,
-            this.remoteConfig.configuration.versions,
-          ).toJSON();
-
-          const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
-          // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
-          fs.writeFileSync(blockNodesJsonPath, formattedJson);
-
-          valuesArguments[clusterReference] += ` --set-file "hedera.configMaps.blockNodesJson=${blockNodesJsonPath}"`;
-        }
-      } else {
-        this.logger.debug(
-          'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeConfiguration',
-        );
       }
     }
 
@@ -766,10 +740,10 @@ export class NetworkCommand extends BaseCommand {
     ];
 
     await this.configManager.executePrompt(task, allFlags);
-    let namespace: NamespaceName = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-    if (!namespace) {
-      namespace = NamespaceName.of(this.configManager.getFlag<string>(flags.deployment));
-    }
+    const namespace: NamespaceName =
+      (await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task)) ??
+      NamespaceName.of(this.configManager.getFlag(flags.deployment));
+
     this.configManager.setFlag(flags.namespace, namespace);
 
     // create a config object for subsequent steps
@@ -1063,16 +1037,19 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Copy gRPC TLS Certificates',
-          task: (context_, parentTask): SoloListr<AnyListrContext> =>
+          task: (
+            {config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath, grpcTlsKeyPath, grpcWebTlsKeyPath}},
+            parentTask,
+          ): SoloListr<AnyListrContext> =>
             this.certificateManager.buildCopyTlsCertificatesTasks(
               parentTask,
-              context_.config.grpcTlsCertificatePath,
-              context_.config.grpcWebTlsCertificatePath,
-              context_.config.grpcTlsKeyPath,
-              context_.config.grpcWebTlsKeyPath,
+              grpcTlsCertificatePath,
+              grpcWebTlsCertificatePath,
+              grpcTlsKeyPath,
+              grpcWebTlsKeyPath,
             ),
-          skip: (context_): boolean =>
-            !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
+          skip: ({config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath}}): boolean =>
+            !grpcTlsCertificatePath && !grpcWebTlsCertificatePath,
         },
         {
           title: 'Prepare staging directory',
@@ -1081,22 +1058,20 @@ export class NetworkCommand extends BaseCommand {
               [
                 {
                   title: 'Copy Gossip keys to staging',
-                  task: (context_): void => {
-                    const config: NetworkDeployConfigClass = context_.config;
-                    this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, config.nodeAliases);
+                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
+                    this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
                   },
                 },
                 {
                   title: 'Copy gRPC TLS keys to staging',
-                  task: (context_): void => {
-                    const config: NetworkDeployConfigClass = context_.config;
-                    for (const nodeAlias of config.nodeAliases) {
+                  task: ({config: {nodeAliases, keysDir, stagingKeysDir}}): void => {
+                    for (const nodeAlias of nodeAliases) {
                       const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
                         nodeAlias,
-                        config.keysDir,
+                        keysDir,
                       );
 
-                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
+                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, stagingKeysDir);
                     }
                   },
                 },
@@ -1107,12 +1082,10 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Copy node keys to secrets',
-          task: (context_, parentTask): SoloListr<NetworkDeployContext> => {
-            const config: NetworkDeployConfigClass = context_.config;
-
+          task: ({config: {stagingDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
             // set up the subtasks
             return parentTask.newListr(
-              this.platformInstaller.copyNodeKeys(config.stagingDir, config.consensusNodes, config.contexts),
+              this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
@@ -1137,19 +1110,20 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
-          task: async (context_): Promise<void> => {
-            const config: NetworkDeployConfigClass = context_.config;
-            for (const [clusterReference] of config.clusterRefs) {
+          task: async ({config}): Promise<void> => {
+            const {namespace, clusterRefs, valuesArgMap, chartDirectory} = config;
+
+            for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
-                config.namespace,
+                namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
-                config.clusterRefs.get(clusterReference),
+                clusterRefs.get(clusterReference),
               );
               if (isInstalled) {
                 await this.chartManager.uninstall(
-                  config.namespace,
+                  namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs.get(clusterReference),
+                  clusterRefs.get(clusterReference),
                 );
                 config.isUpgrade = true;
               }
@@ -1161,13 +1135,13 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await this.chartManager.upgrade(
-                config.namespace,
+                namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
-                context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                chartDirectory || constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
-                config.valuesArgMap[clusterReference],
-                config.clusterRefs.get(clusterReference),
+                valuesArgMap[clusterReference],
+                clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1177,12 +1151,11 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
-          task: (context_, task): SoloListr<NetworkDeployContext> => {
+          task: ({config: {consensusNodes, namespace}}, task): SoloListr<NetworkDeployContext> => {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
-            const config: NetworkDeployConfigClass = context_.config;
 
             //Add check for network node service to be created and load balancer to be assigned (if load balancer is enabled)
-            for (const consensusNode of config.consensusNodes) {
+            for (const consensusNode of consensusNodes) {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
@@ -1193,7 +1166,7 @@ export class NetworkCommand extends BaseCommand {
                     svc = await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(config.namespace, [
+                      .list(namespace, [
                         `solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`,
                       ]);
 
@@ -1233,39 +1206,37 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Redeploy chart with external IP address config',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
-          task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
+          task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
+            const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
+
             // Update the valuesArgMap with the external IP addresses
             // This regenerates the config.txt and genesis-network.json files with the external IP addresses
-            context_.config.valuesArgMap = await this.prepareValuesArgMap(context_.config);
+            config.valuesArgMap = await this.prepareValuesArgMap(config);
 
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
-            const config: NetworkDeployConfigClass = context_.config;
-            for (const [clusterReference] of config.clusterRefs) {
+            for (const [clusterReference] of clusterRefs) {
               subTasks.push({
                 title: `Upgrade chart for cluster: ${chalk.yellow(clusterReference)}`,
                 task: async (): Promise<void> => {
                   await this.chartManager.upgrade(
-                    config.namespace,
+                    namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
-                    config.soloChartVersion,
+                    chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    soloChartVersion,
                     config.valuesArgMap[clusterReference],
-                    config.clusterRefs.get(clusterReference),
+                    clusterRefs.get(clusterReference),
                   );
-                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
-                  const context: Context = config.clusterRefs.get(clusterReference);
-                  const pods: Pod[] = await this.k8Factory
-                    .getK8(context)
-                    .pods()
-                    .list(context_.config.namespace, ['solo.hedera.com/type=network-node']);
+                  const k8: K8 = this.k8Factory.getK8(clusterRefs.get(clusterReference));
+
+                  const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
                   for (const pod of pods) {
-                    const podReference: PodReference = pod.podReference;
-                    await this.k8Factory.getK8(context).pods().readByReference(podReference).killPod();
+                    await k8.pods().readByReference(pod.podReference).killPod();
                   }
                 },
               });
@@ -1371,79 +1342,21 @@ export class NetworkCommand extends BaseCommand {
         this.addNodesAndProxies(),
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
-          skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
-          task: async (context_): Promise<void> => {
-            const config: NetworkDeployConfigClass = context_.config;
-            const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
-
-            // Reuse the already-parsed consensusNodeToBlockNodesMap from config
-            const consensusNodeToBlockNodesMap: Record<string, number[]> = config.consensusNodeToBlockNodesMap || {};
-            const useNodeSpecificFiles: boolean = config.blockNodeCfg && config.blockNodeCfg.trim() !== '';
+          skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
+          task: async ({config: {consensusNodeToBlockNodesMap, namespace, consensusNodes}}): Promise<void> => {
+            consensusNodeToBlockNodesMap ||= {};
 
             try {
-              for (const consensusNode of config.consensusNodes) {
-                const consensusNodeId: string = consensusNode.nodeId.toString();
-
-                // Determine which file to copy
-                let blockNodesJsonPath: string;
-                if (useNodeSpecificFiles) {
-                  // Use node-specific file if blockNodeConfiguration is provided
-                  const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
-                  blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-
-                  // Check if the node has block nodes assigned (use node name as key)
-                  if (
-                    !consensusNodeToBlockNodesMap[consensusNode.name] ||
-                    consensusNodeToBlockNodesMap[consensusNode.name].length === 0
-                  ) {
-                    this.logger.debug(
-                      `Skipping consensus node ${consensusNode.name} (nodeId: ${consensusNodeId}) - no block nodes assigned`,
-                    );
-                    continue;
-                  }
-                } else {
-                  // Use default file for backward compatibility
-                  blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
-                }
-
-                // Check if the file exists before copying
-                if (!fs.existsSync(blockNodesJsonPath)) {
-                  this.logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
-                  continue;
-                }
-
-                const podReference: PodReference = await this.k8Factory
-                  .getK8(consensusNode.context)
-                  .pods()
-                  .list(config.namespace, [
-                    `solo.hedera.com/node-name=${consensusNode.name}`,
-                    'solo.hedera.com/type=network-node',
-                  ])
-                  .then((pods: Pod[]): PodReference => pods[0].podReference);
-
-                const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-
-                const container: Container = this.k8Factory
-                  .getK8(consensusNode.context)
-                  .containers()
-                  .readByRef(rootContainer);
-
-                await container.execContainer('pwd');
-
-                await container.execContainer(`mkdir -p ${targetDirectory}`);
-
-                // Copy the file and rename it to block-nodes.json in the destination
-                await container.copyTo(blockNodesJsonPath, targetDirectory);
-
-                // If using node-specific files, rename the copied file to the standard name
-                if (useNodeSpecificFiles) {
-                  const sourceFilename: string = path.basename(blockNodesJsonPath);
-                  await container.execContainer(
-                    `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-                  );
-                }
-
-                this.logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
+              for (const consensusNode of consensusNodes) {
+                await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
+                  consensusNode,
+                  consensusNodeToBlockNodesMap[consensusNode.name],
+                  namespace,
+                  this.logger,
+                  this.k8Factory,
+                  this.remoteConfig,
+                  this.remoteConfig.configuration.state.blockNodes.length === 0,
+                );
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
@@ -1460,6 +1373,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
@@ -1473,6 +1387,119 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  public static async createAndCopyBlockNodeJsonFileForConsensusNode(
+    consensusNode: ConsensusNode,
+    blockNodeIds: number[],
+    namespace: NamespaceName,
+    logger: SoloLogger,
+    k8Factory: K8Factory,
+    remoteConfig: RemoteConfigRuntimeStateApi,
+    shouldCreateConfigMaps: boolean,
+  ): Promise<void> {
+    const {nodeId, context, name: nodeAlias} = consensusNode;
+
+    // Check if the node has block nodes assigned (use node name as key)
+    if (blockNodeIds.length === 0) {
+      logger.debug(`Skipping consensus node ${nodeAlias} - no block nodes assigned`);
+      return;
+    }
+
+    const filteredBlockNodes: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
+      (bn): boolean => blockNodeIds.includes(bn.metadata.id),
+    );
+
+    const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+      filteredBlockNodes,
+      remoteConfig.configuration.clusters,
+      remoteConfig.configuration.versions,
+    ).toJSON();
+
+    const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
+    const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+
+    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+
+    // Check if the file exists before copying
+    if (!fs.existsSync(blockNodesJsonPath)) {
+      logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
+      return;
+    }
+
+    const k8: K8 = k8Factory.getK8(context);
+
+    const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
+
+    await container.execContainer('pwd');
+
+    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+
+    await container.execContainer(`mkdir -p ${targetDirectory}`);
+
+    // Copy the file and rename it to block-nodes.json in the destination
+    await container.copyTo(blockNodesJsonPath, targetDirectory);
+
+    // If using node-specific files, rename the copied file to the standard name
+    const sourceFilename: string = path.basename(blockNodesJsonPath);
+    await container.execContainer(
+      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
+    );
+
+    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+
+    const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+
+    const lines: string[] = applicationPropertiesData.split('\n');
+
+    // Remove line to enable overriding below.
+    for (const line of lines) {
+      if (line === 'blockStream.streamMode=RECORDS') {
+        lines.splice(lines.indexOf(line), 1);
+      }
+    }
+
+    // Switch to block streaming.
+
+    if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
+      lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
+    }
+
+    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
+    }
+
+    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+      ['applicationProperties']: lines.join('\n'),
+      ['application.properties']: lines.join('\n'),
+    });
+
+    if (shouldCreateConfigMaps) {
+      logger.debug('No block nodes found in remote config or external block nodes provided');
+
+      await k8.configMaps().create(
+        namespace,
+        `network-${nodeAlias}-data-config-cm`,
+        {},
+        {
+          'block-nodes.json': blockNodesJsonData,
+        },
+      );
+    } else {
+      await k8.configMaps().update(namespace, `network-${nodeAlias}-data-config-cm`, {
+        'block-nodes.json': blockNodesJsonData,
+      });
+    }
+
+    logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
+
+    const updatedApplicationPropertiesFilePath: string = PathEx.join(
+      constants.SOLO_CACHE_DIR,
+      'application.properties',
+    );
+
+    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
+    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -1577,16 +1604,14 @@ export class NetworkCommand extends BaseCommand {
     return {
       title: 'Add node and proxies to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
-        const {namespace} = context_.config;
-
-        for (const consensusNode of context_.config.consensusNodes) {
+      task: async ({config: {consensusNodes, namespace, isUpgrade, releaseTag}}): Promise<void> => {
+        for (const consensusNode of consensusNodes) {
           const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
-          if (context_.config.isUpgrade) {
+          if (isUpgrade) {
             this.logger.info('Do not add envoy and haproxy components again during upgrade');
           } else {
             // do not add new envoy or haproxy components if they already exist
@@ -1601,13 +1626,11 @@ export class NetworkCommand extends BaseCommand {
             );
           }
         }
-        if (context_.config.releaseTag) {
+        if (releaseTag) {
           // update the solo chart version to match the deployed version
-          this.remoteConfig.updateComponentVersion(
-            ComponentTypes.ConsensusNode,
-            new SemVer(context_.config.releaseTag),
-          );
+          this.remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer(releaseTag));
         }
+
         await this.remoteConfig.persist();
       },
     };

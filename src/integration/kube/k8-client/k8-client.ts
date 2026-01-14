@@ -34,6 +34,8 @@ import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
 import {type Optional} from '../../../types/index.js';
 import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
+import {K8ClientHelpers} from './resources/helpers/k8-client-helpers.js';
+import {type Helpers} from '../resources/helpers/helpers.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -63,6 +65,7 @@ export class K8Client implements K8 {
   private k8Ingresses: Ingresses;
   private k8Crds: Crds;
   private k8Manifests: K8ClientManifests;
+  private k8Helpers: K8ClientHelpers;
 
   /**
    * Create a new k8Factory client for the given context, if context is undefined it will use the current context in kubeconfig
@@ -105,6 +108,8 @@ export class K8Client implements K8 {
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
     this.k8Crds = new K8ClientCrds(this.extensionApi);
     this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
+
+    this.k8Helpers = new K8ClientHelpers(this.pods(), this.containers());
 
     return this;
   }
@@ -190,5 +195,9 @@ export class K8Client implements K8 {
 
   public manifests(): K8ClientManifests {
     return this.k8Manifests;
+  }
+
+  public helpers(): Helpers {
+    return this.k8Helpers;
   }
 }
