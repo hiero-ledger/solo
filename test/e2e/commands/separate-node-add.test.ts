@@ -9,7 +9,7 @@ import {
   balanceQueryShouldSucceed,
   type BootstrapResponse,
   getNodeAliasesPrivateKeysHash,
-  getTemporaryDirectory,
+  getTemporaryDirectory, getTestCluster,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
@@ -36,6 +36,7 @@ import {main} from '../../../src/index.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {buildMainArgv} from '../../test-utility.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
+import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
@@ -91,6 +92,11 @@ export function testSeparateNodeAdd(
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.persistentVolumeClaims, argv.getArg<string>(flags.persistentVolumeClaims)],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+            [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
+            [flags.generateGossipKeys, argv.getArg<string>(flags.generateGossipKeys)],
+            [flags.generateTlsKeys, argv.getArg<string>(flags.generateTlsKeys)],
+            [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
+            [flags.persistentVolumeClaims, argv.getArg<string>(flags.persistentVolumeClaims)],
           ]),
         ),
       );
@@ -220,7 +226,10 @@ export function testSeparateNodeAdd(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.STATE_DOWNLOAD,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
+          ]),
         ),
       );
 
