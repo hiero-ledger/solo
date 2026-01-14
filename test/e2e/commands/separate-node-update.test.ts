@@ -95,6 +95,11 @@ export function testSeparateNodeUpdate(
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.outputDir, temporaryDirectory2],
             [flags.nodeAlias, updateNodeId],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+            [flags.gossipPublicKey, argv.getArg<string>(flags.gossipPublicKey)],
+            [flags.gossipPrivateKey, argv.getArg<string>(flags.gossipPrivateKey)],
+            [flags.tlsPublicKey, argv.getArg<string>(flags.tlsPublicKey)],
+            [flags.tlsPrivateKey, argv.getArg<string>(flags.tlsPrivateKey)],
             [
               flags.newAdminKey,
               '302e020100300506032b6570042204200cde8d512569610f184b8b399e91e46899805c6171f7c2b8666d2a417bcc66c2',
