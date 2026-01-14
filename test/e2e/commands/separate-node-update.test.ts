@@ -92,6 +92,7 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
           new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.outputDir, temporaryDirectory2],
             [flags.nodeAlias, updateNodeId],
             [
@@ -108,7 +109,10 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.inputDir, temporaryDirectory2],
+          ]),
         ),
       );
 
@@ -118,7 +122,10 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-          new Map<CommandFlag, string>([[flags.inputDir, temporaryDirectory2]]),
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.inputDir, temporaryDirectory2],
+          ]),
         ),
       );
 

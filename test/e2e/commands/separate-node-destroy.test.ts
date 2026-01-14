@@ -14,6 +14,7 @@ import {ConsensusCommandDefinition} from '../../../src/commands/command-definiti
 import {main} from '../../../src/index.js';
 import {buildMainArgv} from '../../test-utility.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
+import type {DeploymentName} from '../../../src/types/index.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   const nodeAlias: NodeAlias = 'node1';
@@ -32,6 +33,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
           new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.outputDir, temporaryDirectory],
             [flags.nodeAlias, nodeAlias],
           ]),
@@ -45,6 +47,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
           new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.inputDir, temporaryDirectory],
             [flags.nodeAlias, nodeAlias],
           ]),
@@ -58,6 +61,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
           new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.inputDir, temporaryDirectory],
             [flags.nodeAlias, nodeAlias],
           ]),
