@@ -23,7 +23,7 @@ import {ConsensusCommandDefinition} from '../../../src/commands/command-definiti
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
 import {main} from '../../../src/index.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
-import type {DeploymentName} from '../../../src/types/index.js';
+import {type DeploymentName} from '../../../src/types/index.js';
 
 export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
@@ -55,6 +55,8 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
+            [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
             [flags.upgradeZipFile, zipFile],
             [flags.outputDir, temporaryDirectory2],
           ]),

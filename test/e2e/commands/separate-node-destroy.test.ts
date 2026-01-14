@@ -14,7 +14,7 @@ import {ConsensusCommandDefinition} from '../../../src/commands/command-definiti
 import {main} from '../../../src/index.js';
 import {buildMainArgv} from '../../test-utility.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
-import type {DeploymentName} from '../../../src/types/index.js';
+import {type DeploymentName} from '../../../src/types/index.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   const nodeAlias: NodeAlias = 'node1';
