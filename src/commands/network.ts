@@ -1052,16 +1052,19 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Copy gRPC TLS Certificates',
-          task: (context_, parentTask): SoloListr<AnyListrContext> =>
+          task: (
+            {config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath, grpcTlsKeyPath, grpcWebTlsKeyPath}},
+            parentTask,
+          ): SoloListr<AnyListrContext> =>
             this.certificateManager.buildCopyTlsCertificatesTasks(
               parentTask,
-              context_.config.grpcTlsCertificatePath,
-              context_.config.grpcWebTlsCertificatePath,
-              context_.config.grpcTlsKeyPath,
-              context_.config.grpcWebTlsKeyPath,
+              grpcTlsCertificatePath,
+              grpcWebTlsCertificatePath,
+              grpcTlsKeyPath,
+              grpcWebTlsKeyPath,
             ),
-          skip: (context_): boolean =>
-            !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
+          skip: ({config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath}}): boolean =>
+            !grpcTlsCertificatePath && !grpcWebTlsCertificatePath,
         },
         {
           title: 'Prepare staging directory',
@@ -1070,22 +1073,20 @@ export class NetworkCommand extends BaseCommand {
               [
                 {
                   title: 'Copy Gossip keys to staging',
-                  task: (context_): void => {
-                    const config: NetworkDeployConfigClass = context_.config;
-                    this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, config.nodeAliases);
+                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
+                    this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
                   },
                 },
                 {
                   title: 'Copy gRPC TLS keys to staging',
-                  task: (context_): void => {
-                    const config: NetworkDeployConfigClass = context_.config;
-                    for (const nodeAlias of config.nodeAliases) {
+                  task: ({config: {nodeAliases, keysDir, stagingKeysDir}}): void => {
+                    for (const nodeAlias of nodeAliases) {
                       const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
                         nodeAlias,
-                        config.keysDir,
+                        keysDir,
                       );
 
-                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
+                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, stagingKeysDir);
                     }
                   },
                 },
@@ -1096,12 +1097,10 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Copy node keys to secrets',
-          task: (context_, parentTask): SoloListr<NetworkDeployContext> => {
-            const config: NetworkDeployConfigClass = context_.config;
-
+          task: ({config: {stagingDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
             // set up the subtasks
             return parentTask.newListr(
-              this.platformInstaller.copyNodeKeys(config.stagingDir, config.consensusNodes, config.contexts),
+              this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
@@ -1126,19 +1125,20 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
-          task: async (context_): Promise<void> => {
-            const config: NetworkDeployConfigClass = context_.config;
-            for (const [clusterReference] of config.clusterRefs) {
+          task: async ({config}): Promise<void> => {
+            const {namespace, clusterRefs, valuesArgMap, chartDirectory} = config;
+
+            for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
-                config.namespace,
+                namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
-                config.clusterRefs.get(clusterReference),
+                clusterRefs.get(clusterReference),
               );
               if (isInstalled) {
                 await this.chartManager.uninstall(
-                  config.namespace,
+                  namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs.get(clusterReference),
+                  clusterRefs.get(clusterReference),
                 );
                 config.isUpgrade = true;
               }
@@ -1150,13 +1150,13 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await this.chartManager.upgrade(
-                config.namespace,
+                namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
-                context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                chartDirectory || constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
-                config.valuesArgMap[clusterReference],
-                config.clusterRefs.get(clusterReference),
+                valuesArgMap[clusterReference],
+                clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1166,12 +1166,11 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
-          task: (context_, task): SoloListr<NetworkDeployContext> => {
+          task: ({config: {consensusNodes, namespace}}, task): SoloListr<NetworkDeployContext> => {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
-            const config: NetworkDeployConfigClass = context_.config;
 
             //Add check for network node service to be created and load balancer to be assigned (if load balancer is enabled)
-            for (const consensusNode of config.consensusNodes) {
+            for (const consensusNode of consensusNodes) {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
@@ -1182,7 +1181,7 @@ export class NetworkCommand extends BaseCommand {
                     svc = await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(config.namespace, [
+                      .list(namespace, [
                         `solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`,
                       ]);
 
@@ -1222,39 +1221,37 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Redeploy chart with external IP address config',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
-          task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
+          task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
+            const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
+
             // Update the valuesArgMap with the external IP addresses
             // This regenerates the config.txt and genesis-network.json files with the external IP addresses
-            context_.config.valuesArgMap = await this.prepareValuesArgMap(context_.config);
+            config.valuesArgMap = await this.prepareValuesArgMap(config);
 
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
-            const config: NetworkDeployConfigClass = context_.config;
-            for (const [clusterReference] of config.clusterRefs) {
+            for (const [clusterReference] of clusterRefs) {
               subTasks.push({
                 title: `Upgrade chart for cluster: ${chalk.yellow(clusterReference)}`,
                 task: async (): Promise<void> => {
                   await this.chartManager.upgrade(
-                    config.namespace,
+                    namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
-                    config.soloChartVersion,
+                    chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    soloChartVersion,
                     config.valuesArgMap[clusterReference],
-                    config.clusterRefs.get(clusterReference),
+                    clusterRefs.get(clusterReference),
                   );
-                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
-                  const context: Context = config.clusterRefs.get(clusterReference);
-                  const pods: Pod[] = await this.k8Factory
-                    .getK8(context)
-                    .pods()
-                    .list(context_.config.namespace, ['solo.hedera.com/type=network-node']);
+                  const k8: K8 = this.k8Factory.getK8(clusterRefs.get(clusterReference));
+
+                  const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
                   for (const pod of pods) {
-                    const podReference: PodReference = pod.podReference;
-                    await this.k8Factory.getK8(context).pods().readByReference(podReference).killPod();
+                    await k8.pods().readByReference(pod.podReference).killPod();
                   }
                 },
               });

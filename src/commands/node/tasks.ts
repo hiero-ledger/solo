@@ -144,6 +144,8 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
+import {NetworkCommand} from '../network.js';
+import {ExternalBlockNodeStateSchema} from '../../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2561,7 +2563,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         // Prepare parameter and update the network node chart
         const config: NodeDestroyConfigClass | NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
-        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
+        const consensusNodes: ConsensusNode[] = config.consensusNodes;
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
@@ -2570,13 +2572,11 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] = '';
         }
 
-        if (!config.serviceMap) {
-          config.serviceMap = await self.accountManager.getNodeServiceMap(
-            config.namespace,
-            clusterReferences,
-            config.deployment,
-          );
-        }
+        config.serviceMap ||= await self.accountManager.getNodeServiceMap(
+          config.namespace,
+          clusterReferences,
+          config.deployment,
+        );
 
         let maxNodeId: NodeId = 0;
         for (const nodeAlias of config.existingNodeAliases) {
@@ -2598,10 +2598,9 @@ export class NodeCommandTasks {
             // eslint-disable-next-line unicorn/no-array-sort
             .sort((a, b): number => a.nodeId - b.nodeId);
 
-          // eslint-disable-next-line unicorn/no-array-for-each
-          nodesInCluster.forEach((node: ConsensusNode, index: number): void => {
+          for (const [index, node] of nodesInCluster.entries()) {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
-          });
+          }
         }
 
         switch (transactionType) {
@@ -2664,8 +2663,8 @@ export class NodeCommandTasks {
           }
         }
         // Add Debug options
-        const consensusNode = consensusNodes.find(node => node.name === config.debugNodeAlias);
-        const clusterReference = consensusNode
+        const consensusNode: ConsensusNode = consensusNodes.find(node => node.name === config.debugNodeAlias);
+        const clusterReference: string = consensusNode
           ? consensusNode.cluster
           : this.k8Factory.default().clusters().readCurrent();
 
@@ -2681,27 +2680,54 @@ export class NodeCommandTasks {
 
         // Update all charts
         await Promise.all(
-          clusterReferencesList.map(async clusterReference => {
-            const valuesArguments: string = valuesArgumentMap[clusterReference];
+          clusterReferencesList.map(async (clusterReference): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+
+            console.log({args: valuesArgumentMap[clusterReference], context, chartDir: config.chartDirectory});
 
             config.soloChartVersion = Version.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',
             );
+
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
-              valuesArguments,
+              valuesArgumentMap[clusterReference],
               context,
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );
+
+        if (NodeSubcommandType.ADD !== transactionType) {
+          return;
+        }
+
+        for (const node of consensusNodes) {
+          const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes;
+          const externalBlockNodes: ExternalBlockNodeStateSchema[] =
+            this.remoteConfig.configuration.state.externalBlockNodes;
+
+          const blockNodeIds: ComponentId[] =
+            (config as NodeAddConfigClass).blockNodeIds ||
+            blockNodes.map((blockNode): ComponentId => blockNode.metadata.id);
+
+          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
+            node,
+            blockNodeIds,
+            config.namespace,
+            this.logger,
+            this.k8Factory,
+            this.remoteConfig,
+            blockNodes.length === 0 && externalBlockNodes.length === 0,
+            externalBlockNodes.map((blockNode): string => `${blockNode.address}:${blockNode.port}`),
+          );
+        }
       },
       skip,
     };
@@ -2999,8 +3025,7 @@ export class NodeCommandTasks {
 
         // TODO: currently only supports downloading from the first existing node
         const node: ConsensusNode = consensusNodes[0];
-
-       const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
+        const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
         const container: Container = await this.k8Factory
           .getK8(node.context)
