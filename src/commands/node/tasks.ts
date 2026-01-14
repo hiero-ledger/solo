@@ -973,11 +973,16 @@ export class NodeCommandTasks {
 
         const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
 
+        const templatesDirectory: string = PathEx.join(stagingDir, 'templates');
+        if (!fs.existsSync(templatesDirectory)) {
+          fs.mkdirSync(templatesDirectory, {recursive: true});
+        }
+
         await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
-          ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
+          ? k8Container.copyFrom(applicationPropertiesSourceDirectory, templatesDirectory)
           : k8Container.copyFrom(
               `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
-              `${stagingDir}/templates`,
+              templatesDirectory,
             ));
       },
     };
