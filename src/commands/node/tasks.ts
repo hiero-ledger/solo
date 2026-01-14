@@ -1692,6 +1692,53 @@ export class NodeCommandTasks {
           });
         }
 
+        // Add metrics port forwarding for all nodes at the end so it never gets skipped
+        subTasks.push({
+          title: 'Enable metrics port forwarding for all nodes',
+          task: async () => {
+            for (const alias of config.allNodeAliases) {
+              const aliasContext = helpers.extractContextFromConsensusNodes(alias, config.consensusNodes);
+              const aliasPodReference: PodReference = PodReference.of(
+                config.namespace,
+                PodName.of(`network-${alias}-0`),
+              );
+              const aliasNodeId: number = Templates.nodeIdFromNodeAlias(alias);
+
+              // For s6 images, ensure metrics service is running before port forwarding
+              const container = await this.k8Factory
+                .getK8(aliasContext)
+                .containers()
+                .readByRef(ContainerReference.of(aliasPodReference, constants.ROOT_CONTAINER));
+
+              try {
+                // Check if metrics service is running on port HEDERA_NODE_METRICS_PORT
+                await container.execContainer([
+                  'bash',
+                  '-c',
+                  `netstat -tlnp | grep :${constants.HEDERA_NODE_METRICS_PORT} || echo "metrics not running"`,
+                ]);
+              } catch {
+                this.logger.warn(`Metrics service might not be running on ${alias}, attempting to start...`);
+              }
+
+              await this.remoteConfig.configuration.components.managePortForward(
+                undefined,
+                aliasPodReference,
+                constants.HEDERA_NODE_METRICS_PORT,
+                constants.HEDERA_NODE_METRICS_LOCAL_PORT + aliasNodeId,
+                this.k8Factory.getK8(aliasContext),
+                this.logger,
+                ComponentTypes.ConsensusNode,
+                `Consensus Node Metrics (${alias})`,
+                config.isChartInstalled,
+                aliasNodeId,
+              );
+            }
+
+            console.log('=== startNodes TASK COMPLETED (with metrics port forwarding) ===');
+          },
+        });
+
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
@@ -1741,43 +1788,6 @@ export class NodeCommandTasks {
             nodeId,
           );
           await this.remoteConfig.persist();
-        }
-
-        // must enable metric port forwarding for all nodes
-        const aliases: NodeAliases = context_.config.allNodeAliases;
-        for (const alias of aliases) {
-          const aliasContext = helpers.extractContextFromConsensusNodes(alias, context_.config.consensusNodes);
-          const aliasPodReference: PodReference = PodReference.of(
-            context_.config.namespace,
-            PodName.of(`network-${alias}-0`),
-          );
-          const aliasNodeId: number = Templates.nodeIdFromNodeAlias(alias);
-
-          // For s6 images, ensure metrics service is running before port forwarding
-          const container = await this.k8Factory
-            .getK8(aliasContext)
-            .containers()
-            .readByRef(ContainerReference.of(aliasPodReference, constants.ROOT_CONTAINER));
-
-          try {
-            // Check if metrics service is running on port 9999
-            await container.execContainer(['bash', '-c', 'netstat -tlnp | grep :9999 || echo "metrics not running"']);
-          } catch {
-            this.logger.warn(`Metrics service might not be running on ${alias}, attempting to start...`);
-          }
-
-          await this.remoteConfig.configuration.components.managePortForward(
-            undefined,
-            aliasPodReference,
-            constants.HEDERA_NODE_METRICS_PORT,
-            constants.HEDERA_NODE_METRICS_LOCAL_PORT + aliasNodeId,
-            this.k8Factory.getK8(aliasContext),
-            this.logger,
-            ComponentTypes.ConsensusNode,
-            `Consensus Node Metrics (${alias})`,
-            context_.config.isChartInstalled,
-            aliasNodeId,
-          );
         }
 
         console.log('=== enablePortForwarding TASK COMPLETED ===');

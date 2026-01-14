@@ -47,15 +47,16 @@ export class PlatformInstaller {
       throw new SoloError('Package downloader is not available');
     }
 
-    const cacheDirFlag: string | undefined = this.configManager.getFlag<string>(flags.cacheDir);
-    const cacheDir: string = cacheDirFlag && cacheDirFlag.length > 0 ? cacheDirFlag : constants.SOLO_CACHE_DIR;
-    const downloadBaseDir: string = PathEx.join(cacheDir, 'platform-artifacts');
+    const cacheDirectoryFlag: string | undefined = this.configManager.getFlag<string>(flags.cacheDir);
+    const cacheDirectory: string =
+      cacheDirectoryFlag && cacheDirectoryFlag.length > 0 ? cacheDirectoryFlag : constants.SOLO_CACHE_DIR;
+    const downloadBaseDirectory: string = PathEx.join(cacheDirectory, 'platform-artifacts');
 
-    if (!fs.existsSync(downloadBaseDir)) {
-      fs.mkdirSync(downloadBaseDir, {recursive: true});
+    if (!fs.existsSync(downloadBaseDirectory)) {
+      fs.mkdirSync(downloadBaseDirectory, {recursive: true});
     }
 
-    const zipFilePath: string = await this.packageDownloader.fetchPlatform(tag, downloadBaseDir, false);
+    const zipFilePath: string = await this.packageDownloader.fetchPlatform(tag, downloadBaseDirectory, false);
     const checksumFilePath: string = path.join(path.dirname(zipFilePath), `build-${tag}.sha384`);
 
     if (!fs.existsSync(checksumFilePath)) {
