@@ -89,9 +89,4 @@ export class Argv implements CloneTrait<Argv> {
 
     return argv;
   }
-
-  public asStringArray(): string[] {
-    const rawArguments: ArgvStruct = this.build();
-    return rawArguments._;
-  }
 }
