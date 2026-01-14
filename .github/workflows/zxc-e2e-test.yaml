@@ -418,6 +418,14 @@ jobs:
           
           cat .env
           
+          # Build chart dependencies if using local charts
+          if [[ -n "$SOLO_CHARTS_DIR" ]]; then
+            echo "Building chart dependencies..."
+            cd "$SOLO_CHARTS_DIR/charts/solo-deployment"
+            helm dependency build
+            cd - > /dev/null
+          fi
+          
           # Start resource monitoring in background
           ./.github/workflows/script/monitor-resources.sh start
           
