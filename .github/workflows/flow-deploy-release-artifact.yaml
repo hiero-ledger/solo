@@ -220,8 +220,8 @@ jobs:
       - name: Inspect Folders
         run: |
           echo "::group::Inspecting Folders"
-          echo "Dist folder:"
-          ls -al ./dist
+          echo "Output folder:"
+          ls -al ./output
           echo "-----"
           echo "Workflow root:"
           ls -al .
@@ -235,7 +235,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: solo-npm-package
-          path: ./dist/${{ steps.set-publish-data.outputs.artifact-name }}
+          path: ./output/${{ steps.set-publish-data.outputs.artifact-name }}
           if-no-files-found: error
 
       - name: Deploy to JFrog Registry
