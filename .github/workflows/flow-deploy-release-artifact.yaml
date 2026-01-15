@@ -272,9 +272,6 @@ jobs:
       - name: Publish Solo NPM Package
         run: |
           args="--access=public"
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            args="${args} --dry-run"
-          fi
           
           package="${{ needs.create-github-release.outputs.npm-artifact-name }}"
           echo "::group::Publishing package: ${package} with args: ${args}"
