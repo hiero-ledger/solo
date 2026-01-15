@@ -7,7 +7,7 @@ import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type ArgvStruct, NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
@@ -399,8 +399,6 @@ export class BlockNodeCommand extends BaseCommand {
               imageTag,
               blockNodeChartDirectory,
             } = config;
-
-            console.log(valuesArg);
 
             await this.chartManager.install(
               namespace,

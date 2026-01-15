@@ -1178,7 +1178,12 @@ export class Flags {
     constName: 'priorityMapping',
     name: 'priority-mapping',
     definition: {
-      describe: 'Configure priority for nodes',
+      describe:
+        'Configure block node priority mapping ' +
+        '(default all consensus nodes, first consensus node will have priority of 2). ' +
+        'Example: "node1=2,node2=1", node1 will have priority 2, node2 will have priority 1. ' +
+        'Excluded nodes will not be routed to the specific block node! ' +
+        'One with the highest priority will be prioritized!',
       type: 'string',
     },
     prompt: undefined,

@@ -425,7 +425,6 @@ export class Templates {
       mapping[nodeAlias] = +priority || 1;
     }
 
-    console.log({mapping, rawString});
     return mapping;
   }
 }
