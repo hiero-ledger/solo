@@ -36,6 +36,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.outputDir, temporaryDirectory],
             [flags.nodeAlias, nodeAlias],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
@@ -50,6 +51,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.inputDir, temporaryDirectory],
             [flags.nodeAlias, nodeAlias],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
@@ -64,6 +66,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.inputDir, temporaryDirectory],
             [flags.nodeAlias, nodeAlias],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
