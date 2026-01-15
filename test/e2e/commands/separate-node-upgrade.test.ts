@@ -57,7 +57,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
             [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
-            [flags.outputDir, temporaryContextDirectory],
+            [flags.inputDir, temporaryContextDirectory],
           ]),
         ),
       );
