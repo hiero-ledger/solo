@@ -2406,7 +2406,7 @@ export class NodeCommandTasks {
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
-              config.blockNodeIds,
+              [],
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,

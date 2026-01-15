@@ -123,8 +123,6 @@ export interface NetworkDeployConfigClass {
   domainNames?: string;
   domainNamesMapping?: Record<NodeAlias, string>;
   blockNodeComponents: BlockNodeStateSchema[];
-  blockNodeCfg: string;
-  consensusNodeToBlockNodesMap?: Record<NodeAlias, number[]>;
   debugNodeAlias: NodeAlias;
   app: string;
   serviceMonitor: string;
@@ -585,61 +583,6 @@ export class NetworkCommand extends BaseCommand {
           ' --set "defaults.haproxy.service.type=LoadBalancer"' +
           ' --set "defaults.envoyProxy.service.type=LoadBalancer"' +
           ' --set "defaults.consensus.service.type=LoadBalancer"';
-      }
-    }
-
-    if (config.blockNodeComponents.length > 0) {
-      // Parse blockNodeConfiguration once and store in config for reuse in copy step
-      if (!config.consensusNodeToBlockNodesMap) {
-        config.consensusNodeToBlockNodesMap = {};
-
-        if (config.blockNodeCfg && config.blockNodeCfg.trim() !== '') {
-          try {
-            let blockNodeCfgContent: string = config.blockNodeCfg;
-
-            // Check if the input is a file path
-            if (fs.existsSync(config.blockNodeCfg)) {
-              this.logger.debug(`Reading blockNodeCfg from file: ${config.blockNodeCfg}`);
-              blockNodeCfgContent = fs.readFileSync(config.blockNodeCfg, 'utf8');
-            }
-
-            config.consensusNodeToBlockNodesMap = JSON.parse(blockNodeCfgContent);
-          } catch (error) {
-            throw new SoloError(`Failed to parse blockNodeCfg JSON: ${error.message}`, error);
-          }
-        } else {
-          for (const consensusNode of config.consensusNodes) {
-            config.consensusNodeToBlockNodesMap[consensusNode.name] = consensusNode.blockNodeIds;
-          }
-        }
-      }
-
-      // Generate separate block-nodes.json files for each consensus node
-      for (const consensusNode of config.consensusNodes) {
-        const blockNodeIds: number[] =
-          config.consensusNodeToBlockNodesMap[consensusNode.name] || consensusNode.blockNodeIds;
-
-        if (blockNodeIds.length > 0) {
-          // Filter block node components based on the mapping
-          const filteredBlockNodes: BlockNodeStateSchema[] = config.blockNodeComponents.filter((bn): boolean =>
-            blockNodeIds.includes(bn.metadata.id),
-          );
-
-          const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-            filteredBlockNodes,
-            this.remoteConfig.configuration.clusters,
-            this.remoteConfig.configuration.versions,
-          ).toJSON();
-
-          // Create a unique filename for each consensus node
-          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNode.nodeId}.json`;
-          const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-          // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
-          fs.writeFileSync(blockNodesJsonPath, formattedJson);
-
-          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNode.nodeId}`);
-        }
       }
     }
 
@@ -1343,14 +1286,11 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
-          task: async ({config: {consensusNodeToBlockNodesMap, namespace, consensusNodes}}): Promise<void> => {
-            consensusNodeToBlockNodesMap ||= {};
-
+          task: async ({config: {namespace, consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
                 await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
                   consensusNode,
-                  consensusNodeToBlockNodesMap[consensusNode.name],
                   namespace,
                   this.logger,
                   this.k8Factory,
@@ -1387,28 +1327,37 @@ export class NetworkCommand extends BaseCommand {
     return true;
   }
 
+  /**
+   * @param consensusNode - the targeted consensus node
+   * @param namespace
+   * @param logger
+   * @param k8Factory
+   * @param remoteConfig
+   */
   public static async createAndCopyBlockNodeJsonFileForConsensusNode(
     consensusNode: ConsensusNode,
-    blockNodeIds: number[],
     namespace: NamespaceName,
     logger: SoloLogger,
     k8Factory: K8Factory,
     remoteConfig: RemoteConfigRuntimeStateApi,
   ): Promise<void> {
-    const {nodeId, context, name: nodeAlias} = consensusNode;
+    const {nodeId, context, name: nodeAlias, blockNodeMap} = consensusNode;
 
     // Check if the node has block nodes assigned (use node name as key)
-    if (blockNodeIds.length === 0) {
+    if (blockNodeMap.length === 0) {
       logger.debug(`Skipping consensus node ${nodeAlias} - no block nodes assigned`);
       return;
     }
 
-    const filteredBlockNodes: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
-      (bn): boolean => blockNodeIds.includes(bn.metadata.id),
+    const blockNodeIds: Set<ComponentId> = new Set(blockNodeMap.map(([id]): ComponentId => id));
+
+    const blockNodeComponents: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
+      (blockNode): boolean => blockNodeIds.has(blockNode.metadata.id),
     );
 
     const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-      filteredBlockNodes,
+      blockNodeMap,
+      blockNodeComponents,
       remoteConfig.configuration.clusters,
       remoteConfig.configuration.versions,
     ).toJSON();

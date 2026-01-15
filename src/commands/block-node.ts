@@ -7,7 +7,7 @@ import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
@@ -43,6 +43,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import {K8} from '../integration/kube/k8.js';
+import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -58,12 +59,12 @@ interface BlockNodeDeployConfigClass {
   releaseTag: string;
   imageTag: Optional<string>;
   namespace: NamespaceName;
-  nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
   livenessCheckPort: number;
+  priorityMapping: Record<NodeAlias, number>;
 }
 
 interface BlockNodeDeployContext {
@@ -104,7 +105,6 @@ interface BlockNodeUpgradeConfigClass {
   valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
-  nodeAliases: NodeAliases;
 }
 
 interface BlockNodeUpgradeContext {
@@ -137,7 +137,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.releaseTag,
       flags.imageTag,
-      flags.nodeAliasesUnparsed,
+      flags.priorityMapping,
     ],
   };
 
@@ -158,7 +158,6 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.upgradeVersion,
       flags.id,
-      flags.nodeAliasesUnparsed,
     ],
   };
 
@@ -198,6 +197,24 @@ export class BlockNodeCommand extends BaseCommand {
       });
     }
 
+    const {state, clusters} = this.remoteConfig.configuration;
+
+    for (const [index, blockNode] of state.blockNodes.entries()) {
+      const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
+
+      const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(
+        `block-node-${blockNode.metadata.id}`,
+        config.namespace.name,
+        cluster.dnsBaseDomain,
+      );
+
+      valuesArgument += helpers.populateHelmArguments({
+        [`blockNode.sources[${index}].address`]: fqdn,
+        [`blockNode.sources[${index}].port`]: constants.BLOCK_NODE_PORT,
+        [`blockNode.sources[${index}].priority`]: 1,
+      });
+    }
+
     return valuesArgument;
   }
 
@@ -217,13 +234,17 @@ export class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesInRemoteConfig(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Update consensus nodes in remote config',
-      task: async ({config: {newBlockNodeComponent, nodeAliases}}): Promise<void> => {
+      task: async ({config: {newBlockNodeComponent, priorityMapping}}): Promise<void> => {
         const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
+        const nodeAliases: string[] = Object.keys(priorityMapping);
 
         for (const node of state.consensusNodes.filter((node): boolean =>
           nodeAliases.includes(Templates.renderNodeAliasFromNumber(node.metadata.id)),
         )) {
-          node.blockNodeIds.push(newBlockNodeComponent.metadata.id);
+          const priority: number = priorityMapping[Templates.renderNodeAliasFromNumber(node.metadata.id)];
+
+          node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priority]);
+          console.log(node);
         }
 
         await this.remoteConfig.persist();
@@ -234,18 +255,18 @@ export class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesPostGenesis(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Copy block-nodes.json to consensus nodes',
-      task: async ({config: {nodeAliases, newBlockNodeComponent, namespace}}): Promise<void> => {
-        const nodes: ConsensusNode[] = this.remoteConfig
+      task: async ({config: {priorityMapping, newBlockNodeComponent, namespace}}): Promise<void> => {
+        const nodeAliases: string[] = Object.keys(priorityMapping);
+
+        const filteredConsensusNodes: ConsensusNode[] = this.remoteConfig
           .getConsensusNodes()
           .filter((node): boolean => nodeAliases.includes(node.name));
 
-        for (const node of nodes) {
-          const blockNodeIds: number[] = node.blockNodeIds;
-          blockNodeIds.push(newBlockNodeComponent.metadata.id);
+        for (const node of filteredConsensusNodes) {
+          node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priorityMapping[node.name]]);
 
           await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
             node,
-            blockNodeIds,
             namespace,
             this.logger,
             this.k8Factory,
@@ -274,35 +295,32 @@ export class BlockNodeCommand extends BaseCommand {
   private startNodesAgainFromGenesis(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Start nodes from genesis',
-      task: async ({config: {nodeAliases}}, task): Promise<SoloListr<BlockNodeDeployContext>> => {
+      task: async ({config: {priorityMapping}}, task): Promise<SoloListr<BlockNodeDeployContext>> => {
+        const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [];
+
         const nodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
-        // set up the sub-tasks
-        return task.newListr(
-          nodeAliases.map(
-            (nodeAlias): SoloListrTask<BlockNodeDeployContext> => ({
-              title: `Start node: ${chalk.yellow(nodeAlias)}`,
-              task: async (): Promise<void> => {
-                const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
-                const namespace: NamespaceName = NamespaceName.of(node.namespace);
+        for (const nodeAlias of Object.keys(priorityMapping) as NodeAliases) {
+          subTasks.push({
+            title: `Start node: ${chalk.yellow(nodeAlias)}`,
+            task: async (): Promise<void> => {
+              const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
+              const namespace: NamespaceName = NamespaceName.of(node.namespace);
 
-                const k8: K8 = this.k8Factory.getK8(node.context);
+              const k8: K8 = this.k8Factory.getK8(node.context);
 
-                const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
+              const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
 
-                await container.execContainer(['bash', '-c', 'systemctl stop network-node || true']);
+              await container.execContainer([
+                'bash',
+                '-c',
+                'systemctl stop network-node || true && systemctl enable --now network-node',
+              ]);
+            },
+          });
+        }
 
-                const scriptName: string = 'startPodJava.sh';
-                await container.copyTo(`${constants.RESOURCES_DIR}/${scriptName}`, constants.HEDERA_HAPI_PATH);
-
-                const containerPath: string = `${constants.HEDERA_HAPI_PATH}/${scriptName}`;
-                await container.execContainer(['bash', '-c', `chmod -x ${containerPath}`]);
-                await container.execContainer(['sh', containerPath, node.nodeId.toString(), 'clean']);
-              },
-            }),
-          ),
-          constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
-        );
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -358,11 +376,13 @@ export class BlockNodeCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
-            config.nodeAliases = helpers.parseNodeAliases(
-              this.configManager.getFlag(flags.nodeAliasesUnparsed),
+
+            config.priorityMapping = Templates.parseBlockNodePriorityMapping(
+              config.priorityMapping as any,
               this.remoteConfig.getConsensusNodes(),
-              this.configManager,
             );
+
+            console.log(config.priorityMapping);
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
@@ -508,6 +528,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error deploying block node: ${error.message}`, error);
       } finally {
         await lease?.release();
@@ -662,16 +683,7 @@ export class BlockNodeCommand extends BaseCommand {
               : this.renderReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
-
-            config.nodeAliases = helpers.parseNodeAliases(
-              this.configManager.getFlag(flags.nodeAliasesUnparsed),
-              this.remoteConfig.getConsensusNodes(),
-              this.configManager,
-            );
-
-            if (!config.upgradeVersion) {
-              config.upgradeVersion = versions.BLOCK_NODE_VERSION;
-            }
+            config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
 
             return ListrLock.newAcquireLockTask(lease, task);
           },

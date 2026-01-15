@@ -3,14 +3,15 @@
 import {Exclude, Expose} from 'class-transformer';
 import {BaseStateSchema} from './base-state-schema.js';
 import {ComponentStateMetadataSchema} from './component-state-metadata-schema.js';
+import {PriorityMapping} from '../../../../../types/index.js';
 
 @Exclude()
 export class ConsensusNodeStateSchema extends BaseStateSchema {
   @Expose()
-  public blockNodeIds: number[];
+  public blockNodeMap: PriorityMapping[];
 
-  public constructor(metadata?: ComponentStateMetadataSchema, blockNodeIds?: number[]) {
+  public constructor(metadata?: ComponentStateMetadataSchema, blockNodeMap?: PriorityMapping[]) {
     super(metadata);
-    this.blockNodeIds = blockNodeIds || [];
+    this.blockNodeMap = blockNodeMap || [];
   }
 }

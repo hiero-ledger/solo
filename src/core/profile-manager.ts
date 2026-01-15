@@ -307,12 +307,9 @@ export class ProfileManager {
     const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
 
     for (const node of consensusNodes) {
-      const filteredBlockNodes: BlockNodeStateSchema[] = blockNodes.filter((blockNode): boolean =>
-        node.blockNodeIds.includes(blockNode.metadata.id),
-      );
-
       const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-        filteredBlockNodes,
+        node.blockNodeMap,
+        blockNodes,
         this.remoteConfig.configuration.clusters,
         this.remoteConfig.configuration.versions,
       ).toJSON();
