@@ -48,7 +48,7 @@
   ],
   "branches":[
     {
-      "name": "3132-fix-semantic-release"
+      "name": "main"
     },
     {
       "name": "release/([0-9]+).([0-9]+)",

@@ -233,6 +233,7 @@ jobs:
       # Upload the artifact
       - name: Upload Solo Package Artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
         with:
           name: solo-npm-package
           path: ./output/${{ steps.set-publish-data.outputs.artifact-name }}
