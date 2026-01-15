@@ -591,47 +591,7 @@ async function addKeyHashToMap(
   keyHashMap.set(privateKeyFileName, crypto.createHash('sha256').update(keyString).digest('base64'));
 }
 
-export const testLocalConfigData = {
-  userIdentity: {
-    name: 'john',
-    host: 'doe',
-  },
-  soloVersion: '1.0.0',
-  deployments: {
-    deployment: {
-      clusters: ['cluster-1'],
-      namespace: 'solo-e2e',
-      realm: 0,
-      shard: 0,
-    },
-    'deployment-2': {
-      clusters: ['cluster-2'],
-      namespace: 'solo-2',
-      realm: 0,
-      shard: 0,
-    },
-    'deployment-3': {
-      clusters: ['cluster-3'],
-      namespace: 'solo-3',
-      realm: 0,
-      shard: 0,
-    },
-  },
-  clusterRefs: {
-    'cluster-1': 'context-1',
-    'cluster-2': 'context-2',
-  },
-};
-
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
-
-export function hederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
-}
-
-export function localHederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
-}
 
 export function destroyEnabled(): boolean {
   const destroyEnabledEnvironment: boolean = process.env.SOLO_E2E_DESTROY !== 'false';

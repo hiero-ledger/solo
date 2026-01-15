@@ -45,7 +45,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
       const zipper: Zippy = new Zippy(logger);
       await zipper.zip(temporaryDirectory, zipFile);
 
-      const temporaryDirectory2: string = 'contextDir';
+      const temporaryContextDirectory: string = 'contextDir';
 
       await main(
         buildMainArgv(
@@ -55,11 +55,9 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
             [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
-            [flags.upgradeZipFile, zipFile],
-            [flags.outputDir, temporaryDirectory2],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+            [flags.outputDir, temporaryContextDirectory],
           ]),
         ),
       );
@@ -72,7 +70,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.inputDir, temporaryDirectory2],
+            [flags.inputDir, temporaryContextDirectory],
           ]),
         ),
       );
@@ -85,7 +83,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.inputDir, temporaryDirectory2],
+            [flags.inputDir, temporaryContextDirectory],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),

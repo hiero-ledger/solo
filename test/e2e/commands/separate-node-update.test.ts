@@ -36,6 +36,13 @@ export function testSeparateNodeUpdate(
 ): void {
   const updateNodeId: NodeAlias = 'node2';
   const newAccountId: string = '0.0.7';
+  argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
+  argv.setArg(flags.nodeAlias, updateNodeId);
+  argv.setArg(flags.newAccountNumber, newAccountId);
+  argv.setArg(
+    flags.newAdminKey,
+    '302e020100300506032b6570042204200cde8d512569610f184b8b399e91e46899805c6171f7c2b8666d2a417bcc66c2',
+  );
 
   const {
     opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
@@ -84,7 +91,7 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPublicKey, tlsKeyFiles.certificateFile);
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
-      const temporaryDirectory2: string = 'contextDir';
+      const temporaryContextDirectory: string = 'contextDir';
       await main(
         buildMainArgv(
           namespace.toString(),
@@ -93,17 +100,15 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.outputDir, temporaryDirectory2],
-            [flags.nodeAlias, updateNodeId],
+            [flags.outputDir, temporaryContextDirectory],
+            [flags.nodeAlias, argv.getArg<string>(flags.nodeAlias)],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
             [flags.gossipPublicKey, argv.getArg<string>(flags.gossipPublicKey)],
             [flags.gossipPrivateKey, argv.getArg<string>(flags.gossipPrivateKey)],
             [flags.tlsPublicKey, argv.getArg<string>(flags.tlsPublicKey)],
             [flags.tlsPrivateKey, argv.getArg<string>(flags.tlsPrivateKey)],
-            [
-              flags.newAdminKey,
-              '302e020100300506032b6570042204200cde8d512569610f184b8b399e91e46899805c6171f7c2b8666d2a417bcc66c2',
-            ],
+            [flags.newAccountNumber, argv.getArg<string>(flags.newAccountNumber)],
+            [flags.newAdminKey, argv.getArg<string>(flags.newAdminKey)],
           ]),
         ),
       );
@@ -116,7 +121,8 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.inputDir, temporaryDirectory2],
+            [flags.inputDir, temporaryContextDirectory],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
       );
@@ -129,7 +135,7 @@ export function testSeparateNodeUpdate(
           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.inputDir, temporaryDirectory2],
+            [flags.inputDir, temporaryContextDirectory],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
           ]),
         ),
