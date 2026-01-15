@@ -58,6 +58,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
             [flags.outputDir, temporaryContextDirectory],
             [flags.upgradeVersion, TEST_UPGRADE_VERSION],
+            [flags.upgradeZipFile, zipFile],
           ]),
         ),
       );
