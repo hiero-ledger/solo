@@ -1696,9 +1696,12 @@ export class NodeCommandTasks {
         subTasks.push({
           title: 'Enable metrics port forwarding for all nodes',
           task: async () => {
-            const nodeAliasesArray = config.allNodeAliases ? 
-              (Array.isArray(config.allNodeAliases) ? config.allNodeAliases : [config.allNodeAliases]) : 
-              nodeAliases;
+            let nodeAliasesArray;
+            if (config.allNodeAliases) {
+              nodeAliasesArray = Array.isArray(config.allNodeAliases) ? config.allNodeAliases : [config.allNodeAliases];
+            } else {
+              nodeAliasesArray = nodeAliases;
+            }
             for (const alias of nodeAliasesArray) {
               const aliasContext = helpers.extractContextFromConsensusNodes(alias, config.consensusNodes);
               const aliasPodReference: PodReference = PodReference.of(
