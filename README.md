@@ -25,11 +25,10 @@ Every quarter a version will be designated as LTS (Long-Term Support) and will b
 
 | Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
 |--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
+| 0.53.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.58.1    | v0.67.2+ | >= v1.32.2 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-01-15   | 2026-02-15     |
 | 0.52.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.67.2+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-11   | 2026-03-11     |
-| 0.51.0       | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-05   | 2026-01-05     |
-| 0.50.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-11-13   | 2025-02-13     |
+| 0.50.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-11-13   | 2026-02-13     |
 | 0.48.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-10-24   | 2026-01-24     |
-| 0.46.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.65.1+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-10-02   | 2026-01-02     |
 
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
