@@ -94,6 +94,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.populateServiceMap(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.copyNodeConfigFiles('nodeAliases'),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),

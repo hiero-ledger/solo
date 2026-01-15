@@ -395,6 +395,43 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       }
     }
 
+    // Check if this is a metrics port forward and verify Java process is running
+    if (podPort === 9999) {
+      logger.debug('Checking if Java/HapiApp process is running in pod for metrics port forward');
+      try {
+        const shellRunner = new ShellRunner(logger);
+        const javaProcessCheck = await shellRunner.run(
+          `kubectl exec -n ${podReference.namespace} --context ${clusterReference} ${podReference.name} -c root-container -- bash -c "pgrep -f java >/dev/null 2>&1 && echo 'JAVA_RUNNING' || echo 'JAVA_NOT_RUNNING'"`,
+          [],
+          true,
+          false,
+        );
+
+        const javaRunning = javaProcessCheck && javaProcessCheck.includes('JAVA_RUNNING');
+
+        if (!javaRunning) {
+          logger.showUser(
+            `❌ ${label} Java/HapiApp process is not running in pod. Cannot create metrics port forward.`,
+          );
+          logger.showUser(
+            '💡 Please check if node is properly started. The metrics server (port 9999) is not available.',
+          );
+          throw new Error(
+            `Java/HapiApp process not running in pod ${podReference.name}. Cannot create metrics port forward.`,
+          );
+        }
+
+        logger.debug('✅ Java/HapiApp process is running in pod, proceeding with port forward creation');
+      } catch (javaCheckError) {
+        logger.debug(
+          `Failed to check Java process in pod: ${javaCheckError instanceof Error ? javaCheckError.message : String(javaCheckError)}`,
+        );
+        logger.showUser(
+          '⚠️  Could not verify Java/HapiApp process status in pod. Proceeding with port forward creation...',
+        );
+      }
+    }
+
     // Enable port forwarding
     const portForwardPortNumber: number = await k8Client
       .pods()
