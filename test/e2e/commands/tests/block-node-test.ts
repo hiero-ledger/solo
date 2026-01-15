@@ -6,7 +6,7 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {BaseCommandTest} from './base-command-test.js';
 import {BlockCommandDefinition} from '../../../../src/commands/command-definitions/block-command-definition.js';
 import {type BaseTestOptions} from './base-test-options.js';
-import {type ComponentId, type DeploymentName} from '../../../../src/types/index.js';
+import {type ClusterReferenceName, type ComponentId, type DeploymentName} from '../../../../src/types/index.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import * as constants from '../../../../src/core/constants.js';
 import {expect} from 'chai';
@@ -21,6 +21,7 @@ export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
     testName: string,
     deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
     enableLocalBuildPathTesting: boolean,
     localBuildReleaseTag: string,
     nodeAliases?: NodeAliases,
@@ -34,6 +35,8 @@ export class BlockNodeTest extends BaseCommandTest {
       BlockCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
     );
 
     if (enableLocalBuildPathTesting) {
@@ -54,7 +57,11 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloBlockNodeDestroyArgv(testName: string, deployment: DeploymentName): string[] {
+  private static soloBlockNodeDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = BlockNodeTest;
 
     const argv: string[] = newArgv();
@@ -64,6 +71,8 @@ export class BlockNodeTest extends BaseCommandTest {
       BlockCommandDefinition.NODE_DESTROY,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
       optionFromFlag(Flags.devMode),
@@ -74,22 +83,30 @@ export class BlockNodeTest extends BaseCommandTest {
   }
 
   public static add(options: BaseTestOptions, nodeAliases?: NodeAliases): void {
-    const {testName, deployment, localBuildReleaseTag, enableLocalBuildPathTesting} = options;
+    const {testName, deployment, clusterReferenceNameArray, localBuildReleaseTag, enableLocalBuildPathTesting} =
+      options;
     const {soloBlockNodeDeployArgv} = BlockNodeTest;
 
     it(`${testName}: block node add`, async (): Promise<void> => {
       await main(
-        soloBlockNodeDeployArgv(testName, deployment, enableLocalBuildPathTesting, localBuildReleaseTag, nodeAliases),
+        soloBlockNodeDeployArgv(
+          testName,
+          deployment,
+          clusterReferenceNameArray[0],
+          enableLocalBuildPathTesting,
+          localBuildReleaseTag,
+          nodeAliases,
+        ),
       );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   public static destroy(options: BaseTestOptions): void {
-    const {testName, deployment} = options;
+    const {testName, deployment, clusterReferenceNameArray} = options;
     const {soloBlockNodeDestroyArgv} = BlockNodeTest;
 
     it(`${testName}: block node destroy`, async (): Promise<void> => {
-      await main(soloBlockNodeDestroyArgv(testName, deployment));
+      await main(soloBlockNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
