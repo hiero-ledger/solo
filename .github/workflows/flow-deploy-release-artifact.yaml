@@ -243,6 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - create-github-release
+    if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
@@ -271,9 +272,6 @@ jobs:
       - name: Publish Solo NPM Package
         run: |
           args="--access=public"
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            args="${args} --dry-run"
-          fi
           
           package="${{ needs.create-github-release.outputs.npm-artifact-name }}"
           echo "::group::Publishing package: ${package} with args: ${args}"
