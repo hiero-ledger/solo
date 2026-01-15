@@ -16,13 +16,13 @@
       "@semantic-release/npm",
       {
         "npmPublish": false,
-        "tarballDir": "dist"
+        "tarballDir": "output"
       }
     ],
     "@semantic-release/git",
     "@semantic-release/github",
     {
-      "assets": "dist/*.tgz"
+      "assets": "output/*.tgz"
     }
   ],
   "releaseRules": [
