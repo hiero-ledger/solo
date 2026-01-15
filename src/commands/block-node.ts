@@ -41,8 +41,6 @@ import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
-import {Container} from '../integration/kube/resources/container/container.js';
-import {K8} from '../integration/kube/k8.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 
 interface BlockNodeDeployConfigClass {
@@ -244,7 +242,6 @@ export class BlockNodeCommand extends BaseCommand {
           const priority: number = priorityMapping[Templates.renderNodeAliasFromNumber(node.metadata.id)];
 
           node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priority]);
-          console.log(node);
         }
 
         await this.remoteConfig.persist();
@@ -255,7 +252,7 @@ export class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesPostGenesis(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Copy block-nodes.json to consensus nodes',
-      task: async ({config: {priorityMapping, newBlockNodeComponent, namespace}}): Promise<void> => {
+      task: async ({config: {priorityMapping, namespace}}): Promise<void> => {
         const nodeAliases: string[] = Object.keys(priorityMapping);
 
         const filteredConsensusNodes: ConsensusNode[] = this.remoteConfig
@@ -263,8 +260,6 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priorityMapping[node.name]]);
-
           await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
             node,
             namespace,
@@ -284,43 +279,10 @@ export class BlockNodeCommand extends BaseCommand {
         const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [this.updateConsensusNodesInRemoteConfig()];
 
         if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
-          subTasks.push(this.updateConsensusNodesPostGenesis(), this.startNodesAgainFromGenesis() as any);
+          subTasks.push(this.updateConsensusNodesPostGenesis());
         }
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
-      },
-    };
-  }
-
-  private startNodesAgainFromGenesis(): SoloListrTask<BlockNodeDeployContext> {
-    return {
-      title: 'Start nodes from genesis',
-      task: async ({config: {priorityMapping}}, task): Promise<SoloListr<BlockNodeDeployContext>> => {
-        const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [];
-
-        const nodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-
-        for (const nodeAlias of Object.keys(priorityMapping) as NodeAliases) {
-          subTasks.push({
-            title: `Start node: ${chalk.yellow(nodeAlias)}`,
-            task: async (): Promise<void> => {
-              const node: ConsensusNode = nodes.find((node): boolean => node.name === nodeAlias);
-              const namespace: NamespaceName = NamespaceName.of(node.namespace);
-
-              const k8: K8 = this.k8Factory.getK8(node.context);
-
-              const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
-
-              await container.execContainer([
-                'bash',
-                '-c',
-                'systemctl stop network-node || true && systemctl enable --now network-node',
-              ]);
-            },
-          });
-        }
-
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -382,8 +344,6 @@ export class BlockNodeCommand extends BaseCommand {
               this.remoteConfig.getConsensusNodes(),
             );
 
-            console.log(config.priorityMapping);
-
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
               lt(
@@ -439,6 +399,8 @@ export class BlockNodeCommand extends BaseCommand {
               imageTag,
               blockNodeChartDirectory,
             } = config;
+
+            console.log(valuesArg);
 
             await this.chartManager.install(
               namespace,
@@ -528,7 +490,6 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error deploying block node: ${error.message}`, error);
       } finally {
         await lease?.release();

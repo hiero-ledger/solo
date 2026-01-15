@@ -1174,16 +1174,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly blockNodeIds: CommandFlag = {
-    constName: 'blockNodeIds',
-    name: 'block-node-ids',
-    definition: {
-      describe: 'Configure block node routing for consensus node, provide IDs, comma separated',
-      type: 'string',
-    },
-    prompt: undefined,
-  };
-
   public static readonly priorityMapping: CommandFlag = {
     constName: 'priorityMapping',
     name: 'priority-mapping',
@@ -2957,7 +2947,6 @@ export class Flags {
     Flags.domainNames,
     Flags.blockNodeChartVersion,
     Flags.blockNodeCfg,
-    Flags.blockNodeIds,
     Flags.priorityMapping,
     Flags.realm,
     Flags.shard,

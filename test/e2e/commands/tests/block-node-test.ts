@@ -19,6 +19,7 @@ import {container} from 'tsyringe-neo';
 import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
+import {K8Helper} from '../../../../src/business/utils/k8-helper.js';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
@@ -44,7 +45,13 @@ export class BlockNodeTest extends BaseCommandTest {
     }
 
     if (nodeAliases !== undefined && nodeAliases.length > 0) {
-      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliases.join(','));
+      const stringBuilder: string[] = [];
+
+      for (const nodeAlias of nodeAliases) {
+        stringBuilder.push(`${nodeAlias}=1`);
+      }
+
+      argv.push(optionFromFlag(Flags.priorityMapping), stringBuilder.join(','));
     }
 
     argvPushGlobalFlags(argv, testName, false, true);
@@ -99,12 +106,7 @@ export class BlockNodeTest extends BaseCommandTest {
     ) => Promise<{stdout: string; stderr: string; error?: ExecException}> = promisify(exec);
 
     it(`${testName}: test block node connection for block node ${blockNodeId}`, async (): Promise<void> => {
-      const pod: Pod = await container
-        .resolve<K8Factory>(InjectTokens.K8Factory)
-        .getK8(contexts[0])
-        .pods()
-        .list(namespace, Templates.renderBlockNodeLabels(blockNodeId))
-        .then((pods: Pod[]): Pod => pods[0]);
+      const pod: Pod = await new K8Helper(contexts[0]).getBlockNodePod(namespace, blockNodeId);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
       const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
@@ -131,11 +133,7 @@ export class BlockNodeTest extends BaseCommandTest {
     const {namespace, contexts, testName} = options;
 
     it(`${testName}: verify block-nodes.json for ${nodeAlias}`, async (): Promise<void> => {
-      const root: Container = await container
-        .resolve<K8Factory>(InjectTokens.K8Factory)
-        .getK8(contexts[0])
-        .helpers()
-        .getConsensusNodeRootContainer(namespace, nodeAlias);
+      const root: Container = await new K8Helper(contexts[0]).getConsensusNodeRootContainer(namespace, nodeAlias);
 
       const output: string = await root.execContainer([
         'bash',

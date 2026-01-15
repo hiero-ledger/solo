@@ -15,7 +15,6 @@ import {type Secrets} from './resources/secret/secrets.js';
 import {type Ingresses} from './resources/ingress/ingresses.js';
 import {type Crds} from './resources/crd/crds.js';
 import {type Manifests} from './resources/manifest/manifests.js';
-import {type Helpers} from './resources/helpers/helpers.js';
 
 export interface K8 {
   /**
@@ -107,10 +106,4 @@ export interface K8 {
    * @returns an object instance providing manifest operations
    */
   manifests(): Manifests;
-
-  /**
-   * Fluent accessor for performing common operations.
-   * @returns an object instance providing common operations
-   */
-  helpers(): Helpers;
 }

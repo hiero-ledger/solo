@@ -144,6 +144,7 @@ import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
+import {K8Helper} from '../../business/utils/k8-helper.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1590,18 +1591,20 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
+  public prepareStagingDirectory(nodeAliasesProperty: string) {
     return {
       title: 'Prepare staging directory',
-      task: ({config}, task): Promise<void> => {
-        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
-        const subTasks: SoloListrTask<AnyListrContext>[] = [
+      task: (context_, task) => {
+        const config = context_.config;
+        const nodeAliases = config[nodeAliasesProperty];
+        const subTasks = [
           {
             title: 'Create and populate staging directory',
-            task: async ({config: {cacheDir}}): Promise<void> => {
-              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+            task: async context_ => {
+              const config = context_.config;
+              const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
-                cacheDir,
+                config.cacheDir,
                 'templates',
                 'application.properties',
               );
@@ -1610,7 +1613,7 @@ export class NodeCommandTasks {
               const yamlRoot: AnyObject = {};
               const emptyDomainNamesMapping: Record<string, IP> = {};
 
-              const stagingDirectory: string = Templates.renderStagingDir(
+              const stagingDirectory = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
                 this.configManager.getFlag(flags.releaseTag),
               );
@@ -2383,7 +2386,7 @@ export class NodeCommandTasks {
   public prepareGossipEndpoints(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Prepare gossip endpoints',
-      task: async (context_): Promise<void> => {
+      task: async context_ => {
         const config: any = context_.config;
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
@@ -2391,7 +2394,7 @@ export class NodeCommandTasks {
         } else {
           const context: string = helpers.extractContextFromConsensusNodes(
             config.consensusNodes[0].name,
-            config.consensusNodes,
+            context_.config.consensusNodes,
           );
 
           const k8: K8 = this.k8Factory.getK8(context);
@@ -2598,7 +2601,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         // Prepare parameter and update the network node chart
         const config: NodeDestroyConfigClass | NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
-        const consensusNodes: ConsensusNode[] = config.consensusNodes;
+        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
@@ -2723,7 +2726,6 @@ export class NodeCommandTasks {
               false,
               'Solo chart version',
             );
-
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -3035,10 +3037,10 @@ export class NodeCommandTasks {
         const node: ConsensusNode = consensusNodes[0];
         const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
-        const container: Container = await this.k8Factory
-          .getK8(node.context)
-          .helpers()
-          .getConsensusNodeRootContainer(namespace, node.name);
+        const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+          namespace,
+          node.name,
+        );
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
@@ -3291,7 +3293,7 @@ export class NodeCommandTasks {
         context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
         // if the consensusNodes does not contain the nodeAlias then add it
-        if (!context_.config.consensusNodes.some((node): boolean => node.name === nodeAlias)) {
+        if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
             (cluster): boolean => cluster.name === clusterReference,
           );

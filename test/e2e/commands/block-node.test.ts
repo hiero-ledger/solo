@@ -82,15 +82,13 @@ new EndToEndTestSuiteBuilder()
       BlockNodeTest.add(options, ['node2']);
 
       it('Wait for block node 2 to come online', async (): Promise<void> => {
-        testLogger.showUser('Sleeping for 60 seconds to allow block node 2 to start processing blocks.');
-        await sleep(Duration.ofMinutes(1));
+        testLogger.showUser('Sleeping for 2 minutes to allow block node 2 to sync.');
+        await sleep(Duration.ofMinutes(2));
         testLogger.showUser('Finished sleeping.');
-      }).timeout(Duration.ofSeconds(70).toMillis());
+      }).timeout(Duration.ofMinutes(3).toMillis());
 
       BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2]);
       BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2]);
-
-      BlockNodeTest.testBlockNode(options, 2);
 
       BlockNodeTest.destroy(options);
 

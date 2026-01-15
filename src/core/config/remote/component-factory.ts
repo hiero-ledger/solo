@@ -12,7 +12,7 @@ import {
   type ClusterReferenceName,
   type ComponentId,
   type PortForwardConfig,
-  PriorityMapping,
+  type PriorityMapping,
 } from '../../../types/index.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type ComponentFactoryApi} from './api/component-factory-api.js';

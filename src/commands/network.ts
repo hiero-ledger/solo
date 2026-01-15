@@ -68,6 +68,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {K8Helper} from '../business/utils/k8-helper.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -980,19 +981,16 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Copy gRPC TLS Certificates',
-          task: (
-            {config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath, grpcTlsKeyPath, grpcWebTlsKeyPath}},
-            parentTask,
-          ): SoloListr<AnyListrContext> =>
+          task: (context_, parentTask): SoloListr<AnyListrContext> =>
             this.certificateManager.buildCopyTlsCertificatesTasks(
               parentTask,
-              grpcTlsCertificatePath,
-              grpcWebTlsCertificatePath,
-              grpcTlsKeyPath,
-              grpcWebTlsKeyPath,
+              context_.config.grpcTlsCertificatePath,
+              context_.config.grpcWebTlsCertificatePath,
+              context_.config.grpcTlsKeyPath,
+              context_.config.grpcWebTlsKeyPath,
             ),
-          skip: ({config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath}}): boolean =>
-            !grpcTlsCertificatePath && !grpcWebTlsCertificatePath,
+          skip: (context_): boolean =>
+            !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
         },
         {
           title: 'Prepare staging directory',
@@ -1001,20 +999,22 @@ export class NetworkCommand extends BaseCommand {
               [
                 {
                   title: 'Copy Gossip keys to staging',
-                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
-                    this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
+                  task: (context_): void => {
+                    const config: NetworkDeployConfigClass = context_.config;
+                    this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, config.nodeAliases);
                   },
                 },
                 {
                   title: 'Copy gRPC TLS keys to staging',
-                  task: ({config: {nodeAliases, keysDir, stagingKeysDir}}): void => {
-                    for (const nodeAlias of nodeAliases) {
+                  task: (context_): void => {
+                    const config: NetworkDeployConfigClass = context_.config;
+                    for (const nodeAlias of config.nodeAliases) {
                       const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
                         nodeAlias,
-                        keysDir,
+                        config.keysDir,
                       );
 
-                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, stagingKeysDir);
+                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
                     }
                   },
                 },
@@ -1025,10 +1025,12 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Copy node keys to secrets',
-          task: ({config: {stagingDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
+          task: (context_, parentTask): SoloListr<NetworkDeployContext> => {
+            const config: NetworkDeployConfigClass = context_.config;
+
             // set up the subtasks
             return parentTask.newListr(
-              this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
+              this.platformInstaller.copyNodeKeys(config.stagingDir, config.consensusNodes, config.contexts),
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
@@ -1053,20 +1055,19 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
-          task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs, valuesArgMap, chartDirectory} = config;
-
-            for (const [clusterReference] of clusterRefs) {
+          task: async (context_): Promise<void> => {
+            const config: NetworkDeployConfigClass = context_.config;
+            for (const [clusterReference] of config.clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
-                namespace,
+                config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
-                clusterRefs.get(clusterReference),
+                config.clusterRefs.get(clusterReference),
               );
               if (isInstalled) {
                 await this.chartManager.uninstall(
-                  namespace,
+                  config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  clusterRefs.get(clusterReference),
+                  config.clusterRefs.get(clusterReference),
                 );
                 config.isUpgrade = true;
               }
@@ -1078,13 +1079,13 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await this.chartManager.upgrade(
-                namespace,
+                config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
-                chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
-                valuesArgMap[clusterReference],
-                clusterRefs.get(clusterReference),
+                config.valuesArgMap[clusterReference],
+                config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1094,11 +1095,12 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
-          task: ({config: {consensusNodes, namespace}}, task): SoloListr<NetworkDeployContext> => {
+          task: (context_, task): SoloListr<NetworkDeployContext> => {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+            const config: NetworkDeployConfigClass = context_.config;
 
             //Add check for network node service to be created and load balancer to be assigned (if load balancer is enabled)
-            for (const consensusNode of consensusNodes) {
+            for (const consensusNode of config.consensusNodes) {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
@@ -1109,7 +1111,7 @@ export class NetworkCommand extends BaseCommand {
                     svc = await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, [
+                      .list(config.namespace, [
                         `solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`,
                       ]);
 
@@ -1343,24 +1345,13 @@ export class NetworkCommand extends BaseCommand {
   ): Promise<void> {
     const {nodeId, context, name: nodeAlias, blockNodeMap} = consensusNode;
 
-    // Check if the node has block nodes assigned (use node name as key)
-    if (blockNodeMap.length === 0) {
-      logger.debug(`Skipping consensus node ${nodeAlias} - no block nodes assigned`);
-      return;
-    }
-
     const blockNodeIds: Set<ComponentId> = new Set(blockNodeMap.map(([id]): ComponentId => id));
 
     const blockNodeComponents: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
       (blockNode): boolean => blockNodeIds.has(blockNode.metadata.id),
     );
 
-    const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-      blockNodeMap,
-      blockNodeComponents,
-      remoteConfig.configuration.clusters,
-      remoteConfig.configuration.versions,
-    ).toJSON();
+    const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, blockNodeComponents).toJSON();
 
     const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
     const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
@@ -1375,7 +1366,7 @@ export class NetworkCommand extends BaseCommand {
 
     const k8: K8 = k8Factory.getK8(context);
 
-    const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
+    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
     await container.execContainer('pwd');
 
@@ -1540,14 +1531,16 @@ export class NetworkCommand extends BaseCommand {
     return {
       title: 'Add node and proxies to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config: {consensusNodes, namespace, isUpgrade, releaseTag}}): Promise<void> => {
-        for (const consensusNode of consensusNodes) {
+      task: async (context_): Promise<void> => {
+        const {namespace} = context_.config;
+
+        for (const consensusNode of context_.config.consensusNodes) {
           const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
-          if (isUpgrade) {
+          if (context_.config.isUpgrade) {
             this.logger.info('Do not add envoy and haproxy components again during upgrade');
           } else {
             // do not add new envoy or haproxy components if they already exist
@@ -1562,11 +1555,13 @@ export class NetworkCommand extends BaseCommand {
             );
           }
         }
-        if (releaseTag) {
+        if (context_.config.releaseTag) {
           // update the solo chart version to match the deployed version
-          this.remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer(releaseTag));
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemVer(context_.config.releaseTag),
+          );
         }
-
         await this.remoteConfig.persist();
       },
     };
