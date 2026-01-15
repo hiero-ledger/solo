@@ -55,9 +55,9 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
           ConsensusCommandDefinition.DEV_NODE_PREPARE,
           new Map<CommandFlag, string>([
             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
-            [flags.inputDir, temporaryContextDirectory],
+            [flags.outputDir, temporaryContextDirectory],
+            [flags.upgradeVersion, TEST_UPGRADE_VERSION],
           ]),
         ),
       );

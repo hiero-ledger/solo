@@ -327,7 +327,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Prepare for upgrading network',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.upgradePrepare,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.UPGRADE_PREPARE_FLAGS,
               ),
             )
             .addSubcommand(
