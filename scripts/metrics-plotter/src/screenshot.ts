@@ -24,7 +24,7 @@ async function main() {
     fs.mkdirSync(path.dirname(out), {recursive: true});
 
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
