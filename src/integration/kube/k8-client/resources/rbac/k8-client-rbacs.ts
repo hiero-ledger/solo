@@ -18,12 +18,12 @@ export class K8ClientRbacs implements Rbacs {
     labels?: Record<string, string>,
   ): Promise<void> {
     const clusterRole: ClusterRole = new K8ClientClusterRole(name, rules, labels);
-    await this.k8sRbacApi.createClusterRole({body: clusterRole.toV1ClusterRole()});
+    await this.k8sRbacApi.createClusterRole(clusterRole.toV1ClusterRole());
   }
 
   public async clusterRoleExists(name: string): Promise<boolean> {
     try {
-      await this.k8sRbacApi.readClusterRole({name});
+      await this.k8sRbacApi.readClusterRole(name);
     } catch {
       return false;
     }
@@ -32,6 +32,6 @@ export class K8ClientRbacs implements Rbacs {
   }
 
   public async deleteClusterRole(name: string): Promise<void> {
-    await this.k8sRbacApi.deleteClusterRole({name});
+    await this.k8sRbacApi.deleteClusterRole(name);
   }
 }
