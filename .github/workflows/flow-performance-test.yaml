@@ -206,7 +206,7 @@ jobs:
             cd ./scripts/metrics-plotter
             npm ci
             npm run build
-            mkdir ~/.solo/metrics
+            mkdir -p ~/.solo/metrics
             mkdir src/data
             nohup npm start &
             echo $! > /tmp/metrics-plotter.pid
