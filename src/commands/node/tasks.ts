@@ -513,6 +513,14 @@ export class NodeCommandTasks {
 
         const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
 
+        // Debug logging to understand parsing issues
+        this.logger.info(`${title}: Raw metrics response: ${JSON.stringify(response)}`);
+        this.logger.info(`${title}: Parsed status line: ${JSON.stringify(statusLine)}`);
+        this.logger.info(
+          `${title}: Parsed status number: ${statusNumber} (${NodeStatusEnums[statusNumber] || 'UNKNOWN'})`,
+        );
+        this.logger.info(`${title}: Expected status: ${status} (${NodeStatusEnums[status] || 'UNKNOWN'})`);
+
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           success = true;
@@ -945,8 +953,20 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        // copy the config.txt file from the node1 upgrade directory
-        await k8Container.copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, stagingDir);
+        // copy the config.txt file from the node1 upgrade directory (only when it exists and is non-empty)
+        const configTxtPath: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
+        if (await k8Container.hasFile(configTxtPath)) {
+          const entries: TDirectoryData[] = await k8Container.listDir(configTxtPath);
+          const configTxtEntry: TDirectoryData | undefined = entries.at(0);
+          const configTxtSize: number = configTxtEntry ? Number.parseInt(configTxtEntry.size, 10) : 0;
+          if (configTxtSize > 0) {
+            await k8Container.copyFrom(configTxtPath, stagingDir);
+          } else {
+            this.logger.debug(`Skipping config.txt download from ${configTxtPath}: file is empty`);
+          }
+        } else {
+          this.logger.debug(`Skipping config.txt download: ${configTxtPath} does not exist`);
+        }
 
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
@@ -1601,14 +1621,14 @@ export class NodeCommandTasks {
               );
 
               if (!fs.existsSync(stagingDirectory)) {
-                await this.profileManager.prepareStagingDirectory(
-                  consensusNodes,
-                  nodeAliases,
-                  yamlRoot,
-                  emptyDomainNamesMapping,
-                  deploymentName,
-                  applicationPropertiesPath,
-                );
+              await this.profileManager.prepareStagingDirectory(
+                consensusNodes,
+                nodeAliases,
+                yamlRoot,
+                emptyDomainNamesMapping,
+                deploymentName,
+                applicationPropertiesPath,
+              );
               }
             },
           },
@@ -1658,7 +1678,54 @@ export class NodeCommandTasks {
 
               await container.copyTo(constants.COPY_NODE_CONFIGS_SCRIPT, '/tmp');
               await container.execContainer(['bash', '-c', `chmod +x ${remoteScriptPath}`]);
-              await container.execContainer(['bash', '-c', remoteScriptPath]);
+              try {
+                // Execute script and capture all output
+                const command = `set -o pipefail; ${remoteScriptPath} 2>&1; echo "__EXIT_CODE:$?"`;
+                const rawResult = await container.execContainer(['bash', '-c', command]);
+
+                const lines = rawResult?.split('\n') ?? [];
+                let exitLine: string | undefined;
+                while (lines.length > 0) {
+                  const candidate = lines[lines.length - 1].trim();
+                  if (candidate.length === 0) {
+                    lines.pop();
+                    continue;
+                  }
+                  if (candidate.startsWith('__EXIT_CODE:')) {
+                    exitLine = lines.pop()?.trim();
+                  }
+                  break;
+                }
+
+                const exitMatch = exitLine?.match(/^__EXIT_CODE:(\d+)$/);
+                const exitCode = exitMatch ? Number.parseInt(exitMatch[1], 10) : undefined;
+                const output = lines.join('\n').trim();
+
+                if (output) {
+                  this.logger.debug(`[copy-node-configs] Output for ${nodeAlias}:\n${output}`);
+                }
+
+                if (exitMatch === undefined) {
+                  throw new SoloError(
+                    `Config copy failed for ${nodeAlias}: unable to determine script exit code (raw output: ${rawResult})`,
+                  );
+                }
+
+                // Check if script reported success
+                if (exitCode === 0 && output.includes('All files copied successfully')) {
+                  // Success - do nothing
+                  return;
+                } else {
+                  // Script failed with missing files or other errors
+                  throw new SoloError(
+                    `Config copy failed for node ${nodeAlias} (exit code: ${exitCode}): ${output || 'No script output'}`,
+                  );
+                }
+              } catch (error) {
+                // Container execution failed or script threw error
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                throw new SoloError(`Config copy failed for node ${nodeAlias}: ${errorMessage}`);
+              }
             },
           });
         }
@@ -1696,6 +1763,9 @@ export class NodeCommandTasks {
         subTasks.push({
           title: 'Enable metrics port forwarding for all nodes',
           task: async () => {
+            // Wait for Java processes to start up before enabling port forwarding for metrics server
+            await new Promise(resolve => setTimeout(resolve, 60000));
+            
             let nodeAliasesArray;
             if (config.allNodeAliases) {
               nodeAliasesArray = Array.isArray(config.allNodeAliases) ? config.allNodeAliases : [config.allNodeAliases];

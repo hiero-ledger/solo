@@ -43,11 +43,13 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
     --namespace kube-system \
     --set "args[0]=--kubelet-insecure-tls"
 
-  helm upgrade --install metallb metallb/metallb \
-    --namespace metallb-system --create-namespace --atomic --wait \
-    --set speaker.frr.enabled=true
+  if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 ]]; then
+    helm upgrade --install metallb metallb/metallb \
+      --namespace metallb-system --create-namespace --atomic --wait \
+      --set speaker.frr.enabled=true
 
-  kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+    kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+  fi
 
   # Deploy the diagnostics container if not running in CI
   if [[ -z "${CI}" ]]; then
