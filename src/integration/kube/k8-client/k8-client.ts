@@ -34,6 +34,8 @@ import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
 import {type Optional} from '../../../types/index.js';
 import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
+import {type Rbacs} from '../resources/rbac/rbacs.js';
+import {K8ClientRbacs} from './resources/rbac/k8-client-rbacs.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -62,6 +64,7 @@ export class K8Client implements K8 {
   private k8Secrets: Secrets;
   private k8Ingresses: Ingresses;
   private k8Crds: Crds;
+  private k8Rbacs: Rbacs;
   private k8Manifests: K8ClientManifests;
 
   /**
@@ -104,6 +107,7 @@ export class K8Client implements K8 {
     this.k8Secrets = new K8ClientSecrets(this.kubeClient);
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
     this.k8Crds = new K8ClientCrds(this.extensionApi);
+    this.k8Rbacs = new K8ClientRbacs(this.rbacApi);
     this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
 
     return this;
@@ -184,8 +188,8 @@ export class K8Client implements K8 {
     return this.k8Crds;
   }
 
-  public rbac(): k8s.RbacAuthorizationV1Api {
-    return this.rbacApi;
+  public rbac(): Rbacs {
+    return this.k8Rbacs;
   }
 
   public manifests(): K8ClientManifests {

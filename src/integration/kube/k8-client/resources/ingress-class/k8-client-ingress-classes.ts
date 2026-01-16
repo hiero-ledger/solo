@@ -7,19 +7,17 @@ import {K8ClientIngressClass} from './k8-client-ingress-class.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {ResourceCreateError, ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
-import {type IncomingMessage} from 'node:http';
 
 export class K8ClientIngressClasses implements IngressClasses {
   public constructor(private readonly networkingApi: NetworkingV1Api) {}
 
   public async list(): Promise<IngressClass[]> {
     try {
-      const response: {response: IncomingMessage; body: V1IngressClassList} =
-        await this.networkingApi.listIngressClass();
+      const response: V1IngressClassList = await this.networkingApi.listIngressClass();
       const ingressClasses: IngressClass[] = [];
 
-      if (response?.body?.items?.length > 0) {
-        for (const item of response.body.items) {
+      if (response?.items?.length > 0) {
+        for (const item of response.items) {
           ingressClasses.push(new K8ClientIngressClass(item.metadata?.name));
         }
       }
@@ -42,7 +40,7 @@ export class K8ClientIngressClasses implements IngressClasses {
       },
     };
     try {
-      await this.networkingApi.createIngressClass(ingressClass);
+      await this.networkingApi.createIngressClass({body: ingressClass});
     } catch (error) {
       throw new ResourceCreateError(ResourceType.INGRESS_CLASS, undefined, ingressClassName, error);
     }
@@ -50,7 +48,7 @@ export class K8ClientIngressClasses implements IngressClasses {
 
   public async delete(ingressClassName: string): Promise<void> {
     try {
-      await this.networkingApi.deleteIngressClass(ingressClassName);
+      await this.networkingApi.deleteIngressClass({name: ingressClassName});
     } catch (error) {
       throw new ResourceDeleteError(ResourceType.INGRESS_CLASS, undefined, ingressClassName, error);
     }
