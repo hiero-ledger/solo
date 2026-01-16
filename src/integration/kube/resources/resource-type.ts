@@ -24,4 +24,5 @@ export enum ResourceType {
   CLUSTER = 'Cluster',
   CONTAINER = 'Container',
   LEASE = 'Lease',
+  RBAC = 'RBAC',
 }
