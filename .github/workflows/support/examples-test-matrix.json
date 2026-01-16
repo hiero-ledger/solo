@@ -1,5 +1,10 @@
 [
   {
+    "name": "Multicluster Backup and Restore",
+    "directory": "multicluster-backup-restore",
+    "local-java-build": false
+  },
+  {
     "name": "Address Book",
     "directory": "address-book",
     "local-java-build": false

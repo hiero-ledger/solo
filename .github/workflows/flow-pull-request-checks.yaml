@@ -1,5 +1,5 @@
 ##
-# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,6 +158,11 @@ jobs:
   hugo-docs-build:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    # If it is a workflow dispatch AND we are skipping unit test and coverage, skip Hugo Docs Build job
+    # If it is a PR, check if it's a draft PR. If a draft PR, check if it starts with 'trunk-merge', if true then run Hugo Docs Build job
+    # If it is regular PR, always run Hugo Docs Build job
+    if: >
+      ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) ||
+      (github.event_name == 'pull_request' && (github.event.pull_request.draft == false || startsWith(github.event.pull_request.title, 'trunk-merge'))) }}
     with:
       ref: ${{ github.ref }}

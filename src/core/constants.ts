@@ -380,6 +380,8 @@ export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NOD
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
+// Filename suffix used for log/config archive files
+export const LOG_CONFIG_ZIP_SUFFIX = '-log-config.zip';
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
