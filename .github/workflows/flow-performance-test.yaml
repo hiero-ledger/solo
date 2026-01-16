@@ -252,7 +252,7 @@ jobs:
           cd ./scripts/metrics-plotter
           SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=true\&data=timeline ~/.solo/metrics/chart-grouped.png
           SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=false\&data=timeline ~/.solo/metrics/chart.png
-          cd ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json
+          cp ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json
 
       - name: Stop Metrics Plotter tool
         run: |
