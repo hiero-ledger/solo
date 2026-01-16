@@ -71,12 +71,12 @@ taxonomies:
 
 # Highlighting config
 pygmentsCodeFences: true
-pygmentsUseClasses: true
+pygmentsUseClasses: false
 # Use the new Chroma Go highlighter in Hugo.
 pygmentsUseClassic: false
 # pygmentsOptions: "linenos=table"
 # See https://help.farbox.com/pygments.html
-pygmentsStyle: github-dark
+pygmentsStyle: github
 
 # Configure how URLs look like per section.
 permalinks:
@@ -86,7 +86,7 @@ permalinks:
 imaging:
   resampleFilter: CatmullRom
   quality: 75
-  anchor: smart
+  anchor: Smart
 
 # Language configuration
 languages:
@@ -106,7 +106,7 @@ markup:
       unsafe: true
   highlight:
     # See a complete list of available styles at https://xyproto.github.io/splash/docs/all.html
-    style: github-dark
+    style: github
     # Uncomment if you want your chosen highlight style used for code blocks without a specified language
     guessSyntax: true
   tableOfContents:
@@ -239,7 +239,7 @@ params:
 
   # Menu title if your navbar has a versions selector to access old versions of your site.
   # This menu appears only if you have at least one [params.versions] set.
-  version_menu: Releases
-  versions:
-    - {version: main, url: /main}
-    - {version: latest, url: /latest}
+  # version_menu: Releases
+  # versions:
+  #   - {version: main, url: /main}
+  #   - {version: latest, url: /latest}
