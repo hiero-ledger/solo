@@ -152,7 +152,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           process.on('close', (code): void => {
             if (code) {
               const error: Error = new Error(`Smoke test failed with exit code ${code}`);
-              console.error(error.message);
               reject(error);
             } else {
               console.log('Smoke test execution succeeded');

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Templates} from './templates.js';
-import {type ToJSON} from '../types/index.js';
+import {type PriorityMapping, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
-import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {lt} from 'semver';
 import * as versions from '../../version.js';
+import {inject} from 'tsyringe-neo';
+import {InjectTokens} from './dependency-injection/inject-tokens.js';
+import {patchInject} from './dependency-injection/container-helper.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 interface BlockNodeConnectionData {
   address: string;
@@ -21,17 +24,25 @@ interface BlockNodesJsonStructure {
 }
 
 export class BlockNodesJsonWrapper implements ToJSON {
+  private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+
   public constructor(
+    private readonly blockNodeMap: PriorityMapping[],
     private readonly blockNodeComponents: BlockNodeStateSchema[],
-    private readonly clusters: Readonly<ClusterSchema[]>,
-    private readonly versions: Readonly<ApplicationVersionsSchema>,
-  ) {}
+    @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
+  ) {
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+  }
 
   public toJSON(): string {
-    const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeComponents.map(
-      (blockNodeComponent): BlockNodeConnectionData => {
-        const cluster: ClusterSchema = this.clusters.find(
-          (cluster: ClusterSchema): boolean => cluster.name === blockNodeComponent.metadata.cluster,
+    const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeMap.map(
+      ([id, priority]): BlockNodeConnectionData => {
+        const blockNodeComponent: BlockNodeStateSchema = this.blockNodeComponents.find(
+          (component): boolean => component.metadata.id === id,
+        );
+
+        const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
+          (cluster): boolean => cluster.name === blockNodeComponent.metadata.cluster,
         );
 
         const address: string = Templates.renderSvcFullyQualifiedDomainName(
@@ -41,13 +52,13 @@ export class BlockNodesJsonWrapper implements ToJSON {
         );
 
         const useLegacyPort: boolean = lt(
-          this.versions.blockNodeChart,
+          this.remoteConfig.configuration.versions.blockNodeChart,
           versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
         );
 
         const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-        return {address, port, priority: 1};
+        return {address, port, priority};
       },
     );
 
