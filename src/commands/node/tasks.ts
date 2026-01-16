@@ -98,6 +98,7 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
+import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS} from '../../../version.js';
@@ -761,7 +762,7 @@ export class NodeCommandTasks {
                 config.namespace,
                 Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias),
               );
-            const privateKey = Base64.decode(keyFromK8.data.privateKey);
+            const privateKey: string = Base64.decode(keyFromK8.data.privateKey);
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
           } catch (error) {
             this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
@@ -1160,14 +1161,21 @@ export class NodeCommandTasks {
         const sourceNodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const k8 = this.k8Factory.getK8(context);
+          const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
+            nodeAlias,
+            config.consensusNodes,
+          );
+          if (!kubeContext) {
+            throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
+          }
+          const k8 = this.k8Factory.getK8(kubeContext);
           const podReference = context_.config.podRefs[nodeAlias];
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
           if (!consensusNode) {
             throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
           }
+          const clusterReference = consensusNode.cluster ?? kubeContext;
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
 
@@ -1180,19 +1188,24 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
-            const statesDirectory = path.join(stateFileDirectory, context, 'states');
-
+            const statesDirectory: string = path.join(
+              stateFileDirectory,
+              'states',
+              clusterReference,
+              config.namespace.name,
+            );
             if (!fs.existsSync(statesDirectory)) {
-              self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              continue;
+              self.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
             }
 
-            const stateFiles = fs
+            const stateFiles: string[] = fs
               .readdirSync(statesDirectory)
               .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
 
             if (stateFiles.length === 0) {
               self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              self.logger.showUserError(`No state file found for pod ${podName} (node: ${nodeAlias})`);
               continue;
             }
 
@@ -2527,6 +2540,34 @@ export class NodeCommandTasks {
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
           self.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+
+          // If admin key was updated, save the new key to k8s secret
+          if (config.newAdminKey) {
+            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+            const data: {privateKey: string; publicKey: string} = {
+              privateKey: Base64.encode(parsedNewKey.toString()),
+              publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
+            };
+
+            const isAdminKeySecretCreated: boolean = await self.k8Factory
+              .getK8(context)
+              .secrets()
+              .createOrReplace(
+                config.namespace,
+                Templates.renderNodeAdminKeyName(config.nodeAlias),
+                SecretType.OPAQUE,
+                data,
+                {
+                  'solo.hedera.com/node-admin-key': 'true',
+                },
+              );
+
+            if (!isAdminKeySecretCreated) {
+              throw new SoloError(`failed to create admin key secret for node '${config.nodeAlias}'`);
+            }
+
+            self.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
+          }
         } catch (error) {
           throw new SoloError(`Error updating node to network: ${error.message}`, error);
         }
@@ -3034,7 +3075,7 @@ export class NodeCommandTasks {
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
-          'cd "${states[0]}" && zip -rqX "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
+          'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName: string = await container.execContainer([
@@ -3123,6 +3164,19 @@ export class NodeCommandTasks {
           if (nodeDeleteReceipt.status !== Status.Success) {
             throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
           }
+
+          // Delete admin key secret from k8s after successful node deletion
+          try {
+            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+            await this.k8Factory
+              .getK8(context)
+              .secrets()
+              .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
+            this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
+          } catch (deleteError) {
+            // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
+            this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
+          }
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
@@ -3155,6 +3209,24 @@ export class NodeCommandTasks {
           if (nodeCreateReceipt.status !== Status.Success) {
             throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
           }
+
+          // Save admin key to k8s secret after successful node creation
+          // nodeAlias was set in determineNewNodeAccountNumber step
+          const nodeAlias: NodeAlias = config.nodeAlias;
+          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const data: {privateKey: string; publicKey: string} = {
+            privateKey: Base64.encode(context_.adminKey.toString()),
+            publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
+          };
+
+          await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+              'solo.hedera.com/node-admin-key': 'true',
+            });
+
+          this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
         } catch (error) {
           throw new SoloError(`Error adding node to network: ${error.message}`, error);
         }
@@ -3403,6 +3475,7 @@ export class NodeCommandTasks {
         this.logger.info(`Saved logs to ${logFile}`);
       }
     } catch (error) {
+      this.logger.showUser(red(`Failed to download logs from pod ${podName}: ${error}`));
       this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);
       // Continue with other pods even if one fails
     }

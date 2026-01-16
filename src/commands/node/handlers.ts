@@ -631,12 +631,15 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    const outputDirectory: string = (argv.outputDir as string) || '';
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
-        ...this.validateConnectionsTaskList(),
+        this.tasks.downloadHieroComponentLogs(outputDirectory),
+        this.tasks.getNodeStateFiles(),
+        // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in diagnosing deployment',

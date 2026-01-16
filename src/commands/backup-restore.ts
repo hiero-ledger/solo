@@ -14,7 +14,7 @@ import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
-import {type Context, type ClusterReferences} from '../types/index.js';
+import {type Context, type ClusterReferences, type SoloListrTask} from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
@@ -64,7 +64,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static BACKUP_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.outputDir],
+    optional: [flags.quiet, flags.outputDir, flags.zipPassword, flags.zipFile],
   };
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
@@ -74,7 +74,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig],
+    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig, flags.zipPassword, flags.zipFile],
   };
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
@@ -91,12 +91,11 @@ export class BackupRestoreCommand extends BaseCommand {
   private async exportResources(outputDirectory: string, resourceType: 'configmaps' | 'secrets'): Promise<number> {
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
-      const contexts: Context[] = this.remoteConfig.getContexts();
       const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
       this.logger.showUser(
         chalk.cyan(
-          `\nExporting ${resourceType} from namespace: ${namespace.toString()} across ${contexts.length} cluster(s)`,
+          `\nExporting ${resourceType} from namespace: ${namespace.toString()} across ${clusterReferences.size} cluster(s)`,
         ),
       );
 
@@ -179,12 +178,33 @@ export class BackupRestoreCommand extends BaseCommand {
 
       this.logger.showUser(
         chalk.green(
-          `\n✓ Total exported: ${totalExportedCount} ${resourceType} from ${contexts.length} cluster(s) to ${outputDirectory}/${resourceType}/`,
+          `\n✓ Total exported: ${totalExportedCount} ${resourceType} from ${clusterReferences.size} cluster(s) to ${outputDirectory}/${resourceType}/`,
         ),
       );
       return totalExportedCount;
     } catch (error) {
       throw new SoloError(`Failed to export ${resourceType}: ${error.message}`, error);
+    }
+  }
+
+  private async waitForConsensusPods(): Promise<void> {
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+    for (const consensusNode of consensusNodes) {
+      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name as any, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(context);
+      this.logger.info(
+        `Waiting for pod of node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
+      );
+      await k8
+        .pods()
+        .waitForRunningPhase(
+          namespace,
+          [`solo.hedera.com/node-name=${consensusNode.name}`, 'solo.hedera.com/type=network-node'],
+          constants.PODS_RUNNING_MAX_ATTEMPTS,
+          constants.PODS_RUNNING_DELAY,
+        );
     }
   }
 
@@ -227,7 +247,6 @@ export class BackupRestoreCommand extends BaseCommand {
 
     // Get namespace, contexts, and cluster references for backup operations
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const contexts: Context[] = this.remoteConfig.getContexts();
     const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
@@ -275,10 +294,25 @@ export class BackupRestoreCommand extends BaseCommand {
               const nodeAlias: string = node.name;
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
-              const statesDirectory: string = path.join(outputDirectory, clusterReference, 'states');
+              const statesDirectory: string = path.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
+          },
+        },
+        {
+          title: 'Compress backup directory',
+          skip: () => {
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            return !zipPassword;
+          },
+          task: async () => {
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
+            const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
+            const shellRunner: ShellRunner = new ShellRunner(this.logger);
+            await shellRunner.run(compressionCommand, [], true, false);
+            this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
       ],
@@ -313,12 +347,11 @@ export class BackupRestoreCommand extends BaseCommand {
   private async importResources(inputDirectory: string, resourceType: 'configmaps' | 'secrets'): Promise<number> {
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
-      const contexts: Context[] = this.remoteConfig.getContexts();
       const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
       this.logger.showUser(
         chalk.cyan(
-          `\nImporting ${resourceType} to namespace: ${namespace.toString()} across ${contexts.length} cluster(s)`,
+          `\nImporting ${resourceType} to namespace: ${namespace.toString()} across ${clusterReferences.size} cluster(s)`,
         ),
       );
 
@@ -361,6 +394,7 @@ export class BackupRestoreCommand extends BaseCommand {
               this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata.name}`));
               continue;
             }
+
             await (resourceType === 'configmaps'
               ? k8
                   .configMaps()
@@ -390,7 +424,9 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       this.logger.showUser(
-        chalk.green(`\n✓ Total imported: ${totalImportedCount} ${resourceType} to ${contexts.length} cluster(s)`),
+        chalk.green(
+          `\n✓ Total imported: ${totalImportedCount} ${resourceType} to ${clusterReferences.size} cluster(s)`,
+        ),
       );
       return totalImportedCount;
     } catch (error) {
@@ -437,11 +473,11 @@ export class BackupRestoreCommand extends BaseCommand {
       // Get all log zip files directly from logs directory
       const allFiles: string[] = fs.readdirSync(logsDirectory);
       this.logger.showUser(`Files are found in ${logsDirectory} are : ${allFiles.join(', ')}`);
-      const logFiles: string[] = allFiles.filter(file => file.endsWith('.zip'));
+      const logFiles: string[] = allFiles.filter(file => file.endsWith(constants.LOG_CONFIG_ZIP_SUFFIX));
 
       if (logFiles.length === 0) {
         this.logger.showUser(
-          chalk.yellow(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
+          chalk.red(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
         );
         this.logger.showUser(chalk.gray(`    Available files: ${allFiles.join(', ')}`));
         throw new SoloError(`No log files found to restore in context: ${context}`);
@@ -455,8 +491,8 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Upload logs to each pod
       for (const logFile of logFiles) {
-        // Extract pod name from log file (e.g., network-node-0.zip -> network-node-0)
-        const podName: string = logFile.replace('.zip', '');
+        // Extract pod name from log file by removing the suffix
+        const podName: string = logFile.replace(constants.LOG_CONFIG_ZIP_SUFFIX, '');
         const pod: any = pods.find((p: any): boolean => p.podReference.name.name === podName);
 
         if (!pod) {
@@ -469,7 +505,7 @@ export class BackupRestoreCommand extends BaseCommand {
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const container: any = await k8.containers().readByRef(containerReference);
 
-        // Upload log file to pod
+        // Upload zipped log file to pod
         this.logger.showUser(chalk.gray(`    Uploading log file: ${logFile}`));
         await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
 
@@ -592,6 +628,13 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
+          title: 'Wait for consensus node pods',
+          task: async (context_, task) => {
+            await this.waitForConsensusPods();
+            task.title = 'Wait for consensus node pods: completed';
+          },
+        },
+        {
           title: 'Restore Logs and Configs',
           task: async (context_, task) => {
             await this.restoreLogsAndConfigs(inputDirectory);
@@ -691,9 +734,9 @@ export class BackupRestoreCommand extends BaseCommand {
     }
   }
 
-  private buildDeploymentTasks(): any[] {
+  private buildDeploymentTasks(): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
-    const tasks: any[] = [];
+    const tasks: SoloListrTask<any>[] = [];
 
     return [
       ...tasks,
@@ -835,7 +878,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build block node deployment tasks
    */
-  private buildBlockNodeTasks(): any[] {
+  private buildBlockNodeTasks(): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
 
     return [
@@ -906,7 +949,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build mirror node deployment tasks
    */
-  private buildMirrorNodeTasks(): any[] {
+  private buildMirrorNodeTasks(): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
 
     return [
@@ -977,7 +1020,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build relay node deployment tasks
    */
-  private buildRelayNodeTasks(): any[] {
+  private buildRelayNodeTasks(): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
 
     return [
@@ -1052,7 +1095,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build explorer deployment tasks
    */
-  private buildExplorerTasks(): any[] {
+  private buildExplorerTasks(): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
 
     return [
@@ -1123,7 +1166,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build scan backup directory task
    */
-  private buildScanBackupDirectoryTask(): any {
+  private buildScanBackupDirectoryTask(): SoloListrTask<any> {
     const self: BackupRestoreCommand = this;
 
     return {
@@ -1233,7 +1276,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build shared initialization task for restore commands
    */
-  private buildInitializationTask(argv: ArgvStruct): any {
+  private buildInitializationTask(argv: ArgvStruct): SoloListrTask<any> {
     const self: BackupRestoreCommand = this;
     return {
       title: 'Initialize configuration',
@@ -1285,16 +1328,63 @@ export class BackupRestoreCommand extends BaseCommand {
     };
   }
 
+  private async extractEncryptedBackup(targetDirectory: string, task: any): Promise<void> {
+    const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+    if (!zipPassword) {
+      return;
+    }
+
+    const zipInputFile: string = this.configManager.getFlag<string>(flags.zipFile);
+    if (!zipInputFile) {
+      throw new SoloError('--zip-file is required when using --zip-password.');
+    }
+
+    const inputPath: string = path.resolve(zipInputFile);
+    if (!fs.existsSync(inputPath)) {
+      throw new SoloError(`Input path does not exist: ${inputPath}`);
+    }
+
+    const inputStats: fs.Stats = fs.statSync(inputPath);
+    if (!inputStats.isFile()) {
+      this.logger.showUser(chalk.yellow('Provided zip input path points to a directory; skipping extraction.'));
+      return;
+    }
+
+    if (path.extname(inputPath).toLowerCase() !== '.zip') {
+      throw new SoloError('Input path must be a .zip file when using --zip-password.');
+    }
+
+    if (!fs.existsSync(targetDirectory)) {
+      fs.mkdirSync(targetDirectory, {recursive: true});
+    }
+
+    const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
+    const shellRunner: ShellRunner = new ShellRunner(this.logger);
+    await shellRunner.run(unzipCommand, [], true, false);
+
+    this.configManager.setFlag(flags.inputDir, targetDirectory);
+
+    if (task) {
+      task.title = `Extract backup archive: ${targetDirectory}`;
+    }
+
+    this.logger.showUser(
+      chalk.green(
+        `\n✓ Backup archive extracted to ${targetDirectory}\nUse this directory for subsequent restore commands.`,
+      ),
+    );
+  }
+
   /**
    * Build create Kind clusters tasks
    */
-  private buildKindNetworkTask(): any[] {
+  private buildKindNetworkTask(): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
-    const tasks: any[] = [
+    const tasks: SoloListrTask<any>[] = [
       {
         title: 'Setup Docker network for multi-cluster',
-        skip: (context_: any) => !context_.clusters || context_.clusters.length <= 1,
-        task: async (context_: any) => {
+        skip: (context_: any): boolean => !context_.clusters || context_.clusters.length <= 1,
+        task: async (context_: any): Promise<void> => {
           self.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(self.logger);
@@ -1328,9 +1418,9 @@ export class BackupRestoreCommand extends BaseCommand {
   private buildIndividualClusterCreationTasks(
     context_: any,
     metallbConfig: string = 'metallb-cluster-{index}.yaml',
-  ): any[] {
+  ): SoloListrTask<any>[] {
     const self: BackupRestoreCommand = this;
-    const clusterTasks: any[] = [];
+    const clusterTasks: SoloListrTask<any>[] = [];
     const isMultiCluster: boolean = context_.clusters.length > 1;
 
     // Create a task for each cluster
@@ -1345,7 +1435,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
-        task: async (_: any, task: any) => {
+        task: async (_: any, task: any): Promise<void> => {
           const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
           const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
           const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
@@ -1427,7 +1517,9 @@ export class BackupRestoreCommand extends BaseCommand {
       // Count consensus nodes belonging to this specific cluster
       // Note: nodes may have cluster saved with or without prefix, so check both
       const clusterConsensusNodeCount: number = context_.deploymentState!.consensusNodes.filter(
-        (node: any) => node.metadata.cluster === clusterReference,
+        (node: any): boolean => {
+          return node.metadata.cluster === clusterReference;
+        },
       ).length;
 
       self.logger.info(
@@ -1537,6 +1629,9 @@ export class BackupRestoreCommand extends BaseCommand {
   public async restoreClusters(argv: ArgvStruct): Promise<boolean> {
     const self: BackupRestoreCommand = this;
 
+    await this.depManager.checkDependency(constants.KIND);
+    await this.depManager.checkDependency(constants.HELM);
+
     // Extract metallbConfig from argv
     const metallbConfig: string = (argv[flags.metallbConfig.name] as string) ?? 'metallb-cluster-{index}.yaml';
 
@@ -1564,6 +1659,16 @@ export class BackupRestoreCommand extends BaseCommand {
     const tasks = new Listr<RestoreClustersContext>(
       [
         self.buildInitializationTask(argv),
+        {
+          title: 'Extract backup archive',
+          skip: () => {
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            return !zipPassword;
+          },
+          task: async (context_: RestoreClustersContext, task): Promise<void> => {
+            await self.extractEncryptedBackup(context_.inputDirectory, task);
+          },
+        },
         // Flatten scan backup directory task
         self.buildScanBackupDirectoryTask(),
         ...self.buildKindNetworkTask(),

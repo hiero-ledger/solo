@@ -2,11 +2,12 @@
 # This script creates a zip file so that it can be copied out of the pod for research purposes
 set -o pipefail
 
-readonly useZip="${2}"
+# Usage: support-zip.sh <useZip>
+readonly useZip="${1}"
 
 readonly HAPI_DIR=/opt/hgcapp/services-hedera/HapiApp2.0
 readonly DATA_DIR=data
-readonly RESEARCH_ZIP=${HOSTNAME}.zip
+readonly RESEARCH_ZIP=${HOSTNAME}-log-config.zip
 readonly OUTPUT_DIR=output
 readonly ZIP_FULLPATH=${HAPI_DIR}/${DATA_DIR}/${RESEARCH_ZIP}
 readonly FILE_LIST=${HAPI_DIR}/support-zip-file-list.txt
@@ -29,7 +30,8 @@ rm ${FILE_LIST} 2>/dev/null || true
 AddToFileList()
 {
   if [[ -d "${1}" ]];then
-    find ${1} -name "*" -printf '\047%p\047\n' | tee -a ${LOG_FILE} >>${FILE_LIST}
+    # Do not add quote symbol since zip does not strip them out
+    find "$1" -print | tee -a ${LOG_FILE} >>${FILE_LIST}
     return
   fi
 
@@ -64,12 +66,15 @@ AddToFileList ${ONBOARD_DIR}
 AddToFileList ${UPGRADE_DIR}
 AddToFileList ${STATS_DIR}
 
-echo "creating zip file" | tee -a ${LOG_FILE}
+echo "creating zip file ${ZIP_FULLPATH}" | tee -a ${LOG_FILE}
+sed -i '/^$/d' "${FILE_LIST}" # Removes empty lines
 if [[ "$useZip" = "true" ]]; then
   echo "Using zip" | tee -a ${LOG_FILE}
   dnf install zip -y | tee -a ${LOG_FILE}
-  zip -v "${ZIP_FULLPATH}" -@ < "${FILE_LIST}" >> ${LOG_FILE} 2>&1
-  zip -v -u "${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1
+  # delete existing zip if it exists
+  rm -f "${ZIP_FULLPATH}" 2>/dev/null || true
+  zip -Xv "${ZIP_FULLPATH}" -@ < "${FILE_LIST}" >> ${LOG_FILE} 2>&1
+  zip -Xv -u "${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1
 else
   jar cvfM "${ZIP_FULLPATH}" "@${FILE_LIST}" >> ${LOG_FILE} 2>&1
   jar -u -v --file="${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1
