@@ -43,4 +43,5 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   domainNames: string;
   domainNamesMapping: Record<NodeAlias, string>;
   nodeAliasesUnparsed?: string;
+  blockNodeIds: number[];
 }

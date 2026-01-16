@@ -35,6 +35,8 @@ export interface ComponentFactoryApi {
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
     portForwardConfigs?: PortForwardConfig[],
+    blockNodeIds?: number[],
+    externalBlockNodeIds?: number[],
   ): ConsensusNodeStateSchema;
 
   createConsensusNodeComponentsFromNodeIds(

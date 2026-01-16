@@ -3,7 +3,7 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {BlockNodeCommand} from '../block-node.js';
+import BlockNodeCommand from '../block-node.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
 import {type CommandDefinition} from '../../types/index.js';

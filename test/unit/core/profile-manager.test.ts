@@ -45,6 +45,8 @@ describe('ProfileManager', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node1-svc.test-namespace.svc.cluster.local',
+      blockNodeIds: [],
+      externalBlockNodes: [],
     },
     {
       name: 'node2',
@@ -55,6 +57,8 @@ describe('ProfileManager', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node2-svc.test-namespace.svc.cluster.local',
+      blockNodeIds: [],
+      externalBlockNodes: [],
     },
     {
       name: 'node3',
@@ -65,6 +69,8 @@ describe('ProfileManager', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node3-svc.test-namespace.svc.cluster.local',
+      blockNodeIds: [],
+      externalBlockNodes: [],
     },
   ];
 
@@ -162,6 +168,7 @@ describe('ProfileManager', () => {
           {},
           deploymentName,
           applicationPropertiesFile,
+          [],
         );
         const valuesFile = Object.values(valuesFileMapping)[0];
 
@@ -209,6 +216,7 @@ describe('ProfileManager', () => {
           {},
           deploymentName,
           applicationPropertiesFile,
+          [],
         );
         const cachedValuesFile = Object.values(cachedValuesFileMapping)[0];
         const valuesYaml: any = yaml.parse(fs.readFileSync(cachedValuesFile).toString());

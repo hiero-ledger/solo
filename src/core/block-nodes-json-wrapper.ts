@@ -25,13 +25,16 @@ export class BlockNodesJsonWrapper implements ToJSON {
     private readonly blockNodeComponents: BlockNodeStateSchema[],
     private readonly clusters: Readonly<ClusterSchema[]>,
     private readonly versions: Readonly<ApplicationVersionsSchema>,
-  ) {}
+    private readonly externalBlockNodes: string[],
+  ) {
+    this.externalBlockNodes ||= [];
+  }
 
   public toJSON(): string {
     const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeComponents.map(
       (blockNodeComponent): BlockNodeConnectionData => {
         const cluster: ClusterSchema = this.clusters.find(
-          (cluster: ClusterSchema): boolean => cluster.name === blockNodeComponent.metadata.cluster,
+          (cluster): boolean => cluster.name === blockNodeComponent.metadata.cluster,
         );
 
         const address: string = Templates.renderSvcFullyQualifiedDomainName(
@@ -50,6 +53,11 @@ export class BlockNodesJsonWrapper implements ToJSON {
         return {address, port, priority: 1};
       },
     );
+
+    for (const externalBlockNode of this.externalBlockNodes) {
+      const [address, port] = Templates.parseExternalBlockAddress(externalBlockNode);
+      blockNodeConnectionData.push({address, port, priority: 1});
+    }
 
     const data: BlockNodesJsonStructure = {
       nodes: blockNodeConnectionData,
