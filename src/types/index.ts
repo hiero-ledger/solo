@@ -193,3 +193,4 @@ export type Realm = number | Long;
 export type Shard = number | Long;
 export type ClusterReferenceName = string;
 export type ClusterReferences = Map<ClusterReferenceName, Context>;
+export type PriorityMapping = [blockNodeId: ComponentId, priority: number];

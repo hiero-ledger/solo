@@ -25,6 +25,7 @@ blockNode:
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
     BACKFILL_FETCH_BATCH_SIZE: "5"
+    BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
   persistence:
     archive:
       size: 1Gi
@@ -38,6 +39,11 @@ blockNode:
       size: 1Gi
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       # existingClaim: "nano-logging-pvc"
+  backfill:
+    # The path to the block-node-sources.json file must match the path property in
+    # blockNode.config.BACKFILL_BLOCK_NODE_SOURCES_PATH
+    path: "/opt/hiero/block-node/backfill"
+    filename: "block-node-sources.json"
 
 kubepromstack:
   enabled: false
