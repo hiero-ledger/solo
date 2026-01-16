@@ -113,14 +113,14 @@ jobs:
       - name: Pull Kind Docker Image
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
-      - name: Setup E2E Tests
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
-        with:
-          max_attempts: 3
-          timeout_minutes: 10
-          command: |
-            ./test/e2e/dual-cluster/setup-dual-e2e.sh
-
+#      - name: Setup E2E Tests
+#        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+#        with:
+#          max_attempts: 3
+#          timeout_minutes: 10
+#          command: |
+#            ./test/e2e/dual-cluster/setup-dual-e2e.sh
+#
 #      - name: Run E2E Tests
 #        run: |
 #          echo SOLO_TEST_CLUSTER=solo-e2e > .env
