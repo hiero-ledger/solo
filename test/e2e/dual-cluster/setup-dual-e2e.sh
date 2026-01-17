@@ -6,7 +6,7 @@ SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 readonly SCRIPT_PATH
 
 readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
-readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
+readonly KIND_IMAGE="kindest/node:v1.33.7@sha256:d26ef333bdb2cbe9862a0f7c3803ecc7b4303d8cea8e814b481b09949d353040"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
@@ -25,12 +25,28 @@ elif [[ "${SOLO_CLUSTER_DUALITY}" -gt 2 ]]; then
   SOLO_CLUSTER_DUALITY=2
 fi
 
+KIND_VERSION=$(kind --version | awk '{print $3}')
+echo "Using Kind version: ${KIND_VERSION}"
+DOCKER_VERSION=$(docker --version | awk '{print $3}' | sed 's/,//')
+echo "Using Docker version: ${DOCKER_VERSION}"
+HELM_VERSION=$(helm version --short | sed 's/v//')
+echo "Using Helm version: ${HELM_VERSION}"
+KUBECTL_VERSION=$(kubectl version --client=true | grep Client | awk '{print $3}' | sed 's/v//')
+echo "Using Kubectl version: ${KUBECTL_VERSION}"
+TASK_VERSION=$(task --version | awk '{print $3}')
+echo "Using Task version: ${TASK_VERSION}"
+NODE_VERSION=$(node --version | sed 's/v//')
+echo "Using Node version: ${NODE_VERSION}"
+NPM_VERSION=$(npm --version)
+echo "Using NPM version: ${NPM_VERSION}"
+
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" || true
 done
 
 docker network rm -f kind || true
 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+docker info | grep -i cgroup
 
 # Setup Helm Repos
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
