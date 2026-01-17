@@ -15,6 +15,7 @@ import {
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
+  checkDockerImageExistsInRegistry,
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
@@ -560,8 +561,11 @@ export class NetworkCommand extends BaseCommand {
       for (const consensusNode of config.consensusNodes) {
         // if versions.HEDERA_PLATFORM_VERSION starts with `v`, remove it for semver comparison
         const platformVersion: string = versions.HEDERA_PLATFORM_VERSION.startsWith('v')
-          ? versions.HEDERA_PLATFORM_VERSION.substring(1)
+          ? versions.HEDERA_PLATFORM_VERSION.slice(1)
           : versions.HEDERA_PLATFORM_VERSION;
+
+        this.logger.debug(`Using registry: gcr.io/hedera-registry/consensus-node:${platformVersion}`);
+
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].name=${consensusNode.name}"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.registry=gcr.io"`;
@@ -1162,6 +1166,38 @@ export class NetworkCommand extends BaseCommand {
             ];
 
             return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+          },
+        },
+        {
+          title: 'Verify Docker images',
+          skip: ({config: {s6}}): boolean => !s6,
+          task: async ({config}): Promise<void> => {
+            // Verify Docker images exist in remote registry before deployment
+            const platformVersion: string = versions.HEDERA_PLATFORM_VERSION.startsWith('v')
+              ? versions.HEDERA_PLATFORM_VERSION.slice(1)
+              : versions.HEDERA_PLATFORM_VERSION;
+
+            const imageExists = await new Promise<boolean>(resolve => {
+              try {
+                const result = checkDockerImageExistsInRegistry(
+                  'gcr.io/hedera-registry/consensus-node',
+                  platformVersion,
+                );
+                resolve(result);
+              } catch (error) {
+                this.logger.warn(`Failed to verify Docker image existence: ${error.message}`);
+                resolve(false);
+              }
+            });
+
+            if (!imageExists) {
+              throw new SoloError(
+                `Docker image not found: gcr.io/hedera-registry/consensus-node:${platformVersion}\n` +
+                  'Please verify the image exists and registry access is properly configured.',
+              );
+            }
+
+            this.logger.info(`✅ Verified Docker image: gcr.io/hedera-registry/consensus-node:${platformVersion}`);
           },
         },
         {

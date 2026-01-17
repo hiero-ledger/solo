@@ -550,6 +550,25 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
   }
 }
 
+/**
+ * Check if a Docker image exists in a remote registry
+ * @param imageName The full image name including registry (e.g., "gcr.io/hedera-registry/consensus-node").
+ * @param imageTag The tag of the Docker image (e.g., "0.55.0").
+ * @returns True if the image exists in the remote registry, false otherwise.
+ */
+export function checkDockerImageExistsInRegistry(imageName: string, imageTag: string): boolean {
+  const fullImageName: string = `${imageName}:${imageTag}`;
+  try {
+    // Use docker manifest inspect to check if image exists in remote registry
+    const command: string = `docker manifest inspect ${fullImageName}`;
+    execSync(command, {encoding: 'utf8', stdio: 'pipe'});
+    return true;
+  } catch {
+    // Image not found or registry not accessible
+    return false;
+  }
+}
+
 export function createDirectoryIfNotExists(file: string): void {
   const directory: string = file.slice(0, Math.max(0, file.lastIndexOf('/')));
   if (!fs.existsSync(directory)) {
