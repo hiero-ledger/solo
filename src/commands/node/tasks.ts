@@ -495,7 +495,7 @@ export class NodeCommandTasks {
 
       try {
         const response: string = this.configManager.getFlag<boolean>(flags.s6)
-          ? await container.resolve(NetworkNodes).fetchPodStatusFromHost(podReference)
+          ? await container.resolve(NetworkNodes).fetchPodStatusUsingHostCurl(podReference)
           : await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
@@ -1244,7 +1244,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `cd ${constants.HEDERA_HAPI_PATH}/data/saved && if command -v unzip >/dev/null 2>&1; then unzip -q ${path.basename(zipFile)}; else jar -xf ${path.basename(zipFile)}; fi`,
+            `cd ${constants.HEDERA_HAPI_PATH}/data/saved && if command -v unzip >/dev/null 2>&1; then unzip -o ${path.basename(zipFile)}; else jar -xf ${path.basename(zipFile)}; fi`,
           ]);
 
           // Fix ownership of extracted state files to hedera user
@@ -1668,9 +1668,13 @@ export class NodeCommandTasks {
     };
   }
 
+  // s6 image does not copy essential config files during startup, so we need to copy them manually
   public copyNodeConfigFiles(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'Copy node config files before start',
+      skip: ({config}): boolean => {
+        return this.configManager.getFlag<boolean>(flags.s6);
+      },
       task: (context_, task) => {
         const config = context_.config;
         const nodeAliases = config[nodeAliasesProperty];
@@ -1907,13 +1911,11 @@ export class NodeCommandTasks {
       title: 'Check all nodes are ACTIVE',
       task: (context_, task) => {
         // Add longer delay for s6 image services to start and port-forwarding to stabilize
-        return new Promise(resolve => {
-          setTimeout(async () => {
-            resolve(this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]));
-          }, 15_000); // 15 second delay for s6 image service startup and port forwarding stabilization
-        });
+        if (this.configManager.getFlag<boolean>(flags.s6)) {
+          new Promise(resolve => setTimeout(resolve, 15_000));
+        }
+        return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
-      skip: context_ => !this.configManager.getFlag<boolean>(flags.s6),
     };
   }
 
@@ -3235,9 +3237,9 @@ export class NodeCommandTasks {
         const k8 = this.k8Factory.getK8(context);
         const container = await k8.containers().readByRef(containerReference);
 
-        // Use jar for Java-native compatibility but keep .zip extension for consistency
-        const archiveCommand: string =
-          'cd "${states[0]}" && jar -cf "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
+        const archiveCommand: string = this.configManager.getFlag<boolean>(flags.s6)
+          ? 'cd "${states[0]}" && jar -cf "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"'
+          : 'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // jar the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName = await container.execContainer([
@@ -3286,9 +3288,13 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand = `if command -v unzip >/dev/null 2>&1; then unzip -q ${path.basename(
-          config.lastStateZipPath,
-        )}; else jar -xf ${path.basename(config.lastStateZipPath)}; fi`;
+        let extractCommand: string = '';
+
+        extractCommand = this.configManager.getFlag<boolean>(flags.s6)
+          ? `unzip ${path.basename(config.lastStateZipPath)}`
+          : `if command -v unzip >/dev/null 2>&1; then unzip -o ${path.basename(
+              config.lastStateZipPath,
+            )}; else jar -xf ${path.basename(config.lastStateZipPath)}; fi`;
 
         await k8
           .containers()

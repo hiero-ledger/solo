@@ -141,13 +141,12 @@ export class NetworkNodes {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
-      // Use jar for Java-native compatibility but keep .zip extension for consistency
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
-      // Use jar for Java-native compatibility but keep .zip extension for consistency
+      // use zip if available otherwise use jar
       await k8
         .containers()
         .readByRef(containerReference)
@@ -177,7 +176,7 @@ export class NetworkNodes {
       ]);
   }
 
-  public async fetchPodStatusFromHost(podReference: PodReference): Promise<string> {
+  public async fetchPodStatusUsingHostCurl(podReference: PodReference): Promise<string> {
     const nodeAlias = Templates.extractNodeAliasFromPodName(podReference.name);
     const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
     const localPort = constants.HEDERA_NODE_METRICS_LOCAL_PORT + nodeId;

@@ -142,6 +142,8 @@ export class PlatformInstaller {
 
       const container = k8Containers.readByRef(containerReference);
 
+      // host download platform artifacts first then copy to pod in case curl or wget are not availalble
+      // in the pod image
       const {zipFilePath, checksumFilePath} = await this.downloadPlatformArtifacts(tag);
 
       await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);

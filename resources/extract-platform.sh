@@ -101,6 +101,7 @@ fi
 # extract
 echo "Extracting Hedera platform artifact"
 
+# if unzip is available, use it; otherwise use jar
 extract_with_available_tool() {
   if command -v unzip >/dev/null 2>&1; then
     (
