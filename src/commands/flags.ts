@@ -151,6 +151,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly s6: CommandFlag = {
+    constName: 's6',
+    name: 's6',
+    definition: {
+      describe: 'Enable S6 telemetry extensions (Prometheus scrape config and root image override)',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly predefinedAccounts: CommandFlag = {
     constName: 'predefinedAccounts',
     name: 'predefined-accounts',
@@ -685,7 +696,7 @@ export class Flags {
     name: 'chart-dir',
     definition: {
       describe: 'Local chart directory path (e.g. ~/solo-charts/charts)',
-      defaultValue: '',
+      defaultValue: '../solo-charts/charts',
       type: 'string',
     },
     prompt: async function promptChartDirectory(
@@ -2941,6 +2952,7 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
+    Flags.s6,
     Flags.id,
     Flags.mirrorNodeId,
     Flags.serviceMonitor,

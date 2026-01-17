@@ -33,11 +33,6 @@ on:
         type: string
         required: false
         default: ""
-      solo-charts-branch:
-        description: "Solo-Charts Branch:"
-        type: string
-        required: false
-        default: "s6-support"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -90,11 +85,6 @@ on:
         type: string
         required: false
         default: ""
-      solo-charts-branch:
-        description: "Solo-Charts Branch:"
-        type: string
-        required: false
-        default: "s6-support"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -260,24 +250,6 @@ jobs:
           command: |
             npm ci
 
-      - name: Checkout Solo-Charts Branch
-        if: ${{ env.SOLO_CHARTS_BRANCH != '' }}
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          repository: hashgraph/solo-charts
-          ref: ${{ inputs.solo-charts-branch }}
-          path: solo-charts
-          token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          SOLO_CHARTS_BRANCH: ${{ inputs.solo-charts-branch }}
-
-      - name: Set Solo-Charts Directory
-        if: ${{ env.SOLO_CHARTS_BRANCH != '' }}
-        run: |
-          echo "SOLO_CHARTS_DIR=$(pwd)/solo-charts/charts" >> $GITHUB_ENV
-        env:
-          SOLO_CHARTS_BRANCH: ${{ inputs.solo-charts-branch }}
-
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
@@ -396,12 +368,6 @@ jobs:
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           
-          # Add chart directory to environment if solo-charts branch is provided
-          if [[ -n "$SOLO_CHARTS_DIR" ]]; then
-            echo "SOLO_CHARTS_DIR=$SOLO_CHARTS_DIR" >> .env
-            echo "Using solo-charts from: $SOLO_CHARTS_DIR"
-          fi
-          
           if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
             # Verify cluster connectivity before running tests
             echo "Verifying cluster connectivity..."
@@ -418,21 +384,12 @@ jobs:
           
           cat .env
           
-          # Build chart dependencies if using local charts
-          if [[ -n "$SOLO_CHARTS_DIR" ]]; then
-            echo "Building chart dependencies..."
-            cd "$SOLO_CHARTS_DIR/solo-deployment"
-            helm dependency build
-            cd - > /dev/null
-          fi
-          
           # Start resource monitoring in background
           ./.github/workflows/script/monitor-resources.sh start
           
           # Run the test
           TEST_EXIT_CODE=0
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
-          ps -ef |grep port-forward || true
           
           # Stop resource monitoring and display summary
           ./.github/workflows/script/monitor-resources.sh stop
@@ -478,7 +435,7 @@ jobs:
           if [[ -f "$METRICS_FILE" ]]; then
             echo "Generating ASCII chart from metrics..."
             ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
-            
+          
             if [[ -f "$CHART_FILE" ]]; then
               echo "chart_generated=true" >> $GITHUB_OUTPUT
               echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
@@ -543,7 +500,7 @@ jobs:
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: solo-${{ inputs.test-script }}.log
@@ -553,7 +510,7 @@ jobs:
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        if: ${{ github.event_name != 'workflow_dispatch' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
           path: "junit-${{ inputs.coverage-subdirectory }}.xml"
@@ -562,7 +519,7 @@ jobs:
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        if: ${{ github.event_name != 'workflow_dispatch' && !cancelled() }}
+        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
