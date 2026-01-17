@@ -152,6 +152,20 @@ jobs:
         uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
         with:
           egress-policy: audit
+          allowed-endpoints: >
+            **.svc.cluster.local.dns.podman:443
+            **.gcr.io
+            gcr.io
+            *.gcr.io
+            auth.docker.io
+            registry-1.docker.io
+            *.docker.io
+            github.com:443
+            *.githubusercontent.com:443
+            api.github.com:443
+            *.pkg.github.com:443
+            ghcr.io:443
+            *.ghcr.io:443
 
       - name: Checkout Code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -196,6 +210,39 @@ jobs:
       #            sudo cgclassify --sticky -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Listener' | tr '\n' ' ')
       #            sudo cgclassify -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Worker' | tr '\n' ' ')
       #          echo "::endgroup::"
+
+      - name: Network Connectivity Diagnostics
+        run: |
+          echo "=== Network Connectivity Diagnostics ==="
+          echo "Execution Context: ${{ github.event_name }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Runner: ${{ inputs.runner || 'hiero-solo-linux-large' }}"
+          
+          echo "=== DNS Resolution Tests ==="
+          for registry in "gcr.io" "ghcr.io" "registry-1.docker.io"; do
+            echo "Testing DNS for $registry..."
+            nslookup "$registry" || echo "DNS lookup failed for $registry"
+            dig "$registry" A +short || echo "dig failed for $registry"
+          done
+          
+          echo "=== Network Connectivity Tests ==="
+          for registry in "gcr.io" "ghcr.io" "registry-1.docker.io"; do
+            echo "Testing TCP connectivity to $registry:443..."
+            timeout 10 nc -zv "$registry" 443 || echo "Connection failed to $registry:443"
+          done
+          
+          echo "=== Registry Authentication Tests ==="
+          for registry in "gcr.io/hedera-registry" "ghcr.io"; do
+            echo "Testing registry access: $registry..."
+            docker pull busybox:latest >/dev/null 2>&1 # warm up docker
+            timeout 30 docker manifest inspect "$registry/consensus-node:v0.55.0" >/dev/null 2>&1 \
+              && echo "✅ $registry accessible" \
+              || echo "❌ $registry inaccessible"
+          done
+          
+          echo "=== Environment Variables ==="
+          env | grep -E "(GITHUB_|RUNNER_|CI_)" | sort
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
