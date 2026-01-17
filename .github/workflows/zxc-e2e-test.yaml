@@ -399,17 +399,27 @@ jobs:
       - name: Capture Pod Status
         if: ${{ failure() }}
         run: |
+          POD_DIAG_DIR="$HOME/.solo/logs/diagnostics/pods"
+          mkdir -p "${POD_DIAG_DIR}"
+          
           echo "Capturing pod status snapshot..."
-          kubectl get pods --all-namespaces -o wide || true
+          kubectl get pods --all-namespaces -o wide | tee "${POD_DIAG_DIR}/pod-status.txt" || true
+          
           echo "Detailed pod phase report:"
-          kubectl get pods --all-namespaces -o json | jq '[.items[] | {name: .metadata.name, namespace: .metadata.namespace, phase: .status.phase, ready: (.status.conditions // [] | map(select(.type=="Ready"))[0].status)}]' || true
+          kubectl get pods --all-namespaces -o json \
+            | jq '[.items[] | {name: .metadata.name, namespace: .metadata.namespace, phase: .status.phase, ready: (.status.conditions // [] | map(select(.type=="Ready"))[0].status)}]' \
+            | tee "${POD_DIAG_DIR}/pod-phase.json" || true
 
       - name: Capture Helm Release Values
         if: ${{ failure() }}
         run: |
+          HELM_DIAG_DIR="$HOME/.solo/logs/diagnostics/helm"
+          mkdir -p "${HELM_DIAG_DIR}"
+          
           echo "Capturing Helm releases..."
-          helm list --all-namespaces || true
+          helm list --all-namespaces | tee "${HELM_DIAG_DIR}/helm-list.txt" || true
           releases_json=$(helm list --all-namespaces -o json || echo "[]")
+          echo "${releases_json}" > "${HELM_DIAG_DIR}/helm-list.json"
           release_count=$(echo "${releases_json}" | jq 'length')
           if [[ "${release_count}" -eq 0 ]]; then
             echo "No Helm releases found."
@@ -418,7 +428,7 @@ jobs:
               name=$(echo "${release}" | jq -r '.name')
               namespace=$(echo "${release}" | jq -r '.namespace')
               echo "::group::helm get all ${name} (namespace: ${namespace})"
-              helm get all "${name}" --namespace "${namespace}" || true
+              helm get all "${name}" --namespace "${namespace}" | tee "${HELM_DIAG_DIR}/helm-${namespace}-${name}.txt" || true
               echo "::endgroup::"
             done
           fi
