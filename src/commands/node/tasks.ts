@@ -1249,7 +1249,8 @@ export class NodeCommandTasks {
 
           // Fix ownership of extracted state files to hedera user
           // NOTE: zip/jar doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
-          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.          // The chown is required so the hedera process can access the extracted state files.
+          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
+          // The chown is required so the hedera process can access the extracted state files.
           self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
           await container.execContainer([
             'bash',
@@ -1669,7 +1670,7 @@ export class NodeCommandTasks {
   }
 
   // s6 image does not copy essential config files during startup, so we need to copy them manually
-  public copyNodeConfigFiles(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+  public copyNodeConfigFiles(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Copy node config files before start',
       skip: ({config}): boolean => {
@@ -1791,7 +1792,7 @@ export class NodeCommandTasks {
           });
         }
 
-        // Add metrics port forwarding for all nodes at the end so it never gets skipped
+        // For s6 image, add metrics port forwarding for all nodes
         subTasks.push({
           title: 'Enable metrics port forwarding for all nodes',
           // only skip if s6 defined
@@ -1846,8 +1847,6 @@ export class NodeCommandTasks {
                 aliasNodeId,
               );
             }
-
-            console.log('=== startNodes TASK COMPLETED (with metrics port forwarding) ===');
           },
         });
 
@@ -1912,7 +1911,7 @@ export class NodeCommandTasks {
       task: (context_, task) => {
         // Add longer delay for s6 image services to start and port-forwarding to stabilize
         if (this.configManager.getFlag<boolean>(flags.s6)) {
-          new Promise(resolve => setTimeout(resolve, 15_000));
+          new Promise(resolve => setTimeout(resolve, 120_000));
         }
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
@@ -3241,7 +3240,7 @@ export class NodeCommandTasks {
           ? 'cd "${states[0]}" && jar -cf "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"'
           : 'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
-        // jar the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
+        // compress the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName = await container.execContainer([
           'bash',
           '-c',
@@ -3288,13 +3287,9 @@ export class NodeCommandTasks {
           context,
         );
 
-        let extractCommand: string = '';
-
-        extractCommand = this.configManager.getFlag<boolean>(flags.s6)
+        const extractCommand: string = this.configManager.getFlag<boolean>(flags.s6)
           ? `unzip ${path.basename(config.lastStateZipPath)}`
-          : `if command -v unzip >/dev/null 2>&1; then unzip -o ${path.basename(
-              config.lastStateZipPath,
-            )}; else jar -xf ${path.basename(config.lastStateZipPath)}; fi`;
+          : `jar -xf ${path.basename(config.lastStateZipPath)}`;
 
         await k8
           .containers()

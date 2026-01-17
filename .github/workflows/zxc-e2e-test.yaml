@@ -414,9 +414,7 @@ jobs:
             | tee "${POD_DIAG_DIR}/pod-phase.json" || true
           
           echo "Capturing pod events for debugging..."
-          kubectl describe pod --all-namespaces -o json \
-            | jq '[.items[] | {name: .metadata.name, namespace: .metadata.namespace} | select(.status.phase=="Failed" or .status.phase=="Pending") | {name, namespace: .metadata.namespace, events: .status.conditions[]?}' \
-            | tee "${POD_DIAG_DIR}/pod-events.json" || true
+          kubectl describe pods --all-namespaces | tee "${POD_DIAG_DIR}/pod-events.txt" || true
 
       - name: Capture Helm Release Values
         if: ${{ failure() }}
