@@ -547,9 +547,9 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.s6) {
       for (const clusterReference of clusterReferences) {
-        const existingArgs: string = valuesArguments[clusterReference] ?? '';
+        const existingArguments: string = valuesArguments[clusterReference] ?? '';
         valuesArguments[clusterReference] =
-          `${existingArgs}` +
+          `${existingArguments}` +
           ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node"' +
           ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].static_configs[0].targets[0]=0.0.0:9999"' +
           ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].scrape_interval=5s"' +

@@ -2,7 +2,7 @@
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {HEDERA_HAPI_PATH, LOG_CONFIG_ZIP_SUFFIX, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
+import {HEDERA_HAPI_PATH, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
 import fs from 'node:fs';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
@@ -154,7 +154,7 @@ export class NetworkNodes {
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && jar -cf ${zipFileName} . && sync && test -f ${zipFileName})`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && (command -v zip >/dev/null 2>&1 && zip -r ${zipFileName} . || jar -cf ${zipFileName} .) && sync && test -f ${zipFileName})`,
         ]);
       await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
@@ -166,11 +166,18 @@ export class NetworkNodes {
   }
 
   public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {
-    void context; // Host fetch does not require kube context, keep signature parity
-    return await this.fetchPodStatusFromHost(podReference);
+    return this.k8Factory
+      .getK8(context)
+      .containers()
+      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+      .execContainer([
+        'bash',
+        '-c',
+        String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
+      ]);
   }
 
-  private async fetchPodStatusFromHost(podReference: PodReference): Promise<string> {
+  public async fetchPodStatusFromHost(podReference: PodReference): Promise<string> {
     const nodeAlias = Templates.extractNodeAliasFromPodName(podReference.name);
     const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
     const localPort = constants.HEDERA_NODE_METRICS_LOCAL_PORT + nodeId;

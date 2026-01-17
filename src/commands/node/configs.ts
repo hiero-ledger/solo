@@ -572,6 +572,7 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
+      's6',
     ]) as NodeStartConfigClass;
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();

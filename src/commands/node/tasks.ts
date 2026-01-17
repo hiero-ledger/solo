@@ -494,7 +494,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response: string = await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
+        const response: string = this.configManager.getFlag<boolean>(flags.s6)
+          ? await container.resolve(NetworkNodes).fetchPodStatusFromHost(podReference)
+          : await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -1242,12 +1244,12 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `cd ${constants.HEDERA_HAPI_PATH}/data/saved && jar -xf ${path.basename(zipFile)}`,
+            `cd ${constants.HEDERA_HAPI_PATH}/data/saved && if command -v unzip >/dev/null 2>&1; then unzip -q ${path.basename(zipFile)}; else jar -xf ${path.basename(zipFile)}; fi`,
           ]);
 
           // Fix ownership of extracted state files to hedera user
-          // NOTE: jar doesn't preserve Unix ownership - files are owned by whoever runs jar (root).
-          // The chown is required so the hedera process can access the extracted state files.
+          // NOTE: zip/jar doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
+          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.          // The chown is required so the hedera process can access the extracted state files.
           self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
           await container.execContainer([
             'bash',
@@ -1634,14 +1636,14 @@ export class NodeCommandTasks {
               );
 
               if (!fs.existsSync(stagingDirectory)) {
-              await this.profileManager.prepareStagingDirectory(
-                consensusNodes,
-                nodeAliases,
-                yamlRoot,
-                emptyDomainNamesMapping,
-                deploymentName,
-                applicationPropertiesPath,
-              );
+                await this.profileManager.prepareStagingDirectory(
+                  consensusNodes,
+                  nodeAliases,
+                  yamlRoot,
+                  emptyDomainNamesMapping,
+                  deploymentName,
+                  applicationPropertiesPath,
+                );
               }
             },
           },
@@ -1699,7 +1701,7 @@ export class NodeCommandTasks {
                 const lines = rawResult?.split('\n') ?? [];
                 let exitLine: string | undefined;
                 while (lines.length > 0) {
-                  const candidate = lines[lines.length - 1].trim();
+                  const candidate = lines.at(-1).trim();
                   if (candidate.length === 0) {
                     lines.pop();
                     continue;
@@ -1764,10 +1766,23 @@ export class NodeCommandTasks {
             task: async () => {
               const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8 = this.k8Factory.getK8(context);
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer(['bash', '-c', '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus']);
+              await (this.configManager.getFlag<boolean>(flags.s6)
+                ? k8
+                    .containers()
+                    .readByRef(containerReference)
+                    .execContainer([
+                      'bash',
+                      '-c',
+                      '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus',
+                    ])
+                : k8
+                    .containers()
+                    .readByRef(containerReference)
+                    .execContainer([
+                      'bash',
+                      '-c',
+                      'systemctl stop network-node || true && systemctl enable --now network-node',
+                    ]));
             },
           });
         }
@@ -1775,10 +1790,14 @@ export class NodeCommandTasks {
         // Add metrics port forwarding for all nodes at the end so it never gets skipped
         subTasks.push({
           title: 'Enable metrics port forwarding for all nodes',
+          // only skip if s6 defined
+          skip: () => {
+            return !this.configManager.getFlag<boolean>(flags.s6);
+          },
           task: async () => {
             // Wait for Java processes to start up before enabling port forwarding for metrics server
-            await new Promise(resolve => setTimeout(resolve, 60000));
-            
+            await new Promise(resolve => setTimeout(resolve, 60_000));
+
             let nodeAliasesArray;
             if (config.allNodeAliases) {
               nodeAliasesArray = Array.isArray(config.allNodeAliases) ? config.allNodeAliases : [config.allNodeAliases];
@@ -1878,8 +1897,6 @@ export class NodeCommandTasks {
           );
           await this.remoteConfig.persist();
         }
-
-        console.log('=== enablePortForwarding TASK COMPLETED ===');
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
     };
@@ -1896,6 +1913,7 @@ export class NodeCommandTasks {
           }, 15_000); // 15 second delay for s6 image service startup and port forwarding stabilization
         });
       },
+      skip: context_ => !this.configManager.getFlag<boolean>(flags.s6),
     };
   }
 
@@ -2067,16 +2085,23 @@ export class NodeCommandTasks {
             // stop service, and kill java process
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
-              task: async () =>
-                await this.k8Factory
-                  .getK8(context)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer([
-                    'bash',
-                    '-c',
-                    'set -euo pipefail; /command/s6-rc -d stop consensus && /command/s6-svc -O /run/service/consensus && for pid in $(ls /proc | grep -E "^[0-9]+$"); do if [ "$(cat /proc/$pid/comm 2>/dev/null)" = "java" ]; then kill $pid 2>/dev/null || true; fi; done',
-                  ]),
+              task: async () => {
+                await (this.configManager.getFlag<boolean>(flags.s6)
+                  ? this.k8Factory
+                      .getK8(context)
+                      .containers()
+                      .readByRef(containerReference)
+                      .execContainer([
+                        'bash',
+                        '-c',
+                        'set -euo pipefail; /command/s6-rc -d stop consensus && /command/s6-svc -O /run/service/consensus && for pid in $(ls /proc | grep -E "^[0-9]+$"); do if [ "$(cat /proc/$pid/comm 2>/dev/null)" = "java" ]; then kill $pid 2>/dev/null || true; fi; done',
+                      ])
+                  : this.k8Factory
+                      .getK8(context)
+                      .containers()
+                      .readByRef(containerReference)
+                      .execContainer(['bash', '-c', 'systemctl disable --now network-node']));
+              },
             });
           }
         }
@@ -3261,7 +3286,9 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand = `jar -xf ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand = `if command -v unzip >/dev/null 2>&1; then unzip -q ${path.basename(
+          config.lastStateZipPath,
+        )}; else jar -xf ${path.basename(config.lastStateZipPath)}; fi`;
 
         await k8
           .containers()

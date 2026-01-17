@@ -102,7 +102,13 @@ fi
 echo "Extracting Hedera platform artifact"
 
 extract_with_available_tool() {
-  if command -v jar >/dev/null 2>&1; then
+  if command -v unzip >/dev/null 2>&1; then
+    (
+      cd /tmp/extract || exit 1
+      unzip -q "${BUILD_ZIP_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
+    )
+    return $?
+  elif command -v jar >/dev/null 2>&1; then
     (
       cd /tmp/extract || exit 1
       jar -xf "${BUILD_ZIP_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
@@ -110,7 +116,7 @@ extract_with_available_tool() {
     return $?
   fi
 
-  log "jar command is not available to extract ${BUILD_ZIP_FILE}"
+  log "Neither unzip nor jar command is available to extract ${BUILD_ZIP_FILE}"
   return 127
 }
 
