@@ -22,7 +22,7 @@ on:
         description: "Consensus Node Version:"
         type: string
         required: false
-        default: "v0.66.0"
+        default: "v0.67.2"
       skip-unit-and-coverage:
         description: "Skip Unit Tests and Coverage"
         type: boolean
