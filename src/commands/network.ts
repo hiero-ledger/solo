@@ -131,6 +131,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
+  s6: boolean;
 }
 
 interface NetworkDeployContext {
@@ -228,6 +229,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.s6,
     ],
   };
 
@@ -543,6 +545,27 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
+    if (config.s6) {
+      for (const clusterReference of clusterReferences) {
+        const existingArgs: string = valuesArguments[clusterReference] ?? '';
+        valuesArguments[clusterReference] =
+          `${existingArgs}` +
+          ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node"' +
+          ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].static_configs[0].targets[0]=0.0.0:9999"' +
+          ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].scrape_interval=5s"' +
+          ' --set "sidecars.service.pipelines.metrics.receivers[0]=otlp"' +
+          ' --set "sidecars.service.pipelines.metrics.receivers[1]=prometheus"';
+      }
+
+      for (const consensusNode of config.consensusNodes) {
+        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.registry=gcr.io"`;
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.tag=${versions.HEDERA_PLATFORM_VERSION}"`;
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.repository=hedera-registry/consensus-node"`;
+        valuesArguments[consensusNode.cluster] = valuesArgument;
+      }
+    }
+
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ' --install' +
@@ -835,6 +858,7 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
+    config.s6 = this.configManager.getFlag(flags.s6);
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 

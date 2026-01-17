@@ -696,7 +696,7 @@ export class Flags {
     name: 'chart-dir',
     definition: {
       describe: 'Local chart directory path (e.g. ~/solo-charts/charts)',
-      defaultValue: '../solo-charts/charts',
+      defaultValue: '',
       type: 'string',
     },
     prompt: async function promptChartDirectory(
