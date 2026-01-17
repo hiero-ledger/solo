@@ -559,6 +559,7 @@ export class NetworkCommand extends BaseCommand {
 
       for (const consensusNode of config.consensusNodes) {
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].name=${consensusNode.name}"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.registry=gcr.io"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.tag=${versions.HEDERA_PLATFORM_VERSION}"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.repository=hedera-registry/consensus-node"`;
