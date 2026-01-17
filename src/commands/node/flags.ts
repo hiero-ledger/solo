@@ -59,7 +59,7 @@ export const UPGRADE_FLAGS = {
 };
 
 export const UPGRADE_PREPARE_FLAGS = {
-  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir],
+  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir, flags.upgradeVersion],
   optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 

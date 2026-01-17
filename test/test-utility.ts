@@ -58,9 +58,6 @@ import {type CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
-import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
-import {HEDERA_PLATFORM_VERSION} from '../version.js';
-import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -70,6 +67,7 @@ import {DeploymentCommandDefinition} from '../src/commands/command-definitions/d
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
+import {type CommandFlag} from '../src/types/flag-types.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -590,47 +588,7 @@ async function addKeyHashToMap(
   keyHashMap.set(privateKeyFileName, crypto.createHash('sha256').update(keyString).digest('base64'));
 }
 
-export const testLocalConfigData = {
-  userIdentity: {
-    name: 'john',
-    host: 'doe',
-  },
-  soloVersion: '1.0.0',
-  deployments: {
-    deployment: {
-      clusters: ['cluster-1'],
-      namespace: 'solo-e2e',
-      realm: 0,
-      shard: 0,
-    },
-    'deployment-2': {
-      clusters: ['cluster-2'],
-      namespace: 'solo-2',
-      realm: 0,
-      shard: 0,
-    },
-    'deployment-3': {
-      clusters: ['cluster-3'],
-      namespace: 'solo-3',
-      realm: 0,
-      shard: 0,
-    },
-  },
-  clusterRefs: {
-    'cluster-1': 'context-1',
-    'cluster-2': 'context-2',
-  },
-};
-
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
-
-export function hederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
-}
-
-export function localHederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
-}
 
 export function destroyEnabled(): boolean {
   const destroyEnabledEnvironment: boolean = process.env.SOLO_E2E_DESTROY !== 'false';
@@ -638,4 +596,21 @@ export function destroyEnabled(): boolean {
     console.log('Skipping destroy of test namespace as SOLO_E2E_DESTROY is set to false');
   }
   return destroyEnabledEnvironment;
+}
+
+export function buildMainArgv(
+  testName: string,
+  command: string,
+  subCommand: string,
+  action: string,
+  flagsAndValues: Map<CommandFlag, string> = new Map<CommandFlag, string>(),
+): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push(command, subCommand, action);
+  for (const [flag, value] of flagsAndValues.entries()) {
+    argv.push(optionFromFlag(flag), value);
+  }
+  argvPushGlobalFlags(argv, testName);
+  return argv;
 }

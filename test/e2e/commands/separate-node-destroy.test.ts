@@ -11,50 +11,65 @@ import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js
 import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {main} from '../../../src/index.js';
+import {buildMainArgv} from '../../test-utility.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {type DeploymentName} from '../../../src/types/index.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   const nodeAlias: NodeAlias = 'node1';
-
-  argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
-  argv.setArg(flags.nodeAlias, nodeAlias);
-
   const temporaryDirectory: string = 'contextDir';
-  const argvPrepare: Argv = argv.clone();
-  argvPrepare.setArg(flags.outputDir, temporaryDirectory);
-
-  const argvExecute: Argv = argv.clone();
-  argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
   const {
-    opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
-    cmd: {nodeCmd},
+    opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
   describe('Node delete via separated commands', async (): Promise<void> => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyPrepare(argv),
-      });
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.outputDir, temporaryDirectory],
+            [flags.nodeAlias, nodeAlias],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroySubmitTransactions(argv),
-      });
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.inputDir, temporaryDirectory],
+            [flags.nodeAlias, nodeAlias],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyExecute(argv),
-      });
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.inputDir, temporaryDirectory],
+            [flags.nodeAlias, nodeAlias],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
