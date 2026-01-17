@@ -558,10 +558,14 @@ export class NetworkCommand extends BaseCommand {
       }
 
       for (const consensusNode of config.consensusNodes) {
+        // if versions.HEDERA_PLATFORM_VERSION starts with `v`, remove it for semver comparison
+        const platformVersion: string = versions.HEDERA_PLATFORM_VERSION.startsWith('v')
+          ? versions.HEDERA_PLATFORM_VERSION.substring(1)
+          : versions.HEDERA_PLATFORM_VERSION;
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        // valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].name=${consensusNode.name}"`;
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].name=${consensusNode.name}"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.registry=gcr.io"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.tag=${versions.HEDERA_PLATFORM_VERSION}"`;
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.tag=${platformVersion}"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.repository=hedera-registry/consensus-node"`;
         valuesArguments[consensusNode.cluster] = valuesArgument;
       }
