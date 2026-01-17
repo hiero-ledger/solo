@@ -387,6 +387,9 @@ jobs:
           # Start resource monitoring in background
           ./.github/workflows/script/monitor-resources.sh start
          
+          echo "Checking for cached hedera-registry images on runner..."
+          docker images | grep hedera-registry || echo "No hedera-registry images found"
+         
           # Run the test
           TEST_EXIT_CODE=0
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
@@ -405,7 +408,7 @@ jobs:
           echo "Capturing pod status snapshot..."
           kubectl get pods --all-namespaces -o wide | tee "${POD_DIAG_DIR}/pod-status.txt" || true
           
-          echo "Detailed pod phase report:"
+          echo "Detailed pod phase report..."
           kubectl get pods --all-namespaces -o json \
             | jq '[.items[] | {name: .metadata.name, namespace: .metadata.namespace, phase: .status.phase, ready: (.status.conditions // [] | map(select(.type=="Ready"))[0].status)}]' \
             | tee "${POD_DIAG_DIR}/pod-phase.json" || true
