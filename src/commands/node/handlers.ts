@@ -136,6 +136,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private addExecuteTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+      this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.addNewConsensusNodeToRemoteConfig(),
@@ -184,6 +185,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private updateExecuteTasks(): SoloListrTask<NodeUpdateContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+      this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.copyNodeKeysToSecrets(),
@@ -228,6 +230,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private upgradeExecuteTasks(): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+      this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),

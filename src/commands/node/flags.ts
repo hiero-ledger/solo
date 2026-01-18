@@ -107,7 +107,13 @@ export const UPDATE_SUBMIT_TRANSACTIONS_FLAGS = {
 
 export const UPDATE_EXECUTE_FLAGS = {
   required: [...COMMON_UPDATE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS, flags.adminKey, flags.newAdminKey, flags.newAccountNumber, flags.s6],
+  optional: [
+    ...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS,
+    flags.adminKey,
+    flags.newAdminKey,
+    flags.newAccountNumber,
+    flags.s6,
+  ],
 };
 
 const COMMON_DESTROY_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
@@ -242,7 +248,7 @@ export const STOP_FLAGS = {
 
 export const FREEZE_FLAGS = {
   required: [flags.deployment],
-  optional: [flags.quiet],
+  optional: [flags.quiet, flags.s6],
 };
 
 export const START_FLAGS = {

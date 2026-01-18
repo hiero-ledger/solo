@@ -1771,23 +1771,18 @@ export class NodeCommandTasks {
             task: async () => {
               const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const k8 = this.k8Factory.getK8(context);
+              const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
               await (this.configManager.getFlag<boolean>(flags.s6)
-                ? k8
-                    .containers()
-                    .readByRef(containerReference)
-                    .execContainer([
-                      'bash',
-                      '-c',
-                      '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus',
-                    ])
-                : k8
-                    .containers()
-                    .readByRef(containerReference)
-                    .execContainer([
-                      'bash',
-                      '-c',
-                      'systemctl stop network-node || true && systemctl enable --now network-node',
-                    ]));
+                ? container.execContainer([
+                    'bash',
+                    '-c',
+                    '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus',
+                  ])
+                : container.execContainer([
+                    'bash',
+                    '-c',
+                    'systemctl stop network-node || true && systemctl enable --now network-node',
+                  ]));
             },
           });
         }
@@ -2083,25 +2078,15 @@ export class NodeCommandTasks {
             const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
             const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
-            // stop service, and kill java process
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
-                await (this.configManager.getFlag<boolean>(flags.s6)
-                  ? this.k8Factory
-                      .getK8(context)
-                      .containers()
-                      .readByRef(containerReference)
-                      .execContainer([
-                        'bash',
-                        '-c',
-                        'set -euo pipefail; /command/s6-rc -d stop consensus && /command/s6-svc -O /run/service/consensus && for pid in $(ls /proc | grep -E "^[0-9]+$"); do if [ "$(cat /proc/$pid/comm 2>/dev/null)" = "java" ]; then kill $pid 2>/dev/null || true; fi; done',
-                      ])
-                  : this.k8Factory
-                      .getK8(context)
-                      .containers()
-                      .readByRef(containerReference)
-                      .execContainer(['bash', '-c', 'systemctl disable --now network-node']));
+                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+                await container.execContainer(
+                  this.configManager.getFlag<boolean>(flags.s6)
+                    ? ['bash', '-c', '/command/s6-rc -d stop consensus && /command/s6-svc -O /run/service/consensus']
+                    : ['bash', '-c', 'systemctl disable --now network-node'],
+                );
               },
             });
           }
