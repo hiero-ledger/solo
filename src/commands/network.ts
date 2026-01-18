@@ -438,9 +438,25 @@ export class NetworkCommand extends BaseCommand {
     const valuesArguments: Record<ClusterReferenceName, string> = {};
     const clusterReferences: ClusterReferenceName[] = [];
     let extraEnvironmentIndex: number = 0;
+    const uniqueConsensusNodes: ConsensusNode[] = [];
+    const seenNodes: Set<string> = new Set();
+    const nodeIndexByClusterAndName: Map<string, number> = new Map();
+    const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+
+    for (const consensusNode of config.consensusNodes) {
+      const nodeKey = `${consensusNode.cluster}:${consensusNode.nodeId}`;
+      if (seenNodes.has(nodeKey)) {
+        continue;
+      }
+      seenNodes.add(nodeKey);
+      uniqueConsensusNodes.push(consensusNode);
+      const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+      nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+      nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+    }
 
     // initialize the valueArgs
-    for (const consensusNode of config.consensusNodes) {
+    for (const consensusNode of uniqueConsensusNodes) {
       // add the cluster to the list of clusters
       if (!clusterReferences[consensusNode.cluster]) {
         clusterReferences.push(consensusNode.cluster);
@@ -453,14 +469,20 @@ export class NetworkCommand extends BaseCommand {
       } else {
         extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
         valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
 
     // add debug options to the debug node
-    config.consensusNodes.filter((consensusNode): void => {
+    uniqueConsensusNodes.filter((consensusNode): void => {
       if (consensusNode.name === config.debugNodeAlias) {
         valuesArguments[consensusNode.cluster] = addDebugOptions(
           valuesArguments[consensusNode.cluster],
@@ -549,16 +571,21 @@ export class NetworkCommand extends BaseCommand {
     if (config.s6) {
       for (const clusterReference of clusterReferences) {
         const existingArguments: string = valuesArguments[clusterReference] ?? '';
-        valuesArguments[clusterReference] =
-          `${existingArguments}` +
-          ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node"' +
-          ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].static_configs[0].targets[0]=0.0.0:9999"' +
-          ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].scrape_interval=5s"' +
-          ' --set "sidecars.service.pipelines.metrics.receivers[0]=otlp"' +
-          ' --set "sidecars.service.pipelines.metrics.receivers[1]=prometheus"';
+        const s6SidecarMarker = 'sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node';
+        if (!existingArguments.includes(s6SidecarMarker)) {
+          valuesArguments[clusterReference] =
+            `${existingArguments}` +
+            ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node"' +
+            ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].static_configs[0].targets[0]=0.0.0:9999"' +
+            ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].scrape_interval=5s"' +
+            ' --set "sidecars.service.pipelines.metrics.receivers[0]=otlp"' +
+            ' --set "sidecars.service.pipelines.metrics.receivers[1]=prometheus"';
+        } else {
+          valuesArguments[clusterReference] = existingArguments;
+        }
       }
 
-      for (const consensusNode of config.consensusNodes) {
+      for (const consensusNode of uniqueConsensusNodes) {
         // if versions.HEDERA_PLATFORM_VERSION starts with `v`, remove it for semver comparison
         const platformVersion: string = versions.HEDERA_PLATFORM_VERSION.startsWith('v')
           ? versions.HEDERA_PLATFORM_VERSION.slice(1)
@@ -566,11 +593,17 @@ export class NetworkCommand extends BaseCommand {
 
         this.logger.debug(`Using registry: gcr.io/hedera-registry/consensus-node:${platformVersion}`);
 
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].name=${consensusNode.name}"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.registry=gcr.io"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.tag=${platformVersion}"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.image.repository=hedera-registry/consensus-node"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.registry=gcr.io"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.tag=${platformVersion}"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.repository=hedera-registry/consensus-node"`;
         valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
@@ -590,17 +623,19 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for HAProxy
     this.addArgForEachRecord(
       config.haproxyIpsParsed,
-      config.consensusNodes,
+      uniqueConsensusNodes,
       valuesArguments,
       ' --set "hedera.nodes[${nodeId}].haproxyStaticIP=${recordValue}"',
+      nodeIndexByClusterAndName,
     );
 
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addArgForEachRecord(
       config.envoyIpsParsed,
-      config.consensusNodes,
+      uniqueConsensusNodes,
       valuesArguments,
       ' --set "hedera.nodes[${nodeId}].envoyProxyStaticIP=${recordValue}"',
+      nodeIndexByClusterAndName,
     );
 
     if (config.resolvedThrottlesFile) {
@@ -722,11 +757,17 @@ export class NetworkCommand extends BaseCommand {
     consensusNodes: ConsensusNode[],
     valuesArguments: Record<ClusterReferenceName, string>,
     templateString: string,
+    nodeIndexByClusterAndName?: Map<string, number>,
   ): void {
     if (records) {
       for (const consensusNode of consensusNodes) {
         if (records[consensusNode.name]) {
-          const newTemplateString: string = templateString.replace('{nodeId}', consensusNode.nodeId.toString());
+          const nodeIndex: number | undefined = nodeIndexByClusterAndName?.get(
+            `${consensusNode.cluster}:${consensusNode.name}`,
+          );
+          const nodeIdString: string =
+            nodeIndex === undefined ? consensusNode.nodeId.toString() : nodeIndex.toString();
+          const newTemplateString: string = templateString.replace('{nodeId}', nodeIdString);
           valuesArguments[consensusNode.cluster] += newTemplateString.replace(
             '{recordValue}',
             records[consensusNode.name],
