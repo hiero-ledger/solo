@@ -1773,11 +1773,7 @@ export class NodeCommandTasks {
               const k8 = this.k8Factory.getK8(context);
               const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
               await (this.configManager.getFlag<boolean>(flags.s6)
-                ? container.execContainer([
-                    'bash',
-                    '-c',
-                    '/command/s6-svc -u /run/service/consensus',
-                  ])
+                ? container.execContainer(['bash', '-c', '/command/s6-svc -u /run/service/consensus'])
                 : container.execContainer([
                     'bash',
                     '-c',
@@ -2092,7 +2088,11 @@ export class NodeCommandTasks {
 
                   // Check if the service actually stopped
                   try {
-                    const serviceStatus = await container.execContainer(['bash', '-c', '/command/s6-svstat /run/service/consensus']);
+                    const serviceStatus = await container.execContainer([
+                      'bash',
+                      '-c',
+                      '/command/s6-svstat /run/service/consensus',
+                    ]);
 
                     if (serviceStatus.includes('up') || serviceStatus.includes('want down')) {
                       this.logger.warn(`Service still running or in bad state for ${nodeAlias}, forcing stop`);
@@ -2140,7 +2140,9 @@ export class NodeCommandTasks {
                       }
 
                       if (pidsToKill.size > 0) {
-                        this.logger.debug(`Found Java processes holding ports for ${nodeAlias}: ${Array.from(pidsToKill).join(', ')}`);
+                        this.logger.debug(
+                          `Found Java processes holding ports for ${nodeAlias}: ${[...pidsToKill].join(', ')}`,
+                        );
 
                         // Kill each PID with multiple methods
                         for (const pid of pidsToKill) {
@@ -2171,11 +2173,17 @@ export class NodeCommandTasks {
                           ]);
 
                           if (finalPortCheck.trim()) {
-                            this.logger.warn(`Ports still in use after kill attempts for ${nodeAlias}: ${finalPortCheck}`);
+                            this.logger.warn(
+                              `Ports still in use after kill attempts for ${nodeAlias}: ${finalPortCheck}`,
+                            );
 
                             // Last resort: kill all processes matching specific patterns
                             try {
-                              await container.execContainer(['bash', '-c', 'ps aux | grep java | grep -v grep | awk \'{print $2}\' | xargs -r kill -9 2>/dev/null || true']);
+                              await container.execContainer([
+                                'bash',
+                                '-c',
+                                "ps aux | grep java | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true",
+                              ]);
                               this.logger.debug(`Executed ps-based java process cleanup for ${nodeAlias}`);
                               await new Promise(resolve => setTimeout(resolve, 500));
                             } catch (error) {
@@ -2198,7 +2206,11 @@ export class NodeCommandTasks {
 
                     // Fallback: Try to kill any java processes using ps
                     try {
-                      await container.execContainer(['bash', '-c', 'ps aux | grep java | grep -v grep | awk \'{print $2}\' | xargs -r kill -9 2>/dev/null || true']);
+                      await container.execContainer([
+                        'bash',
+                        '-c',
+                        "ps aux | grep java | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true",
+                      ]);
                       this.logger.debug(`Executed fallback ps-based java process cleanup for ${nodeAlias}`);
                     } catch (fallbackError) {
                       this.logger.debug(`Fallback cleanup also failed for ${nodeAlias}: ${fallbackError.message}`);
