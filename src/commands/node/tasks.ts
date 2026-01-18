@@ -2957,6 +2957,7 @@ export class NodeCommandTasks {
               clusterNodeIndexMap,
               (config as NodeUpdateConfigClass).newAccountNumber,
               config.nodeAlias,
+              (config as NodeUpdateConfigClass).releaseTag,
             );
             break;
           }
@@ -2967,6 +2968,7 @@ export class NodeCommandTasks {
               config.nodeAlias,
               config.serviceMap,
               clusterReferences,
+              (config as NodeDestroyConfigClass).releaseTag,
             );
             break;
           }
@@ -2981,6 +2983,7 @@ export class NodeCommandTasks {
               config.nodeAlias,
               (context_ as NodeAddContext).newNode,
               config as NodeAddConfigClass,
+              (config as NodeAddConfigClass).releaseTag,
             );
             break;
           }
@@ -3063,6 +3066,7 @@ export class NodeCommandTasks {
     clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     newAccountNumber: string,
     nodeAlias: NodeAlias,
+    releaseTag: string,
   ): void {
     for (const consensusNode of consensusNodes) {
       const clusterReference: string = consensusNode.cluster;
@@ -3076,6 +3080,7 @@ export class NodeCommandTasks {
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+      this.appendS6ImageOverrides(valuesArgumentMap, clusterReference, index, releaseTag);
     }
   }
 
@@ -3099,6 +3104,7 @@ export class NodeCommandTasks {
       envoyIps?: string;
       envoyIpsParsed?: Record<NodeAlias, IP>;
     },
+    releaseTag: string,
   ): void {
     // Add existing nodes
     for (const node of consensusNodes) {
@@ -3111,6 +3117,7 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+      this.appendS6ImageOverrides(valuesArgumentMap, node.cluster, index, releaseTag);
     }
 
     // Add new node
@@ -3119,6 +3126,7 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
+    this.appendS6ImageOverrides(valuesArgumentMap, clusterReference, index, releaseTag);
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3150,6 +3158,7 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterReferences: ClusterReferences,
+    releaseTag: string,
   ): void {
     for (const [clusterReference] of clusterReferences) {
       const nodesInCluster: ConsensusNode[] = consensusNodes
@@ -3170,6 +3179,7 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+        this.appendS6ImageOverrides(valuesArgumentMap, clusterReference, index, releaseTag);
 
         index++;
       }
@@ -3177,6 +3187,25 @@ export class NodeCommandTasks {
 
     // now remove the deleted node from the serviceMap
     serviceMap.delete(nodeAlias);
+  }
+
+  private appendS6ImageOverrides(
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    clusterReference: ClusterReferenceName,
+    index: number,
+    releaseTag: string,
+  ): void {
+    if (!this.configManager.getFlag<boolean>(flags.s6)) {
+      return;
+    }
+    const platformVersion: string = releaseTag?.startsWith('v') ? releaseTag.slice(1) : releaseTag;
+    if (!platformVersion) {
+      return;
+    }
+    valuesArgumentMap[clusterReference] +=
+      ` --set "hedera.nodes[${index}].root.image.registry=gcr.io"` +
+      ` --set "hedera.nodes[${index}].root.image.tag=${platformVersion}"` +
+      ` --set "hedera.nodes[${index}].root.image.repository=hedera-registry/consensus-node"`;
   }
 
   public saveContextData(

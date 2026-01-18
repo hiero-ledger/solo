@@ -571,18 +571,16 @@ export class NetworkCommand extends BaseCommand {
     if (config.s6) {
       for (const clusterReference of clusterReferences) {
         const existingArguments: string = valuesArguments[clusterReference] ?? '';
-        const s6SidecarMarker = 'sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node';
-        if (!existingArguments.includes(s6SidecarMarker)) {
-          valuesArguments[clusterReference] =
-            `${existingArguments}` +
+        const s6SidecarMarker =
+          'sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node';
+        valuesArguments[clusterReference] = existingArguments.includes(s6SidecarMarker)
+          ? existingArguments
+          : `${existingArguments}` +
             ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node"' +
             ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].static_configs[0].targets[0]=0.0.0:9999"' +
             ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].scrape_interval=5s"' +
             ' --set "sidecars.service.pipelines.metrics.receivers[0]=otlp"' +
             ' --set "sidecars.service.pipelines.metrics.receivers[1]=prometheus"';
-        } else {
-          valuesArguments[clusterReference] = existingArguments;
-        }
       }
 
       for (const consensusNode of uniqueConsensusNodes) {
@@ -765,8 +763,7 @@ export class NetworkCommand extends BaseCommand {
           const nodeIndex: number | undefined = nodeIndexByClusterAndName?.get(
             `${consensusNode.cluster}:${consensusNode.name}`,
           );
-          const nodeIdString: string =
-            nodeIndex === undefined ? consensusNode.nodeId.toString() : nodeIndex.toString();
+          const nodeIdString: string = nodeIndex === undefined ? consensusNode.nodeId.toString() : nodeIndex.toString();
           const newTemplateString: string = templateString.replace('{nodeId}', nodeIdString);
           valuesArguments[consensusNode.cluster] += newTemplateString.replace(
             '{recordValue}',
