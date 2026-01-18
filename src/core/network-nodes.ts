@@ -190,12 +190,9 @@ export class NetworkNodes {
 
     try {
       // First fetch all metrics
-      const metricsOutput = await Promise.race([
-        shellRunner.run(`curl -sf http://localhost:${localPort}/metrics`),
-        new Promise<string[]>((_, reject) =>
-          setTimeout(() => reject(new Error('Metrics fetch timeout after 5 seconds')), 5000),
-        ),
-      ]);
+      const metricsOutput = await shellRunner.run(
+        `curl -sf --connect-timeout 2 --max-time 5 http://localhost:${localPort}/metrics`,
+      );
 
       // Then filter for platform status
       const statusLines = metricsOutput.filter(

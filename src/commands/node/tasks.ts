@@ -1796,7 +1796,7 @@ export class NodeCommandTasks {
           },
           task: async () => {
             // Wait for Java processes to start up before enabling port forwarding for metrics server
-            await new Promise(resolve => setTimeout(resolve, 60_000));
+            // await new Promise(resolve => setTimeout(resolve, 10_000));
 
             let nodeAliasesArray;
             if (config.allNodeAliases) {
@@ -1903,11 +1903,11 @@ export class NodeCommandTasks {
   public checkAllNodesAreActive(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are ACTIVE',
-      task: (context_, task) => {
+      task: async (context_, task) => {
         // Add longer delay for s6 image services to start and port-forwarding to stabilize
-        if (this.configManager.getFlag<boolean>(flags.s6)) {
-          new Promise(resolve => setTimeout(resolve, 120_000));
-        }
+        // if (this.configManager.getFlag<boolean>(flags.s6)) {
+        //   await sleep(Duration.ofSeconds(120));
+        // }
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };
