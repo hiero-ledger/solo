@@ -1776,7 +1776,7 @@ export class NodeCommandTasks {
                 ? container.execContainer([
                     'bash',
                     '-c',
-                    '/command/s6-rc -d stop consensus; /command/s6-rc -u start consensus',
+                    '/command/s6-svc -u /run/service/consensus',
                   ])
                 : container.execContainer([
                     'bash',
@@ -1796,7 +1796,7 @@ export class NodeCommandTasks {
           },
           task: async () => {
             // Wait for Java processes to start up before enabling port forwarding for metrics server
-            // await new Promise(resolve => setTimeout(resolve, 10_000));
+            await sleep(Duration.ofSeconds(10));
 
             let nodeAliasesArray;
             if (config.allNodeAliases) {
@@ -2082,11 +2082,132 @@ export class NodeCommandTasks {
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
                 const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-                await container.execContainer(
-                  this.configManager.getFlag<boolean>(flags.s6)
-                    ? ['bash', '-c', '/command/s6-rc -d stop consensus && /command/s6-svc -O /run/service/consensus']
-                    : ['bash', '-c', 'systemctl disable --now network-node'],
-                );
+
+                if (this.configManager.getFlag<boolean>(flags.s6)) {
+                  // First attempt: normal stop
+                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/consensus']);
+
+                  // Wait for graceful shutdown
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+
+                  // Check if the service actually stopped
+                  try {
+                    const serviceStatus = await container.execContainer(['bash', '-c', '/command/s6-svstat /run/service/consensus']);
+
+                    if (serviceStatus.includes('up') || serviceStatus.includes('want down')) {
+                      this.logger.warn(`Service still running or in bad state for ${nodeAlias}, forcing stop`);
+                      // Force stop with -D flag
+                      await container.execContainer(['bash', '-c', '/command/s6-svc -wD /run/service/consensus']);
+                      this.logger.debug(`Executed forced stop for ${nodeAlias}`);
+
+                      // Wait for forced stop to complete
+                      await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                  } catch (statusError) {
+                    this.logger.debug(`Could not check service status for ${nodeAlias}: ${statusError.message}`);
+                    // Try force stop anyway
+                    try {
+                      await container.execContainer(['bash', '-c', '/command/s6-svc -D /run/service/consensus']);
+                      await new Promise(resolve => setTimeout(resolve, 2000));
+                    } catch (forceError) {
+                      this.logger.debug(`Force stop also failed for ${nodeAlias}: ${forceError.message}`);
+                    }
+                  }
+
+                  // Enhanced process killing and port cleanup
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+
+                  try {
+                    // Simple approach: Find processes directly from netstat output and kill them
+                    const portCheck = await container.execContainer([
+                      'bash',
+                      '-c',
+                      'netstat -tlnp 2>/dev/null | grep -E ":(50111|9999)" || true',
+                    ]);
+
+                    if (portCheck.trim()) {
+                      this.logger.warn(`Ports still in use for ${nodeAlias}: ${portCheck}`);
+
+                      // Extract PIDs directly from netstat output
+                      const lines = portCheck.trim().split('\n');
+                      const pidsToKill = new Set<string>();
+
+                      for (const line of lines) {
+                        const match = line.match(/(\d+)\/java/);
+                        if (match) {
+                          pidsToKill.add(match[1]);
+                        }
+                      }
+
+                      if (pidsToKill.size > 0) {
+                        this.logger.debug(`Found Java processes holding ports for ${nodeAlias}: ${Array.from(pidsToKill).join(', ')}`);
+
+                        // Kill each PID with multiple methods
+                        for (const pid of pidsToKill) {
+                          try {
+                            await container.execContainer(['bash', '-c', `kill -9 ${pid}`]);
+                            this.logger.debug(`Killed Java process ${pid} via kill -9`);
+                          } catch (error) {
+                            this.logger.debug(`kill -9 failed for PID ${pid}: ${error.message}`);
+                            // Try alternative kill method
+                            try {
+                              await container.execContainer(['bash', '-c', `/bin/kill -9 ${pid} 2>/dev/null || true`]);
+                              this.logger.debug(`Attempted /bin/kill -9 for PID ${pid}`);
+                            } catch (error2) {
+                              this.logger.debug(`/bin/kill -9 also failed for PID ${pid}: ${error2.message}`);
+                            }
+                          }
+                        }
+
+                        // Wait for processes to die
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+
+                        // Final verification
+                        try {
+                          const finalPortCheck = await container.execContainer([
+                            'bash',
+                            '-c',
+                            'netstat -tlnp 2>/dev/null | grep -E ":(50111|9999)" || true',
+                          ]);
+
+                          if (finalPortCheck.trim()) {
+                            this.logger.warn(`Ports still in use after kill attempts for ${nodeAlias}: ${finalPortCheck}`);
+
+                            // Last resort: kill all processes matching specific patterns
+                            try {
+                              await container.execContainer(['bash', '-c', 'ps aux | grep java | grep -v grep | awk \'{print $2}\' | xargs -r kill -9 2>/dev/null || true']);
+                              this.logger.debug(`Executed ps-based java process cleanup for ${nodeAlias}`);
+                              await new Promise(resolve => setTimeout(resolve, 500));
+                            } catch (error) {
+                              this.logger.debug(`ps-based cleanup failed for ${nodeAlias}: ${error.message}`);
+                            }
+                          } else {
+                            this.logger.debug(`All ports successfully released for ${nodeAlias}`);
+                          }
+                        } catch (error) {
+                          this.logger.debug(`Final port verification failed for ${nodeAlias}: ${error.message}`);
+                        }
+                      } else {
+                        this.logger.debug(`No Java process PIDs found in netstat output for ${nodeAlias}`);
+                      }
+                    } else {
+                      this.logger.debug(`No ports in use for ${nodeAlias}`);
+                    }
+                  } catch (error) {
+                    this.logger.debug(`Port-based process cleanup failed for ${nodeAlias}: ${error.message}`);
+
+                    // Fallback: Try to kill any java processes using ps
+                    try {
+                      await container.execContainer(['bash', '-c', 'ps aux | grep java | grep -v grep | awk \'{print $2}\' | xargs -r kill -9 2>/dev/null || true']);
+                      this.logger.debug(`Executed fallback ps-based java process cleanup for ${nodeAlias}`);
+                    } catch (fallbackError) {
+                      this.logger.debug(`Fallback cleanup also failed for ${nodeAlias}: ${fallbackError.message}`);
+                    }
+                  }
+                } else {
+                  // systemd stop (legacy)
+                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
+                }
               },
             });
           }
