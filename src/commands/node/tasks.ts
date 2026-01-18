@@ -1674,7 +1674,7 @@ export class NodeCommandTasks {
     return {
       title: 'Copy node config files before start',
       skip: ({config}): boolean => {
-        return this.configManager.getFlag<boolean>(flags.s6);
+        return !this.configManager.getFlag<boolean>(flags.s6);
       },
       task: (context_, task) => {
         const config = context_.config;
@@ -3288,8 +3288,8 @@ export class NodeCommandTasks {
         );
 
         const extractCommand: string = this.configManager.getFlag<boolean>(flags.s6)
-          ? `unzip ${path.basename(config.lastStateZipPath)}`
-          : `jar -xf ${path.basename(config.lastStateZipPath)}`;
+          ? `jar -xf ${path.basename(config.lastStateZipPath)}`
+          : `unzip ${path.basename(config.lastStateZipPath)}`;
 
         await k8
           .containers()
