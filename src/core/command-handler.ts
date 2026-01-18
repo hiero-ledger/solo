@@ -54,8 +54,8 @@ export class CommandHandler {
         }
         promises.push(this.accountManager.close());
         await Promise.all(promises);
-        this.cleanupStdin();
-        this.scheduleExitIfIdle();
+        // this.cleanupStdin();
+        // this.scheduleExitIfIdle();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
@@ -65,8 +65,8 @@ export class CommandHandler {
         }
         promises.push(this.accountManager.close());
         await Promise.all(promises);
-        this.cleanupStdin();
-        this.scheduleExitIfIdle();
+        // this.cleanupStdin();
+        // this.scheduleExitIfIdle();
       });
     }
   }
