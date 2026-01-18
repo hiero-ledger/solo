@@ -1890,7 +1890,7 @@ export class NodeCommandTasks {
             this.logger,
             ComponentTypes.ConsensusNode,
             'Consensus Node gRPC',
-            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
+            true, // Always try to reuse existing port configs
             nodeId,
           );
           await this.remoteConfig.persist();
