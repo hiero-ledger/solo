@@ -1234,13 +1234,13 @@ export class NodeCommandTasks {
             zipFile = stateFileDirectory || config.stateFile;
           }
 
-          self.logger.debug(`Uploading state files to pod ${podReference.name}`);
-          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
-
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          self.logger.debug(`Uploading state files to pod ${podReference.name}`);
+          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data/saved`);
+
           await container.execContainer([
             'bash',
             '-c',

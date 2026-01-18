@@ -517,7 +517,7 @@ export class BackupRestoreCommand extends BaseCommand {
         await container.execContainer([
           'bash',
           '-c',
-          'if command -v unzip >/dev/null 2>&1; then unzip -o "${constants.HEDERA_HAPI_PATH}/${logFile}" -d "${constants.HEDERA_HAPI_PATH}"; else jar -xf "${constants.HEDERA_HAPI_PATH}/${logFile}"',
+          `if command -v unzip >/dev/null 2>&1; then unzip -o "${constants.HEDERA_HAPI_PATH}/${logFile}" -d "${constants.HEDERA_HAPI_PATH}"; else jar -xf "${constants.HEDERA_HAPI_PATH}/${logFile}"; fi`,
         ]);
 
         // Fix ownership of extracted files to hedera user
