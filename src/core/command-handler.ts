@@ -54,8 +54,6 @@ export class CommandHandler {
         }
         promises.push(this.accountManager.close());
         await Promise.all(promises);
-        // this.cleanupStdin();
-        // this.scheduleExitIfIdle();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
@@ -65,40 +63,9 @@ export class CommandHandler {
         }
         promises.push(this.accountManager.close());
         await Promise.all(promises);
-        // this.cleanupStdin();
-        // this.scheduleExitIfIdle();
       });
     }
   }
-
-
-  private cleanupStdin(): void {
-    try {
-      if (process.stdin?.isTTY) {
-        if (typeof process.stdin.setRawMode === 'function') {
-          process.stdin.setRawMode(false);
-        }
-        process.stdin.pause();
-        process.stdin.unref?.();
-      }
-      process.stdout?.unref?.();
-      process.stderr?.unref?.();
-    } catch (error) {
-      this.logger.debug(`Failed to cleanup stdin: ${error.message}`);
-    }
-  }
-
-  private scheduleExitIfIdle(): void {
-    const timeoutMs = 1500;
-    const timer = setTimeout((): void => {
-      this.logger.warn(`Process still running ${timeoutMs}ms after cleanup; forcing exit`);
-      process.exitCode = process.exitCode ?? 0;
-      process.exit(0);
-    }, timeoutMs);
-    timer.unref();
-    process.once('exit', (): void => clearTimeout(timer));
-  }
-
 
   /**
    * Setup home directories

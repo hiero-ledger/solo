@@ -2155,8 +2155,8 @@ export class NodeCommandTasks {
                             try {
                               await container.execContainer(['bash', '-c', `/bin/kill -9 ${pid} 2>/dev/null || true`]);
                               this.logger.debug(`Attempted /bin/kill -9 for PID ${pid}`);
-                            } catch (error2) {
-                              this.logger.debug(`/bin/kill -9 also failed for PID ${pid}: ${error2.message}`);
+                            } catch (error_) {
+                              this.logger.debug(`/bin/kill -9 also failed for PID ${pid}: ${error_.message}`);
                             }
                           }
                         }
