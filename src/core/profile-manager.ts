@@ -34,7 +34,6 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Address} from '../business/address/address.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
-import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 @injectable()
 export class ProfileManager {
@@ -299,7 +298,10 @@ export class ProfileManager {
     );
 
     try {
-      if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+      if (
+        this.remoteConfig.configuration.state.blockNodes.length === 0 &&
+        this.remoteConfig.configuration.state.externalBlockNodes.length === 0
+      ) {
         return;
       }
     } catch {

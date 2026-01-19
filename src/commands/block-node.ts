@@ -43,8 +43,6 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
-import {Container} from '../integration/kube/resources/container/container.js';
-import {K8} from '../integration/kube/k8.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -836,14 +834,6 @@ class BlockNodeCommand extends BaseCommand {
             config.newExternalBlockNodeComponent = new ExternalBlockNodeStateSchema(id, address, port);
 
             return ListrLock.newAcquireLockTask(lease, task);
-          },
-        },
-        {
-          title: '',
-          task: (): void => {
-            if (this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED) {
-              throw new SoloError('block-nodes can only be added post-genesis');
-            }
           },
         },
         this.addExternalBlockNodeComponent(),

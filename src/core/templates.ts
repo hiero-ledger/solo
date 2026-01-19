@@ -425,8 +425,6 @@ export class Templates {
       // eslint-disable-next-line prefer-const
       let [nodeAlias, priority] = data.split('=') as [NodeAlias, number | undefined];
 
-      priority = !priority && nodeAliasesToPriorityMapping.length === 1 ? 2 : 1;
-
       mapping[nodeAlias] = +priority || 1;
     }
 

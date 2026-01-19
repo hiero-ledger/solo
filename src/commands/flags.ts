@@ -1189,18 +1189,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly externalBlockNodes: CommandFlag = {
-    constName: 'externalBlockNodes',
-    name: 'external-block-nodes',
-    definition: {
-      describe:
-        'Configure external block node addresses, comma separated ' +
-        '(optional port can be provided when address is followed by ":" and then port)',
-      type: 'string',
-    },
-    prompt: undefined,
-  };
-
   public static readonly externalBlockNodeAddress: CommandFlag = {
     constName: 'externalBlockNodeAddress',
     name: 'address',
@@ -2977,7 +2965,6 @@ export class Flags {
     Flags.blockNodeChartVersion,
     Flags.blockNodeCfg,
     Flags.priorityMapping,
-    Flags.externalBlockNodes,
     Flags.externalBlockNodeAddress,
     Flags.realm,
     Flags.shard,
