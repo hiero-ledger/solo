@@ -1690,62 +1690,25 @@ export class NodeCommandTasks {
                 throw new SoloError(`Pod reference not found for node ${nodeAlias}`);
               }
 
-              const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-              const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-              const scriptName = path.basename(constants.COPY_NODE_CONFIGS_SCRIPT);
-              const remoteScriptPath = `/tmp/${scriptName}`;
+              const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const containerReference: ContainerReference = ContainerReference.of(
+                podReference,
+                constants.ROOT_CONTAINER,
+              );
+              const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+              const scriptName: string = path.basename(constants.COPY_NODE_CONFIGS_SCRIPT);
+              const remoteScriptPath: string = `/tmp/${scriptName}`;
 
               await container.copyTo(constants.COPY_NODE_CONFIGS_SCRIPT, '/tmp');
-              await container.execContainer(['bash', '-c', `chmod +x ${remoteScriptPath}`]);
-              try {
-                // Execute script and capture all output
-                const command = `set -o pipefail; ${remoteScriptPath} 2>&1; echo "__EXIT_CODE:$?"`;
-                const rawResult = await container.execContainer(['bash', '-c', command]);
 
-                const lines = rawResult?.split('\n') ?? [];
-                let exitLine: string | undefined;
-                while (lines.length > 0) {
-                  const candidate = lines.at(-1).trim();
-                  if (candidate.length === 0) {
-                    lines.pop();
-                    continue;
-                  }
-                  if (candidate.startsWith('__EXIT_CODE:')) {
-                    exitLine = lines.pop()?.trim();
-                  }
-                  break;
-                }
-
-                const exitMatch = exitLine?.match(/^__EXIT_CODE:(\d+)$/);
-                const exitCode = exitMatch ? Number.parseInt(exitMatch[1], 10) : undefined;
-                const output = lines.join('\n').trim();
-
-                if (output) {
-                  this.logger.debug(`[copy-node-configs] Output for ${nodeAlias}:\n${output}`);
-                }
-
-                if (exitMatch === undefined) {
-                  throw new SoloError(
-                    `Config copy failed for ${nodeAlias}: unable to determine script exit code (raw output: ${rawResult})`,
-                  );
-                }
-
-                // Check if script reported success
-                if (exitCode === 0 && output.includes('All files copied successfully')) {
-                  // Success - do nothing
-                  return;
-                } else {
-                  // Script failed with missing files or other errors
-                  throw new SoloError(
-                    `Config copy failed for node ${nodeAlias} (exit code: ${exitCode}): ${output || 'No script output'}`,
-                  );
-                }
-              } catch (error) {
-                // Container execution failed or script threw error
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                throw new SoloError(`Config copy failed for node ${nodeAlias}: ${errorMessage}`);
+              // check if file exists after copy
+              if (!(await container.hasFile(remoteScriptPath))) {
+                throw new SoloError(`Failed to copy script to node ${nodeAlias} at path ${remoteScriptPath}`);
               }
+
+              await container.execContainer(['bash', '-c', `chmod +x ${remoteScriptPath}`]);
+              const rawResult: string = await container.execContainer(['bash', '-c', remoteScriptPath]);
+              this.logger.debug(`Config copy output for node ${nodeAlias}:\n${rawResult}`);
             },
           });
         }
