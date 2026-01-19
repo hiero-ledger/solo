@@ -173,6 +173,7 @@ jobs:
           else
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
+          echo "Using CONSENSUS_NODE_VERSION: ${CONSENSUS_NODE_VERSION}"
           cd ..
           git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
           cd hiero-consensus-node

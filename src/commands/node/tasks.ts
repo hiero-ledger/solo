@@ -1863,10 +1863,6 @@ export class NodeCommandTasks {
     return {
       title: 'Check all nodes are ACTIVE',
       task: async (context_, task) => {
-        // Add longer delay for s6 image services to start and port-forwarding to stabilize
-        // if (this.configManager.getFlag<boolean>(flags.s6)) {
-        //   await sleep(Duration.ofSeconds(120));
-        // }
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };

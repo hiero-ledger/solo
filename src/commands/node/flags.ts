@@ -108,12 +108,7 @@ export const UPDATE_SUBMIT_TRANSACTIONS_FLAGS = {
 
 export const UPDATE_EXECUTE_FLAGS = {
   required: [...COMMON_UPDATE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [
-    ...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS,
-    flags.adminKey,
-    flags.newAdminKey,
-    flags.newAccountNumber,
-  ],
+  optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS, flags.adminKey, flags.newAdminKey, flags.newAccountNumber],
 };
 
 const COMMON_DESTROY_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
