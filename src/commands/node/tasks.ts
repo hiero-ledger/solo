@@ -143,7 +143,6 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
-import {NetworkCommand} from '../network.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 
