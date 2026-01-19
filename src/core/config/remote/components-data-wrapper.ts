@@ -13,113 +13,11 @@ import {type ComponentIdsStructure} from '../../../data/schema/model/remote/inte
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../../integration/kube/k8.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
-import {ShellRunner} from '../../../core/shell-runner.js';
 import * as constants from '../../constants.js';
 import {Templates} from '../../templates.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
-
-  /**
-   * Check if a port forward process is actually running and functional for the given local port
-   * @param localPort - The local port to check
-   * @param logger - Logger instance for debugging
-   * @returns Promise resolving to true if port forward is functional, false otherwise
-   */
-  private async isPortForwardProcessRunning(localPort: number, logger: SoloLogger): Promise<boolean> {
-    try {
-      const shellRunner = new ShellRunner(logger);
-
-      // First check: Look for the kubectl process
-      const result = await shellRunner.run(`ps -ef | grep port-forward | grep "${localPort}:"`, [], true, false);
-
-      logger.debug(`Port forward process check for port ${localPort}: ${result ? result.length : 0} processes found`);
-      if (result && result.length > 0) {
-        logger.debug(`Raw ps output for port ${localPort}: ${JSON.stringify(result)}`);
-      }
-
-      if (!result || result.length === 0) {
-        return false;
-      }
-
-      // Additional validation: make sure the process line contains kubectl and port-forward
-      const validProcesses = result.filter(
-        line => line.includes('kubectl') && line.includes('port-forward') && line.includes(`${localPort}:`),
-      );
-
-      logger.debug(`Valid port forward processes for port ${localPort}: ${validProcesses.length}`);
-      if (validProcesses.length > 0) {
-        logger.debug(`Valid processes for port ${localPort}: ${JSON.stringify(validProcesses)}`);
-      }
-
-      if (validProcesses.length === 0) {
-        return false;
-      }
-
-      // Second check: Test if the port is actually accessible (connection test)
-      // This verifies the port forward is actually working, not just the process exists
-      try {
-        // Use curl to test actual HTTP connectivity to metrics endpoint
-        const connectivityTest = await shellRunner.run(
-          `timeout 2 curl -s --connect-timeout 1 http://localhost:${localPort}/metrics >/dev/null 2>&1 && echo "PORT_OPEN" || echo "PORT_CLOSED"`,
-          [],
-          true,
-          false,
-        );
-
-        logger.debug(`Port ${localPort} connectivity test raw output: "${JSON.stringify(connectivityTest)}"`);
-        logger.debug(`Port ${localPort} connectivity test output type: ${typeof connectivityTest}`);
-        logger.debug(
-          `Port ${localPort} connectivity test output length: ${connectivityTest ? connectivityTest.length : 'null'}`,
-        );
-
-        // Handle both string and array output from shellRunner
-        let output: string;
-        if (Array.isArray(connectivityTest)) {
-          output = connectivityTest.join(' ');
-        } else if (typeof connectivityTest === 'string') {
-          output = connectivityTest;
-        } else {
-          output = String(connectivityTest || '');
-        }
-
-        const isPortAccessible = output.includes('PORT_OPEN');
-        logger.debug(`Port ${localPort} connectivity test processed output: "${output}"`);
-        logger.debug(`Port ${localPort} connectivity test: ${isPortAccessible ? 'OPEN' : 'CLOSED'}`);
-
-        return isPortAccessible;
-      } catch (connectivityError) {
-        logger.debug(
-          `Port ${localPort} connectivity test failed: ${connectivityError instanceof Error ? connectivityError.message : String(connectivityError)}`,
-        );
-
-        // If connectivity test fails, try an alternative test with curl
-        try {
-          const curlTest = await shellRunner.run(
-            `timeout 2 curl -s --connect-timeout 1 http://localhost:${localPort} >/dev/null 2>&1 && echo "CURL_SUCCESS" || echo "CURL_FAILED"`,
-            [],
-            true,
-            false,
-          );
-
-          const isCurlSuccessful = curlTest.includes('CURL_SUCCESS');
-          logger.debug(`Port ${localPort} curl test: ${isCurlSuccessful ? 'SUCCESS' : 'FAILED'}`);
-          return isCurlSuccessful;
-        } catch (curlError) {
-          logger.debug(
-            `Port ${localPort} curl test also failed: ${curlError instanceof Error ? curlError.message : String(curlError)}`,
-          );
-          return false;
-        }
-      }
-    } catch (error) {
-      logger.debug(
-        `Failed to check port forward process for port ${localPort}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      // If command fails, assume port forward is not running
-      return false;
-    }
-  }
 
   public get componentIds(): ComponentIdsStructure {
     return this.state.componentIds;
@@ -351,47 +249,12 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       // so we will not be able to find component by clusterReference
       reuse = true;
       logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
-
-      // Even when component is undefined, we should check if port is actually in use
-      // to avoid reusing dead port forwards
-      const isProcessRunning = await this.isPortForwardProcessRunning(localPort, logger);
-      if (!isProcessRunning) {
-        logger.showUser(`Port ${localPort} appears to be free, will create new port forward`);
-        reuse = false;
-      }
-    } else {
-      logger.debug(`Found component for ${label}, checking port forward configs...`);
-      if (component.metadata.portForwardConfigs) {
-        logger.debug(`Component ${label} has ${component.metadata.portForwardConfigs.length} port forward configs`);
-        for (const portForwardConfig of component.metadata.portForwardConfigs) {
-          logger.debug(
-            `Checking port forward config for ${label}: localPort=${portForwardConfig.localPort}, podPort=${portForwardConfig.podPort}`,
-          );
-          if (reuse === true && portForwardConfig.podPort === podPort) {
-            // Check if the port forward process is actually still running
-            logger.debug(`About to check port forward process for ${label} at port ${portForwardConfig.localPort}`);
-            const isProcessRunning = await this.isPortForwardProcessRunning(portForwardConfig.localPort, logger);
-
-            if (isProcessRunning) {
-              logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
-              return portForwardConfig.localPort;
-            } else {
-              logger.showUser(
-                `${label} Port forward config found at ${portForwardConfig.localPort} but process is not running, will recreate`,
-              );
-              // Remove the stale config entry
-              const configIndex = component.metadata.portForwardConfigs.indexOf(portForwardConfig);
-              if (configIndex !== -1) {
-                component.metadata.portForwardConfigs.splice(configIndex, 1);
-                logger.debug(`Removed stale port forward config for localPort ${portForwardConfig.localPort}`);
-              }
-              // Don't return, let the method create a new port forward
-              break;
-            }
-          }
+    } else if (component.metadata.portForwardConfigs) {
+      for (const portForwardConfig of component.metadata.portForwardConfigs) {
+        if (reuse === true && portForwardConfig.podPort === podPort) {
+          logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
+          return portForwardConfig.localPort;
         }
-      } else {
-        logger.debug(`Component ${label} has no port forward configs`);
       }
     }
 
