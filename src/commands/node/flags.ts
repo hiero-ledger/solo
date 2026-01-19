@@ -33,6 +33,7 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS = [
   flags.localBuildPath,
   flags.force,
   flags.upgradeZipFile,
+  flags.s6,
 ];
 
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
@@ -51,11 +52,12 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
   flags.grpcEndpoints,
   flags.domainNames,
   flags.releaseTag,
+  flags.s6,
 ];
 
 export const UPGRADE_FLAGS = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeVersion],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
 export const UPGRADE_PREPARE_FLAGS = {
@@ -70,7 +72,7 @@ export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS = {
 
 export const UPGRADE_EXECUTE_FLAGS = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
 export const UPDATE_FLAGS = {
@@ -83,7 +85,6 @@ export const UPDATE_FLAGS = {
     flags.gossipPrivateKey,
     flags.gossipPublicKey,
     flags.tlsPrivateKey,
-    flags.s6,
   ],
 };
 
@@ -112,7 +113,6 @@ export const UPDATE_EXECUTE_FLAGS = {
     flags.adminKey,
     flags.newAdminKey,
     flags.newAccountNumber,
-    flags.s6,
   ],
 };
 
@@ -132,6 +132,7 @@ const COMMON_DESTROY_OPTIONAL_FLAGS = [
   flags.chartDirectory,
   flags.domainNames,
   flags.releaseTag,
+  flags.s6,
 ];
 
 const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment];
@@ -160,46 +161,47 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.generateGossipKeys,
   flags.generateTlsKeys,
   flags.releaseTag,
+  flags.s6,
 ];
 
 export const DESTROY_FLAGS = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS],
-  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
 export const DESTROY_PREPARE_FLAGS = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
 export const DESTROY_SUBMIT_TRANSACTIONS_FLAGS = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
 export const DESTROY_EXECUTE_FLAGS = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
 export const ADD_FLAGS = {
   required: [...COMMON_ADD_REQUIRED_FLAGS],
-  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps, flags.s6],
+  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps],
 };
 
 export const ADD_PREPARE_FLAGS = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.s6],
+  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey],
 };
 
 export const ADD_SUBMIT_TRANSACTIONS_FLAGS = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.s6],
+  optional: [...COMMON_ADD_OPTIONAL_FLAGS],
 };
 
 export const ADD_EXECUTE_FLAGS = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps, flags.s6],
+  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps],
 };
 
 export const LOGS_FLAGS = {
