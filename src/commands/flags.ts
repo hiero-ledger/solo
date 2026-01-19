@@ -1194,7 +1194,7 @@ export class Flags {
     name: 'external-block-nodes',
     definition: {
       describe:
-        'Configure external block node addresses, comma separated' +
+        'Configure external block node addresses, comma separated ' +
         '(optional port can be provided when address is followed by ":" and then port)',
       type: 'string',
     },
@@ -2978,6 +2978,7 @@ export class Flags {
     Flags.blockNodeCfg,
     Flags.priorityMapping,
     Flags.externalBlockNodes,
+    Flags.externalBlockNodeAddress,
     Flags.realm,
     Flags.shard,
     Flags.username,

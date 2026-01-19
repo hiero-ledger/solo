@@ -23,14 +23,7 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {
-  type AnyListrContext,
-  type ArgvStruct,
-  type IP,
-  type NodeAlias,
-  type NodeAliases,
-  NodeId,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -74,9 +67,7 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
-import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -139,7 +130,6 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
-  externalBlockNodes: string[];
 }
 
 interface NetworkDeployContext {
@@ -237,7 +227,6 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
-      flags.externalBlockNodes,
     ],
   };
 
@@ -418,7 +407,6 @@ export class NetworkCommand extends BaseCommand {
       config.domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
-      config.externalBlockNodes,
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
@@ -780,8 +768,6 @@ export class NetworkCommand extends BaseCommand {
     if (!fs.existsSync(config.keysDir)) {
       fs.mkdirSync(config.keysDir);
     }
-
-    config.externalBlockNodes = config.externalBlockNodes ? ((config.externalBlockNodes as any).split(',') ?? []) : [];
 
     this.logger.debug('Preparing storage secrets');
     await this.prepareStorageSecrets(config);
@@ -1300,16 +1286,13 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
-          task: async ({config: {namespace, consensusNodes, externalBlockNodes}}): Promise<void> => {
+          task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
                 await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
                   consensusNode,
-                  namespace,
                   this.logger,
                   this.k8Factory,
-                  this.remoteConfig,
-                  externalBlockNodes,
                 );
               }
             } catch (error) {
@@ -1345,32 +1328,26 @@ export class NetworkCommand extends BaseCommand {
 
   /**
    * @param consensusNode - the targeted consensus node
-   * @param namespace
    * @param logger
    * @param k8Factory
-   * @param remoteConfig
    */
   public static async createAndCopyBlockNodeJsonFileForConsensusNode(
     consensusNode: ConsensusNode,
-    namespace: NamespaceName,
     logger: SoloLogger,
     k8Factory: K8Factory,
-    remoteConfig: RemoteConfigRuntimeStateApi,
-    externalBlockNodes: string[],
   ): Promise<void> {
-    const {nodeId, context, name: nodeAlias, blockNodeMap} = consensusNode;
-
-    const blockNodeIds: Set<ComponentId> = new Set(blockNodeMap.map(([id]): ComponentId => id));
-
-    const blockNodeComponents: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
-      (blockNode): boolean => blockNodeIds.has(blockNode.metadata.id),
-    );
-
-    const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+    const {
+      nodeId,
+      context,
+      name: nodeAlias,
       blockNodeMap,
-      blockNodeComponents,
-      externalBlockNodes,
-    ).toJSON();
+      externalBlockNodeMap,
+      namespace: namespaceNameAsString,
+    } = consensusNode;
+
+    const namespace: NamespaceName = NamespaceName.of(namespaceNameAsString);
+
+    const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
 
     const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
     const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
@@ -1550,7 +1527,7 @@ export class NetworkCommand extends BaseCommand {
     return {
       title: 'Add node and proxies to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config: {consensusNodes, namespace, isUpgrade, releaseTag, externalBlockNodes}}): Promise<void> => {
+      task: async ({config: {consensusNodes, namespace, isUpgrade, releaseTag}}): Promise<void> => {
         for (const consensusNode of consensusNodes) {
           const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReferenceName = consensusNode.cluster;
@@ -1577,14 +1554,6 @@ export class NetworkCommand extends BaseCommand {
           this.remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer(releaseTag));
         }
 
-        for (const [index, externalBlockNode] of externalBlockNodes.entries()) {
-          const [address, port] = Templates.parseExternalBlockAddress(externalBlockNode);
-          const nodeIds: NodeId[] = consensusNodes.map((node): number => node.nodeId);
-
-          this.remoteConfig.configuration.state.externalBlockNodes.push(
-            new ExternalBlockNodeStateSchema(index, address, port, nodeIds),
-          );
-        }
         await this.remoteConfig.persist();
       },
     };

@@ -14,13 +14,9 @@ export class ExternalBlockNodeStateSchema {
   @Expose()
   public port: number;
 
-  @Expose()
-  public consensusNodeIds: number[];
-
-  public constructor(id?: ComponentId, address?: string, port?: number, consensusNodeIds?: number[]) {
+  public constructor(id?: ComponentId, address?: string, port?: number) {
     this.id = id;
     this.address = address;
     this.port = port;
-    this.consensusNodeIds = consensusNodeIds;
   }
 }

@@ -34,6 +34,7 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Address} from '../business/address/address.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
+import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 @injectable()
 export class ProfileManager {
@@ -209,7 +210,6 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
-    externalBlockNodes: string[],
   ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
       consensusNodes.map((node): NodeAlias => node.name),
@@ -259,7 +259,6 @@ export class ProfileManager {
       }
 
       const fileName: string = path.basename(filePath);
-      const fileName: string = path.basename(filePath);
       const destinationPath: string = PathEx.join(stagingDirectory, 'templates', fileName);
       this.logger.debug(`Copying configuration file to staging: ${filePath} -> ${destinationPath}`);
 
@@ -298,21 +297,20 @@ export class ProfileManager {
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
       yamlRoot,
     );
+
     try {
       if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
         return;
       }
     } catch {
+      // quick fix for tests where field on remote config are unaccessible
       return;
     }
-
-    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
 
     for (const node of consensusNodes) {
       const blockNodesJsonData: string = new BlockNodesJsonWrapper(
         node.blockNodeMap,
-        blockNodes,
-        externalBlockNodes,
+        node.externalBlockNodeMap,
       ).toJSON();
 
       let nodeIndex: number = 0;
@@ -340,7 +338,6 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
-    externalBlockNodes: string[],
   ): Promise<AnyObject> {
     if (!profile) {
       throw new MissingArgumentError('profile is required');
@@ -353,7 +350,6 @@ export class ProfileManager {
       domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
-      externalBlockNodes,
     );
 
     if (profile.consensus) {
@@ -430,7 +426,6 @@ export class ProfileManager {
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
-   * @param externalBlockNodes
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
@@ -439,7 +434,6 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
-    externalBlockNodes: string[],
   ): Promise<Record<ClusterReferenceName, string>> {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
@@ -463,7 +457,6 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
-        externalBlockNodes,
       );
       this.resourcesForHaProxyPod(profile, yamlRoot);
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);

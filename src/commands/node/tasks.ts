@@ -143,9 +143,7 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
-import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {NetworkCommand} from '../network.js';
-import {ExternalBlockNodeStateSchema} from '../../data/schema/model/remote/state/external-block-node-state-schema.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 
@@ -1597,15 +1595,17 @@ export class NodeCommandTasks {
   public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
     return {
       title: 'Prepare staging directory',
-      task: ({config}, task): Promise<void> => {
-        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
-        const subTasks: SoloListrTask<AnyListrContext>[] = [
+      task: (context_, task) => {
+        const config = context_.config;
+        const nodeAliases = config[nodeAliasesProperty];
+        const subTasks = [
           {
             title: 'Create and populate staging directory',
-            task: async ({config: {cacheDir, externalBlockNodes}}): Promise<void> => {
-              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+            task: async context_ => {
+              const config = context_.config;
+              const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
-                cacheDir,
+                config.cacheDir,
                 'templates',
                 'application.properties',
               );
@@ -1614,7 +1614,7 @@ export class NodeCommandTasks {
               const yamlRoot: AnyObject = {};
               const emptyDomainNamesMapping: Record<string, IP> = {};
 
-              const stagingDirectory: string = Templates.renderStagingDir(
+              const stagingDirectory = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
                 this.configManager.getFlag(flags.releaseTag),
               );
@@ -1627,7 +1627,6 @@ export class NodeCommandTasks {
                   emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
-                  externalBlockNodes,
                 );
               }
             },
@@ -2388,9 +2387,8 @@ export class NodeCommandTasks {
   public prepareGossipEndpoints(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Prepare gossip endpoints',
-      task: async (context_): Promise<void> => {
-        const config: NodeAddConfigClass = context_.config;
-
+      task: async context_ => {
+        const config: any = context_.config;
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
@@ -2605,7 +2603,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         // Prepare parameter and update the network node chart
         const config: NodeDestroyConfigClass | NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
-        const consensusNodes: ConsensusNode[] = config.consensusNodes;
+        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
@@ -2705,8 +2703,8 @@ export class NodeCommandTasks {
           }
         }
         // Add Debug options
-        const consensusNode: ConsensusNode = consensusNodes.find(node => node.name === config.debugNodeAlias);
-        const clusterReference: string = consensusNode
+        const consensusNode = consensusNodes.find(node => node.name === config.debugNodeAlias);
+        const clusterReference = consensusNode
           ? consensusNode.cluster
           : this.k8Factory.default().clusters().readCurrent();
 
@@ -2725,14 +2723,11 @@ export class NodeCommandTasks {
           clusterReferencesList.map(async (clusterReference): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            console.log({args: valuesArgumentMap[clusterReference], context, chartDir: config.chartDirectory});
-
             config.soloChartVersion = Version.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',
             );
-
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -2745,31 +2740,6 @@ export class NodeCommandTasks {
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );
-
-        if (NodeSubcommandType.ADD !== transactionType) {
-          return;
-        }
-
-        for (const node of consensusNodes) {
-          const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes;
-          const externalBlockNodes: ExternalBlockNodeStateSchema[] =
-            this.remoteConfig.configuration.state.externalBlockNodes;
-
-          const blockNodeIds: ComponentId[] =
-            (config as NodeAddConfigClass).blockNodeIds ||
-            blockNodes.map((blockNode): ComponentId => blockNode.metadata.id);
-
-          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
-            node,
-            blockNodeIds,
-            config.namespace,
-            this.logger,
-            this.k8Factory,
-            this.remoteConfig,
-            blockNodes.length === 0 && externalBlockNodes.length === 0,
-            externalBlockNodes.map((blockNode): string => `${blockNode.address}:${blockNode.port}`),
-          );
-        }
       },
       skip,
     };
@@ -3291,60 +3261,51 @@ export class NodeCommandTasks {
   public addNewConsensusNodeToRemoteConfig(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Add new node to remote config',
-      task: async ({config}, task): Promise<void> => {
-        const {nodeAlias, namespace, clusterRef} = config;
-
+      task: async (context_, task): Promise<void> => {
+        const nodeAlias: NodeAlias = context_.config.nodeAlias;
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
+        const namespace: NamespaceName = context_.config.namespace;
+        const clusterReference: ClusterReferenceName = context_.config.clusterRef;
+        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewConsensusNodeComponent(
             Templates.renderComponentIdFromNodeId(nodeId),
-            clusterRef,
+            clusterReference,
             namespace,
             DeploymentPhase.STARTED,
-            undefined,
-            config.blockNodeIds,
           ),
           ComponentTypes.ConsensusNode,
         );
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewEnvoyProxyComponent(clusterRef, namespace),
+          this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
           ComponentTypes.EnvoyProxy,
         );
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewHaProxyComponent(clusterRef, namespace),
+          this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
           ComponentTypes.HaProxy,
         );
 
         await this.remoteConfig.persist();
 
-        config.consensusNodes = this.remoteConfig.getConsensusNodes();
+        context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
         // if the consensusNodes does not contain the nodeAlias then add it
-        if (!config.consensusNodes.some((node): boolean => node.name === nodeAlias)) {
+        if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
-            (cluster): boolean => cluster.name === clusterRef,
+            (cluster): boolean => cluster.name === clusterReference,
           );
 
-          const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes;
-
-          config.blockNodeIds =
-            this.configManager
-              .getFlag(flags.blockNodeIds)
-              ?.split(',')
-              .map((id): number => +id) || blockNodes.map(({metadata}): number => metadata.id);
-
-          config.consensusNodes.push(
+          context_.config.consensusNodes.push(
             new ConsensusNode(
               nodeAlias,
               nodeId,
               namespace.name,
-              clusterRef,
+              clusterReference,
               context.toString(),
               cluster.dnsBaseDomain,
               cluster.dnsConsensusNodePattern,
@@ -3352,7 +3313,7 @@ export class NodeCommandTasks {
                 nodeAlias,
                 nodeId,
                 namespace.name,
-                clusterRef,
+                clusterReference,
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
