@@ -601,11 +601,8 @@ export class NodeTest extends BaseCommandTest {
 
       {
         const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        // get value from s6 flag
-        const configManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
-        const default_s6_value: boolean = configManager.getFlag<boolean>(flags.s6);
-        logger.showUser(`Default s6 flag value = ${default_s6_value}`);
-        const useHostCurl: boolean = default_s6_value;
+        const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
+        const useHostCurl: boolean = configManager.getFlag<boolean>(flags.s6);
         const response: string = useHostCurl
           ? await container
               .resolve(NetworkNodes)

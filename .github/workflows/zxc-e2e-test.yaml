@@ -387,9 +387,6 @@ jobs:
           # Start resource monitoring in background
           ./.github/workflows/script/monitor-resources.sh start
          
-          echo "Checking for cached hedera-registry images on runner..."
-          docker images | grep hedera-registry || echo "No hedera-registry images found"
-         
           # Run the test
           TEST_EXIT_CODE=0
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
