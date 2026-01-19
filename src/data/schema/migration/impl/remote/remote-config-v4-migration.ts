@@ -7,6 +7,7 @@ import {Version} from '../../../../../business/utils/version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
+import {type PriorityMapping} from '../../../../../types/index.js';
 
 export class RemoteConfigV4Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -28,7 +29,7 @@ export class RemoteConfigV4Migration implements SchemaMigration {
     const state: DeploymentStateStructure = clone.state;
 
     for (const node of state.consensusNodes) {
-      node.blockNodeIds = state.blockNodes.map((node): number => node.metadata.id);
+      node.blockNodeMap = state.blockNodes.map((node): PriorityMapping => [node.metadata.id, 1]);
     }
 
     // Set the schema version to the new version

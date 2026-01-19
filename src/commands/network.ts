@@ -49,7 +49,6 @@ import {
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -76,6 +75,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {K8Helper} from '../business/utils/k8-helper.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 export interface NetworkDeployConfigClass {
@@ -132,8 +132,6 @@ export interface NetworkDeployConfigClass {
   domainNames?: string;
   domainNamesMapping?: Record<NodeAlias, string>;
   blockNodeComponents: BlockNodeStateSchema[];
-  blockNodeCfg: string;
-  consensusNodeToBlockNodesMap?: Record<NodeAlias, number[]>;
   debugNodeAlias: NodeAlias;
   app: string;
   serviceMonitor: string;
@@ -597,62 +595,6 @@ export class NetworkCommand extends BaseCommand {
           ' --set "defaults.haproxy.service.type=LoadBalancer"' +
           ' --set "defaults.envoyProxy.service.type=LoadBalancer"' +
           ' --set "defaults.consensus.service.type=LoadBalancer"';
-      }
-    }
-
-    if (config.blockNodeComponents.length > 0) {
-      // Parse blockNodeConfiguration once and store in config for reuse in copy step
-      if (!config.consensusNodeToBlockNodesMap) {
-        config.consensusNodeToBlockNodesMap = {};
-
-        if (config.blockNodeCfg && config.blockNodeCfg.trim() !== '') {
-          try {
-            let blockNodeCfgContent: string = config.blockNodeCfg;
-
-            // Check if the input is a file path
-            if (fs.existsSync(config.blockNodeCfg)) {
-              this.logger.debug(`Reading blockNodeCfg from file: ${config.blockNodeCfg}`);
-              blockNodeCfgContent = fs.readFileSync(config.blockNodeCfg, 'utf8');
-            }
-
-            config.consensusNodeToBlockNodesMap = JSON.parse(blockNodeCfgContent);
-          } catch (error) {
-            throw new SoloError(`Failed to parse blockNodeCfg JSON: ${error.message}`, error);
-          }
-        } else {
-          for (const consensusNode of config.consensusNodes) {
-            config.consensusNodeToBlockNodesMap[consensusNode.name] = consensusNode.blockNodeIds;
-          }
-        }
-      }
-
-      // Generate separate block-nodes.json files for each consensus node
-      for (const consensusNode of config.consensusNodes) {
-        const blockNodeIds: number[] =
-          config.consensusNodeToBlockNodesMap[consensusNode.name] || consensusNode.blockNodeIds;
-
-        if (blockNodeIds.length > 0) {
-          // Filter block node components based on the mapping
-          const filteredBlockNodes: BlockNodeStateSchema[] = config.blockNodeComponents.filter((bn): boolean =>
-            blockNodeIds.includes(bn.metadata.id),
-          );
-
-          const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-            filteredBlockNodes,
-            this.remoteConfig.configuration.clusters,
-            this.remoteConfig.configuration.versions,
-            config.externalBlockNodes,
-          ).toJSON();
-
-          // Create a unique filename for each consensus node
-          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNode.nodeId}.json`;
-          const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-          // Format JSON with indentation for readability
-          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2);
-          fs.writeFileSync(blockNodesJsonPath, formattedJson);
-
-          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNode.nodeId}`);
-        }
       }
     }
 
@@ -1358,21 +1300,15 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
-          task: async ({
-            config: {consensusNodeToBlockNodesMap, namespace, consensusNodes, externalBlockNodes},
-          }): Promise<void> => {
-            consensusNodeToBlockNodesMap ||= {};
-
+          task: async ({config: {namespace, consensusNodes, externalBlockNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
                 await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
                   consensusNode,
-                  consensusNodeToBlockNodesMap[consensusNode.name],
                   namespace,
                   this.logger,
                   this.k8Factory,
                   this.remoteConfig,
-                  this.remoteConfig.configuration.state.blockNodes.length === 0 && externalBlockNodes.length === 0,
                   externalBlockNodes,
                 );
               }
@@ -1407,34 +1343,32 @@ export class NetworkCommand extends BaseCommand {
     return true;
   }
 
+  /**
+   * @param consensusNode - the targeted consensus node
+   * @param namespace
+   * @param logger
+   * @param k8Factory
+   * @param remoteConfig
+   */
   public static async createAndCopyBlockNodeJsonFileForConsensusNode(
     consensusNode: ConsensusNode,
-    blockNodeIds: number[],
     namespace: NamespaceName,
     logger: SoloLogger,
     k8Factory: K8Factory,
     remoteConfig: RemoteConfigRuntimeStateApi,
-    shouldCreateConfigMaps: boolean,
     externalBlockNodes: string[],
   ): Promise<void> {
-    const {nodeId, context, name: nodeAlias} = consensusNode;
+    const {nodeId, context, name: nodeAlias, blockNodeMap} = consensusNode;
 
-    // Check if the node has block nodes assigned (use node name as key)
-    if (blockNodeIds.length === 0 && externalBlockNodes.length === 0) {
-      logger.debug(
-        `Skipping consensus node ${nodeAlias} - no block nodes assigned and no external block nodes provided`,
-      );
-      return;
-    }
+    const blockNodeIds: Set<ComponentId> = new Set(blockNodeMap.map(([id]): ComponentId => id));
 
-    const filteredBlockNodes: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
-      (bn): boolean => blockNodeIds.includes(bn.metadata.id),
+    const blockNodeComponents: BlockNodeStateSchema[] = remoteConfig.configuration.state.blockNodes.filter(
+      (blockNode): boolean => blockNodeIds.has(blockNode.metadata.id),
     );
 
     const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-      filteredBlockNodes,
-      remoteConfig.configuration.clusters,
-      remoteConfig.configuration.versions,
+      blockNodeMap,
+      blockNodeComponents,
       externalBlockNodes,
     ).toJSON();
 
@@ -1451,7 +1385,7 @@ export class NetworkCommand extends BaseCommand {
 
     const k8: K8 = k8Factory.getK8(context);
 
-    const container: Container = await k8.helpers().getConsensusNodeRootContainer(namespace, nodeAlias);
+    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
     await container.execContainer('pwd');
 
@@ -1496,22 +1430,12 @@ export class NetworkCommand extends BaseCommand {
       ['application.properties']: lines.join('\n'),
     });
 
-    if (shouldCreateConfigMaps) {
-      logger.debug('No block nodes found in remote config or external block nodes provided');
+    const configName: string = `network-${nodeAlias}-data-config-cm`;
+    const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
 
-      await k8.configMaps().create(
-        namespace,
-        `network-${nodeAlias}-data-config-cm`,
-        {},
-        {
-          'block-nodes.json': blockNodesJsonData,
-        },
-      );
-    } else {
-      await k8.configMaps().update(namespace, `network-${nodeAlias}-data-config-cm`, {
-        'block-nodes.json': blockNodesJsonData,
-      });
-    }
+    await (configMapExists
+      ? k8.configMaps().update(namespace, configName, {'block-nodes.json': blockNodesJsonData})
+      : k8.configMaps().create(namespace, configName, {}, {'block-nodes.json': blockNodesJsonData}));
 
     logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
 

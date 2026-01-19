@@ -15,6 +15,7 @@ import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReferenceName, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {type ConsensusNode} from './model/consensus-node.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
@@ -409,5 +410,26 @@ export class Templates {
   public static parseExternalBlockAddress(raw: string): [string, number] {
     const [address, port] = raw.includes(':') ? raw.split(':') : [raw, constants.BLOCK_NODE_PORT];
     return [address, +port];
+  }
+
+  public static parseBlockNodePriorityMapping(rawString: string, nodes: ConsensusNode[]): Record<NodeAlias, number> {
+    const mapping: Record<NodeAlias, number> = {};
+
+    const isDefault: boolean = !rawString || rawString.split(',').length === 0;
+
+    const nodeAliasesToPriorityMapping: string[] = isDefault
+      ? nodes.map((node): NodeAlias => node.name)
+      : rawString.split(',');
+
+    for (const data of nodeAliasesToPriorityMapping) {
+      // eslint-disable-next-line prefer-const
+      let [nodeAlias, priority] = data.split('=') as [NodeAlias, number | undefined];
+
+      priority = !priority && nodeAliasesToPriorityMapping.length === 1 ? 2 : 1;
+
+      mapping[nodeAlias] = +priority || 1;
+    }
+
+    return mapping;
   }
 }

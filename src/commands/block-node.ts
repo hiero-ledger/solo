@@ -7,7 +7,7 @@ import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
@@ -20,7 +20,6 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import * as versions from '../../version.js';
-import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -41,8 +40,7 @@ import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
-import {Container} from '../integration/kube/resources/container/container.js';
-import {K8} from '../integration/kube/k8.js';
+import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 interface BlockNodeDeployConfigClass {
@@ -59,12 +57,12 @@ interface BlockNodeDeployConfigClass {
   releaseTag: string;
   imageTag: Optional<string>;
   namespace: NamespaceName;
-  nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
   livenessCheckPort: number;
+  priorityMapping: Record<NodeAlias, number>;
 }
 
 interface BlockNodeDeployContext {
@@ -156,7 +154,7 @@ class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.releaseTag,
       flags.imageTag,
-      flags.nodeAliasesUnparsed,
+      flags.priorityMapping,
     ],
   };
 
@@ -222,6 +220,24 @@ class BlockNodeCommand extends BaseCommand {
       });
     }
 
+    const {state, clusters} = this.remoteConfig.configuration;
+
+    for (const [index, blockNode] of state.blockNodes.entries()) {
+      const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
+
+      const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(
+        `block-node-${blockNode.metadata.id}`,
+        config.namespace.name,
+        cluster.dnsBaseDomain,
+      );
+
+      valuesArgument += helpers.populateHelmArguments({
+        [`blockNode.sources[${index}].address`]: fqdn,
+        [`blockNode.sources[${index}].port`]: constants.BLOCK_NODE_PORT,
+        [`blockNode.sources[${index}].priority`]: 1,
+      });
+    }
+
     return valuesArgument;
   }
 
@@ -241,13 +257,16 @@ class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesInRemoteConfig(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Update consensus nodes in remote config',
-      task: async ({config: {newBlockNodeComponent, nodeAliases}}): Promise<void> => {
+      task: async ({config: {newBlockNodeComponent, priorityMapping}}): Promise<void> => {
         const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
+        const nodeAliases: string[] = Object.keys(priorityMapping);
 
         for (const node of state.consensusNodes.filter((node): boolean =>
           nodeAliases.includes(Templates.renderNodeAliasFromNumber(node.metadata.id)),
         )) {
-          node.blockNodeIds.push(newBlockNodeComponent.metadata.id);
+          const priority: number = priorityMapping[Templates.renderNodeAliasFromNumber(node.metadata.id)];
+
+          node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priority]);
         }
 
         await this.remoteConfig.persist();
@@ -258,24 +277,21 @@ class BlockNodeCommand extends BaseCommand {
   private updateConsensusNodesPostGenesis(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Copy block-nodes.json to consensus nodes',
-      task: async ({config: {nodeAliases, newBlockNodeComponent, namespace}}): Promise<void> => {
-        const nodes: ConsensusNode[] = this.remoteConfig
+      task: async ({config: {priorityMapping, namespace}}): Promise<void> => {
+        const nodeAliases: string[] = Object.keys(priorityMapping);
+
+        const filteredConsensusNodes: ConsensusNode[] = this.remoteConfig
           .getConsensusNodes()
           .filter((node): boolean => nodeAliases.includes(node.name));
 
-        for (const node of nodes) {
-          const blockNodeIds: number[] = node.blockNodeIds;
-          blockNodeIds.push(newBlockNodeComponent.metadata.id);
-
+        for (const node of filteredConsensusNodes) {
           await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
             node,
-            blockNodeIds,
             namespace,
             this.logger,
             this.k8Factory,
             this.remoteConfig,
-            this.remoteConfig.configuration.state.blockNodes.length <= 1,
-            [],
+            [], // todo
           );
         }
       },
@@ -286,8 +302,8 @@ class BlockNodeCommand extends BaseCommand {
     return {
       title: 'Copy block-nodes.json to consensus nodes',
       task: async ({
-        config: {nodeAliases, namespace, externalBlockNodeAddress, newExternalBlockNodeComponent},
-      }): Promise<void> => {
+                     config: {nodeAliases, namespace, externalBlockNodeAddress, newExternalBlockNodeComponent},
+                   }): Promise<void> => {
         const nodes: ConsensusNode[] = this.remoteConfig
           .getConsensusNodes()
           .filter((node): boolean => nodeAliases.includes(node.name));
@@ -303,7 +319,6 @@ class BlockNodeCommand extends BaseCommand {
             this.logger,
             this.k8Factory,
             this.remoteConfig,
-            true,
             externalBlockNodes,
           );
         }
@@ -318,13 +333,14 @@ class BlockNodeCommand extends BaseCommand {
         const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [this.updateConsensusNodesInRemoteConfig()];
 
         if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
-          subTasks.push(this.updateConsensusNodesPostGenesis(), this.startNodesAgainFromGenesis() as any);
+          subTasks.push(this.updateConsensusNodesPostGenesis());
         }
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
     };
   }
+
 
   private updateConsensusNodesInRemoteConfigForExternalBlockNode(): SoloListrTask<BlockNodeAddExternalContext> {
     return {
@@ -450,10 +466,10 @@ class BlockNodeCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
-            config.nodeAliases = helpers.parseNodeAliases(
-              this.configManager.getFlag(flags.nodeAliasesUnparsed),
+
+            config.priorityMapping = Templates.parseBlockNodePriorityMapping(
+              config.priorityMapping as any,
               this.remoteConfig.getConsensusNodes(),
-              this.configManager,
             );
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
@@ -754,16 +770,7 @@ class BlockNodeCommand extends BaseCommand {
               : this.renderReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
-
-            config.nodeAliases = helpers.parseNodeAliases(
-              this.configManager.getFlag(flags.nodeAliasesUnparsed),
-              this.remoteConfig.getConsensusNodes(),
-              this.configManager,
-            );
-
-            if (!config.upgradeVersion) {
-              config.upgradeVersion = versions.BLOCK_NODE_VERSION;
-            }
+            config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
 
             return ListrLock.newAcquireLockTask(lease, task);
           },

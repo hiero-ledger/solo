@@ -259,6 +259,7 @@ export class ProfileManager {
       }
 
       const fileName: string = path.basename(filePath);
+      const fileName: string = path.basename(filePath);
       const destinationPath: string = PathEx.join(stagingDirectory, 'templates', fileName);
       this.logger.debug(`Copying configuration file to staging: ${filePath} -> ${destinationPath}`);
 
@@ -297,22 +298,20 @@ export class ProfileManager {
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
       yamlRoot,
     );
-
-    if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+    try {
+      if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+        return;
+      }
+    } catch {
       return;
     }
 
     const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
 
     for (const node of consensusNodes) {
-      const filteredBlockNodes: BlockNodeStateSchema[] = blockNodes.filter((blockNode): boolean =>
-        node.blockNodeIds.includes(blockNode.metadata.id),
-      );
-
       const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-        filteredBlockNodes,
-        this.remoteConfig.configuration.clusters,
-        this.remoteConfig.configuration.versions,
+        node.blockNodeMap,
+        blockNodes,
         externalBlockNodes,
       ).toJSON();
 
@@ -451,8 +450,8 @@ export class ProfileManager {
 
     for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
       const nodeAliases: NodeAliases = consensusNodes
-        .filter(consensusNode => consensusNode.cluster === clusterReference)
-        .map(consensusNode => consensusNode.name);
+        .filter((node): boolean => node.cluster === clusterReference)
+        .map((node): NodeAlias => node.name);
 
       // generate the YAML
       const yamlRoot = {};

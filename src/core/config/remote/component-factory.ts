@@ -8,7 +8,12 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type NodeId} from '../../../types/aliases.js';
-import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} from '../../../types/index.js';
+import {
+  type ClusterReferenceName,
+  type ComponentId,
+  type PortForwardConfig,
+  type PriorityMapping,
+} from '../../../types/index.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type ComponentFactoryApi} from './api/component-factory-api.js';
 import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/state/component-state-metadata-schema.js';
@@ -78,7 +83,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
     portForwardConfigs?: PortForwardConfig[],
-    blockNodeIds: number[] = [],
+    blockNodeMap: PriorityMapping[] = [],
     externalBlockNodeIds: number[] = [],
   ): ConsensusNodeStateSchema {
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
@@ -89,7 +94,7 @@ export class ComponentFactory implements ComponentFactoryApi {
       portForwardConfigs,
     );
 
-    return new ConsensusNodeStateSchema(metadata, blockNodeIds, externalBlockNodeIds);
+    return new ConsensusNodeStateSchema(metadata, blockNodeMap, externalBlockNodeIds);
   }
 
   public createConsensusNodeComponentsFromNodeIds(

@@ -45,7 +45,7 @@ describe('ProfileManager', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node1-svc.test-namespace.svc.cluster.local',
-      blockNodeIds: [],
+      blockNodeMap: [],
       externalBlockNodes: [],
     },
     {
@@ -57,7 +57,7 @@ describe('ProfileManager', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node2-svc.test-namespace.svc.cluster.local',
-      blockNodeIds: [],
+      blockNodeMap: [],
       externalBlockNodes: [],
     },
     {
@@ -69,7 +69,7 @@ describe('ProfileManager', () => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node3-svc.test-namespace.svc.cluster.local',
-      blockNodeIds: [],
+      blockNodeMap: [],
       externalBlockNodes: [],
     },
   ];

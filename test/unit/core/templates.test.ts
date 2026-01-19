@@ -15,7 +15,7 @@ describe('core/templates', (): void => {
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
       fullyQualifiedDomainName: 'network-node1-svc.solo.svc.cluster.local',
-      blockNodeIds: [],
+      blockNodeMap: [],
       externalBlockNodes: [],
     },
     {
@@ -27,7 +27,7 @@ describe('core/templates', (): void => {
       dnsBaseDomain: 'us-west-2.gcp.charlie.sphere',
       dnsConsensusNodePattern: '{nodeId}.consensus.prod',
       fullyQualifiedDomainName: '2.consensus.prod.us-west-2.gcp.charlie.sphere',
-      blockNodeIds: [],
+      blockNodeMap: [],
       externalBlockNodes: [],
     },
   ];

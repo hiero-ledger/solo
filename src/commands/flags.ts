@@ -1165,8 +1165,8 @@ export class Flags {
     definition: {
       describe:
         'Configure block node routing for each consensus node. ' +
-        'Maps consensus node names to block node IDs. ' +
-        'Accepts: (1) JSON string: \'{"node1":[1,3],"node2":[2]}\' or (2) path to JSON file: \'block.json\'. ' +
+        'Maps consensus node names to block node IDs and optional priority (default priority = 1). ' +
+        'Accepts: (1) JSON string: \'{"node1":["1=2","3=1"],"node2":["2"]}\' or (2) path to JSON file: \'block.json\'. ' +
         'Example: node1 sends blocks to block nodes 1 and 3, node2 sends blocks to block node 2',
       defaultValue: '',
       type: 'string',
@@ -1174,11 +1174,16 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly blockNodeIds: CommandFlag = {
-    constName: 'blockNodeIds',
-    name: 'block-node-ids',
+  public static readonly priorityMapping: CommandFlag = {
+    constName: 'priorityMapping',
+    name: 'priority-mapping',
     definition: {
-      describe: 'Configure block node routing for consensus node, provide IDs, comma separated',
+      describe:
+        'Configure block node priority mapping ' +
+        '(default all consensus nodes, first consensus node will have priority of 2). ' +
+        'Example: "node1=2,node2=1", node1 will have priority 2, node2 will have priority 1. ' +
+        'Excluded nodes will not be routed to the specific block node! ' +
+        'One with the highest priority will be prioritized!',
       type: 'string',
     },
     prompt: undefined,
@@ -2971,7 +2976,7 @@ export class Flags {
     Flags.domainNames,
     Flags.blockNodeChartVersion,
     Flags.blockNodeCfg,
-    Flags.blockNodeIds,
+    Flags.priorityMapping,
     Flags.externalBlockNodes,
     Flags.realm,
     Flags.shard,

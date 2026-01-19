@@ -144,9 +144,10 @@ import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
-import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {NetworkCommand} from '../network.js';
 import {ExternalBlockNodeStateSchema} from '../../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {Contexts} from '../../integration/kube/resources/context/contexts.js';
+import {K8Helper} from '../../business/utils/k8-helper.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2411,7 +2412,7 @@ export class NodeCommandTasks {
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
-              config.blockNodeIds,
+              [],
               [],
             ),
             k8,
@@ -3068,10 +3069,10 @@ export class NodeCommandTasks {
         const node: ConsensusNode = consensusNodes[0];
         const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
-        const container: Container = await this.k8Factory
-          .getK8(node.context)
-          .helpers()
-          .getConsensusNodeRootContainer(namespace, node.name);
+        const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+          namespace,
+          node.name,
+        );
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
@@ -3355,7 +3356,7 @@ export class NodeCommandTasks {
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
-              config.blockNodeIds,
+              [],
               [],
             ),
           );
