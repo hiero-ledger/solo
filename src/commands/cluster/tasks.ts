@@ -201,7 +201,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installMinioOperator(_: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {

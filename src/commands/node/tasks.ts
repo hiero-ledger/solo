@@ -143,6 +143,8 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
+import {Contexts} from '../../integration/kube/resources/context/contexts.js';
+import {K8Helper} from '../../business/utils/k8-helper.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2673,6 +2675,7 @@ export class NodeCommandTasks {
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+              [],
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
@@ -2873,13 +2876,11 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] = '';
         }
 
-        if (!config.serviceMap) {
-          config.serviceMap = await self.accountManager.getNodeServiceMap(
-            config.namespace,
-            clusterReferences,
-            config.deployment,
-          );
-        }
+        config.serviceMap ||= await self.accountManager.getNodeServiceMap(
+          config.namespace,
+          clusterReferences,
+          config.deployment,
+        );
 
         let maxNodeId: NodeId = 0;
         for (const nodeAlias of config.existingNodeAliases) {
@@ -2901,10 +2902,9 @@ export class NodeCommandTasks {
             // eslint-disable-next-line unicorn/no-array-sort
             .sort((a, b): number => a.nodeId - b.nodeId);
 
-          // eslint-disable-next-line unicorn/no-array-for-each
-          nodesInCluster.forEach((node: ConsensusNode, index: number): void => {
+          for (const [index, node] of nodesInCluster.entries()) {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
-          });
+          }
         }
 
         switch (transactionType) {
@@ -2987,8 +2987,7 @@ export class NodeCommandTasks {
 
         // Update all charts
         await Promise.all(
-          clusterReferencesList.map(async clusterReference => {
-            const valuesArguments: string = valuesArgumentMap[clusterReference];
+          clusterReferencesList.map(async (clusterReference): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
             config.soloChartVersion = Version.getValidSemanticVersion(
@@ -3000,9 +2999,9 @@ export class NodeCommandTasks {
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
-              valuesArguments,
+              valuesArgumentMap[clusterReference],
               context,
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
@@ -3326,39 +3325,34 @@ export class NodeCommandTasks {
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',
-      task: async context_ => {
-        const config = context_.config;
-        // TODO: currently only supports downloading from the first existing node
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.consensusNodes[0].name);
-        const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
+      task: async ({config}): Promise<void> => {
+        const {consensusNodes, namespace, stagingDir} = config;
 
-        const context = helpers.extractContextFromConsensusNodes(
-          config.consensusNodes[0].name,
-          context_.config.consensusNodes,
+        // TODO: currently only supports downloading from the first existing node
+        const node: ConsensusNode = consensusNodes[0];
+        const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
+
+        const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+          namespace,
+          node.name,
         );
 
-        const k8 = this.k8Factory.getK8(context);
-        const container = await k8.containers().readByRef(containerReference);
+        // Use the -X to archive for cross-platform compatibility
+        const archiveCommand: string =
+          'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
-        const archiveCommand: string = this.configManager.getFlag<boolean>(flags.s6)
-          ? 'cd "${states[0]}" && jar -cf "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"'
-          : 'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
-
-        // compress the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName = await container.execContainer([
+        // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
+        const zipFileName: string = await container.execContainer([
           'bash',
           '-c',
           `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
         this.logger.debug(`state zip file to download is = ${zipFileName}`);
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .copyFrom(`${upgradeDirectory}/${zipFileName}`, config.stagingDir);
-        config.lastStateZipPath = PathEx.joinWithRealPath(config.stagingDir, zipFileName);
+
+        await container.copyFrom(`${upgradeDirectory}/${zipFileName}`, stagingDir);
+
+        config.lastStateZipPath = PathEx.joinWithRealPath(stagingDir, zipFileName);
       },
     };
   }
@@ -3618,6 +3612,7 @@ export class NodeCommandTasks {
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
+              [],
             ),
           );
         }
@@ -3628,12 +3623,10 @@ export class NodeCommandTasks {
   public downloadHieroComponentLogs(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
     return {
       title: 'Download logs from Hiero components',
-      task: async (context_, task) => {
+      task: async (_, task) => {
         // Iterate all k8 contexts to find solo-remote-config configmaps
         this.logger.info('Discovering Hiero components from remote configuration...');
-        const contexts: ReturnType<ReturnType<typeof this.k8Factory.default>['contexts']> = this.k8Factory
-          .default()
-          .contexts();
+        const contexts: Contexts = this.k8Factory.default().contexts();
         const allPods: Array<{pod: Pod; context: string; namespace: NamespaceName}> = [];
 
         // Define component types and their label selectors

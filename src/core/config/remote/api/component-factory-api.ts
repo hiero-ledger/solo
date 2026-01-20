@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} from '../../../../types/index.js';
+import {
+  type ClusterReferenceName,
+  type ComponentId,
+  type PortForwardConfig,
+  type PriorityMapping,
+} from '../../../../types/index.js';
 import {type NodeId} from '../../../../types/aliases.js';
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
@@ -35,6 +40,7 @@ export interface ComponentFactoryApi {
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
     portForwardConfigs?: PortForwardConfig[],
+    blockNodeMap?: PriorityMapping[],
   ): ConsensusNodeStateSchema;
 
   createConsensusNodeComponentsFromNodeIds(

@@ -29,7 +29,7 @@ new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
-  .withConsensusNodesCount(1)
+  .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(false)
   .withPinger(false)
   .withRealm(0)
@@ -77,7 +77,18 @@ new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
-      BlockNodeTest.testBlockNode(options);
+      BlockNodeTest.testBlockNode(options, 1);
+
+      BlockNodeTest.add(options, ['node2']);
+
+      it('Wait for block node 2 to come online', async (): Promise<void> => {
+        testLogger.showUser('Sleeping for 2 minutes to allow block node 2 to sync.');
+        await sleep(Duration.ofMinutes(2));
+        testLogger.showUser('Finished sleeping.');
+      }).timeout(Duration.ofMinutes(3).toMillis());
+
+      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2]);
+      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2]);
 
       BlockNodeTest.destroy(options);
 
