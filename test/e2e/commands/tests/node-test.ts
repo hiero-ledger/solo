@@ -59,7 +59,6 @@ import {Zippy} from '../../../../src/core/zippy.js';
 import {NetworkNodes} from '../../../../src/core/network-nodes.js';
 import {NodeStatusCodes} from '../../../../src/core/enumerations.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type ConfigManager} from '../../../../src/core/config-manager.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -601,15 +600,9 @@ export class NodeTest extends BaseCommandTest {
 
       {
         const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-        const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
-        const useHostCurl: boolean = configManager.getFlag<boolean>(flags.s6);
-        const response: string = useHostCurl
-          ? await container
-              .resolve(NetworkNodes)
-              .fetchPodStatusUsingHostCurl(PodReference.of(namespace, pods[0].podReference.name))
-          : await container
-              .resolve<NetworkNodes>(NetworkNodes)
-              .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
+        const response: string = await container
+          .resolve<NetworkNodes>(NetworkNodes)
+          .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
 
         expect(response).to.not.be.undefined;
 

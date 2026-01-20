@@ -2,13 +2,12 @@
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {HEDERA_HAPI_PATH, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
+import {HEDERA_HAPI_PATH, LOG_CONFIG_ZIP_SUFFIX, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
 import fs from 'node:fs';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
 import {sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
-import {SoloError} from './errors/solo-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -20,8 +19,6 @@ import path from 'node:path';
 import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
-import {ShellRunner} from './shell-runner.js';
-import {Templates} from './templates.js';
 
 /**
  * Class to manage network nodes
@@ -98,13 +95,13 @@ export class NetworkNodes {
       ]);
 
       await container.execContainer(['bash', '-c', `chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} false`);
+      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
       await container.copyFrom(
-        `${HEDERA_HAPI_PATH}/data/${podReference.name}${constants.LOG_CONFIG_ZIP_SUFFIX}`,
+        `${HEDERA_HAPI_PATH}/data/${podReference.name}${LOG_CONFIG_ZIP_SUFFIX}`,
         targetDirectory,
       );
       this.logger.showUser(
-        `Log zip file ${podReference.name}${constants.LOG_CONFIG_ZIP_SUFFIX} downloaded to ${targetDirectory}`,
+        `Log zip file ${podReference.name}${LOG_CONFIG_ZIP_SUFFIX} downloaded to ${targetDirectory}`,
       );
     } catch (error) {
       // not throw error here, so we can continue to finish downloading logs from other pods
@@ -146,19 +143,21 @@ export class NetworkNodes {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
+      // Use zip for compression, similar to tar -czf with -C flag
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
-      // use zip if available otherwise use jar
+      // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
+      // Use the -X to archive for cross-platform compatibility
       await k8
         .containers()
         .readByRef(containerReference)
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && (command -v zip >/dev/null 2>&1 && zip -r ${zipFileName} . || jar -cf ${zipFileName} .) && sync && test -f ${zipFileName})`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -rX ${zipFileName} . && sync && test -f ${zipFileName})`,
         ]);
       await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
@@ -179,32 +178,5 @@ export class NetworkNodes {
         '-c',
         String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
       ]);
-  }
-
-  public async fetchPodStatusUsingHostCurl(podReference: PodReference): Promise<string> {
-    const nodeAlias = Templates.extractNodeAliasFromPodName(podReference.name);
-    const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-    const localPort = constants.HEDERA_NODE_METRICS_LOCAL_PORT + nodeId;
-
-    const shellRunner = new ShellRunner(this.logger);
-
-    try {
-      // First fetch all metrics
-      const metricsOutput = await shellRunner.run(
-        `curl -sf --connect-timeout 2 --max-time 5 http://localhost:${localPort}/metrics`,
-      );
-
-      // Then filter for platform status
-      const statusLines = metricsOutput.filter(
-        line => line.startsWith('platform_PlatformStatus') && !line.startsWith('#'),
-      );
-
-      return statusLines.join('\n');
-    } catch (error) {
-      throw new SoloError(
-        `Failed to fetch metrics from node ${nodeAlias} (port ${localPort}): ${error instanceof Error ? error.message : String(error)}`,
-        error,
-      );
-    }
   }
 }
