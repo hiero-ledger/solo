@@ -73,16 +73,6 @@ export function testSeparateNodeAdd(
       );
     }).timeout(timeout);
 
-    xit('should succeed with init command', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argv,
-        command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.SYSTEM_INIT,
-        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
-      });
-    }).timeout(Duration.ofMinutes(8).toMillis());
-
     it('should succeed with init command', async (): Promise<void> => {
       const {newArgv, optionFromFlag} = BaseCommandTest;
       const initArgv: string[] = newArgv();
@@ -149,16 +139,6 @@ export function testSeparateNodeAdd(
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
     }).timeout(Duration.ofMinutes(12).toMillis());
 
-    xit('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argv,
-        command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.ACCOUNT_CREATE,
-        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
-      });
-    });
-
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
       const {newArgv, optionFromFlag} = BaseCommandTest;
       const accountCreateArgv: string[] = newArgv();
@@ -171,7 +151,6 @@ export function testSeparateNodeAdd(
       );
       await main(accountCreateArgv);
     });
-
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
@@ -222,25 +201,6 @@ export function testSeparateNodeAdd(
         balance: amount,
       };
 
-      // // create more transactions to save more round of states
-      // await commandInvoker.invoke({
-      //   argv: argv,
-      //   command: LedgerCommandDefinition.COMMAND_NAME,
-      //   subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-      //   action: LedgerCommandDefinition.ACCOUNT_CREATE,
-      //   callback: async (argv): Promise<boolean> => accountCmd.create(argv),
-      // });
-      //
-      // await sleep(Duration.ofSeconds(1));
-      //
-      // await commandInvoker.invoke({
-      //   argv: argv,
-      //   command: LedgerCommandDefinition.COMMAND_NAME,
-      //   subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-      //   action: LedgerCommandDefinition.ACCOUNT_CREATE,
-      //   callback: async (argv): Promise<boolean> => accountCmd.create(argv),
-      // });
-
       // create more transactions to save more round of states
       const accountCreateArgv: string[] = newArgv();
       accountCreateArgv.push(
@@ -256,29 +216,62 @@ export function testSeparateNodeAdd(
 
       await main(accountCreateArgv);
 
-      await commandInvoker.invoke({
-        argv: argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_FREEZE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
-      });
+      // await commandInvoker.invoke({
+      //   argv: argv,
+      //   command: ConsensusCommandDefinition.COMMAND_NAME,
+      //   subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      //   action: ConsensusCommandDefinition.NETWORK_FREEZE,
+      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
+      // });
+      //
+      // await commandInvoker.invoke({
+      //   argv,
+      //   command: ConsensusCommandDefinition.COMMAND_NAME,
+      //   subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+      //   action: ConsensusCommandDefinition.STATE_DOWNLOAD,
+      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
+      // });
+      //
+      // await commandInvoker.invoke({
+      //   argv: argv,
+      //   command: ConsensusCommandDefinition.COMMAND_NAME,
+      //   subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      //   action: ConsensusCommandDefinition.NODE_RESTART,
+      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
+      // });
 
-      await commandInvoker.invoke({
-        argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.STATE_DOWNLOAD,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
-      });
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_FREEZE,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
+      );
 
-      await commandInvoker.invoke({
-        argv: argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_RESTART,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
-      });
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.STATE_DOWNLOAD,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
+          ]),
+        ),
+      );
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NODE_RESTART,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
+      );
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 
