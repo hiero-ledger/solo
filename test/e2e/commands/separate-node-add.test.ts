@@ -225,34 +225,34 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
-
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.STATE_DOWNLOAD,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
-            [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
-            [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
-          ]),
-        ),
-      );
-
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.NODE_RESTART,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
-          ]),
-        ),
-      );
+      //
+      // await main(
+      //   buildMainArgv(
+      //     namespace.toString(),
+      //     ConsensusCommandDefinition.COMMAND_NAME,
+      //     ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+      //     ConsensusCommandDefinition.STATE_DOWNLOAD,
+      //     new Map<CommandFlag, string>([
+      //       [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+      //       [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
+      //       [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
+      //       [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
+      //     ]),
+      //   ),
+      // );
+      //
+      // await main(
+      //   buildMainArgv(
+      //     namespace.toString(),
+      //     ConsensusCommandDefinition.COMMAND_NAME,
+      //     ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      //     ConsensusCommandDefinition.NODE_RESTART,
+      //     new Map<CommandFlag, string>([
+      //       [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+      //       [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
+      //     ]),
+      //   ),
+      // );
 
       // await commandInvoker.invoke({
       //   argv: argv,
@@ -261,22 +261,22 @@ export function testSeparateNodeAdd(
       //   action: ConsensusCommandDefinition.NETWORK_FREEZE,
       //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
       // });
-      //
-      // await commandInvoker.invoke({
-      //   argv,
-      //   command: ConsensusCommandDefinition.COMMAND_NAME,
-      //   subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-      //   action: ConsensusCommandDefinition.STATE_DOWNLOAD,
-      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
-      // });
-      //
-      // await commandInvoker.invoke({
-      //   argv: argv,
-      //   command: ConsensusCommandDefinition.COMMAND_NAME,
-      //   subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      //   action: ConsensusCommandDefinition.NODE_RESTART,
-      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
-      // });
+
+      await commandInvoker.invoke({
+        argv,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.STATE_DOWNLOAD,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
+      });
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_RESTART,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
+      });
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 
