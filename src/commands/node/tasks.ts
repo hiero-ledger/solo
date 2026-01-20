@@ -2929,7 +2929,6 @@ export class NodeCommandTasks {
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      this.appendS6ImageOverrides(valuesArgumentMap, clusterReference, index, releaseTag);
     }
   }
 
@@ -2966,7 +2965,6 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
-      this.appendS6ImageOverrides(valuesArgumentMap, node.cluster, index, releaseTag);
     }
 
     // Add new node
@@ -2975,7 +2973,6 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
-    this.appendS6ImageOverrides(valuesArgumentMap, clusterReference, index, releaseTag);
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3028,7 +3025,6 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
-        this.appendS6ImageOverrides(valuesArgumentMap, clusterReference, index, releaseTag);
 
         index++;
       }
@@ -3038,24 +3034,7 @@ export class NodeCommandTasks {
     serviceMap.delete(nodeAlias);
   }
 
-  private appendS6ImageOverrides(
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
-    clusterReference: ClusterReferenceName,
-    index: number,
-    releaseTag: string,
-  ): void {
-    if (!this.configManager.getFlag<boolean>(flags.s6)) {
-      return;
-    }
-    const platformVersion: string = releaseTag?.startsWith('v') ? releaseTag.slice(1) : releaseTag;
-    if (!platformVersion) {
-      return;
-    }
-    valuesArgumentMap[clusterReference] +=
-      ` --set "hedera.nodes[${index}].root.image.registry=gcr.io"` +
-      ` --set "hedera.nodes[${index}].root.image.tag=${platformVersion}"` +
-      ` --set "hedera.nodes[${index}].root.image.repository=hedera-registry/consensus-node"`;
-  }
+  
 
   public saveContextData(
     argv: ArgvStruct,
