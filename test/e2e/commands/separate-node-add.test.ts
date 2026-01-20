@@ -35,6 +35,7 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {main} from '../../../src/index.js';
 import {CommandFlag} from '../../../src/types/flag-types.js';
+import {BaseCommandTest} from './tests/base-command-test.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
@@ -72,7 +73,7 @@ export function testSeparateNodeAdd(
       );
     }).timeout(timeout);
 
-    it('should succeed with init command', async (): Promise<void> => {
+    xit('should succeed with init command', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argv,
         command: LedgerCommandDefinition.COMMAND_NAME,
@@ -82,34 +83,18 @@ export function testSeparateNodeAdd(
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
-    xit('should add a new node to the network successfully', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.addPrepare(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.addSubmitTransactions(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.addExecute(argv),
-      });
-
-      await accountManager.close();
-      argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
-    }).timeout(Duration.ofMinutes(12).toMillis());
+    it('should succeed with init command', async (): Promise<void> => {
+      const {newArgv, optionFromFlag} = BaseCommandTest;
+      const initArgv: string[] = newArgv();
+      initArgv.push(
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.SYSTEM_INIT,
+        optionFromFlag(flags.deployment),
+        argv.getArg<DeploymentName>(flags.deployment),
+      );
+      await main(initArgv);
+    }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
       await main(
@@ -164,7 +149,7 @@ export function testSeparateNodeAdd(
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
     }).timeout(Duration.ofMinutes(12).toMillis());
 
-    it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
+    xit('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argv,
         command: LedgerCommandDefinition.COMMAND_NAME,
@@ -173,6 +158,20 @@ export function testSeparateNodeAdd(
         callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
     });
+
+    it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
+      const {newArgv, optionFromFlag} = BaseCommandTest;
+      const accountCreateArgv: string[] = newArgv();
+      accountCreateArgv.push(
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_CREATE,
+        optionFromFlag(flags.deployment),
+        argv.getArg<DeploymentName>(flags.deployment),
+      );
+      await main(accountCreateArgv);
+    });
+
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
@@ -197,6 +196,8 @@ export function testSeparateNodeAdd(
     }).timeout(timeout);
 
     it('should save the state, restart node, and preserve account balances', async (): Promise<void> => {
+      const {newArgv, optionFromFlag} = BaseCommandTest;
+
       // create account before stopping
       await accountManager.loadNodeClient(
         namespace,
@@ -221,24 +222,39 @@ export function testSeparateNodeAdd(
         balance: amount,
       };
 
+      // // create more transactions to save more round of states
+      // await commandInvoker.invoke({
+      //   argv: argv,
+      //   command: LedgerCommandDefinition.COMMAND_NAME,
+      //   subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+      //   action: LedgerCommandDefinition.ACCOUNT_CREATE,
+      //   callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+      // });
+      //
+      // await sleep(Duration.ofSeconds(1));
+      //
+      // await commandInvoker.invoke({
+      //   argv: argv,
+      //   command: LedgerCommandDefinition.COMMAND_NAME,
+      //   subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+      //   action: LedgerCommandDefinition.ACCOUNT_CREATE,
+      //   callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+      // });
+
       // create more transactions to save more round of states
-      await commandInvoker.invoke({
-        argv: argv,
-        command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.ACCOUNT_CREATE,
-        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
-      });
+      const accountCreateArgv: string[] = newArgv();
+      accountCreateArgv.push(
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_CREATE,
+        optionFromFlag(flags.deployment),
+        argv.getArg<DeploymentName>(flags.deployment),
+      );
+      await main(accountCreateArgv);
 
       await sleep(Duration.ofSeconds(1));
 
-      await commandInvoker.invoke({
-        argv: argv,
-        command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.ACCOUNT_CREATE,
-        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
-      });
+      await main(accountCreateArgv);
 
       await commandInvoker.invoke({
         argv: argv,
