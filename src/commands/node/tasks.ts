@@ -948,6 +948,9 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
+        // copy the config.txt file from the node1 upgrade directory
+        await k8Container.copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, stagingDir);
+
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
 
@@ -1228,7 +1231,7 @@ export class NodeCommandTasks {
           ]);
 
           // Fix ownership of extracted state files to hedera user
-          // NOTE: zip/jar doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
+          // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
           // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
           // The chown is required so the hedera process can access the extracted state files.
           self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
@@ -1667,7 +1670,7 @@ export class NodeCommandTasks {
               const k8 = this.k8Factory.getK8(context);
               const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
               await (this.configManager.getFlag<boolean>(flags.s6)
-                ? container.execContainer(['bash', '-c', '/command/s6-svc -u /run/service/consensus'])
+                ? container.execContainer(['bash', '-c', '/command/s6-svc -u /run/service/network-node'])
                 : container.execContainer([
                     'bash',
                     '-c',
@@ -1722,7 +1725,7 @@ export class NodeCommandTasks {
             this.logger,
             ComponentTypes.ConsensusNode,
             'Consensus Node gRPC',
-            true, // Always try to reuse existing port configs
+            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
           );
           await this.remoteConfig.persist();
@@ -1913,7 +1916,7 @@ export class NodeCommandTasks {
 
                 if (this.configManager.getFlag<boolean>(flags.s6)) {
                   // First attempt: normal stop
-                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/consensus']);
+                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
 
                   // Wait for graceful shutdown
                   await new Promise(resolve => setTimeout(resolve, 3000));
@@ -1923,13 +1926,13 @@ export class NodeCommandTasks {
                     const serviceStatus = await container.execContainer([
                       'bash',
                       '-c',
-                      '/command/s6-svstat /run/service/consensus',
+                      '/command/s6-svstat /run/service/network-node',
                     ]);
 
                     if (serviceStatus.includes('up') || serviceStatus.includes('want down')) {
                       this.logger.warn(`Service still running or in bad state for ${nodeAlias}, forcing stop`);
                       // Force stop with -D flag
-                      await container.execContainer(['bash', '-c', '/command/s6-svc -wD /run/service/consensus']);
+                      await container.execContainer(['bash', '-c', '/command/s6-svc -wD /run/service/network-node']);
                       this.logger.debug(`Executed forced stop for ${nodeAlias}`);
 
                       // Wait for forced stop to complete
@@ -1939,7 +1942,7 @@ export class NodeCommandTasks {
                     this.logger.debug(`Could not check service status for ${nodeAlias}: ${statusError.message}`);
                     // Try force stop anyway
                     try {
-                      await container.execContainer(['bash', '-c', '/command/s6-svc -D /run/service/consensus']);
+                      await container.execContainer(['bash', '-c', '/command/s6-svc -D /run/service/network-node']);
                       await new Promise(resolve => setTimeout(resolve, 2000));
                     } catch (forceError) {
                       this.logger.debug(`Force stop also failed for ${nodeAlias}: ${forceError.message}`);

@@ -68,6 +68,11 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
 
+// S6-based consensus node image configuration (overridable via environment)
+export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
+export const S6_NODE_IMAGE_REPOSITORY: string =
+  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java21';
+
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
