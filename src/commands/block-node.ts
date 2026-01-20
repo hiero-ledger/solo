@@ -127,7 +127,7 @@ interface BlockNodeAddExternalContext {
 }
 
 @injectable()
-class BlockNodeCommand extends BaseCommand {
+export class BlockNodeCommand extends BaseCommand {
   public constructor() {
     super();
   }
