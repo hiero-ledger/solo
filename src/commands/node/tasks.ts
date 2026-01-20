@@ -516,14 +516,6 @@ export class NodeCommandTasks {
 
         const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
 
-        // Debug logging to understand parsing issues
-        this.logger.info(`${title}: Raw metrics response: ${JSON.stringify(response)}`);
-        this.logger.info(`${title}: Parsed status line: ${JSON.stringify(statusLine)}`);
-        this.logger.info(
-          `${title}: Parsed status number: ${statusNumber} (${NodeStatusEnums[statusNumber] || 'UNKNOWN'})`,
-        );
-        this.logger.info(`${title}: Expected status: ${status} (${NodeStatusEnums[status] || 'UNKNOWN'})`);
-
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           success = true;
@@ -956,21 +948,6 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        // copy the config.txt file from the node1 upgrade directory (only when it exists and is non-empty)
-        const configTxtPath: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
-        if (await k8Container.hasFile(configTxtPath)) {
-          const entries: TDirectoryData[] = await k8Container.listDir(configTxtPath);
-          const configTxtEntry: TDirectoryData | undefined = entries.at(0);
-          const configTxtSize: number = configTxtEntry ? Number.parseInt(configTxtEntry.size, 10) : 0;
-          if (configTxtSize > 0) {
-            await k8Container.copyFrom(configTxtPath, stagingDir);
-          } else {
-            this.logger.debug(`Skipping config.txt download from ${configTxtPath}: file is empty`);
-          }
-        } else {
-          this.logger.debug(`Skipping config.txt download: ${configTxtPath} does not exist`);
-        }
-
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
 
@@ -1234,17 +1211,20 @@ export class NodeCommandTasks {
             zipFile = stateFileDirectory || config.stateFile;
           }
 
+          self.logger.debug(`Uploading state files to pod ${podReference.name}`);
+          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
+
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
-          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data/saved`);
-
           await container.execContainer([
-            'bash',
-            '-c',
-            `cd ${constants.HEDERA_HAPI_PATH}/data/saved && if command -v unzip >/dev/null 2>&1; then unzip -o ${path.basename(zipFile)}; else jar -xf ${path.basename(zipFile)}; fi`,
+            'unzip',
+            '-o',
+            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
+            '-d',
+            `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 
           // Fix ownership of extracted state files to hedera user
@@ -2807,7 +2787,6 @@ export class NodeCommandTasks {
               clusterNodeIndexMap,
               (config as NodeUpdateConfigClass).newAccountNumber,
               config.nodeAlias,
-              (config as NodeUpdateConfigClass).releaseTag,
             );
             break;
           }
@@ -2818,7 +2797,6 @@ export class NodeCommandTasks {
               config.nodeAlias,
               config.serviceMap,
               clusterReferences,
-              (config as NodeDestroyConfigClass).releaseTag,
             );
             break;
           }
@@ -2833,7 +2811,6 @@ export class NodeCommandTasks {
               config.nodeAlias,
               (context_ as NodeAddContext).newNode,
               config as NodeAddConfigClass,
-              (config as NodeAddConfigClass).releaseTag,
             );
             break;
           }
@@ -2915,7 +2892,6 @@ export class NodeCommandTasks {
     clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     newAccountNumber: string,
     nodeAlias: NodeAlias,
-    releaseTag: string,
   ): void {
     for (const consensusNode of consensusNodes) {
       const clusterReference: string = consensusNode.cluster;
@@ -2952,7 +2928,6 @@ export class NodeCommandTasks {
       envoyIps?: string;
       envoyIpsParsed?: Record<NodeAlias, IP>;
     },
-    releaseTag: string,
   ): void {
     // Add existing nodes
     for (const node of consensusNodes) {
@@ -3004,7 +2979,6 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterReferences: ClusterReferences,
-    releaseTag: string,
   ): void {
     for (const [clusterReference] of clusterReferences) {
       const nodesInCluster: ConsensusNode[] = consensusNodes
@@ -3033,8 +3007,6 @@ export class NodeCommandTasks {
     // now remove the deleted node from the serviceMap
     serviceMap.delete(nodeAlias);
   }
-
-  
 
   public saveContextData(
     argv: ArgvStruct,
@@ -3257,9 +3229,7 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand: string = this.configManager.getFlag<boolean>(flags.s6)
-          ? `jar -xf ${path.basename(config.lastStateZipPath)}`
-          : `unzip ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
 
         await k8
           .containers()
