@@ -8,6 +8,7 @@ import {
   accountCreationShouldSucceed,
   balanceQueryShouldSucceed,
   type BootstrapResponse,
+  buildMainArgv,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
 } from '../../test-utility.js';
@@ -32,6 +33,8 @@ import {
 import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
+import {main} from '../../../src/index.js';
+import {CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeAdd(
   argv: Argv,
@@ -79,7 +82,7 @@ export function testSeparateNodeAdd(
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
-    it('should add a new node to the network successfully', async (): Promise<void> => {
+    xit('should add a new node to the network successfully', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: ConsensusCommandDefinition.COMMAND_NAME,
@@ -103,6 +106,59 @@ export function testSeparateNodeAdd(
         action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addExecute(argv),
       });
+
+      await accountManager.close();
+      argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
+    }).timeout(Duration.ofMinutes(12).toMillis());
+
+    it('should add a new node to the network successfully', async (): Promise<void> => {
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([
+            [flags.outputDir, temporaryDirectory],
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.persistentVolumeClaims, argv.getArg<string>(flags.persistentVolumeClaims)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+            [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
+            [flags.generateGossipKeys, argv.getArg<string>(flags.generateGossipKeys)],
+            [flags.generateTlsKeys, argv.getArg<string>(flags.generateTlsKeys)],
+            [flags.releaseTag, argv.getArg<string>(flags.releaseTag)],
+            [flags.persistentVolumeClaims, argv.getArg<string>(flags.persistentVolumeClaims)],
+          ]),
+        ),
+      );
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([
+            [flags.inputDir, temporaryDirectory],
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([
+            [flags.inputDir, temporaryDirectory],
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
 
       await accountManager.close();
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
