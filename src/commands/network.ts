@@ -69,6 +69,7 @@ import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -159,6 +160,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
   ) {
     super();
 
@@ -166,6 +168,11 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.postgresSharedResource = patchInject(
+      postgresSharedResource,
+      InjectTokens.PostgresSharedResource,
+      this.constructor.name,
+    );
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -980,6 +987,17 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
+          title: `Deploy postgres`,
+          task: async ({config: {namespace, contexts}}: NetworkDeployContext): Promise<void> => {
+            try {
+              await this.postgresSharedResource.deploy(namespace, contexts[0]);
+            } catch (error) {
+              throw new SoloError(`Failed deploying postgres shared resource: ${error.message}`, error);
+            }
+          },
+        },
+        /**
+        {
           title: 'Copy gRPC TLS Certificates',
           task: (context_, parentTask): SoloListr<AnyListrContext> =>
             this.certificateManager.buildCopyTlsCertificatesTasks(
@@ -1304,6 +1322,7 @@ export class NetworkCommand extends BaseCommand {
             }
           },
         },
+        **/
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,

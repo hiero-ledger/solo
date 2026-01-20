@@ -91,6 +91,7 @@ import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
 import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
+import {PostgresSharedResource} from '../shared-resources/postgres.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -178,6 +179,7 @@ export class Container {
       new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
+      new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
