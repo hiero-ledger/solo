@@ -41,6 +41,10 @@ export class BlockNodesJsonWrapper implements ToJSON {
   }
 
   public toJSON(): string {
+    return JSON.stringify(this.buildBlockNodesJsonStructure());
+  }
+
+  public buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
     const blockNodeConnectionData: BlockNodeConnectionData[] = [];
 
     for (const [id, priority] of this.blockNodeMap) {
@@ -77,11 +81,9 @@ export class BlockNodesJsonWrapper implements ToJSON {
       );
     }
 
-    const data: BlockNodesJsonStructure = {
+    return {
       nodes: blockNodeConnectionData,
       blockItemBatchSize: constants.BLOCK_ITEM_BATCH_SIZE,
     };
-
-    return JSON.stringify(data);
   }
 }
