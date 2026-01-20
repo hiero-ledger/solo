@@ -131,6 +131,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
+  s6: boolean;
 }
 
 interface NetworkDeployContext {
@@ -228,6 +229,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.s6,
     ],
   };
 
@@ -540,6 +542,40 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[clusterReference] +=
           ' --set defaults.sidecars.backupUploader.enabled=true' +
           ` --set defaults.sidecars.backupUploader.config.backupBucket=${config.backupBucket}`;
+      }
+    }
+
+    if (config.s6) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of config.consensusNodes) {
+        // if versions.HEDERA_PLATFORM_VERSION starts with `v`, remove it for semver comparison
+        const imageVersion: string = versions.S6_NODE_IMAGE_VERSION.startsWith('v')
+          ? versions.S6_NODE_IMAGE_VERSION.slice(1)
+          : versions.S6_NODE_IMAGE_VERSION;
+
+        this.logger.debug(
+          `Using S6 node image: ${constants.S6_NODE_IMAGE_REGISTRY}/${constants.S6_NODE_IMAGE_REPOSITORY}:${imageVersion}`,
+        );
+
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.registry=${constants.S6_NODE_IMAGE_REGISTRY}"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.tag=${imageVersion}"`;
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.repository=${constants.S6_NODE_IMAGE_REPOSITORY}"`;
+        valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
 
