@@ -496,9 +496,7 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response: string = this.configManager.getFlag<boolean>(flags.s6)
-          ? await container.resolve(NetworkNodes).fetchPodStatusUsingHostCurl(podReference)
-          : await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
+        const response: string = await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -1671,55 +1669,6 @@ export class NodeCommandTasks {
     };
   }
 
-  // s6 image does not copy essential config files during startup, so we need to copy them manually
-  public copyNodeConfigFiles(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Copy node config files before start',
-      skip: ({config}): boolean => {
-        return !this.configManager.getFlag<boolean>(flags.s6);
-      },
-      task: (context_, task) => {
-        const config = context_.config;
-        const nodeAliases = config[nodeAliasesProperty];
-        const subTasks: SoloListrTask<NodeStartContext>[] = [];
-
-        for (const nodeAlias of nodeAliases) {
-          subTasks.push({
-            title: `Node: ${chalk.yellow(nodeAlias)}`,
-            task: async () => {
-              const podReference = config.podRefs[nodeAlias];
-              if (!podReference) {
-                throw new SoloError(`Pod reference not found for node ${nodeAlias}`);
-              }
-
-              const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const containerReference: ContainerReference = ContainerReference.of(
-                podReference,
-                constants.ROOT_CONTAINER,
-              );
-              const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-              const scriptName: string = path.basename(constants.COPY_NODE_CONFIGS_SCRIPT);
-              const remoteScriptPath: string = `/tmp/${scriptName}`;
-
-              await container.copyTo(constants.COPY_NODE_CONFIGS_SCRIPT, '/tmp');
-
-              // check if file exists after copy
-              if (!(await container.hasFile(remoteScriptPath))) {
-                throw new SoloError(`Failed to copy script to node ${nodeAlias} at path ${remoteScriptPath}`);
-              }
-
-              await container.execContainer(['bash', '-c', `chmod +x ${remoteScriptPath}`]);
-              const rawResult: string = await container.execContainer(['bash', '-c', remoteScriptPath]);
-              this.logger.debug(`Config copy output for node ${nodeAlias}:\n${rawResult}`);
-            },
-          });
-        }
-
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
-      },
-    };
-  }
-
   public startNodes(nodeAliasesProperty: string) {
     return {
       title: 'Starting nodes',
@@ -1747,64 +1696,6 @@ export class NodeCommandTasks {
             },
           });
         }
-
-        // For s6 image, add metrics port forwarding for all nodes
-        subTasks.push({
-          title: 'Enable metrics port forwarding for all nodes',
-          // only skip if s6 defined
-          skip: () => {
-            return !this.configManager.getFlag<boolean>(flags.s6);
-          },
-          task: async () => {
-            // Wait for Java processes to start up before enabling port forwarding for metrics server
-            await sleep(Duration.ofSeconds(10));
-
-            let nodeAliasesArray;
-            if (config.allNodeAliases) {
-              nodeAliasesArray = Array.isArray(config.allNodeAliases) ? config.allNodeAliases : [config.allNodeAliases];
-            } else {
-              nodeAliasesArray = nodeAliases;
-            }
-            for (const alias of nodeAliasesArray) {
-              const aliasContext = helpers.extractContextFromConsensusNodes(alias, config.consensusNodes);
-              const aliasPodReference: PodReference = PodReference.of(
-                config.namespace,
-                PodName.of(`network-${alias}-0`),
-              );
-              const aliasNodeId: number = Templates.nodeIdFromNodeAlias(alias);
-
-              // For s6 images, ensure metrics service is running before port forwarding
-              const container = await this.k8Factory
-                .getK8(aliasContext)
-                .containers()
-                .readByRef(ContainerReference.of(aliasPodReference, constants.ROOT_CONTAINER));
-
-              try {
-                // Check if metrics service is running on port HEDERA_NODE_METRICS_PORT
-                await container.execContainer([
-                  'bash',
-                  '-c',
-                  `netstat -tlnp | grep :${constants.HEDERA_NODE_METRICS_PORT} || echo "metrics not running"`,
-                ]);
-              } catch {
-                this.logger.warn(`Metrics service might not be running on ${alias}, attempting to start...`);
-              }
-
-              await this.remoteConfig.configuration.components.managePortForward(
-                undefined,
-                aliasPodReference,
-                constants.HEDERA_NODE_METRICS_PORT,
-                constants.HEDERA_NODE_METRICS_LOCAL_PORT + aliasNodeId,
-                this.k8Factory.getK8(aliasContext),
-                this.logger,
-                ComponentTypes.ConsensusNode,
-                `Consensus Node Metrics (${alias})`,
-                true,
-                aliasNodeId,
-              );
-            }
-          },
-        });
 
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);

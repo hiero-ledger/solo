@@ -15,7 +15,6 @@ import {
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
-  checkDockerImageExistsInRegistry,
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
@@ -132,7 +131,6 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
-  s6: boolean;
 }
 
 interface NetworkDeployContext {
@@ -230,7 +228,6 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
-      flags.s6,
     ],
   };
 
@@ -438,25 +435,9 @@ export class NetworkCommand extends BaseCommand {
     const valuesArguments: Record<ClusterReferenceName, string> = {};
     const clusterReferences: ClusterReferenceName[] = [];
     let extraEnvironmentIndex: number = 0;
-    const uniqueConsensusNodes: ConsensusNode[] = [];
-    const seenNodes: Set<string> = new Set();
-    const nodeIndexByClusterAndName: Map<string, number> = new Map();
-    const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
-
-    for (const consensusNode of config.consensusNodes) {
-      const nodeKey = `${consensusNode.cluster}:${consensusNode.nodeId}`;
-      if (seenNodes.has(nodeKey)) {
-        continue;
-      }
-      seenNodes.add(nodeKey);
-      uniqueConsensusNodes.push(consensusNode);
-      const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
-      nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
-      nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
-    }
 
     // initialize the valueArgs
-    for (const consensusNode of uniqueConsensusNodes) {
+    for (const consensusNode of config.consensusNodes) {
       // add the cluster to the list of clusters
       if (!clusterReferences[consensusNode.cluster]) {
         clusterReferences.push(consensusNode.cluster);
@@ -469,20 +450,14 @@ export class NetworkCommand extends BaseCommand {
       } else {
         extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
-          `${consensusNode.cluster}:${consensusNode.name}`,
-        );
-        if (nodeIndex === undefined) {
-          continue;
-        }
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
+        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
         valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
 
     // add debug options to the debug node
-    uniqueConsensusNodes.filter((consensusNode): void => {
+    config.consensusNodes.filter((consensusNode): void => {
       if (consensusNode.name === config.debugNodeAlias) {
         valuesArguments[consensusNode.cluster] = addDebugOptions(
           valuesArguments[consensusNode.cluster],
@@ -568,44 +543,6 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    if (config.s6) {
-      for (const clusterReference of clusterReferences) {
-        const existingArguments: string = valuesArguments[clusterReference] ?? '';
-        const s6SidecarMarker =
-          'sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node';
-        valuesArguments[clusterReference] = existingArguments.includes(s6SidecarMarker)
-          ? existingArguments
-          : `${existingArguments}` +
-            ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].job_name=hedera-node"' +
-            ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].static_configs[0].targets[0]=0.0.0:9999"' +
-            ' --set "sidecars.otelCollector.receivers.prometheus.config.scrape_configs[0].scrape_interval=5s"' +
-            ' --set "sidecars.service.pipelines.metrics.receivers[0]=otlp"' +
-            ' --set "sidecars.service.pipelines.metrics.receivers[1]=prometheus"';
-      }
-
-      for (const consensusNode of uniqueConsensusNodes) {
-        // if versions.HEDERA_PLATFORM_VERSION starts with `v`, remove it for semver comparison
-        const platformVersion: string = versions.HEDERA_PLATFORM_VERSION.startsWith('v')
-          ? versions.HEDERA_PLATFORM_VERSION.slice(1)
-          : versions.HEDERA_PLATFORM_VERSION;
-
-        this.logger.debug(`Using registry: gcr.io/hedera-registry/consensus-node:${platformVersion}`);
-
-        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
-          `${consensusNode.cluster}:${consensusNode.name}`,
-        );
-        if (nodeIndex === undefined) {
-          continue;
-        }
-        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.registry=gcr.io"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.tag=${platformVersion}"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.repository=hedera-registry/consensus-node"`;
-        valuesArguments[consensusNode.cluster] = valuesArgument;
-      }
-    }
-
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ' --install' +
@@ -621,19 +558,17 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for HAProxy
     this.addArgForEachRecord(
       config.haproxyIpsParsed,
-      uniqueConsensusNodes,
+      config.consensusNodes,
       valuesArguments,
       ' --set "hedera.nodes[${nodeId}].haproxyStaticIP=${recordValue}"',
-      nodeIndexByClusterAndName,
     );
 
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addArgForEachRecord(
       config.envoyIpsParsed,
-      uniqueConsensusNodes,
+      config.consensusNodes,
       valuesArguments,
       ' --set "hedera.nodes[${nodeId}].envoyProxyStaticIP=${recordValue}"',
-      nodeIndexByClusterAndName,
     );
 
     if (config.resolvedThrottlesFile) {
@@ -673,16 +608,11 @@ export class NetworkCommand extends BaseCommand {
     consensusNodes: ConsensusNode[],
     valuesArguments: Record<ClusterReferenceName, string>,
     templateString: string,
-    nodeIndexByClusterAndName?: Map<string, number>,
   ): void {
     if (records) {
       for (const consensusNode of consensusNodes) {
         if (records[consensusNode.name]) {
-          const nodeIndex: number | undefined = nodeIndexByClusterAndName?.get(
-            `${consensusNode.cluster}:${consensusNode.name}`,
-          );
-          const nodeIdString: string = nodeIndex === undefined ? consensusNode.nodeId.toString() : nodeIndex.toString();
-          const newTemplateString: string = templateString.replace('{nodeId}', nodeIdString);
+          const newTemplateString: string = templateString.replace('{nodeId}', consensusNode.nodeId.toString());
           valuesArguments[consensusNode.cluster] += newTemplateString.replace(
             '{recordValue}',
             records[consensusNode.name],
@@ -823,7 +753,6 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
-    config.s6 = this.configManager.getFlag(flags.s6);
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 
@@ -1122,38 +1051,6 @@ export class NetworkCommand extends BaseCommand {
             ];
 
             return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
-          },
-        },
-        {
-          title: 'Verify Docker images',
-          skip: ({config: {s6}}): boolean => !s6,
-          task: async ({config}): Promise<void> => {
-            // Verify Docker images exist in remote registry before deployment
-            const platformVersion: string = versions.HEDERA_PLATFORM_VERSION.startsWith('v')
-              ? versions.HEDERA_PLATFORM_VERSION.slice(1)
-              : versions.HEDERA_PLATFORM_VERSION;
-
-            const imageExists = await new Promise<boolean>(resolve => {
-              try {
-                const result = checkDockerImageExistsInRegistry(
-                  'gcr.io/hedera-registry/consensus-node',
-                  platformVersion,
-                );
-                resolve(result);
-              } catch (error) {
-                this.logger.warn(`Failed to verify Docker image existence: ${error.message}`);
-                resolve(false);
-              }
-            });
-
-            if (!imageExists) {
-              throw new SoloError(
-                `Docker image not found: gcr.io/hedera-registry/consensus-node:${platformVersion}\n` +
-                  'Please verify the image exists and registry access is properly configured.',
-              );
-            }
-
-            this.logger.info(`✅ Verified Docker image: gcr.io/hedera-registry/consensus-node:${platformVersion}`);
           },
         },
         {

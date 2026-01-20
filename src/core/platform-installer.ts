@@ -25,7 +25,6 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {PackageDownloader} from './package-downloader.js';
 
 /** PlatformInstaller install platform code in the root-container of a network pod */
 @injectable()
@@ -34,36 +33,10 @@ export class PlatformInstaller {
     @inject(InjectTokens.SoloLogger) private logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private k8Factory?: K8Factory,
     @inject(InjectTokens.ConfigManager) private configManager?: ConfigManager,
-    @inject(InjectTokens.PackageDownloader) private packageDownloader?: PackageDownloader,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
-    this.packageDownloader = patchInject(packageDownloader, InjectTokens.PackageDownloader, this.constructor.name);
-  }
-
-  private async downloadPlatformArtifacts(tag: string): Promise<{zipFilePath: string; checksumFilePath: string}> {
-    if (!this.packageDownloader) {
-      throw new SoloError('Package downloader is not available');
-    }
-
-    const cacheDirectoryFlag: string | undefined = this.configManager.getFlag<string>(flags.cacheDir);
-    const cacheDirectory: string =
-      cacheDirectoryFlag && cacheDirectoryFlag.length > 0 ? cacheDirectoryFlag : constants.SOLO_CACHE_DIR;
-    const downloadBaseDirectory: string = PathEx.join(cacheDirectory, 'platform-artifacts');
-
-    if (!fs.existsSync(downloadBaseDirectory)) {
-      fs.mkdirSync(downloadBaseDirectory, {recursive: true});
-    }
-
-    const zipFilePath: string = await this.packageDownloader.fetchPlatform(tag, downloadBaseDirectory, false);
-    const checksumFilePath: string = path.join(path.dirname(zipFilePath), `build-${tag}.sha384`);
-
-    if (!fs.existsSync(checksumFilePath)) {
-      throw new SoloError(`Checksum file not found for platform build ${tag} at ${checksumFilePath}`);
-    }
-
-    return {zipFilePath, checksumFilePath};
   }
 
   private _getNamespace(): NamespaceName {
@@ -141,14 +114,6 @@ export class PlatformInstaller {
       const k8Containers = this.k8Factory.getK8(context).containers();
 
       const container = k8Containers.readByRef(containerReference);
-
-      // host download platform artifacts first then copy to pod in case curl or wget are not availalble
-      // in the pod image
-      const {zipFilePath, checksumFilePath} = await this.downloadPlatformArtifacts(tag);
-
-      await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-      await container.copyTo(zipFilePath, constants.HEDERA_USER_HOME_DIR);
-      await container.copyTo(checksumFilePath, constants.HEDERA_USER_HOME_DIR);
 
       await container.execContainer('sync'); // ensure all writes are flushed before executing the script
       await container.execContainer(`chmod +x ${extractScript}`);
