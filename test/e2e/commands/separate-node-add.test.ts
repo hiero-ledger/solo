@@ -10,7 +10,7 @@ import {
   type BootstrapResponse,
   buildMainArgv,
   getNodeAliasesPrivateKeysHash,
-  getTemporaryDirectory,
+  getTemporaryDirectory, getTestCluster,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
@@ -216,6 +216,44 @@ export function testSeparateNodeAdd(
 
       await main(accountCreateArgv);
 
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_FREEZE,
+          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
+        ),
+      );
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.STATE_DOWNLOAD,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
+            [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
+            [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
+          ]),
+        ),
+      );
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NODE_RESTART,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
+          ]),
+        ),
+      );
+
       // await commandInvoker.invoke({
       //   argv: argv,
       //   command: ConsensusCommandDefinition.COMMAND_NAME,
@@ -239,39 +277,6 @@ export function testSeparateNodeAdd(
       //   action: ConsensusCommandDefinition.NODE_RESTART,
       //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
       // });
-
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.NETWORK_FREEZE,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
-        ),
-      );
-
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.STATE_DOWNLOAD,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
-          ]),
-        ),
-      );
-
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.NODE_RESTART,
-          new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
-        ),
-      );
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 
