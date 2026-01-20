@@ -4,12 +4,7 @@ import {describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {
-  type BootstrapResponse,
-  buildMainArgv,
-  getTemporaryDirectory,
-  HEDERA_PLATFORM_VERSION_TAG,
-} from '../../test-utility.js';
+import {type BootstrapResponse, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -21,9 +16,6 @@ import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
-import {main} from '../../../src/index.js';
-import {type CommandFlag} from '../../../src/types/flag-types.js';
-import {type DeploymentName} from '../../../src/types/index.js';
 
 export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
@@ -32,7 +24,8 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
   const zipFile: string = 'upgrade.zip';
 
   const {
-    opts: {k8Factory, logger},
+    opts: {k8Factory, logger, commandInvoker},
+    cmd: {nodeCmd},
   } = bootstrapResp;
 
   describe('Node upgrade', async (): Promise<void> => {
@@ -45,50 +38,38 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
       const zipper: Zippy = new Zippy(logger);
       await zipper.zip(temporaryDirectory, zipFile);
 
-      const temporaryContextDirectory: string = 'contextDir';
+      const temporaryDirectory2: string = 'contextDir';
 
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.DEV_NODE_PREPARE,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
-            [flags.outputDir, temporaryContextDirectory],
-            [flags.upgradeVersion, TEST_UPGRADE_VERSION],
-            [flags.upgradeZipFile, zipFile],
-          ]),
-        ),
-      );
+      const argvPrepare: Argv = argv.clone();
+      argvPrepare.setArg(flags.upgradeZipFile, zipFile);
+      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
 
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.inputDir, temporaryContextDirectory],
-          ]),
-        ),
-      );
+      const argvExecute: Argv = argv.clone();
+      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
 
-      await main(
-        buildMainArgv(
-          namespace.toString(),
-          ConsensusCommandDefinition.COMMAND_NAME,
-          ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-          new Map<CommandFlag, string>([
-            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-            [flags.inputDir, temporaryContextDirectory],
-            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
-          ]),
-        ),
-      );
+      await commandInvoker.invoke({
+        argv: argvPrepare,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradePrepare(argv),
+      });
+
+      await commandInvoker.invoke({
+        argv: argvExecute,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeSubmitTransactions(argv),
+      });
+
+      await commandInvoker.invoke({
+        argv: argvExecute,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeExecute(argv),
+      });
     }).timeout(Duration.ofMinutes(5).toMillis());
 
     it('network nodes version file was upgraded', async (): Promise<void> => {
@@ -109,3 +90,115 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
     }).timeout(Duration.ofMinutes(5).toMillis());
   });
 }
+
+// // SPDX-License-Identifier: Apache-2.0
+//
+// import {describe, it} from 'mocha';
+// import {expect} from 'chai';
+//
+// import {Flags as flags} from '../../../src/commands/flags.js';
+// import {
+//   type BootstrapResponse,
+//   buildMainArgv,
+//   getTemporaryDirectory,
+//   HEDERA_PLATFORM_VERSION_TAG,
+// } from '../../test-utility.js';
+// import {Duration} from '../../../src/core/time/duration.js';
+// import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
+// import fs from 'node:fs';
+// import {Zippy} from '../../../src/core/zippy.js';
+// import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+// import {type PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
+// import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
+// import {type Argv} from '../../helpers/argv-wrapper.js';
+// import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
+// import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+// import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
+// import {main} from '../../../src/index.js';
+// import {type CommandFlag} from '../../../src/types/flag-types.js';
+// import {type DeploymentName} from '../../../src/types/index.js';
+//
+// export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
+//   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
+//   argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
+//
+//   const zipFile: string = 'upgrade.zip';
+//
+//   const {
+//     opts: {k8Factory, logger},
+//   } = bootstrapResp;
+//
+//   describe('Node upgrade', async (): Promise<void> => {
+//     it('should succeed with separate upgrade command', async (): Promise<void> => {
+//       // Create file version.txt at tmp directory
+//       const temporaryDirectory: string = getTemporaryDirectory();
+//       fs.writeFileSync(`${temporaryDirectory}/version.txt`, TEST_UPGRADE_VERSION);
+//
+//       // Create upgrade.zip file from tmp directory using zippy.ts
+//       const zipper: Zippy = new Zippy(logger);
+//       await zipper.zip(temporaryDirectory, zipFile);
+//
+//       const temporaryContextDirectory: string = 'contextDir';
+//
+//       await main(
+//         buildMainArgv(
+//           namespace.toString(),
+//           ConsensusCommandDefinition.COMMAND_NAME,
+//           ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+//           ConsensusCommandDefinition.DEV_NODE_PREPARE,
+//           new Map<CommandFlag, string>([
+//             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+//             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+//             [flags.outputDir, temporaryContextDirectory],
+//             [flags.upgradeVersion, TEST_UPGRADE_VERSION],
+//             [flags.upgradeZipFile, zipFile],
+//           ]),
+//         ),
+//       );
+//
+//       await main(
+//         buildMainArgv(
+//           namespace.toString(),
+//           ConsensusCommandDefinition.COMMAND_NAME,
+//           ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+//           ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+//           new Map<CommandFlag, string>([
+//             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+//             [flags.inputDir, temporaryContextDirectory],
+//           ]),
+//         ),
+//       );
+//
+//       await main(
+//         buildMainArgv(
+//           namespace.toString(),
+//           ConsensusCommandDefinition.COMMAND_NAME,
+//           ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+//           ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+//           new Map<CommandFlag, string>([
+//             [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+//             [flags.inputDir, temporaryContextDirectory],
+//             [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+//           ]),
+//         ),
+//       );
+//     }).timeout(Duration.ofMinutes(5).toMillis());
+//
+//     it('network nodes version file was upgraded', async (): Promise<void> => {
+//       // Copy the version.txt file from the pod data/upgrade/current directory
+//       const temporaryDirectory: string = getTemporaryDirectory();
+//       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+//       const podReference: PodReference = pods[0].podReference;
+//       const containerReference: ContainerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
+//       await k8Factory
+//         .default()
+//         .containers()
+//         .readByRef(containerReference)
+//         .copyFrom(`${HEDERA_HAPI_PATH}/data/upgrade/current/version.txt`, temporaryDirectory);
+//
+//       // Compare the version.txt
+//       const version: string = fs.readFileSync(`${temporaryDirectory}/version.txt`, 'utf8');
+//       expect(version).to.equal(TEST_UPGRADE_VERSION);
+//     }).timeout(Duration.ofMinutes(5).toMillis());
+//   });
+// }
