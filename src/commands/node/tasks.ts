@@ -90,6 +90,8 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type Realm,
+  type Shard,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -143,6 +145,8 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
+import {Contexts} from '../../integration/kube/resources/context/contexts.js';
+import {K8Helper} from '../../business/utils/k8-helper.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -178,8 +182,8 @@ export class NodeCommandTasks {
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
-    const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-    const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
@@ -188,19 +192,21 @@ export class NodeCommandTasks {
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
     // Note however that in DAB phase-2, we won't need to trigger this fake upgrade process
-    const zipper = new Zippy(this.logger);
-    const upgradeConfigDirectory = PathEx.join(stagingDirectory, 'mock-upgrade', 'data', 'config');
+    const zipper: Zippy = new Zippy(this.logger);
+    const upgradeConfigDirectory: string = PathEx.join(stagingDirectory, 'mock-upgrade', 'data', 'config');
     if (!fs.existsSync(upgradeConfigDirectory)) {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
 
     // bump field hedera.config.version or use the version passed in
-    const fileBytes = fs.readFileSync(PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'));
-    const lines = fileBytes.toString().split('\n');
-    const newLines = [];
+    const fileBytes: Buffer<ArrayBuffer> = fs.readFileSync(
+      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
+    );
+    const lines: string[] = fileBytes.toString().split('\n');
+    const newLines: string[] = [];
     for (let line of lines) {
       line = line.trim();
-      const parts = line.split('=');
+      const parts: string[] = line.split('=');
       if (parts.length === 2) {
         if (parts[0] === 'hedera.config.version') {
           const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
@@ -1589,7 +1595,7 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string) {
+  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
     return {
       title: 'Prepare staging directory',
       task: (context_, task) => {
@@ -2401,12 +2407,14 @@ export class NodeCommandTasks {
             new ConsensusNode(
               config.nodeAlias,
               Templates.nodeIdFromNodeAlias(config.nodeAlias),
-              config.namespace,
+              config.namespace.name,
               undefined,
               context,
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+              [],
+              [],
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
@@ -2607,13 +2615,11 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] = '';
         }
 
-        if (!config.serviceMap) {
-          config.serviceMap = await self.accountManager.getNodeServiceMap(
-            config.namespace,
-            clusterReferences,
-            config.deployment,
-          );
-        }
+        config.serviceMap ||= await self.accountManager.getNodeServiceMap(
+          config.namespace,
+          clusterReferences,
+          config.deployment,
+        );
 
         let maxNodeId: NodeId = 0;
         for (const nodeAlias of config.existingNodeAliases) {
@@ -2635,10 +2641,9 @@ export class NodeCommandTasks {
             // eslint-disable-next-line unicorn/no-array-sort
             .sort((a, b): number => a.nodeId - b.nodeId);
 
-          // eslint-disable-next-line unicorn/no-array-for-each
-          nodesInCluster.forEach((node: ConsensusNode, index: number): void => {
+          for (const [index, node] of nodesInCluster.entries()) {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
-          });
+          }
         }
 
         switch (transactionType) {
@@ -2718,8 +2723,7 @@ export class NodeCommandTasks {
 
         // Update all charts
         await Promise.all(
-          clusterReferencesList.map(async clusterReference => {
-            const valuesArguments: string = valuesArgumentMap[clusterReference];
+          clusterReferencesList.map(async (clusterReference): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
             config.soloChartVersion = Version.getValidSemanticVersion(
@@ -2731,9 +2735,9 @@ export class NodeCommandTasks {
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
-              valuesArguments,
+              valuesArgumentMap[clusterReference],
               context,
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
@@ -3031,39 +3035,34 @@ export class NodeCommandTasks {
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',
-      task: async context_ => {
-        const config = context_.config;
+      task: async ({config}): Promise<void> => {
+        const {consensusNodes, namespace, stagingDir} = config;
+
         // TODO: currently only supports downloading from the first existing node
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.consensusNodes[0].name);
-        const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
+        const node: ConsensusNode = consensusNodes[0];
+        const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
-        const context = helpers.extractContextFromConsensusNodes(
-          config.consensusNodes[0].name,
-          context_.config.consensusNodes,
+        const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+          namespace,
+          node.name,
         );
-
-        const k8 = this.k8Factory.getK8(context);
-        const container = await k8.containers().readByRef(containerReference);
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
           'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName = await container.execContainer([
+        const zipFileName: string = await container.execContainer([
           'bash',
           '-c',
           `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
         this.logger.debug(`state zip file to download is = ${zipFileName}`);
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .copyFrom(`${upgradeDirectory}/${zipFileName}`, config.stagingDir);
-        config.lastStateZipPath = PathEx.joinWithRealPath(config.stagingDir, zipFileName);
+
+        await container.copyFrom(`${upgradeDirectory}/${zipFileName}`, stagingDir);
+
+        config.lastStateZipPath = PathEx.joinWithRealPath(stagingDir, zipFileName);
       },
     };
   }
@@ -3321,6 +3320,8 @@ export class NodeCommandTasks {
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
+              [],
+              [],
             ),
           );
         }
@@ -3331,12 +3332,10 @@ export class NodeCommandTasks {
   public downloadHieroComponentLogs(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
     return {
       title: 'Download logs from Hiero components',
-      task: async (context_, task) => {
+      task: async (_, task) => {
         // Iterate all k8 contexts to find solo-remote-config configmaps
         this.logger.info('Discovering Hiero components from remote configuration...');
-        const contexts: ReturnType<ReturnType<typeof this.k8Factory.default>['contexts']> = this.k8Factory
-          .default()
-          .contexts();
+        const contexts: Contexts = this.k8Factory.default().contexts();
         const allPods: Array<{pod: Pod; context: string; namespace: NamespaceName}> = [];
 
         // Define component types and their label selectors

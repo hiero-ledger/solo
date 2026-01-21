@@ -170,6 +170,8 @@ describe('BaseCommand', () => {
           'dnsBaseDomain',
           'dnsConsensusNodePattern',
           'fullyQualifiedDomainName',
+          [],
+          [],
         ),
         new ConsensusNode(
           'node2',
@@ -180,6 +182,8 @@ describe('BaseCommand', () => {
           'dnsBaseDomain',
           'dnsConsensusNodePattern',
           'fullyQualifiedDomainName',
+          [],
+          [],
         ),
       ];
 

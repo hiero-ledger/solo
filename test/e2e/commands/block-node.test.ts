@@ -29,7 +29,7 @@ new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
-  .withConsensusNodesCount(1)
+  .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(false)
   .withPinger(false)
   .withRealm(0)
@@ -77,7 +77,19 @@ new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
-      BlockNodeTest.testBlockNode(options);
+      BlockNodeTest.testBlockNode(options, 1);
+
+      BlockNodeTest.add(options, ['node2']);
+
+      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2]);
+      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2]);
+
+      BlockNodeTest.addExternal(options, 'test-address-1', ['node1']);
+      BlockNodeTest.addExternal(options, 'test-address-2:3030', ['node2']);
+
+      // External Block Nodes
+      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [], 'test-address-1', constants.BLOCK_NODE_PORT);
+      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [], [], 'test-address-2', 3030);
 
       BlockNodeTest.destroy(options);
 
