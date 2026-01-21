@@ -15,7 +15,7 @@ then
 fi
 
 echo "::group::Prerequisites"
-npm install -g @hashgraph/sdk --force
+npm install -g @hashgraph/sdk winston js-yaml chalk --force
 npm install -g @hashgraph/solo@"${releaseTag}" --force
 solo --version
 
