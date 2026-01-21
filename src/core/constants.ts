@@ -73,6 +73,9 @@ export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NO
 export const S6_NODE_IMAGE_REPOSITORY: string =
   getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java21';
 
+// S6 persistent enable/disable flag file (lives on a dedicated node-state PVC)
+export const S6_NODE_ENABLED_FLAG_FILE: string = `${HEDERA_HAPI_PATH}/state/network-node.enabled`;
+
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
