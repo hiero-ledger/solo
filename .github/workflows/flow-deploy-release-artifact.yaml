@@ -222,6 +222,17 @@ jobs:
             ls output
           fi
 
+      - name: Update Version for Dry Run
+        if: ${{ github.event.inputs.dry-run-enabled == 'true' }}
+        run: |
+          npm version ${{ needs.prepare-release.outputs.version }} --no-git-tag-version
+
+      # Needed since semantic release dry-run won't pack the tarball
+      - name: Pack for Dry Run
+        if: ${{ github.event.inputs.dry-run-enabled == 'true' }}
+        run: |
+          npm pack --pack-destination ./output
+
       # Upload the artifact
       - name: Upload Solo Package Artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
