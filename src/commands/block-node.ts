@@ -383,8 +383,6 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
     const tasks: SoloListr<BlockNodeDeployContext> = this.taskList.newTaskList<BlockNodeDeployContext>(
@@ -392,9 +390,9 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
 
@@ -597,8 +595,6 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
     const tasks: SoloListr<BlockNodeDestroyContext> = this.taskList.newTaskList<BlockNodeDestroyContext>(
@@ -606,9 +602,9 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
 
@@ -667,6 +663,7 @@ export class BlockNodeCommand extends BaseCommand {
           skip: ({config}): boolean => !config.isChartInstalled,
         },
         this.removeBlockNodeComponent(),
+        this.rebuildBlockNodesJson(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -923,15 +920,7 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         this.removeExternalBlockNodeComponent(),
-        {
-          title: 'Update block node json',
-          skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
-          task: async (): Promise<void> => {
-            for (const node of this.remoteConfig.getConsensusNodes()) {
-              await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
-            }
-          },
-        },
+        this.rebuildBlockNodesJson(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -953,6 +942,18 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  private rebuildBlockNodesJson(): SoloListrTask<AnyListrContext> {
+    return {
+      title: "Rebuild 'block.nodes.json' for consensus nodes",
+      skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
+      task: async (): Promise<void> => {
+        for (const node of this.remoteConfig.getConsensusNodes()) {
+          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+        }
+      },
+    };
   }
 
   /**
@@ -1036,6 +1037,10 @@ export class BlockNodeCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.removeComponent(config.id, ComponentTypes.BlockNode);
+
+        for (const node of this.remoteConfig.configuration.state.consensusNodes) {
+          node.blockNodeMap = node.blockNodeMap.filter(([id]): boolean => id !== config.id);
+        }
 
         await this.remoteConfig.persist();
       },
