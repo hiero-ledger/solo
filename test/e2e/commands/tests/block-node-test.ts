@@ -118,6 +118,36 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloBlockNodeRemoveExternalArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+    id?: number,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = BlockNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      BlockCommandDefinition.COMMAND_NAME,
+      BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+      BlockCommandDefinition.NODE_REMOVE_EXTERNAL,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+
+    if (id !== undefined) {
+      argv.push(optionFromFlag(Flags.id), id.toString());
+    }
+
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
   public static add(options: BaseTestOptions, nodeAliases?: NodeAliases): void {
     const {testName, deployment, clusterReferenceNameArray, localBuildReleaseTag, enableLocalBuildPathTesting} =
       options;
@@ -146,6 +176,15 @@ export class BlockNodeTest extends BaseCommandTest {
       await main(
         soloBlockNodeAddExternalArgv(testName, deployment, clusterReferenceNameArray[0], address, nodeAliases),
       );
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static removeExternal(options: BaseTestOptions, id?: number): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloBlockNodeRemoveExternalArgv} = BlockNodeTest;
+
+    it(`${testName}: block node remove-external`, async (): Promise<void> => {
+      await main(soloBlockNodeRemoveExternalArgv(testName, deployment, clusterReferenceNameArray[1], id));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
@@ -190,8 +229,17 @@ export class BlockNodeTest extends BaseCommandTest {
     nodeAlias: NodeAlias,
     blockNodeIds: ComponentId[],
     excludedBlockNodeIds: ComponentId[] = [],
-    expectedExternalAddress?: string,
-    expectedExternalPort?: number,
+    {
+      expectedExternalAddress,
+      expectedExternalPort,
+      unexpectedExternalAddress,
+      unexpectedExternalPort,
+    }: {
+      expectedExternalAddress?: string;
+      expectedExternalPort?: number;
+      unexpectedExternalAddress?: string;
+      unexpectedExternalPort?: number;
+    },
   ): void {
     const {namespace, contexts, testName} = options;
 
@@ -218,6 +266,14 @@ export class BlockNodeTest extends BaseCommandTest {
 
       if (expectedExternalPort !== undefined) {
         expect(output).to.include(expectedExternalPort.toString());
+      }
+
+      if (unexpectedExternalAddress !== undefined) {
+        expect(output).not.to.include(unexpectedExternalAddress);
+      }
+
+      if (unexpectedExternalPort !== undefined) {
+        expect(output).not.to.include(unexpectedExternalPort.toString());
       }
     });
   }
