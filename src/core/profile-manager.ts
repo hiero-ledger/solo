@@ -257,7 +257,6 @@ export class ProfileManager {
         throw new SoloError(`Configuration file path is missing for: ${flag.name}`);
       }
 
-      // use the default flag value to rename the file provided by the user
       const fileName: string = path.basename(filePath);
       const destinationPath: string = PathEx.join(stagingDirectory, 'templates', fileName);
       this.logger.debug(`Copying configuration file to staging: ${filePath} -> ${destinationPath}`);
@@ -297,18 +296,24 @@ export class ProfileManager {
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
       yamlRoot,
     );
+
     try {
-      if (this.remoteConfig.configuration.state.blockNodes.length === 0) {
+      if (
+        this.remoteConfig.configuration.state.blockNodes.length === 0 &&
+        this.remoteConfig.configuration.state.externalBlockNodes.length === 0
+      ) {
         return;
       }
     } catch {
+      // quick fix for tests where field on remote config are unaccessible
       return;
     }
 
-    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
-
     for (const node of consensusNodes) {
-      const blockNodesJsonData: string = new BlockNodesJsonWrapper(node.blockNodeMap, blockNodes).toJSON();
+      const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+        node.blockNodeMap,
+        node.externalBlockNodeMap,
+      ).toJSON();
 
       let nodeIndex: number = 0;
 

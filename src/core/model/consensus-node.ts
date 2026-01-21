@@ -1,19 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type NodeAlias} from '../../types/aliases.js';
-import {type ClusterReferenceName, type PriorityMapping} from '../../types/index.js';
+import {type NodeAlias, type NodeId} from '../../types/aliases.js';
+import {
+  type ClusterReferenceName,
+  type Context,
+  type NamespaceNameAsString,
+  type PriorityMapping,
+} from '../../types/index.js';
 
 export class ConsensusNode {
   public constructor(
     public readonly name: NodeAlias,
-    public readonly nodeId: number,
-    public readonly namespace: string,
+    public readonly nodeId: NodeId,
+    public readonly namespace: NamespaceNameAsString,
     public readonly cluster: ClusterReferenceName,
-    public readonly context: string,
+    public readonly context: Context,
     public readonly dnsBaseDomain: string,
     public readonly dnsConsensusNodePattern: string,
     public readonly fullyQualifiedDomainName: string,
     public readonly blockNodeMap: PriorityMapping[],
+    public readonly externalBlockNodeMap: PriorityMapping[],
   ) {
     if (!context) {
       throw new Error(`ConsensusNode context cannot be empty or null. Call stack: ${new Error().stack}`);

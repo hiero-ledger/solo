@@ -300,7 +300,9 @@ describe('NetworkCommand unit tests', (): void => {
 
         options.remoteConfig.getConsensusNodes = sinon
           .stub()
-          .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [])]);
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
 
         options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);

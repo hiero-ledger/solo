@@ -84,6 +84,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
     portForwardConfigs?: PortForwardConfig[],
     blockNodeMap: PriorityMapping[] = [],
+    externalBlockNodeMap: PriorityMapping[] = [],
   ): ConsensusNodeStateSchema {
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
@@ -93,7 +94,7 @@ export class ComponentFactory implements ComponentFactoryApi {
       portForwardConfigs,
     );
 
-    return new ConsensusNodeStateSchema(metadata, blockNodeMap);
+    return new ConsensusNodeStateSchema(metadata, blockNodeMap, externalBlockNodeMap);
   }
 
   public createConsensusNodeComponentsFromNodeIds(

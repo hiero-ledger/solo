@@ -407,6 +407,11 @@ export class Templates {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
   }
 
+  public static parseExternalBlockAddress(raw: string): [string, number] {
+    const [address, port] = raw.includes(':') ? raw.split(':') : [raw, constants.BLOCK_NODE_PORT];
+    return [address, +port];
+  }
+
   public static parseBlockNodePriorityMapping(rawString: string, nodes: ConsensusNode[]): Record<NodeAlias, number> {
     const mapping: Record<NodeAlias, number> = {};
 
@@ -419,8 +424,6 @@ export class Templates {
     for (const data of nodeAliasesToPriorityMapping) {
       // eslint-disable-next-line prefer-const
       let [nodeAlias, priority] = data.split('=') as [NodeAlias, number | undefined];
-
-      priority = !priority && nodeAliasesToPriorityMapping.length === 1 ? 2 : 1;
 
       mapping[nodeAlias] = +priority || 1;
     }

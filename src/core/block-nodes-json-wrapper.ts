@@ -11,6 +11,7 @@ import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
 type BlockNodeConnectionData =
   | {
@@ -29,26 +30,40 @@ interface BlockNodesJsonStructure {
   blockItemBatchSize: number;
 }
 
+/**
+ * Wrapper used to generate `block-nodes.json` file
+ * for the consensus node used to configure block node connections.
+ */
 export class BlockNodesJsonWrapper implements ToJSON {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+  private readonly blockNodes: BlockNodeStateSchema[];
+  private readonly externalBlockNodes: ExternalBlockNodeStateSchema[];
 
   public constructor(
     private readonly blockNodeMap: PriorityMapping[],
-    private readonly blockNodeComponents: BlockNodeStateSchema[],
+    private readonly externalBlockNodeMap: PriorityMapping[],
     @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.blockNodes = this.remoteConfig.configuration.state.blockNodes;
+    this.externalBlockNodes = this.remoteConfig.configuration.state.externalBlockNodes;
   }
 
   public toJSON(): string {
     return JSON.stringify(this.buildBlockNodesJsonStructure());
   }
 
-  public buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
+  private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
+    // Figure out field name for port
+    const useLegacyPortName: boolean = lt(
+      this.remoteConfig.configuration.versions.consensusNode,
+      versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
+    );
+
     const blockNodeConnectionData: BlockNodeConnectionData[] = [];
 
     for (const [id, priority] of this.blockNodeMap) {
-      const blockNodeComponent: BlockNodeStateSchema = this.blockNodeComponents.find(
+      const blockNodeComponent: BlockNodeStateSchema = this.blockNodes.find(
         (component): boolean => component.metadata.id === id,
       );
 
@@ -70,11 +85,18 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-      // Figure out field name for port
-      const useLegacyPortName: boolean = lt(
-        this.remoteConfig.configuration.versions.consensusNode,
-        versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
+      blockNodeConnectionData.push(
+        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
       );
+    }
+
+    for (const [id, priority] of this.externalBlockNodeMap) {
+      const blockNodeComponent: ExternalBlockNodeStateSchema = this.externalBlockNodes.find(
+        (component): boolean => component.id === id,
+      );
+
+      const address: string = blockNodeComponent.address;
+      const port: number = blockNodeComponent.port;
 
       blockNodeConnectionData.push(
         useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
