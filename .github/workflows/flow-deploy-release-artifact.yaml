@@ -226,7 +226,7 @@ jobs:
         if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
         with:
           name: solo-npm-package
-          path: ./output/${{ steps.set-publish-data.outputs.artifact-name }}
+          path: output/${{ steps.set-publish-data.outputs.artifact-name }}
           if-no-files-found: error
 
       - name: Deploy to JFrog Registry
