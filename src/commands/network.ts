@@ -545,7 +545,6 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    if (config.s6) {
     if (this.configManager.getFlag(flags.s6)) {
       const nodeIndexByClusterAndName: Map<string, number> = new Map();
       const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
