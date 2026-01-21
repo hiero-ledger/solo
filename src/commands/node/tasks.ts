@@ -1676,12 +1676,7 @@ export class NodeCommandTasks {
               const k8 = this.k8Factory.getK8(context);
               const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
               await (this.configManager.getFlag<boolean>(flags.s6)
-                ? container.execContainer([
-                    'bash',
-                    '-c',
-                    // Mark node as enabled on the persistent flag, then bring the service up
-                    `touch ${constants.S6_NODE_ENABLED_FLAG_FILE} && /command/s6-svc -u /run/service/network-node`,
-                  ])
+                ? container.execContainer(['bash', '-c', '/command/s6-svc -u /run/service/network-node'])
                 : container.execContainer([
                     'bash',
                     '-c',
@@ -1926,9 +1921,6 @@ export class NodeCommandTasks {
                 const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (this.configManager.getFlag<boolean>(flags.s6)) {
-                  // Clear persistent enable flag so future pod restarts do not auto-start this node
-                  await container.execContainer(['bash', '-c', `rm -f ${constants.S6_NODE_ENABLED_FLAG_FILE} || true`]);
-
                   // First attempt: normal stop
                   await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
 
