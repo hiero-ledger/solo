@@ -11,6 +11,7 @@ import {DeploymentCommandDefinition} from '../../../../src/commands/command-defi
 import {Argv} from '../../../helpers/argv-wrapper.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {getEnvironmentVariable} from '../../../../src/core/constants.js';
 
 export class BaseCommandTest {
   public static newArgv(): string[] {
@@ -29,7 +30,8 @@ export class BaseCommandTest {
   ): string[] {
     argv.push(BaseCommandTest.optionFromFlag(Flags.devMode), BaseCommandTest.optionFromFlag(Flags.quiet));
 
-    if (shouldSetChartDirectory && process.env.SOLO_CHARTS_DIR && process.env.SOLO_CHARTS_DIR !== '') {
+    const soloChartsDirectory: string = getEnvironmentVariable('SOLO_CHARTS_DIR');
+    if (shouldSetChartDirectory && soloChartsDirectory && soloChartsDirectory !== '') {
       argv.push(BaseCommandTest.optionFromFlag(Flags.chartDirectory), process.env.SOLO_CHARTS_DIR);
     }
 
