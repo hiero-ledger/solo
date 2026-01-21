@@ -81,14 +81,15 @@ new EndToEndTestSuiteBuilder()
 
       BlockNodeTest.add(options, ['node2']);
 
-      it('Wait for block node 2 to come online', async (): Promise<void> => {
-        testLogger.showUser('Sleeping for 2 minutes to allow block node 2 to sync.');
-        await sleep(Duration.ofMinutes(2));
-        testLogger.showUser('Finished sleeping.');
-      }).timeout(Duration.ofMinutes(3).toMillis());
-
       BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2]);
       BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2]);
+
+      BlockNodeTest.addExternal(options, 'test-address-1', ['node1']);
+      BlockNodeTest.addExternal(options, 'test-address-2:3030', ['node2']);
+
+      // External Block Nodes
+      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [], 'test-address-1', constants.BLOCK_NODE_PORT);
+      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [], [], 'test-address-2', 3030);
 
       BlockNodeTest.destroy(options);
 

@@ -92,6 +92,8 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type Realm,
+  type Shard,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -182,8 +184,8 @@ export class NodeCommandTasks {
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
-    const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-    const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
@@ -192,19 +194,21 @@ export class NodeCommandTasks {
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
     // Note however that in DAB phase-2, we won't need to trigger this fake upgrade process
-    const zipper = new Zippy(this.logger);
-    const upgradeConfigDirectory = PathEx.join(stagingDirectory, 'mock-upgrade', 'data', 'config');
+    const zipper: Zippy = new Zippy(this.logger);
+    const upgradeConfigDirectory: string = PathEx.join(stagingDirectory, 'mock-upgrade', 'data', 'config');
     if (!fs.existsSync(upgradeConfigDirectory)) {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
 
     // bump field hedera.config.version or use the version passed in
-    const fileBytes = fs.readFileSync(PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'));
-    const lines = fileBytes.toString().split('\n');
-    const newLines = [];
+    const fileBytes: Buffer<ArrayBuffer> = fs.readFileSync(
+      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
+    );
+    const lines: string[] = fileBytes.toString().split('\n');
+    const newLines: string[] = [];
     for (let line of lines) {
       line = line.trim();
-      const parts = line.split('=');
+      const parts: string[] = line.split('=');
       if (parts.length === 2) {
         if (parts[0] === 'hedera.config.version') {
           const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
@@ -1594,7 +1598,7 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string) {
+  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
     return {
       title: 'Prepare staging directory',
       task: (context_, task) => {
@@ -2553,12 +2557,13 @@ export class NodeCommandTasks {
             new ConsensusNode(
               config.nodeAlias,
               Templates.nodeIdFromNodeAlias(config.nodeAlias),
-              config.namespace,
+              config.namespace.name,
               undefined,
               context,
               config.consensusNodes[0].dnsBaseDomain,
               config.consensusNodes[0].dnsConsensusNodePattern,
               Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+              [],
               [],
             ),
             k8,
@@ -3505,6 +3510,7 @@ export class NodeCommandTasks {
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
               ),
+              [],
               [],
             ),
           );

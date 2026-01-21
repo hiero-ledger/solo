@@ -41,6 +41,7 @@ export interface ComponentFactoryApi {
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
     portForwardConfigs?: PortForwardConfig[],
     blockNodeMap?: PriorityMapping[],
+    externalBlockNodeIds?: PriorityMapping[],
   ): ConsensusNodeStateSchema;
 
   createConsensusNodeComponentsFromNodeIds(
