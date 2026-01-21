@@ -100,7 +100,8 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       blockNodeConnectionData.push(
         useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
-      );    }
+      );
+    }
 
     return {
       nodes: blockNodeConnectionData,
