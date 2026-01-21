@@ -227,6 +227,29 @@ export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlia
 }
 
 /**
+ * Append root.image registry/repository/tag settings for a given node path to a Helm values argument string.
+ * @param valuesArgument - existing values argument string (may be empty)
+ * @param nodePath - base node path, e.g. `hedera.nodes[0]`
+ * @param registry - image registry
+ * @param repository - image repository
+ * @param tag - image tag
+ * @returns updated values argument string
+ */
+export function addRootImageValues(
+  valuesArgument: string | undefined,
+  nodePath: string,
+  registry: string,
+  repository: string,
+  tag: string,
+): string {
+  let updatedValuesArgument: string = valuesArgument ?? '';
+  updatedValuesArgument += ` --set "${nodePath}.root.image.registry=${registry}"`;
+  updatedValuesArgument += ` --set "${nodePath}.root.image.tag=${tag}"`;
+  updatedValuesArgument += ` --set "${nodePath}.root.image.repository=${repository}"`;
+  return updatedValuesArgument;
+}
+
+/**
  * Returns an object that can be written to a file without data loss.
  * Contains fields needed for adding a new node through separate commands
  * @param ctx

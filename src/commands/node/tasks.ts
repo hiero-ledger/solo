@@ -43,6 +43,7 @@ import {execSync} from 'node:child_process';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   entityId,
   extractContextFromConsensusNodes,
   prepareEndpoints,
@@ -53,6 +54,7 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
+import * as versions from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -2908,6 +2910,16 @@ export class NodeCommandTasks {
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+
+      if (this.configManager.getFlag<boolean>(flags.s6)) {
+        valuesArgumentMap[clusterReference] = addRootImageValues(
+          valuesArgumentMap[clusterReference],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+      }
     }
   }
 
@@ -2943,6 +2955,16 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
+      if (this.configManager.getFlag<boolean>(flags.s6)) {
+        valuesArgumentMap[node.cluster] = addRootImageValues(
+          valuesArgumentMap[node.cluster],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+      }
     }
 
     // Add new node
@@ -2951,6 +2973,16 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
+
+    if (this.configManager.getFlag<boolean>(flags.s6)) {
+      valuesArgumentMap[clusterReference] = addRootImageValues(
+        valuesArgumentMap[clusterReference],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
+    }
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3002,6 +3034,16 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
+        if (this.configManager.getFlag<boolean>(flags.s6)) {
+          valuesArgumentMap[clusterReference] = addRootImageValues(
+            valuesArgumentMap[clusterReference],
+            `hedera.nodes[${index}]`,
+            constants.S6_NODE_IMAGE_REGISTRY,
+            constants.S6_NODE_IMAGE_REPOSITORY,
+            versions.S6_NODE_IMAGE_VERSION,
+          );
+        }
 
         index++;
       }
