@@ -37,18 +37,12 @@
   "prepare": [
     "@semantic-release/npm",
     [
-      "@semantic-release/git",
-      {
-        "assets": [
-          "package.json",
-          "package-lock.json"
-        ]
-      }
+      "@semantic-release/git"
     ]
   ],
   "branches":[
     {
-      "name": "main"
+      "name": "main, ajb-test-branch-semantic-release-publishing-fix"
     },
     {
       "name": "release/([0-9]+).([0-9]+)",
