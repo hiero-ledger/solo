@@ -99,7 +99,7 @@ jobs:
           
           npm install
           task build
-          timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }}' || RC=$? || true
+          '.github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }}' || RC=$? || true
           if [[ "$RC" != "0" ]]; then
             echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
             exit $RC
