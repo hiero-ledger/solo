@@ -10,8 +10,16 @@ export class ConsensusNodeStateSchema extends BaseStateSchema {
   @Expose()
   public blockNodeMap: PriorityMapping[];
 
-  public constructor(metadata?: ComponentStateMetadataSchema, blockNodeMap?: PriorityMapping[]) {
+  @Expose()
+  public externalBlockNodeMap: PriorityMapping[];
+
+  public constructor(
+    metadata?: ComponentStateMetadataSchema,
+    blockNodeMap?: PriorityMapping[],
+    externalBlockNodeMap?: PriorityMapping[],
+  ) {
     super(metadata);
     this.blockNodeMap = blockNodeMap || [];
+    this.externalBlockNodeMap = externalBlockNodeMap || [];
   }
 }

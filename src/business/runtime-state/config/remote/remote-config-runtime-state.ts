@@ -544,6 +544,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             cluster.dnsConsensusNodePattern,
           ),
           node.blockNodeMap,
+          node.externalBlockNodeMap,
         ),
       );
     }
