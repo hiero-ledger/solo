@@ -126,6 +126,20 @@ interface BlockNodeAddExternalContext {
   config: BlockNodeAddExternalConfigClass;
 }
 
+interface BlockNodeRemoveExternalConfigClass {
+  clusterRef: ClusterReferenceName;
+  deployment: DeploymentName;
+  devMode: boolean;
+  quiet: boolean;
+  namespace: NamespaceName;
+  context: string;
+  id: number;
+}
+
+interface BlockNodeRemoveExternalContext {
+  config: BlockNodeRemoveExternalConfigClass;
+}
+
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
   public constructor() {
@@ -138,7 +152,9 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
-  private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addConfigs';
+  private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addExternalConfigs';
+
+  private static readonly REMOVE_CONFIGS_NAME: string = 'removeExternalConfigs';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -161,6 +177,11 @@ export class BlockNodeCommand extends BaseCommand {
   public static readonly ADD_EXTERNAL_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.externalBlockNodeAddress],
     optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.priorityMapping],
+  };
+
+  public static readonly REMOVE_EXTERNAL_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -841,14 +862,87 @@ export class BlockNodeCommand extends BaseCommand {
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
-      'block node add',
+      'block node add-external',
     );
 
     if (tasks.isRoot()) {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error deploying block node: ${error.message}`, error);
+        throw new SoloError(`Error adding external block node: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
+    }
+
+    return true;
+  }
+
+  public async removeExternal(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: SoloListr<BlockNodeRemoveExternalContext> = this.taskList.newTaskList<BlockNodeRemoveExternalContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST.required,
+              ...BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            const config: BlockNodeRemoveExternalConfigClass = this.configManager.getConfig(
+              BlockNodeCommand.REMOVE_CONFIGS_NAME,
+              allFlags,
+            ) as BlockNodeRemoveExternalConfigClass;
+
+            context_.config = config;
+
+            config.namespace = await this.getNamespace(task);
+            config.clusterRef = this.getClusterReference();
+            config.context = this.getClusterContext(config.clusterRef);
+            config.id = this.inferExternalBlockNodeId(config.id);
+
+            await this.throwIfNamespaceIsMissing(config.context, config.namespace);
+
+            return ListrLock.newAcquireLockTask(lease, task);
+          },
+        },
+        this.removeExternalBlockNodeComponent(),
+        {
+          title: 'Update block node json',
+          skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
+          task: async (): Promise<void> => {
+            for (const node of this.remoteConfig.getConsensusNodes()) {
+              await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+            }
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'block node remove-external',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error removing external block node: ${error.message}`, error);
       } finally {
         await lease?.release();
       }
@@ -948,6 +1042,26 @@ export class BlockNodeCommand extends BaseCommand {
     };
   }
 
+  /** Adds the block node component to remote config. */
+  private removeExternalBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
+    return {
+      title: 'Remove block node component from remote config',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async ({config}): Promise<void> => {
+        this.remoteConfig.configuration.state.externalBlockNodes =
+          this.remoteConfig.configuration.state.externalBlockNodes.filter(
+            (component): boolean => component.id !== config.id,
+          );
+
+        for (const node of this.remoteConfig.configuration.state.consensusNodes) {
+          node.externalBlockNodeMap = node.externalBlockNodeMap.filter(([id]): boolean => id !== config.id);
+        }
+
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
   private displayHealthCheckData(
     task: SoloListrTaskWrapper<BlockNodeDeployContext>,
   ): (attempt: number, maxAttempt: number, color?: 'yellow' | 'green' | 'red', additionalData?: string) => void {
@@ -1038,10 +1152,22 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
-      throw new SoloError('Block node not found in remote config');
+      throw new SoloError('Block node not found in remote config.' + id ? `ID ${id}` : '');
     }
 
     return this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
+  }
+
+  private inferExternalBlockNodeId(id: Optional<ComponentId>): ComponentId {
+    if (typeof id === 'number') {
+      return id;
+    }
+
+    if (this.remoteConfig.configuration.components.state.externalBlockNodes.length === 0) {
+      throw new SoloError('No External block node not found in remote config. ' + id ? `ID ${id}` : '');
+    }
+
+    return this.remoteConfig.configuration.components.state.externalBlockNodes[0].id;
   }
 
   private async checkIfLegacyChartIsInstalled(
