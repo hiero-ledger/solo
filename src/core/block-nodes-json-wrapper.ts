@@ -54,6 +54,12 @@ export class BlockNodesJsonWrapper implements ToJSON {
   }
 
   private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
+    // Figure out field name for port
+    const useLegacyPortName: boolean = lt(
+      this.remoteConfig.configuration.versions.consensusNode,
+      versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
+    );
+
     const blockNodeConnectionData: BlockNodeConnectionData[] = [];
 
     for (const [id, priority] of this.blockNodeMap) {
@@ -79,12 +85,6 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-      // Figure out field name for port
-      const useLegacyPortName: boolean = lt(
-        this.remoteConfig.configuration.versions.consensusNode,
-        versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
-      );
-
       blockNodeConnectionData.push(
         useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
       );
@@ -98,7 +98,9 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
-      blockNodeConnectionData.push({address, port, priority});
+      blockNodeConnectionData.push(
+        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
+      );
     }
 
     return {
