@@ -217,8 +217,10 @@ jobs:
           
           npx semantic-release --no-sign ${FLAGS}
 
-          echo "Output dir has the following contents:"
-          ls output
+          if [[ -d "output" ]]; then
+            echo "Output dir has the following contents:"
+            ls output
+          fi
 
       # Upload the artifact
       - name: Upload Solo Package Artifact
