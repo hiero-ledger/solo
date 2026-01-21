@@ -11,6 +11,7 @@ import * as constants from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   parseNodeAliases,
   resolveValidJsonFilePath,
   showVersionBanner,
@@ -555,26 +556,22 @@ export class NetworkCommand extends BaseCommand {
       }
 
       for (const consensusNode of config.consensusNodes) {
-        // if versions.HEDERA_PLATFORM_VERSION starts with `v`, remove it for semver comparison
-        const imageVersion: string = versions.S6_NODE_IMAGE_VERSION.startsWith('v')
-          ? versions.S6_NODE_IMAGE_VERSION.slice(1)
-          : versions.S6_NODE_IMAGE_VERSION;
-
-        this.logger.debug(
-          `Using S6 node image: ${constants.S6_NODE_IMAGE_REGISTRY}/${constants.S6_NODE_IMAGE_REPOSITORY}:${imageVersion}`,
-        );
-
         const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
           `${consensusNode.cluster}:${consensusNode.name}`,
         );
         if (nodeIndex === undefined) {
           continue;
         }
+
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
         valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.registry=${constants.S6_NODE_IMAGE_REGISTRY}"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.tag=${imageVersion}"`;
-        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].root.image.repository=${constants.S6_NODE_IMAGE_REPOSITORY}"`;
+        valuesArgument = addRootImageValues(
+          valuesArgument,
+          `hedera.nodes[${nodeIndex}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
         valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
