@@ -30,6 +30,12 @@
   "releaseRules": [
     { "breaking": "true", "release": "minor" }
   ],
+  "verifyRelease": [
+    [
+      "@semantic-release/exec",
+      { "cmd": "echo ${nextRelease.version} > VERSION" }
+    ]
+  ],
   "branches":[
     {
       "name": "main"
