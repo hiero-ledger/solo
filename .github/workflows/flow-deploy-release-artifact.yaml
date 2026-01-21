@@ -216,7 +216,7 @@ jobs:
           fi
           
           npx semantic-release --no-sign ${FLAGS}
-          
+
           echo "Output dir has the following contents:"
           ls output
 
