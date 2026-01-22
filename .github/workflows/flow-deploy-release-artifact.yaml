@@ -19,8 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       dry-run-enabled:
-        description: 'Dry-Run Enabled'
+        description: "Perform Dry Run"
         type: boolean
+        required: false
         default: true
 
 env:
