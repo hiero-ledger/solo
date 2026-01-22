@@ -156,7 +156,7 @@ export class Flags {
     name: 's6',
     definition: {
       describe: 'Enable S6 telemetry extensions (Prometheus scrape config and root image override)',
-      defaultValue: process.env.ENABLE_S6_IMAGE !== undefined ? process.env.ENABLE_S6_IMAGE === 'true' : true,
+      defaultValue: process.env.ENABLE_S6_IMAGE === undefined ? true : process.env.ENABLE_S6_IMAGE === 'true',
       type: 'boolean',
     },
     prompt: undefined,
