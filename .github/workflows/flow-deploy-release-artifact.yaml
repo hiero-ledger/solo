@@ -198,8 +198,8 @@ jobs:
       - name: Build Production Distribution
         run: |
           set -eo pipefail
-          npm ci
           npm install -g npm@11.7.0
+          npm ci
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
           [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
           task build
@@ -285,8 +285,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Build NPM Package"
-            npm run build
-            npm run test
+          task build
           echo "::endgroup::"
 
           echo "::group::Create Package"
@@ -372,7 +371,6 @@ jobs:
             if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
               npm ci
               task build
-              npm run solo-test
             fi
             npm publish ${TARBALL} ${FLAGS}
           echo "::endgroup::"
