@@ -3,6 +3,7 @@
 
 import sourceMapSupport from 'source-map-support';
 sourceMapSupport.install(); // Enable source maps for error stack traces
+import {inspect} from 'node:util';
 import * as fnm from './src/index.js';
 import {type SoloLogger} from './src/core/logging/solo-logger.js';
 import {InjectTokens} from './src/core/dependency-injection/inject-tokens.js';
@@ -27,13 +28,26 @@ const logActiveHandles = (logger: SoloLogger | undefined): void => {
     activeHandles: handles.map(describe),
     activeRequests: requests.map(describe),
   };
+  const detailedHandles = handles
+    .map((handle): {summary: Record<string, unknown>; details: string} => ({
+      summary: describe(handle),
+      details: inspect(handle, {depth: 2, showHidden: true, breakLength: 120}),
+    }))
+    .filter((entry) => entry.summary.type === 'MessagePort');
 
   if (logger) {
     logger.showUser(`Active handles/requests: ${JSON.stringify(payload)}`);
+    if (detailedHandles.length > 0) {
+      logger.showUser(`Active MessagePort details: ${JSON.stringify(detailedHandles)}`);
+    }
   } else {
     // Fallback for early failures before logger initialization.
     // eslint-disable-next-line no-console
     console.warn(`Active handles/requests: ${JSON.stringify(payload)}`);
+    if (detailedHandles.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(`Active MessagePort details: ${JSON.stringify(detailedHandles)}`);
+    }
   }
 };
 
