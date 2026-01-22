@@ -2,30 +2,14 @@
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
-      {
-        "preset": "conventionalcommits"
-      }
+      { "preset": "conventionalcommits" }
     ],
     [
       "@semantic-release/release-notes-generator",
-      {
-        "preset": "conventionalcommits"
-      }
-    ],
-    [
-      "@semantic-release/npm",
-      {
-        "npmPublish": false,
-        "tarballDir": "output"
-      }
+      { "preset": "conventionalcommits" }
     ],
     "@semantic-release/git",
-    [
-      "@semantic-release/github",
-      {
-        "assets": "output/*.tgz"
-      }
-    ]
+    "@semantic-release/github"
   ],
   "releaseRules": [
     { "breaking": "true", "release": "minor" }
@@ -34,6 +18,17 @@
     [
       "@semantic-release/exec",
       { "cmd": "echo ${nextRelease.version} > VERSION" }
+    ]
+  ],
+  "prepare": [
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "package.json",
+          "package-lock.json"
+        ]
+      }
     ]
   ],
   "branches":[
@@ -45,25 +40,9 @@
       "channel": "${name.replace(/release\\//g, '').split('.')[0]}.${name.replace(/release\\//g, '').split('.')[1]}.x",
       "range": "${name.replace(/release\\//g, '').split('.')[0]}.${name.replace(/release\\//g, '').split('.')[1]}.x"
     },
-    {
-      "name": "alpha/*",
-      "prerelease": "alpha",
-      "channel": "alpha"
-    },
-    {
-      "name": "ci/*",
-      "prerelease": "alpha",
-      "channel": "alpha"
-    },
-    {
-      "name": "beta/*",
-      "prerelease": "beta",
-      "channel": "beta"
-    },
-    {
-      "name": "rc/*",
-      "prerelease": "rc",
-      "channel": "rc"
-    }
+    { "name": "alpha/*", "prerelease": "alpha", "channel": "alpha" },
+    { "name": "ci/*", "prerelease": "alpha", "channel": "alpha" },
+    { "name": "beta/*", "prerelease": "beta", "channel": "beta" },
+    { "name": "rc/*", "prerelease": "rc", "channel": "rc" }
   ]
 }
