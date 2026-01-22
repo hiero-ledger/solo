@@ -1179,11 +1179,11 @@ export class Flags {
     name: 'priority-mapping',
     definition: {
       describe:
-        'Configure block node priority mapping ' +
-        '(default all consensus nodes, first consensus node will have priority of 2). ' +
-        'Example: "node1=2,node2=1", node1 will have priority 2, node2 will have priority 1. ' +
-        'Excluded nodes will not be routed to the specific block node! ' +
-        'One with the highest priority will be prioritized!',
+        chalk.grey('Configure block node priority mapping') +
+        chalk.blue('\n\t(Default: all consensus nodes included, first node priority is 2)') +
+        chalk.yellow('\n\t[Format: <node>=<priority>[,<node>=<priority>]]') +
+        chalk.yellow('\n\t[Example: "priority-mapping node1=2,node2=1"]') +
+        chalk.red('\n\t[Unlisted nodes will not be routed to a block node]'),
       type: 'string',
     },
     prompt: undefined,
@@ -1194,8 +1194,10 @@ export class Flags {
     name: 'address',
     definition: {
       describe:
-        "Configure external block node addresses, port can be provided after ':'" +
-        `(default port: ${constants.BLOCK_NODE_PORT})`,
+        chalk.grey(`Provide external block node address ${chalk.grey('(IP or domain)')}, with optional port`) +
+        chalk.blue(`\n\t(Default port: ${constants.BLOCK_NODE_PORT})`) +
+        chalk.yellow('\n\t[Format: <address>[:<port>]]') +
+        chalk.yellow('\n\t[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
       type: 'string',
     },
     prompt: undefined,

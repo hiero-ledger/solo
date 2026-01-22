@@ -35,7 +35,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_UPGRADE = 'upgrade';
 
   public static readonly NODE_ADD_EXTERNAL = 'add-external';
-  public static readonly NODE_REMOVE_EXTERNAL = 'remove-external';
+  public static readonly NODE_DELETE_EXTERNAL = 'delete-external';
 
   public static readonly ADD_COMMAND: string =
     `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_ADD}` as const;
@@ -98,11 +98,11 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              BlockCommandDefinition.NODE_REMOVE_EXTERNAL,
-              'Remove an external block node from the specified deployment.',
+              BlockCommandDefinition.NODE_DELETE_EXTERNAL,
+              'Deletes an external block node from the specified deployment.',
               this.blockNodeCommand,
-              this.blockNodeCommand.removeExternal,
-              BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST,
+              this.blockNodeCommand.deleteExternal,
+              BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
             ),
           ),

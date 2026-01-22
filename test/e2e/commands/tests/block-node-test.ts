@@ -118,7 +118,7 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloBlockNodeRemoveExternalArgv(
+  private static soloBlockNodeDeleteExternalArgv(
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
@@ -130,7 +130,7 @@ export class BlockNodeTest extends BaseCommandTest {
     argv.push(
       BlockCommandDefinition.COMMAND_NAME,
       BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-      BlockCommandDefinition.NODE_REMOVE_EXTERNAL,
+      BlockCommandDefinition.NODE_DELETE_EXTERNAL,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -179,12 +179,12 @@ export class BlockNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
-  public static removeExternal(options: BaseTestOptions, id?: number): void {
+  public static deleteExternal(options: BaseTestOptions, id?: number): void {
     const {testName, deployment, clusterReferenceNameArray} = options;
-    const {soloBlockNodeRemoveExternalArgv} = BlockNodeTest;
+    const {soloBlockNodeDeleteExternalArgv} = BlockNodeTest;
 
-    it(`${testName}: block node remove-external`, async (): Promise<void> => {
-      await main(soloBlockNodeRemoveExternalArgv(testName, deployment, clusterReferenceNameArray[1], id));
+    it(`${testName}: block node delete-external`, async (): Promise<void> => {
+      await main(soloBlockNodeDeleteExternalArgv(testName, deployment, clusterReferenceNameArray[1], id));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 

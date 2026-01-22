@@ -126,7 +126,7 @@ interface BlockNodeAddExternalContext {
   config: BlockNodeAddExternalConfigClass;
 }
 
-interface BlockNodeRemoveExternalConfigClass {
+interface BlockNodeDeleteExternalConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
@@ -136,8 +136,8 @@ interface BlockNodeRemoveExternalConfigClass {
   id: number;
 }
 
-interface BlockNodeRemoveExternalContext {
-  config: BlockNodeRemoveExternalConfigClass;
+interface BlockNodeDeleteExternalContext {
+  config: BlockNodeDeleteExternalConfigClass;
 }
 
 @injectable()
@@ -154,7 +154,7 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addExternalConfigs';
 
-  private static readonly REMOVE_CONFIGS_NAME: string = 'removeExternalConfigs';
+  private static readonly DELETE_CONFIGS_NAME: string = 'deleteExternalConfigs';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -179,7 +179,7 @@ export class BlockNodeCommand extends BaseCommand {
     optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.priorityMapping],
   };
 
-  public static readonly REMOVE_EXTERNAL_FLAGS_LIST: CommandFlags = {
+  public static readonly DELETE_EXTERNAL_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
   };
@@ -662,8 +662,8 @@ export class BlockNodeCommand extends BaseCommand {
           },
           skip: ({config}): boolean => !config.isChartInstalled,
         },
-        this.removeBlockNodeComponent(),
-        this.rebuildBlockNodesJson(),
+        this.removeBlockNodeComponentFromRemoteConfig(),
+        this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -848,8 +848,15 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             const id: ComponentId = this.remoteConfig.configuration.state.externalBlockNodes.length + 1;
+
             const [address, port] = Templates.parseExternalBlockAddress(config.externalBlockNodeAddress);
             config.newExternalBlockNodeComponent = new ExternalBlockNodeStateSchema(id, address, port);
+
+            this.logger.showUser(
+              'Configuring external block node, ' +
+                `${chalk.grey('ID')} ${chalk.cyan(`[${id}]`)}, ` +
+                `${chalk.grey('address')} ${chalk.cyan(`[${address}:${port}]`)} `,
+            );
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -879,10 +886,10 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
-  public async removeExternal(argv: ArgvStruct): Promise<boolean> {
+  public async deleteExternal(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: SoloListr<BlockNodeRemoveExternalContext> = this.taskList.newTaskList<BlockNodeRemoveExternalContext>(
+    const tasks: SoloListr<BlockNodeDeleteExternalContext> = this.taskList.newTaskList<BlockNodeDeleteExternalContext>(
       [
         {
           title: 'Initialize',
@@ -893,19 +900,19 @@ export class BlockNodeCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
-            flags.disablePrompts(BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST.optional);
+            flags.disablePrompts(BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
-              ...BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST.required,
-              ...BlockNodeCommand.REMOVE_EXTERNAL_FLAGS_LIST.optional,
+              ...BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST.required,
+              ...BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST.optional,
             ];
 
             await this.configManager.executePrompt(task, allFlags);
 
-            const config: BlockNodeRemoveExternalConfigClass = this.configManager.getConfig(
-              BlockNodeCommand.REMOVE_CONFIGS_NAME,
+            const config: BlockNodeDeleteExternalConfigClass = this.configManager.getConfig(
+              BlockNodeCommand.DELETE_CONFIGS_NAME,
               allFlags,
-            ) as BlockNodeRemoveExternalConfigClass;
+            ) as BlockNodeDeleteExternalConfigClass;
 
             context_.config = config;
 
@@ -920,11 +927,11 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         this.removeExternalBlockNodeComponent(),
-        this.rebuildBlockNodesJson(),
+        this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
-      'block node remove-external',
+      'block node delete-external',
     );
 
     if (tasks.isRoot()) {
@@ -944,7 +951,7 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
-  private rebuildBlockNodesJson(): SoloListrTask<AnyListrContext> {
+  private rebuildBlockNodesJsonForConsensusNodes(): SoloListrTask<AnyListrContext> {
     return {
       title: "Rebuild 'block.nodes.json' for consensus nodes",
       skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
@@ -1031,7 +1038,7 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   /** Adds the block node component to remote config. */
-  private removeBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
+  private removeBlockNodeComponentFromRemoteConfig(): SoloListrTask<BlockNodeDestroyContext> {
     return {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),

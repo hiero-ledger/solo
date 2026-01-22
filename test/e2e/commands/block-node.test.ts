@@ -98,8 +98,8 @@ new EndToEndTestSuiteBuilder()
         expectedExternalPort: 3030,
       });
 
-      BlockNodeTest.removeExternal(options);
-      BlockNodeTest.removeExternal(options);
+      BlockNodeTest.deleteExternal(options);
+      BlockNodeTest.deleteExternal(options);
 
       BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [], {
         unexpectedExternalAddress: 'test-address-1',
@@ -113,8 +113,15 @@ new EndToEndTestSuiteBuilder()
       BlockNodeTest.addExternal(options, 'test-address-2:3030', ['node2']);
 
       // External Block Nodes
-      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [], 'test-address-1', constants.BLOCK_NODE_PORT);
-      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [], [], 'test-address-2', 3030);
+      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [], {
+        expectedExternalAddress: 'test-address-1',
+        expectedExternalPort: constants.BLOCK_NODE_PORT,
+      });
+
+      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [], [], {
+        expectedExternalAddress: 'test-address-2',
+        expectedExternalPort: 3030,
+      });
 
       BlockNodeTest.destroy(options);
 
