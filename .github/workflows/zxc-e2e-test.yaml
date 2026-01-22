@@ -73,6 +73,11 @@ on:
         type: string
         required: false
         default: "hiero-solo-linux-large"
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       node-version:
@@ -125,6 +130,11 @@ on:
         type: string
         required: false
         default: "hiero-solo-linux-large"
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -142,6 +152,7 @@ env:
   #CG_EXEC: export R_UID=$(id -u); CGROUP_LOGLEVEL=DEBUG cgexec -g cpu,memory:user.slice/user-${R_UID}.slice/user@${R_UID}.service/e2e-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
   CG_EXEC: "ionice -c 2 -n 2 nice -n 19"
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
+  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
 
 jobs:
   e2e-test:
