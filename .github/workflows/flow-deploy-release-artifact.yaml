@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: '302: [FLOW] Publish Release'
+name: "Deploy Release Artifact"
 on:
   workflow_dispatch:
     inputs:
