@@ -225,22 +225,22 @@ export function testSeparateNodeAdd(
           new Map<CommandFlag, string>([[flags.deployment, argv.getArg<DeploymentName>(flags.deployment)]]),
         ),
       );
-      //
-      // await main(
-      //   buildMainArgv(
-      //     namespace.toString(),
-      //     ConsensusCommandDefinition.COMMAND_NAME,
-      //     ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-      //     ConsensusCommandDefinition.STATE_DOWNLOAD,
-      //     new Map<CommandFlag, string>([
-      //       [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
-      //       [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
-      //       [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
-      //       [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
-      //     ]),
-      //   ),
-      // );
-      //
+
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.STATE_DOWNLOAD,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.nodeAliasesUnparsed, argv.getArg<string>(flags.nodeAliasesUnparsed)],
+            [flags.clusterRef, argv.getArg<string>(flags.clusterRef)],
+            [flags.forcePortForward, argv.getArg<string>(flags.forcePortForward)],
+          ]),
+        ),
+      );
+
       // await main(
       //   buildMainArgv(
       //     namespace.toString(),
@@ -253,22 +253,14 @@ export function testSeparateNodeAdd(
       //     ]),
       //   ),
       // );
-
+      //
       // await commandInvoker.invoke({
-      //   argv: argv,
+      //   argv,
       //   command: ConsensusCommandDefinition.COMMAND_NAME,
-      //   subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-      //   action: ConsensusCommandDefinition.NETWORK_FREEZE,
-      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
+      //   subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+      //   action: ConsensusCommandDefinition.STATE_DOWNLOAD,
+      //   callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
       // });
-
-      await commandInvoker.invoke({
-        argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.STATE_DOWNLOAD,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
-      });
 
       await commandInvoker.invoke({
         argv: argv,
