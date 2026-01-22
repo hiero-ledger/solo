@@ -29,6 +29,7 @@ export default [
       'docs/**/*', // Documentation files
       'examples/**/*', // Example files
       'dist/**/*', // Distribution files
+      'scripts/metrics-plotter/**/*', // External tool files
       'node_modules/**/*', // Node modules
       'coverage/**/*', // Coverage files
       '**/*.*js', // JavaScript files
