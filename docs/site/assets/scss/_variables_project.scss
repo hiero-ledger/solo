@@ -213,10 +213,12 @@ a[target='_blank']::after {
   margin-left: 4px;
 }
 
-// Hide external icon if link contains only an image/icon
+// Hide external icon if link contains only an image/icon or is in navbar
 a[target='_blank']:has(> i:only-child)::after,
 a[target='_blank']:has(> svg:only-child)::after,
-a[target='_blank']:has(> img:only-child)::after {
+a[target='_blank']:has(> img:only-child)::after,
+.navbar a[target='_blank']::after,
+.td-navbar a[target='_blank']::after {
   content: '';
 }
 

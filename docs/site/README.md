@@ -14,21 +14,42 @@ Prerequisites
 
 Quick Start
 -----------
+
+### Linux/macOS:
 1) Install site dependencies and Hugo modules:
-   ```
+   ```bash
    cd docs/site
    task install
    ```
 
 2) Build the site (no Kind required):
-   ```
+   ```bash
    task build:hugo
    ```
    Outputs to `public/`.
 
 3) Run with live reload:
-   ```
+   ```bash
    hugo server -D --baseURL http://localhost:1313/main/ --cleanDestinationDir
+   ```
+   Open http://localhost:1313/main/ in your browser.
+
+### Windows (PowerShell):
+1) Install Hugo modules:
+   ```powershell
+   cd docs/site
+   npx hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
+   npm install postcss postcss-cli autoprefixer --no-save --ignore-scripts
+   ```
+
+2) Generate example pages:
+   ```powershell
+   .\scripts\build-examples.ps1
+   ```
+
+3) Run with live reload:
+   ```powershell
+   $env:HUGO_SOLO_VERSION="main"; npx hugo server -e dev -DFE --minify --baseURL "http://localhost:1313/main/" -d public/main
    ```
    Open http://localhost:1313/main/ in your browser.
 

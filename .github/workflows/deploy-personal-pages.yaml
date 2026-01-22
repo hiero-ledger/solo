@@ -1,0 +1,143 @@
+name: Deploy to GitHub Pages (Personal)
+
+on:
+  # Runs on pushes to main
+  push:
+    branches:
+      - main
+  
+  # Allows you to run this workflow manually
+  workflow_dispatch:
+
+# Sets permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Hugo Site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.145.0'
+          extended: true
+
+      - name: Install Dependencies
+        working-directory: docs/site
+        run: |
+          npm ci --ignore-scripts
+          npx hugo mod get
+
+      - name: Generate Documentation Files
+        working-directory: docs/site
+        run: |
+          # Create build directory
+          mkdir -p build
+          
+          # Generate README.md with front-matter
+          cat > build/README.md << 'EOF'
+          ---
+          title: "Getting Started"
+          weight: 1
+          description: >
+            Getting started with Solo 
+          type: docs
+          ---
+          EOF
+          cat ../../README.md | sed -E 's|\(docs/([^)]+)\)|(\1)|g' >> build/README.md
+          
+          # Generate DEV.md with front-matter
+          cat > build/DEV.md << 'EOF'
+          ---
+          title: "Contributing to Solo"
+          weight: 20
+          description: "Instructions for developers working on the Solo project"
+          type: docs
+          ---
+          EOF
+          cat ../../DEV.md >> build/DEV.md
+          
+          # Generate examples index
+          cat > build/_index.md << 'EOF'
+          ---
+          title: Examples
+          linkTitle: Examples
+          menu: {main: {weight: 50}}
+          type: docs
+          weight: 1
+          ---
+          
+          {{% pageinfo %}}
+          The examples section provides information on some examples of how Solo can be used and leveraged.
+          {{% /pageinfo %}}
+          
+          EOF
+          cat ../../examples/README.md >> build/_index.md
+          
+          # Generate individual example pages
+          for example in address-book custom-network-config external-database-test hardhat-with-solo local-build-with-custom-config network-with-block-node network-with-domain-names node-create-transaction node-delete-transaction node-update-transaction one-shot-falcon rapid-fire state-save-and-restore multicluster-backup-restore version-upgrade-test running-solo-inside-cluster; do
+            if [ -f "../../examples/${example}/README.md" ]; then
+              title=$(echo "$example" | sed 's/-/ /g' | sed 's/\b\(.\)/\u\1/g')
+              cat > "build/${example}.md" << EOF
+          ---
+          title: "${title} Example"
+          weight: 1
+          description: >
+            Example documentation for ${example}
+          type: docs
+          ---
+          
+          EOF
+              cat "../../examples/${example}/README.md" >> "build/${example}.md"
+            fi
+          done
+
+      - name: Build Hugo Site
+        working-directory: docs/site
+        env:
+          HUGO_ENVIRONMENT: production
+          HUGO_ENV: production
+          HUGO_SOLO_VERSION: main
+        run: |
+          npx hugo --minify --baseURL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" -d public
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site/public
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

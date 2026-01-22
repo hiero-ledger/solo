@@ -6,8 +6,7 @@ menu:
     - name: Release Notes
       weight: 40
       url: https://github.com/hiero-ledger/solo/releases
-      post: <sup><i class="ps-1 fa-solid fa-up-right-from-square fa-xs"
-        aria-hidden="true"></i></sup>
+      pre: <i class="fa-solid fa-file-lines"></i>
 
 module:
   # Uncomment the next line to build and serve using local docsy clone declared in the named Hugo workspace:

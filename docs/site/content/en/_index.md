@@ -9,7 +9,7 @@ An opinionated CLI tool to deploy and manage standalone Hiero Ledger test networ
 </div>
 
 <div class="mt-5 text-center">
-<a class="btn btn-lg btn-light me-3 mb-3" href="docs/step-by-step-guide/">
+<a class="btn btn-lg btn-light me-3 mb-3" href="docs/solo-cli/">
   <i class="fas fa-rocket me-2"></i>Get Started
 </a>
 <a class="btn btn-lg btn-outline-light me-3 mb-3" href="docs/">
@@ -147,10 +147,10 @@ An opinionated CLI tool to deploy and manage standalone Hiero Ledger test networ
 <p class="lead">Build faster, test with confidence, and automate everything with Solo.</p>
 
 <div class="mt-4">
-<a class="btn btn-lg btn-light me-3 mb-3" href="docs/step-by-step-guide/">
+<a class="btn btn-lg btn-light me-3 mb-3" href="docs/solo-cli/">
   <i class="fas fa-rocket me-2"></i>Get Started Now
 </a>
-<a class="btn btn-lg btn-outline-light me-3 mb-3" href="https://solo.hiero.org/main/examples/" target="_blank">
+<a class="btn btn-lg btn-outline-light me-3 mb-3" href="examples/">
   <i class="fas fa-code me-2"></i>View Examples
 </a>
 </div>

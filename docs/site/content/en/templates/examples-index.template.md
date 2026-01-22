@@ -1,8 +1,8 @@
 ---
-title: Examples
-linkTitle: Examples
-menu: {main: {weight: 50, pre: <i class='fa-solid fa-address-book'></i>}}
+title: Examples Template
+linkTitle: Examples Template
 type: docs
+draft: true
 ---
 
 {{% pageinfo %}}
