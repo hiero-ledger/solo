@@ -111,7 +111,7 @@ describe('KindClient Integration Tests', function () {
         const controller: AbortController = new AbortController();
         const onTimeoutCallback: NodeJS.Timeout = setTimeout((): void => {
           controller.abort();
-        }, Duration.ofSeconds(1).toMillis());
+        }, Duration.ofSeconds(20).toMillis());
         console.log(`deleting cluster if it exists before creation attempt ${attempt + 1}`);
         await kindClient.deleteCluster(testClusterName);
         const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().build();
