@@ -22,23 +22,58 @@ An opinionated CLI tool to deploy and manage standalone Hiero Ledger test networ
 
 {{< /blocks/cover >}}
 
-{{% blocks/section color="white" type="row" %}}
+{{% blocks/section color="white" %}}
 
-{{% blocks/feature icon="fa-bolt" title="One-Shot Deployment" %}}
-Deploy a complete test network with consensus nodes, mirror nodes, relays, and block explorers—all with a single command. Perfect for fast, repeatable test environments.
-{{% /blocks/feature %}}
+<div class="row">
+<div class="col-lg-4 mb-4">
+<div class="card h-100">
+<div class="card-body">
+<h3><i class="fas fa-vial text-primary me-2"></i>Built for Testing First</h3>
+<p>Solo is designed to be embedded in test suites, CI jobs, and automation scripts — not just used interactively.</p>
+<ul>
+<li>Deterministic, repeatable network state</li>
+<li>Clean teardown between test runs</li>
+<li>Safe upgrade, rollback, and failure testing</li>
+</ul>
+</div>
+</div>
+</div>
 
-{{% blocks/feature icon="fa-dharmachakra" title="Kubernetes Native" %}}
-Built on Kubernetes for seamless orchestration and scalability. Deploy locally using Kind or to any Kubernetes cluster. Includes full support for multi-cluster setups.
-{{% /blocks/feature %}}
+<div class="col-lg-4 mb-4">
+<div class="card h-100">
+<div class="card-body">
+<h3><i class="fas fa-terminal text-primary me-2"></i>CLI-Native & Automation Friendly</h3>
+<p>Every operation in Solo is driven through a structured CLI with predictable outputs, making it easy to integrate with:</p>
+<ul>
+<li>CI/CD systems (GitHub Actions, GitLab CI, Jenkins)</li>
+<li>Local test harnesses</li>
+<li>DevOps and platform automation</li>
+</ul>
+</div>
+</div>
+</div>
 
-{{% blocks/feature icon="fa-code" title="Developer Friendly" %}}
-Intuitive CLI with comprehensive commands, detailed documentation, and example projects. Easy-to-use interface for testing releases or building innovative solutions.
-{{% /blocks/feature %}}
+<div class="col-lg-4 mb-4">
+<div class="card h-100">
+<div class="card-body">
+<h3><i class="fas fa-layer-group text-primary me-2"></i>Full Hiero Stack, Not a Simulator</h3>
+<p>Unlike lightweight simulators, Solo deploys real Hiero components working together:</p>
+<ul>
+<li>Consensus nodes</li>
+<li>Mirror node with PostgreSQL</li>
+<li>Explorer for visibility</li>
+<li>JSON-RPC relay for EVM tooling compatibility</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
 
 {{% /blocks/section %}}
 
 {{% blocks/section color="white" %}}
+
+<div style="margin-top: -3rem;">
 
 <h2 class="text-center">Core Capabilities</h2>
 
@@ -46,12 +81,12 @@ Intuitive CLI with comprehensive commands, detailed documentation, and example p
 <div class="col-md-6 mb-4">
 <div class="card h-100">
 <div class="card-body">
-<h3><i class="fas fa-network-wired text-primary me-2"></i>Network Management</h3>
-<p>Complete lifecycle management for Hiero consensus networks with comprehensive tooling. Supports test scenarios from development to staging.</p>
+<h3><i class="fas fa-sync text-primary me-2"></i>Reproducible Network Environments</h3>
+<p>Define, version, and recreate Hedera network topologies using configuration files.</p>
 <ul>
-<li>Deploy, upgrade, and destroy networks</li>
-<li>Node creation and configuration</li>
-<li>Multi-cluster deployments</li>
+<li>Multi-node consensus layouts</li>
+<li>Custom resource profiles</li>
+<li>Consistent environments across machines and teams</li>
 </ul>
 </div>
 </div>
@@ -60,13 +95,12 @@ Intuitive CLI with comprehensive commands, detailed documentation, and example p
 <div class="col-md-6 mb-4">
 <div class="card h-100">
 <div class="card-body">
-<h3><i class="fas fa-database text-primary me-2"></i>Complete Ecosystem</h3>
-<p>Deploy the full Hiero ecosystem with native support for all essential components for testing. Get everything you need in a single install.</p>
+<h3><i class="fas fa-shield-alt text-primary me-2"></i>Upgrade & Failure Testing</h3>
+<p>Solo makes it easy to test scenarios that are hard or risky on public networks.</p>
 <ul>
-<li>Mirror Node integration</li>
-<li>Block Stream services</li>
-<li>JSON-RPC relay</li>
-<li>Hiero Explorer</li>
+<li>Node upgrades and configuration changes</li>
+<li>Network restarts and recovery</li>
+<li>Migration and rollback workflows</li>
 </ul>
 </div>
 </div>
@@ -75,12 +109,12 @@ Intuitive CLI with comprehensive commands, detailed documentation, and example p
 <div class="col-md-6 mb-4">
 <div class="card h-100">
 <div class="card-body">
-<h3><i class="fas fa-save text-primary me-2"></i>State Management</h3>
-<p>Advanced state management features for backup, restoration, and migration scenarios. Essential tools for complex testing scenarios and disaster recovery testing.</p>
+<h3><i class="fas fa-code-branch text-primary me-2"></i>CI/CD & Pipeline Integration</h3>
+<p>Solo fits naturally into modern delivery pipelines.</p>
 <ul>
-<li>Backup state snapshots to storage</li>
-<li>Restore state from backups</li>
-<li>Manual upgrade testing</li>
+<li>Fast startup for ephemeral test environments</li>
+<li>Scriptable lifecycle (create → test → destroy)</li>
+<li>Compatible with containerized CI runners</li>
 </ul>
 </div>
 </div>
@@ -89,14 +123,14 @@ Intuitive CLI with comprehensive commands, detailed documentation, and example p
 <div class="col-md-6 mb-4">
 <div class="card h-100">
 <div class="card-body">
-<h3><i class="fas fa-cogs text-primary me-2"></i>Flexible Configuration</h3>
-<p>Customize every aspect of your network with comprehensive configuration options. Fine-tune settings to match production scenarios.</p>
+<h3><i class="fas fa-cloud text-primary me-2"></i>Local or Cloud-Native</h3>
+<p>Run Solo on a laptop for development or deploy it into Kubernetes clusters for shared or scaled testing environments.</p>
 <ul>
-<li>Resource profiles for different scenarios</li>
-<li>Custom network parameters</li>
-<li>Advanced Kubernetes configurations</li>
-<li>Network-wide configuration</li>
+<li>Docker-based orchestration</li>
+<li>Kubernetes-native deployments</li>
+<li>Consistent behavior across local and cloud setups</li>
 </ul>
+</div>
 </div>
 </div>
 </div>
@@ -110,13 +144,13 @@ Intuitive CLI with comprehensive commands, detailed documentation, and example p
 
 <h2>Ready to Deploy Your Network?</h2>
 
-<p class="lead">Join developers building on Hiero with Solo's powerful deployment tools.</p>
+<p class="lead">Build faster, test with confidence, and automate everything with Solo.</p>
 
 <div class="mt-4">
 <a class="btn btn-lg btn-light me-3 mb-3" href="docs/step-by-step-guide/">
   <i class="fas fa-rocket me-2"></i>Get Started Now
 </a>
-<a class="btn btn-lg btn-outline-light me-3 mb-3" href="examples/">
+<a class="btn btn-lg btn-outline-light me-3 mb-3" href="https://solo.hiero.org/main/examples/" target="_blank">
   <i class="fas fa-code me-2"></i>View Examples
 </a>
 </div>
