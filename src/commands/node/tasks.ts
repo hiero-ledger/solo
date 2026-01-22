@@ -1676,7 +1676,7 @@ export class NodeCommandTasks {
               const k8 = this.k8Factory.getK8(context);
               const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
               await (this.configManager.getFlag<boolean>(flags.s6)
-                ? container.execContainer(['bash', '-c', '/command/s6-svc -u /run/service/network-node'])
+                ? container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node'])
                 : container.execContainer([
                     'bash',
                     '-c',
