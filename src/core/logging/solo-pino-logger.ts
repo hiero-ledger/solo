@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import pino, {type Logger as PinoLogger, type TransportTargetOptions} from 'pino';
+import pinoPretty from 'pino-pretty';
 import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
@@ -74,19 +75,33 @@ export class SoloPinoLogger implements SoloLogger {
       },
     };
 
-    this.pinoLogger = pino(
-      {
-        level: logLevel,
-        // Always include traceId when set via mixin
-        mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
-        // Redact obvious secrets if they sneak into objects
-        redact: {
-          paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
-          remove: true,
-        },
+    const baseOptions = {
+      level: logLevel,
+      // Always include traceId when set via mixin
+      mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
+      // Redact obvious secrets if they sneak into objects
+      redact: {
+        paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
+        remove: true,
       },
-      pino.transport({targets: [ndjsonTarget, prettyTarget]}),
-    );
+    };
+
+    if (process.env.CI === 'true') {
+      const ndjsonStream = pino.destination({
+        dest: PathEx.join(logsDirectory, 'solo.ndjson'),
+        sync: true,
+      });
+      const prettyStream = pinoPretty({
+        ...prettyTarget.options,
+        destination: pino.destination({
+          dest: PathEx.join(logsDirectory, 'solo.log'),
+          sync: true,
+        }),
+      });
+      this.pinoLogger = pino(baseOptions, pino.multistream([{stream: ndjsonStream}, {stream: prettyStream}]));
+    } else {
+      this.pinoLogger = pino(baseOptions, pino.transport({targets: [ndjsonTarget, prettyTarget]}));
+    }
   }
 
   public setDevMode(developmentMode: boolean): void {
