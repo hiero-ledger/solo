@@ -29,7 +29,7 @@ const logActiveHandles = (logger: SoloLogger | undefined): void => {
   };
 
   if (logger) {
-    logger.warn(`Active handles/requests: ${JSON.stringify(payload)}`);
+    logger.showUser(`Active handles/requests: ${JSON.stringify(payload)}`);
   } else {
     // Fallback for early failures before logger initialization.
     // eslint-disable-next-line no-console
