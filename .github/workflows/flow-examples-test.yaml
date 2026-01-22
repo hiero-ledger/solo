@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       node-version:
@@ -42,6 +47,11 @@ on:
         default: "22"
       released-or-latest:
         description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: false
+      enable_s6_image:
+        description: "Enable S6 image"
         type: boolean
         required: false
         default: false
@@ -55,6 +65,9 @@ defaults:
 permissions:
   contents: read
   actions: read
+
+env:
+  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
 
 jobs:
   generate_matrix:
