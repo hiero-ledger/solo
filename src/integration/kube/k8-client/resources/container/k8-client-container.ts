@@ -57,6 +57,18 @@ export class K8ClientContainer implements Container {
       let stdout: string = '';
       let stderr: string = '';
 
+      // Set a timeout to kill the process if it hangs
+      const timeout = setTimeout(() => {
+        process.kill('SIGTERM');
+        // Give it 5 seconds to terminate gracefully, then force kill
+        setTimeout(() => {
+          if (!process.killed) {
+            process.kill('SIGKILL');
+          }
+        }, 5000);
+        reject(new SoloError(`container call timed out after 30 seconds: kubectl ${fullArguments.join(' ')}`));
+      }, 30000);
+
       process.stdout.on('data', (chunk): void => {
         if (outputPassThroughStream) {
           outputPassThroughStream.write(chunk);
@@ -72,10 +84,12 @@ export class K8ClientContainer implements Container {
       });
 
       process.on('error', (error): void => {
+        clearTimeout(timeout);
         reject(new SoloError(`container call failed to start: ${error?.message}`));
       });
 
       process.on('close', (code): void => {
+        clearTimeout(timeout);
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
