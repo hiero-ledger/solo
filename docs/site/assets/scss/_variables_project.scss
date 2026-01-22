@@ -1,9 +1,669 @@
-/*
+// ============================================================================
+// HIERO DOCUMENTATION THEME
+// Based on Hugo Docsy | Aligned with Hiero Branding
+// ============================================================================
 
-Add styles or override variables from the theme here.
+// --- 1. CONFIGURATION ---
+// Feature flags and font imports
 
-*/
+$enable-dark-mode: false;
+$td-enable-google-fonts: true;
+$td-google-font-name: 'Space Grotesk';
+$td-google-font-family: 'Space+Grotesk:300,400,500,600,700';
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+// --- 2. DESIGN TOKENS (CSS VARIABLES) ---
+
+:root {
+  // Brand Palette (Hiero Colors)
+  --color-primary: #b81a56;
+  --color-primary-dark: #992350;
+  --color-primary-light: #d92d6a;
+  --color-primary-very-light: #f9e4ed;
+  --color-secondary: #1ebdc4;
+  --color-gradient-start: #992350;
+  --color-gradient-end: #b81a56;
+
+  // UI Neutrals
+  --color-bg-white: #ffffff;
+  --color-bg-light: #f5f5f5;
+  --color-border: #e0e0e0;
+  --color-text-dark: #333333;
+  --color-text-body: #666666;
+  --color-text-light: #888888;
+
+  // Typography Stacks
+  --font-family-primary: 'Space Grotesk', -apple-system, system-ui, sans-serif;
+  --font-family-mono: 'Courier New', monospace;
+
+  // Spacing Scale (4px base)
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+
+  // Shape & Elevation
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 16px;
+  --shadow-sm: 0px 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0px 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0px 8px 24px rgba(0, 0, 0, 0.12);
+
+  // Motion
+  --transition-duration: 0.2s;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  // Force light mode
+  color-scheme: light;
+}
+
+// --- 3. BOOTSTRAP & DOCSY COMPATIBILITY ---
+// Map design tokens to framework variables
+
+:root {
+  --bs-body-color: var(--color-text-dark);
+  --bs-body-bg: var(--color-bg-white);
+  --bs-border-color: var(--color-border);
+  --bs-link-color: var(--color-primary);
+}
+
+// SCSS Variable Overrides
+$primary: #b81a56 !default;
+$primary-dark: #992350 !default;
+$secondary: #1ebdc4 !default;
+$light: #f5f5f5 !default;
+$white: #ffffff !default;
+$dark: #333333 !default;
+$body-bg: #ffffff !default;
+$text-muted: #888888 !default;
+$success: #b81a56 !default; // Use Hiero color instead of green
+
+$font-family-base: 'Space Grotesk', sans-serif !default;
+$font-family-monospace: 'Courier New', monospace !default;
+$border-radius: 8px !default; // Updated to 8px for modern look
+$border-radius-lg: 8px !default;
+
+// --- 4. BASE TYPOGRAPHY ---
+
+body {
+  font-family: var(--font-family-primary);
+  font-size: 0.9375rem; // 15px
+  color: var(--color-text-body);
+  line-height: 1.6;
+  letter-spacing: 0px;
+  background-color: var(--color-bg-white);
+  padding-top: 1rem; // Offset for fixed navbar height
+}
+
+// Headings
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--color-text-dark);
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 3rem;
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin: 40px 0 20px;
+}
+h2 {
+  font-size: 2rem;
+  margin: 28px 0 14px;
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: 8px;
+}
+h3 {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-top: 20px;
+}
+h4 {
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+h5,
+h6 {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+p {
+  margin-bottom: 16px;
+}
+
+small,
+.small {
+  font-size: 0.8125rem;
+  color: var(--color-text-light);
+}
+
+// --- 5. NAVIGATION & SIDEBAR ---
+
+.td-sidebar {
+  background: var(--color-bg-white);
+  width: 300px;
+  border-right: 1px solid var(--color-border);
+
+  .nav-link {
+    font-size: 0.875rem;
+    font-weight: 300 !important;
+    color: var(--color-text-body);
+    padding: 12px 16px;
+    transition: all var(--transition-duration) var(--transition-timing);
+
+    &:hover {
+      background: var(--color-bg-light);
+      color: var(--color-text-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 6px;
+    }
+
+    &.active,
+    &.is-active {
+      color: var(--color-primary);
+      border-left: 4px solid var(--color-primary);
+      padding-left: 10px;
+    }
+  }
+}
+
+.td-sidebar-toc {
+  padding-top: 2.5rem !important;
+}
+
+.tree-root .td-sidebar-nav-active-item {
+  border-left: 0;
+  padding-left: 0;
+  font-weight: 700 !important;
+}
+
+// --- 6. LINKS & INLINE ELEMENTS ---
+
+a,
+main a {
+  color: var(--color-primary);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
+  }
+
+  &:visited {
+    color: #8b0e28;
+  }
+}
+
+// External Link Indicator
+a[target='_blank']::after {
+  content: ' \f35d';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 0.75em;
+  margin-left: 4px;
+}
+
+// Hide external icon if link contains only an image/icon
+a[target='_blank']:has(> i:only-child)::after,
+a[target='_blank']:has(> svg:only-child)::after,
+a[target='_blank']:has(> img:only-child)::after {
+  content: '';
+}
+
+// --- 7. BUTTONS ---
+
+.btn {
+  border-radius: 8px;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: none;
+  border: none;
+  background-image: none !important;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.btn-primary,
+.hero-btn-primary {
+  background: white !important;
+  color: var(--color-primary) !important;
+  border: none !important;
+
+  &:hover {
+    background: #f5f5f5 !important;
+    color: var(--color-primary) !important;
+  }
+  &:active {
+    background: #e8e8e8 !important;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.btn-secondary,
+.hero-btn-secondary {
+  background: transparent !important;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: white !important;
+    color: white !important;
+  }
+}
+
+.btn-outline-light {
+  background: transparent !important;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: white !important;
+    color: white !important;
+  }
+}
+
+.btn-light {
+  background: white !important;
+  color: var(--color-primary) !important;
+
+  &:hover {
+    background: #f5f5f5 !important;
+  }
+}
+
+// --- 8. UI COMPONENTS (CARDS, FORMS, BADGES) ---
+
+// Cards
+.card,
+.td-card {
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+  transition: all 0.3s var(--transition-timing);
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+}
+
+// Forms
+input,
+textarea,
+select {
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+
+  &:focus {
+    outline: none;
+    border: 2px solid var(--color-primary);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+// Badges & Callouts
+.badge,
+.tag,
+.badge-primary {
+  background: var(--color-primary-very-light);
+  color: var(--color-primary);
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-weight: 600;
+}
+
+.callout,
+.alert-callout {
+  background: var(--color-primary-very-light);
+  border-left: 4px solid var(--color-primary);
+  padding: 16px;
+  border-radius: 4px;
+}
+
+// --- 9. CODE & PREFORMATTED ---
+
+pre,
+code,
+kbd,
+samp {
+  font-family: var(--font-family-mono);
+  font-size: 0.875rem;
+}
+
+pre {
+  padding: 12px 16px;
+  border-radius: 4px;
+  overflow: auto;
+}
+
+// Only apply to inline code, not code blocks with syntax highlighting
+p > code,
+li > code,
+td > code {
+  background: var(--color-bg-light);
+  color: var(--color-text-dark);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+// --- 10. NAVBAR OVERRIDES ---
+
+.td-navbar {
+  background-color: #ffffff !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid #e5e5e5 !important;
+  min-height: 90px !important;
+  padding: 1rem 0 !important;
+  align-items: center;
+
+  .container-fluid {
+    align-items: center;
+  }
+
+  .navbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  svg {
+    height: 40px !important;
+    display: block;
+  }
+
+  .navbar-brand__logo {
+    display: inline-flex;
+    align-items: center;
+  }
+  .navbar-brand__name {
+    color: #000000 !important;
+    font-weight: 400 !important;
+    font-size: 2rem !important;
+    line-height: 1.1;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .nav-link {
+    color: #000000 !important;
+    font-weight: 400 !important;
+    font-size: 0.9375rem !important;
+    text-shadow: none !important;
+    padding: 0.5rem 1rem !important;
+    transition: all 0.2s ease !important;
+    border-bottom: 2px solid transparent !important;
+    text-decoration: none !important;
+
+    &:hover {
+      color: var(--color-primary) !important;
+      text-decoration: none !important;
+    }
+
+    &.active,
+    &[aria-current='page'] {
+      color: var(--color-primary) !important;
+      border-bottom-color: var(--color-primary) !important;
+      font-weight: 600 !important;
+    }
+  }
+
+  .td-site-title {
+    color: #000000 !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+  }
+
+  // Navbar toggle button
+  .navbar-toggler {
+    border-color: #e5e5e5 !important;
+
+    &:focus {
+      box-shadow: none !important;
+    }
+  }
+}
+
+// Maintain light theme in navbar even if Bootstrap detects dark preference
+.td-navbar[data-bs-theme='dark'] {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e5e5e5 !important;
+
+  .nav-link {
+    color: #000000 !important;
+
+    &:hover {
+      color: var(--color-primary) !important;
+    }
+
+    &.active,
+    &[aria-current='page'] {
+      color: var(--color-primary) !important;
+      border-bottom-color: var(--color-primary) !important;
+      font-weight: 600 !important;
+    }
+  }
+
+  .td-site-title {
+    color: #000000 !important;
+  }
+}
+
+// --- 11. UTILITIES ---
+
+.td-page-meta {
+  display: none;
+}
+
+.text-muted,
+.td-muted {
+  color: var(--color-text-light) !important;
+}
+
+.text-primary {
+  color: var(--color-primary) !important;
+}
+
+.text-success {
+  color: var(--color-primary) !important;
+} // Use Hiero color instead of green
+
 .expandCollapse {
   font-size: x-small;
   vertical-align: sub;
+}
+
+// --- 13. FOOTER STYLES ---
+
+.td-footer {
+  background-color: #000000 !important;
+  padding: 2rem 0 !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  width: 100vw !important;
+  position: relative !important;
+  left: 50% !important;
+  right: 50% !important;
+  margin-left: -50vw !important;
+  margin-right: -50vw !important;
+
+  * {
+    color: #ffffff !important;
+  }
+
+  .container {
+    text-align: center !important;
+    max-width: 100% !important;
+    padding-left: 15px !important;
+    padding-right: 15px !important;
+  }
+
+  // Hide default footer links
+  .td-footer__links,
+  .td-footer__links-list,
+  nav {
+    display: none !important;
+  }
+
+  // Center footer content
+  .td-footer__content {
+    text-align: center !important;
+    max-width: 100% !important;
+  }
+}
+
+// Footer copyright text
+.td-footer__copyright {
+  text-align: center !important;
+  font-size: 0.875rem;
+  color: #ffffff !important;
+  margin: 0 !important;
+
+  a {
+    color: #ffffff !important;
+    text-decoration: underline;
+
+    &:hover {
+      color: #cccccc !important;
+    }
+  }
+}
+
+// --- 12. GRADIENT BACKGROUNDS ---
+
+// First section after cover - increase padding for feature blocks
+.td-cover-block + section {
+  padding-top: 7rem !important;
+  padding-bottom: 7rem !important;
+}
+
+@media (min-width: 768px) {
+  .td-cover-block + section {
+    padding-top: 8rem !important;
+    padding-bottom: 8rem !important;
+  }
+
+  .features-section {
+    padding: 2rem 0 !important;
+  }
+}
+
+.features-section h1 {
+  color: $primary !important;
+}
+
+.gradient-bg {
+  background: linear-gradient(to bottom right, #992350, #d92d6a, #b81a56) !important;
+  padding: 4rem 0;
+  margin-left: -15px;
+  margin-right: -15px;
+  width: calc(100% + 30px);
+  color: white;
+
+  * {
+    color: white !important;
+  }
+}
+
+.td-cover-block {
+  background: linear-gradient(to bottom right, #992350, #f92d6a, #b81a56) !important;
+  padding-top: 7.5rem !important;
+  padding-bottom: 5rem !important;
+  min-height: 50vh !important;
+}
+
+// Primary color sections
+.td-block--primary {
+  background: linear-gradient(to bottom right, #992350, #f92d6a, #b81a56) !important;
+
+  * {
+    color: white !important;
+  }
+}
+
+.cover-title {
+  font-size: 7.5rem;
+  font-weight: 400;
+  margin: 2rem 0 -0.5rem 0;
+  letter-spacing: -2px;
+}
+
+.cover-lead {
+  font-size: 1.5rem !important;
+  letter-spacing: -1px;
+  margin-bottom: 1.3rem;
+}
+
+// Lead text styling in cover sections
+.lead {
+  font-size: 1.5rem;
+  font-weight: 400;
+}
+
+// CTA Button Styles
+.cta-btn,
+.hero-btn {
+  padding: 14px 32px !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+  background-image: none !important;
+}
+
+.cta-btn-primary,
+.hero-btn-primary {
+  background: white !important;
+  color: var(--color-primary) !important;
+
+  &:hover {
+    background: #f5f5f5 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    color: var(--color-primary) !important;
+  }
+}
+
+.cta-btn-secondary,
+.hero-btn-secondary {
+  background: transparent !important;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: white !important;
+    color: white !important;
+  }
 }
