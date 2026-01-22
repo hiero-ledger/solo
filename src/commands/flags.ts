@@ -21,7 +21,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import validator from 'validator';
 
 export class Flags {
-  public static KEY_COMMON = '_COMMON_';
+  public static KEY_COMMON: string = '_COMMON_';
 
   private static async prompt(
     type: 'toggle' | 'input' | 'number',
@@ -31,12 +31,12 @@ export class Flags {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     defaultValue: Optional<any>,
     promptMessage: string,
-    emptyCheckMessage: string | null,
+    emptyCheckMessage: Optional<string>,
     flagName: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
     try {
-      let needsPrompt = type === 'toggle' ? input === undefined || typeof input !== 'boolean' : !input;
+      let needsPrompt: boolean = type === 'toggle' ? input === undefined || typeof input !== 'boolean' : !input;
       needsPrompt = type === 'number' ? typeof input !== 'number' : needsPrompt;
 
       if (needsPrompt) {
@@ -115,9 +115,9 @@ export class Flags {
    * @param commandFlags a set of command flags
    *
    */
-  public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
+  public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
     // Check if help is being requested to avoid enforcing required flags
-    const isHelpRequested = process.argv.includes('--help') || process.argv.includes('-h');
+    const isHelpRequested: boolean = process.argv.includes('--help') || process.argv.includes('-h');
 
     for (const flag of commandFlags) {
       y.option(flag.name, {...flag.definition, demandOption: !isHelpRequested});
@@ -130,9 +130,10 @@ export class Flags {
    * @param commandFlags a set of command flags
    *
    */
-  public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
+  public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
     for (const flag of commandFlags) {
-      const defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
+      const defaultValue: string | number | boolean =
+        flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
         ...flag.definition,
         default: defaultValue,
@@ -265,9 +266,9 @@ export class Flags {
   public static parseValuesFilesInput(input: string): Record<ClusterReferenceName, Array<string>> {
     const valuesFiles: Record<ClusterReferenceName, Array<string>> = {};
     if (input) {
-      const inputItems = input.split(',');
+      const inputItems: string[] = input.split(',');
       for (const v of inputItems) {
-        const parts = v.split('=');
+        const parts: string[] = v.split('=');
 
         let clusterReference: string;
         let valuesFile: string;
@@ -299,10 +300,7 @@ export class Flags {
       alias: 'f',
       type: 'string',
     },
-    prompt: async function promptValuesFile(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
+    prompt: async function promptValuesFile(_: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return input; // no prompt is needed for values file
     },
   };
@@ -317,10 +315,7 @@ export class Flags {
       alias: 'f',
       type: 'string',
     },
-    prompt: async function promptValuesFile(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
+    prompt: async function promptValuesFile(_: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       if (input) {
         Flags.parseValuesFilesInput(input); // validate input as early as possible by parsing it
       }
@@ -370,11 +365,14 @@ export class Flags {
       choices: string[] = constants.ALL_PROFILES,
     ): Promise<string> {
       try {
-        const initial = choices.indexOf(input);
+        const initial: number = choices.indexOf(input);
         if (initial === -1) {
-          const input = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+          const input: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
             message: 'Select profile for solo network deployment',
-            choices: structuredClone(choices).map(profile => ({name: profile, value: profile})),
+            choices: structuredClone(choices).map((profile): {name: string; value: string} => ({
+              name: profile,
+              value: profile,
+            })),
           })) as string;
 
           if (!input) {
@@ -408,7 +406,7 @@ export class Flags {
         input,
         Flags.deployPrometheusStack.definition.defaultValue as boolean,
         'Would you like to deploy prometheus stack? ',
-        null,
+        undefined,
         Flags.deployPrometheusStack.name,
       );
     },
@@ -431,7 +429,7 @@ export class Flags {
         input,
         Flags.deployGrafanaAgent.definition.defaultValue as boolean,
         'Would you like to deploy grafana agent? ',
-        null,
+        undefined,
         Flags.deployGrafanaAgent.name,
       );
     },
@@ -454,7 +452,7 @@ export class Flags {
         input,
         Flags.deployMinio.definition.defaultValue as boolean,
         'Would you like to deploy MinIO? ',
-        null,
+        undefined,
         Flags.deployMinio.name,
       );
     },
@@ -477,7 +475,7 @@ export class Flags {
         input,
         Flags.deployCertManager.definition.defaultValue as boolean,
         'Would you like to deploy Cert Manager? ',
-        null,
+        undefined,
         Flags.deployCertManager.name,
       );
     },
@@ -504,7 +502,7 @@ export class Flags {
         input,
         Flags.deployCertManagerCrds.definition.defaultValue as boolean,
         'Would you like to deploy Cert Manager CRDs? ',
-        null,
+        undefined,
         Flags.deployCertManagerCrds.name,
       );
     },
@@ -630,7 +628,7 @@ export class Flags {
         input,
         constants.SOLO_CACHE_DIR,
         'Enter local cache directory path: ',
-        null,
+        undefined,
         Flags.cacheDir.name,
       );
     },
@@ -654,7 +652,7 @@ export class Flags {
         input,
         'node1,node2,node3',
         'Enter list of node IDs (comma separated list): ',
-        null,
+        undefined,
         Flags.nodeAliasesUnparsed.name,
       );
     },
@@ -674,7 +672,7 @@ export class Flags {
         input,
         Flags.force.definition.defaultValue as boolean,
         'Would you like to force changes? ',
-        null,
+        undefined,
         Flags.force.name,
       );
     },
@@ -777,7 +775,7 @@ export class Flags {
         input,
         Flags.replicaCount.definition.defaultValue,
         'How many replica do you want? ',
-        null,
+        undefined,
         Flags.replicaCount.name,
       );
     },
@@ -791,7 +789,7 @@ export class Flags {
       type: 'number',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
-      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
+      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', undefined, Flags.id.name);
     },
   };
 
@@ -809,7 +807,7 @@ export class Flags {
         input,
         undefined,
         'Enter mirror node id: ',
-        null,
+        undefined,
         Flags.mirrorNodeId.name,
       );
     },
@@ -830,7 +828,7 @@ export class Flags {
         input,
         Flags.chainId.definition.defaultValue as string,
         'Enter chain ID: ',
-        null,
+        undefined,
         Flags.chainId.name,
       );
     },
@@ -854,7 +852,7 @@ export class Flags {
         input,
         Flags.operatorId.definition.defaultValue as string,
         'Enter operator ID: ',
-        null,
+        undefined,
         Flags.operatorId.name,
       );
     },
@@ -879,7 +877,7 @@ export class Flags {
         input,
         Flags.operatorKey.definition.defaultValue as string,
         'Enter operator private key: ',
-        null,
+        undefined,
         Flags.operatorKey.name,
       );
     },
@@ -903,7 +901,7 @@ export class Flags {
         input,
         Flags.ed25519PrivateKey.definition.defaultValue as string,
         'Enter the private key: ',
-        null,
+        undefined,
         Flags.ed25519PrivateKey.name,
       );
     },
@@ -926,7 +924,7 @@ export class Flags {
         input,
         Flags.generateGossipKeys.definition.defaultValue as boolean,
         `Would you like to generate Gossip keys? ${typeof input} ${input} `,
-        null,
+        undefined,
         Flags.generateGossipKeys.name,
       );
     },
@@ -949,7 +947,7 @@ export class Flags {
         input,
         Flags.generateTlsKeys.definition.defaultValue as boolean,
         'Would you like to generate TLS keys? ',
-        null,
+        undefined,
         Flags.generateTlsKeys.name,
       );
     },
@@ -1015,7 +1013,7 @@ export class Flags {
         input,
         Flags.enableExplorerTls.definition.defaultValue as boolean,
         'Would you like to enable the Explorer TLS? ',
-        null,
+        undefined,
         Flags.enableExplorerTls.name,
       );
     },
@@ -1060,7 +1058,7 @@ export class Flags {
         input,
         Flags.explorerTlsHostName.definition.defaultValue as string,
         'Enter the host name to use for the Explorer TLS: ',
-        null,
+        undefined,
         Flags.explorerTlsHostName.name,
       );
     },
@@ -1095,7 +1093,7 @@ export class Flags {
         input,
         Flags.deletePvcs.definition.defaultValue as boolean,
         'Would you like to delete persistent volume claims upon uninstall? ',
-        null,
+        undefined,
         Flags.deletePvcs.name,
       );
     },
@@ -1119,7 +1117,7 @@ export class Flags {
         input,
         Flags.deleteSecrets.definition.defaultValue as boolean,
         'Would you like to delete secrets upon uninstall? ',
-        null,
+        undefined,
         Flags.deleteSecrets.name,
       );
     },
@@ -1142,7 +1140,7 @@ export class Flags {
         input,
         Flags.soloChartVersion.definition.defaultValue as string,
         'Enter solo testing chart version: ',
-        null,
+        undefined,
         Flags.soloChartVersion.name,
       );
     },
@@ -1401,7 +1399,7 @@ export class Flags {
         input,
         Flags.updateAccountKeys.definition.defaultValue as boolean,
         'Would you like to updates the special account keys to new keys and stores their keys in a corresponding Kubernetes secret? ',
-        null,
+        undefined,
         Flags.updateAccountKeys.name,
       );
     },
@@ -1425,7 +1423,7 @@ export class Flags {
         input,
         Flags.ed25519PrivateKey.definition.defaultValue as string,
         'Enter the private key: ',
-        null,
+        undefined,
         Flags.ed25519PrivateKey.name,
       );
     },
@@ -1460,7 +1458,7 @@ export class Flags {
         input,
         Flags.ed25519PrivateKey.definition.defaultValue as string,
         'Enter the private key: ',
-        null,
+        undefined,
         Flags.ed25519PrivateKey.name,
       );
     },
@@ -1494,7 +1492,7 @@ export class Flags {
         input,
         Flags.accountId.definition.defaultValue as string,
         'Enter the account id: ',
-        null,
+        undefined,
         Flags.accountId.name,
       );
     },
@@ -1555,7 +1553,7 @@ export class Flags {
         input,
         Flags.amount.definition.defaultValue,
         'How much HBAR do you want to add? ',
-        null,
+        undefined,
         Flags.amount.name,
       );
     },
@@ -1579,7 +1577,7 @@ export class Flags {
         input,
         Flags.createAmount.definition.defaultValue,
         'How many account to create? ',
-        null,
+        undefined,
         Flags.createAmount.name,
       );
     },
@@ -1601,7 +1599,7 @@ export class Flags {
         input,
         Flags.nodeAlias.definition.defaultValue as string,
         'Enter the new node id: ',
-        null,
+        undefined,
         Flags.nodeAlias.name,
       );
     },
@@ -1623,7 +1621,7 @@ export class Flags {
         input,
         Flags.skipNodeAlias.definition.defaultValue as string,
         'Enter the node alias to skip: ',
-        null,
+        undefined,
         Flags.skipNodeAlias.name,
       );
     },
@@ -1645,7 +1643,7 @@ export class Flags {
         input,
         Flags.gossipEndpoints.definition.defaultValue as string,
         'Enter the gossip endpoints(comma separated): ',
-        null,
+        undefined,
         Flags.gossipEndpoints.name,
       );
     },
@@ -1667,7 +1665,7 @@ export class Flags {
         input,
         Flags.grpcEndpoints.definition.defaultValue as string,
         'Enter the gRPC endpoints(comma separated): ',
-        null,
+        undefined,
         Flags.grpcEndpoints.name,
       );
     },
@@ -1690,7 +1688,7 @@ export class Flags {
         input,
         Flags.endpointType.definition.defaultValue as string,
         'Enter the endpoint type(IP or FQDN): ',
-        null,
+        undefined,
         Flags.endpointType.name,
       );
     },
@@ -1713,7 +1711,7 @@ export class Flags {
         input,
         Flags.persistentVolumeClaims.definition.defaultValue as boolean,
         'Would you like to enable persistent volume claims to store data outside the pod? ',
-        null,
+        undefined,
         Flags.persistentVolumeClaims.name,
       );
     },
@@ -1747,7 +1745,7 @@ export class Flags {
         input,
         Flags.outputDir.definition.defaultValue as boolean,
         'Enter path to directory to store the temporary context file',
-        null,
+        undefined,
         Flags.outputDir.name,
       );
     },
@@ -1792,7 +1790,7 @@ export class Flags {
         input,
         Flags.inputDir.definition.defaultValue as boolean,
         'Enter path to directory containing the temporary context file',
-        null,
+        undefined,
         Flags.inputDir.name,
       );
     },
@@ -1887,7 +1885,7 @@ export class Flags {
         input,
         Flags.mirrorNodeVersion.definition.defaultValue as boolean,
         'Would you like to choose mirror node version? ',
-        null,
+        undefined,
         Flags.mirrorNodeVersion.name,
       );
     },
@@ -1932,7 +1930,7 @@ export class Flags {
         input,
         Flags.explorerVersion.definition.defaultValue as boolean,
         'Would you like to choose explorer version? ',
-        null,
+        undefined,
         Flags.explorerVersion.name,
       );
     },
@@ -1976,7 +1974,7 @@ export class Flags {
         input,
         Flags.deployment.definition.defaultValue as string,
         'Enter the name of the deployment:',
-        null,
+        undefined,
         Flags.deployment.name,
       );
     },
@@ -1998,7 +1996,7 @@ export class Flags {
         input,
         Flags.deploymentClusters.definition.defaultValue as string,
         'Enter the Solo deployment cluster names (comma separated): ',
-        null,
+        undefined,
         Flags.deploymentClusters.name,
       );
     },
@@ -2059,7 +2057,7 @@ export class Flags {
         input,
         Flags.grpcTlsCertificatePath.definition.defaultValue as string,
         'Enter node alias and path to TLS certificate for gRPC (ex. nodeAlias=path )',
-        null,
+        undefined,
         Flags.grpcTlsCertificatePath.name,
       );
     },
@@ -2085,7 +2083,7 @@ export class Flags {
         input,
         Flags.grpcWebTlsCertificatePath.definition.defaultValue as string,
         'Enter node alias and path to TLS certificate for gGRPC web (ex. nodeAlias=path )',
-        null,
+        undefined,
         Flags.grpcWebTlsCertificatePath.name,
       );
     },
@@ -2122,7 +2120,7 @@ export class Flags {
         input,
         Flags.externalDatabaseHost.definition.defaultValue as string,
         'Enter host of the external database',
-        null,
+        undefined,
         Flags.externalDatabaseHost.name,
       );
     },
@@ -2145,7 +2143,7 @@ export class Flags {
         input,
         Flags.externalDatabaseOwnerUsername.definition.defaultValue as string,
         'Enter username of the external database owner',
-        null,
+        undefined,
         Flags.externalDatabaseOwnerUsername.name,
       );
     },
@@ -2169,7 +2167,7 @@ export class Flags {
         input,
         Flags.externalDatabaseOwnerPassword.definition.defaultValue as string,
         'Enter password of the external database owner',
-        null,
+        undefined,
         Flags.externalDatabaseOwnerPassword.name,
       );
     },
@@ -2192,7 +2190,7 @@ export class Flags {
         input,
         Flags.externalDatabaseReadonlyUsername.definition.defaultValue as string,
         'Enter username of the external database readonly user',
-        null,
+        undefined,
         Flags.externalDatabaseReadonlyUsername.name,
       );
     },
@@ -2216,7 +2214,7 @@ export class Flags {
         input,
         Flags.externalDatabaseReadonlyPassword.definition.defaultValue as string,
         'Enter password of the external database readonly user',
-        null,
+        undefined,
         Flags.externalDatabaseReadonlyPassword.name,
       );
     },
@@ -2275,7 +2273,7 @@ export class Flags {
         input,
         Flags.grpcTlsKeyPath.definition.defaultValue as string,
         'Enter node alias and path to TLS certificate key for gRPC (ex. nodeAlias=path )',
-        null,
+        undefined,
         Flags.grpcTlsKeyPath.name,
       );
     },
@@ -2302,7 +2300,7 @@ export class Flags {
         input,
         Flags.grpcWebTlsKeyPath.definition.defaultValue as string,
         'Enter node alias and path to TLS certificate key for gGRPC Web (ex. nodeAlias=path )',
-        null,
+        undefined,
         Flags.grpcWebTlsKeyPath.name,
       );
     },
@@ -2666,7 +2664,7 @@ export class Flags {
           input,
           Flags.numberOfConsensusNodes.definition.defaultValue,
           `Enter number of consensus nodes to add to the provided cluster ${chalk.grey('(must be a positive number)')}:`,
-          null,
+          undefined,
           Flags.numberOfConsensusNodes.name,
         );
 
