@@ -33,9 +33,9 @@ defaults:
 permissions:
   contents: write
   id-token: write
+  issues: write
   packages: write
   pull-requests: write
-  issues: write
 
 jobs:
   prepare-release:
@@ -52,7 +52,7 @@ jobs:
           checkout-ref: '${{ github.ref }}'
           checkout-token: '${{ secrets.GH_ACCESS_TOKEN }}'
           setup-node: 'true'
-          node-version: '24'
+          node-version: '22'
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Setup JQ
@@ -153,27 +153,27 @@ jobs:
           checkout-ref: '${{ github.ref }}'
           checkout-token: '${{ secrets.GH_ACCESS_TOKEN }}'
           setup-node: 'true'
-          node-version: '24'
+          node-version: '22'
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Install GnuPG Tools
         run: |
           if ! command -v gpg2 >/dev/null 2>&1; then
-          echo "::group::Configure APT Mirror"
-           # Configure APT to use main Ubuntu archive (disable mirror rotation)
-           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
-          echo "::endgroup::"
-          echo "::group::Updating APT Repository Indices"
-           sudo apt update
-          echo "::endgroup::"
-          echo "::group::Installing GnuPG Tools"
-           sudo apt install -y gnupg2
-          echo "::endgroup::"
+            echo "::group::Configure APT Mirror"
+             # Configure APT to use main Ubuntu archive (disable mirror rotation)
+             sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
+            echo "::endgroup::"
+            echo "::group::Updating APT Repository Indices"
+             sudo apt update
+            echo "::endgroup::"
+            echo "::group::Installing GnuPG Tools"
+             sudo apt install -y gnupg2
+            echo "::endgroup::"
           fi
 
       - name: Import GPG key
         id: gpg_key
-        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
+        uses: step-security/ghaction-import-gpg@69c854a83c7f79463f8bdf46772ab09826c560cd # v6.3.1
         with:
           gpg_private_key: ${{ secrets.GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.GPG_KEY_PASSPHRASE }}
@@ -189,6 +189,7 @@ jobs:
           npm install -g npm@11.7.0
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
           [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
+          task build
 
       - name: Upload Logs
         if: ${{ always() }}
@@ -196,11 +197,40 @@ jobs:
         with:
           path: /home/runner/.npm/_logs
 
+      - name: Setup JFrog CLI
+        uses: jfrog/setup-jfrog-cli@279b1f629f43dd5bc658d8361ac4802a7ef8d2d5 # v4.9.1
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      - name: Show JFrog Config
+        run: jfrog config show
+
+      - name: Verify JFrog Connectivity
+        run: jfrog rt ping
+
+      - name: Setup JFrog NPM Repository
+        run: |
+          jf npmc --server-id-resolve setup-jfrog-cli-server --server-id-deploy setup-jfrog-cli-server --repo-resolve solo-npm-release --repo-deploy solo-npm-release
+          echo "::group::JFrog NPM Repository Configuration"
+            cat .jfrog/projects/npm.yaml
+          echo "::endgroup::"
+
       - name: Install Semantic Release
         run: |
           npm install -g semantic-release@25.0.2 @semantic-release/git@10.0.1 @semantic-release/github@12.0.2 @semantic-release/exec@7.1.0 gradle-semantic-release-plugin@1.7.6
           npm install -g conventional-changelog-conventionalcommits@9.1.0 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
+
+      - name: Install Dependencies
+        run: jf npm ci
+
+      - name: Set Publish Data
+        id: set-publish-data
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          SOLO_NPM_PACKAGE_NAME="hashgraph-solo-${VERSION}.tgz"
+          echo "artifact-name=${SOLO_NPM_PACKAGE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Publish Semantic Release
         env:
@@ -217,11 +247,22 @@ jobs:
             FLAGS="--dry-run"
           fi
 
-          npx semantic-release ${FLAGS}
+          npx semantic-release --no-sign ${FLAGS}
 
           if [[ -d "dist" ]]; then
             ls -l dist
           fi
+
+      - name: Deploy to JFrog Registry
+        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        run: jf npm publish
+
+      - name: Create Example Asset Archives and Upload to Release
+        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        run: |
+          echo "Creating example asset archives for release..."
+          GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
+          echo "Example assets created and uploaded to release."
 
       - name: Create NPM Package
         run: |
@@ -283,7 +324,7 @@ jobs:
           checkout-ref: '${{ github.ref }}'
           checkout-token: '${{ secrets.GITHUB_TOKEN }}'
           setup-node: 'true'
-          node-version: '24'
+          node-version: '22'
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Install NPM latest
