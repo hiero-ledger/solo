@@ -32,9 +32,10 @@ defaults:
 
 permissions:
   contents: write
+  packages: write
+  pages: write
   id-token: write
   issues: write
-  packages: write
   pull-requests: write
 
 jobs:
