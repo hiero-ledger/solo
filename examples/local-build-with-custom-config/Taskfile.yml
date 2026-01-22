@@ -18,7 +18,9 @@ vars:
   CONTEXT: "kind-localbuild-with-custom-config-cluster"
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
 
-  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+  CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
   CN_VERSION: "0.63.0"
@@ -34,66 +36,6 @@ tasks:
   default:
     desc: Run a full standalone Solo network with local built consensus node and block node, mirror node, and relay
     cmds:
-      # Install Solo CLI
-      - cmd: |
-          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-            npm i @hashgraph/solo@latest
-          else
-            echo "Skipping npm install - using development version"
-          fi
-
-      # Create Kind cluster
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
-
-      # Wait for control plane
-      - cmd: sleep 10 # wait for control plane to come up
-
-      # Set kubectl context
-      - cmd: kubectl config set-context {{ .CONTEXT }}
-
-      # Solo init
-      - cmd: $SOLO_COMMAND init
-
-      # Solo cluster-ref config connect
-      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
-
-      # Solo deployment config create
-      - cmd: $SOLO_COMMAND deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
-
-      # Solo deployment cluster attach
-      - cmd: |
-          $SOLO_COMMAND deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
-          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
-
-      # Solo cluster-ref config setup
-      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
-
-      # Solo block node add
-      - cmd: |
-          export BLOCK_NODE_RELEASE_TAG=$(grep "'BLOCK_NODE_VERSION'" version.ts | sed -E "s/.*'([^']+)';/\1/")          
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
-          --chart-version $BLOCK_NODE_RELEASE_TAG {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
-
-      # Solo node keys
-      - cmd: |
-          $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
-          --node-aliases {{ .NODE_IDENTIFIERS }}
-
-      # Label the node to be consistent with init-containers-values.yaml
-      - cmd: |
-          NODE_NAME=$(kubectl get nodes --no-headers | awk '{print $1}')
-          echo "Node name is: $NODE_NAME"
-          kubectl label node "$NODE_NAME" solo.hashgraph.io/network-id=4
-          kubectl label node "$NODE_NAME" solo.hashgraph.io/role=consensus-node
-
-      # Solo network deploy
-      - cmd: |
-          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
-          --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
-          --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
-          --release-tag {{ .CN_VERSION }} \
-          --application-properties {{ .USER_WORKING_DIR }}/application.properties
 
       # Solo node setup
       - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} {{.LOCAL_BUILD_FLAG}}
