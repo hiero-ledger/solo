@@ -370,8 +370,8 @@ jobs:
           echo "::group::Publish NPM Package"
             if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
               npm ci
-              npm run build
-              npm run test
+              task build
+              npm run solo-test
             fi
             npm publish ${TARBALL} ${FLAGS}
           echo "::endgroup::"
