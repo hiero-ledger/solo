@@ -53,7 +53,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
     return JSON.stringify(this.buildBlockNodesJsonStructure());
   }
 
-  public buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
+  private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
     // Figure out field name for port
     const useLegacyPortName: boolean = lt(
       this.remoteConfig.configuration.versions.consensusNode,

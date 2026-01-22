@@ -109,6 +109,13 @@ new EndToEndTestSuiteBuilder()
         unexpectedExternalAddress: 'test-address-2',
       });
 
+      BlockNodeTest.addExternal(options, 'test-address-1', ['node1']);
+      BlockNodeTest.addExternal(options, 'test-address-2:3030', ['node2']);
+
+      // External Block Nodes
+      BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [], 'test-address-1', constants.BLOCK_NODE_PORT);
+      BlockNodeTest.verifyBlockNodesJson(options, 'node2', [], [], 'test-address-2', 3030);
+
       BlockNodeTest.destroy(options);
 
       BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [1, 2], {});
