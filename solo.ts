@@ -36,8 +36,14 @@ const logActiveHandles = (logger: SoloLogger | undefined): void => {
       pid: typeof value?.pid === 'number' ? value.pid : undefined,
       exitCode: value?.exitCode ?? undefined,
       signalCode: value?.signalCode ?? undefined,
-      remoteAddress: typeof value?._peername?.address === 'string' ? value._peername.address : undefined,
-      remotePort: typeof value?._peername?.port === 'number' ? value._peername.port : undefined,
+      remoteAddress:
+        typeof (value?._peername as { address?: unknown } | undefined)?.address === 'string'
+          ? (value?._peername as { address: string }).address
+          : undefined,
+      remotePort:
+        typeof (value?._peername as { port?: unknown } | undefined)?.port === 'number'
+          ? (value?._peername as { port: number }).port
+          : undefined,
     };
   };
   const payload = {
