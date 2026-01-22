@@ -1,5 +1,3 @@
-> 📝 Solo has a new one-shot command!  check it
-> out: [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/main/docs/solo-commands/#one-shot-single)
 
 # Solo
 
@@ -15,77 +13,71 @@
 
 An opinionated CLI tool to deploy and manage standalone test networks.
 
-## Releases and Requirements
+## Releases
 
-Solo releases are supported for one month after their release date, after which they are no longer maintained.
-It is recommended to upgrade to the latest version to benefit from new features and improvements.
-Every quarter a version will be designated as LTS (Long-Term Support) and will be supported for three months.
+Solo releases are supported for one month after their release date. Upgrade to the latest version to benefit from new features and improvements. Every quarter a version is designated as LTS (Long-Term Support) and supported for three months.
 
 ### Current Releases
 
-| Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
-|--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
-| 0.53.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.58.1    | v0.67.2+ | >= v1.32.2 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-01-15   | 2026-02-15     |
-| 0.52.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.67.2+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-11   | 2026-03-11     |
-| 0.50.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-11-13   | 2026-02-13     |
-| 0.48.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-10-24   | 2026-01-24     |
+| Solo Version | Hedera   | Release Date | End of Support |
+|--------------|----------|--------------|----------------|
+| 0.53.0       | v0.67.2+ | 2026-01-15   | 2026-02-15     |
+| 0.52.0 (LTS) | v0.67.2+ | 2025-12-11   | 2026-03-11     |
+| 0.50.0 (LTS) | v0.66.0+ | 2025-11-13   | 2026-02-13     |
+| 0.48.0 (LTS) | v0.66.0+ | 2025-10-24   | 2026-01-24     |
 
-
-To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
+For legacy releases, see [legacy versions](docs/legacy-versions.md).
 
 ### Hardware Requirements
 
-To run a one-node network, you will need to set up Docker Desktop with at least 12GB of memory and 6 CPU cores.
+Docker Desktop with at least **12GB of memory** and **6 CPU cores**.
 
-![alt text](images/docker-desktop.png)
+![Docker Desktop Settings](images/docker-desktop.png)
 
-## Setup
+## Installation
 
-* Install [Node](https://nodejs.org/en/download). You may also use [nvm](https://github.com/nvm-sh/nvm) to manage
-  different Node versions locally, some examples:
+### macOS (Recommended)
 
-```
-# install specific nodejs version
-# nvm install <version>
+Install Solo and all dependencies with Homebrew:
 
-# install nodejs version 22.0.0
-nvm install v22.0.0
-
-# lists available node versions already installed
-nvm ls
-
-# switch to selected node version
-# nvm use <version>
-nvm use v22.0.0
-
+```bash
+brew install solo
 ```
 
-* Useful tools:
-  * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
-  * Install [k9s](https://k9scli.io/)
-  * Install [kind](https://kind.sigs.k8s.io/)
+This installs Solo along with Node.js, kubectl, Helm, Kind, and k9s.
 
-## Install Solo
+### Windows (WSL2) and Linux
 
-* Run `npm install -g @hashgraph/solo`
+1. Install [Homebrew](https://brew.sh/)
+2. Install Solo via Homebrew:
+   ```bash
+   brew install solo
+   ```
+3. Install [kubectl](https://kubernetes.io/docs/tasks/tools/) separately (required for WSL2/Linux)
+
+### Alternative: npm
+
+If you prefer to manage dependencies manually:
+
+```bash
+npm install -g @hashgraph/solo
+```
+
+Required dependencies: Node.js >= 22.0.0, kubectl, Helm, Kind, k9s
 
 ## Documentation
-
-[Getting Started](https://solo.hiero.org/)
+If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
+[solo docs](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment))
 
 ## Contributing
 
-Contributions are welcome. Please see
-the [contributing guide](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) to see how you can get
-involved.
+Contributions are welcome. Please see the [contributing guide](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) to see how you can get involved.
 
 ## Code of Conduct
 
-This project is governed by
-the [Contributor Covenant Code of Conduct](https://github.com/hiero-ledger/.github/blob/main/CODE_OF_CONDUCT.md). By
-participating, you are
-expected to uphold this code of conduct.
+This project is governed by the [Contributor Covenant Code of Conduct](https://github.com/hiero-ledger/.github/blob/main/CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code of conduct.
 
 ## License
 
 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
