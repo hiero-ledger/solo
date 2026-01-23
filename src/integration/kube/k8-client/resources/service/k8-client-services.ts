@@ -3,24 +3,20 @@
 import {type Services} from '../../../resources/service/services.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {
+  type CoreV1Api,
   V1ObjectMeta,
   V1Service,
+  type V1ServiceList,
   V1ServicePort,
   V1ServiceSpec,
-  type CoreV1Api,
-  type V1ServiceList,
 } from '@kubernetes/client-node';
 import {K8ClientBase} from '../../k8-client-base.js';
 import {type Service} from '../../../resources/service/service.js';
-import {KubeApiResponse} from '../../../kube-api-response.js';
-import {ResourceOperation} from '../../../resources/resource-operation.js';
-import {ResourceType} from '../../../resources/resource-type.js';
 import {K8ClientService} from './k8-client-service.js';
 import {type ServiceSpec} from '../../../resources/service/service-spec.js';
 import {type ServiceStatus} from '../../../resources/service/service-status.js';
 import {type ServiceReference} from '../../../resources/service/service-reference.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
-import {type IncomingMessage} from 'node:http';
 
 export class K8ClientServices extends K8ClientBase implements Services {
   public constructor(private readonly kubeClient: CoreV1Api) {
@@ -29,16 +25,11 @@ export class K8ClientServices extends K8ClientBase implements Services {
 
   public async list(namespace: NamespaceName, labels?: string[]): Promise<Service[]> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
-    const serviceList: {response: IncomingMessage; body: V1ServiceList} = await this.kubeClient.listNamespacedService(
-      namespace.name,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+    const serviceList: V1ServiceList = await this.kubeClient.listNamespacedService({
+      namespace: namespace.name,
       labelSelector,
-    );
-    KubeApiResponse.check(serviceList.response, ResourceOperation.LIST, ResourceType.SERVICE, namespace, '');
-    return serviceList.body.items.map((svc: V1Service): Service => {
+    });
+    return serviceList.items.map((svc: V1Service): Service => {
       return this.wrapService(namespace, svc);
     });
   }
@@ -47,16 +38,14 @@ export class K8ClientServices extends K8ClientBase implements Services {
     const svc: V1Service = await this.readV1Service(namespace, name);
 
     if (!svc) {
-      return null;
+      return undefined;
     }
 
     return this.wrapService(namespace, svc);
   }
 
   private async readV1Service(namespace: NamespaceName, name: string): Promise<V1Service> {
-    const {response, body} = await this.kubeClient.readNamespacedService(name, namespace.name);
-    KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.SERVICE, namespace, name);
-    return body as V1Service;
+    return await this.kubeClient.readNamespacedService({name, namespace: namespace.name});
   }
 
   private wrapService(_namespace: NamespaceName, svc: V1Service): Service {
@@ -85,21 +74,16 @@ export class K8ClientServices extends K8ClientBase implements Services {
     v1Svc.metadata = v1SvcMetadata;
     v1Svc.spec = v1SvcSpec;
 
-    let result: {response: IncomingMessage; body: V1Service};
+    let result: V1Service;
     try {
-      result = await this.kubeClient.createNamespacedService(serviceReference.namespace.toString(), v1Svc);
+      result = await this.kubeClient.createNamespacedService({
+        namespace: serviceReference.namespace.toString(),
+        body: v1Svc,
+      });
     } catch (error) {
       throw new SoloError('Failed to create service', error);
     }
 
-    KubeApiResponse.check(
-      result.response,
-      ResourceOperation.CREATE,
-      ResourceType.SERVICE,
-      serviceReference.namespace,
-      serviceReference.name.toString(),
-    );
-
-    return this.wrapService(serviceReference.namespace, result.body);
+    return this.wrapService(serviceReference.namespace, result);
   }
 }
