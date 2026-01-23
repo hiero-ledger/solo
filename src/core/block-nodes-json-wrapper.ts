@@ -22,6 +22,7 @@ type BlockNodeConnectionData =
   | {
       address: string;
       streamingPort: number;
+      servicePort: number;
       priority: number;
     };
 
@@ -86,7 +87,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
       blockNodeConnectionData.push(
-        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
+        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
       );
     }
 
@@ -99,7 +100,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const port: number = blockNodeComponent.port;
 
       blockNodeConnectionData.push(
-        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, priority},
+        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
       );
     }
 
