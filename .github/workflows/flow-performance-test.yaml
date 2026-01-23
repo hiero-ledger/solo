@@ -200,3 +200,71 @@ jobs:
             echo "Not a valid number or it's >= ${MAX_MEMORY_MB}: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
             exit 1
           fi
+
+      - name: Build and Start Metrics Plotter tool
+        run: |
+            cd ./scripts/metrics-plotter
+            npm ci
+            npm run build
+            mkdir -p ~/.solo/metrics
+            mkdir src/data
+            nohup npm start &
+            echo $! > /tmp/metrics-plotter.pid
+            mkdir -p ./src/data       
+            cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
+
+      - name: Install Puppeteer / Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ca-certificates \
+            fonts-liberation \
+            libasound2 \
+            libatk-bridge2.0-0 \
+            libatk1.0-0 \
+            libatspi2.0-0 \
+            libcairo2 \
+            libdbus-1-3 \
+            libgdk-pixbuf2.0-0 \
+            libglib2.0-0 \
+            libgtk-3-0 \
+            libnspr4 \
+            libnss3 \
+            libx11-6 \
+            libx11-xcb1 \
+            libxcb1 \
+            libxcomposite1 \
+            libxcursor1 \
+            libxdamage1 \
+            libxext6 \
+            libxfixes3 \
+            libxi6 \
+            libxrandr2 \
+            libxrender1 \
+            libxss1 \
+            libxtst6 \
+            lsb-release \
+            xdg-utils \
+            libgbm1
+
+      - name: Save Screenshots of Metrics Plotter
+        run: |
+          cd ./scripts/metrics-plotter
+          SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=true\&data=timeline ~/.solo/metrics/chart-grouped.png
+          SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=false\&data=timeline ~/.solo/metrics/chart.png
+          cp ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json
+
+      - name: Stop Metrics Plotter tool
+        run: |
+          if [ -f /tmp/metrics-plotter.pid ]; then
+            kill $(cat /tmp/metrics-plotter.pid) || true
+            rm /tmp/metrics-plotter.pid
+          fi
+
+      - name: Upload Metrics Data and Chart to GitHub
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: solo-performance-chart
+          path: ~/.solo/metrics/*
+          overwrite: true
+          if-no-files-found: error
