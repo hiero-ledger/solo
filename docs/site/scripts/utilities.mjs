@@ -49,9 +49,11 @@ export async function run(cmd, opts = {}) {
  * Run a command, capture output, save to log file, and export env var.
  */
 export async function runAndSave(cmd, key, logFile) {
+  console.log(`beginning runAndSave for '${cmd}'`);
   const output = await run(cmd);
   writeFileSync(logFile, output + '\n');
   process.env[key] = output;
+  console.log(`ended runAndSave for '${cmd}', output saved to ${logFile}`);
   return output;
 }
 
@@ -62,30 +64,30 @@ export async function runAndSave(cmd, key, logFile) {
  * @returns {Promise<string>} - Resolves to the stdout output
  */
 export async function runCapture(cmd, opts = {}) {
-  const [command, ...args] = cmd.split(" ");
+  const [command, ...args] = cmd.split(' ');
 
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
-    if (!env.PATH) env.PATH = "/usr/local/bin:/usr/bin:/bin";
+    if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
 
     const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
       env,
       ...opts,
     });
 
-    let output = "";
+    let output = '';
 
-    child.stdout.on("data", (data) => {
-      output += data.toString().replace(/\r/g, "");
+    child.stdout.on('data', (data) => {
+      output += data.toString().replace(/\r/g, '');
     });
 
-    child.stderr.on("data", (data) => {
-      output += data.toString().replace(/\r/g, "");
+    child.stderr.on('data', (data) => {
+      output += data.toString().replace(/\r/g, '');
     });
 
-    child.on("close", (code) => {
+    child.on('close', (code) => {
       if (code === 0) resolve(output.trim());
       else reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
     });
@@ -102,8 +104,8 @@ export async function runCapture(cmd, opts = {}) {
 export function envsubst(template, vars) {
   let result = template;
   for (const [key, val] of Object.entries(vars)) {
-    const regex = new RegExp(`\\$${key}`, "g");
-    result = result.replace(regex, val || "");
+    const regex = new RegExp(`\\$${key}`, 'g');
+    result = result.replace(regex, val || '');
   }
   return result;
 }
