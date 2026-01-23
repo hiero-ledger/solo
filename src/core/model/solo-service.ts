@@ -8,7 +8,7 @@ import {type Service} from '../../integration/kube/resources/service/service.js'
 import {K8ClientService} from '../../integration/kube/k8-client/resources/service/k8-client-service.js';
 
 export class SoloService extends K8ClientService {
-  constructor(
+  private constructor(
     public override readonly metadata: ObjectMeta,
     public override readonly spec: ServiceSpec,
     public override readonly status?: ServiceStatus,
@@ -24,7 +24,7 @@ export class SoloService extends K8ClientService {
     clusterReference: ClusterReferenceName,
     context: string,
     deployment: DeploymentName,
-  ) {
+  ): SoloService {
     return new SoloService(service.metadata, service.spec, service.status, clusterReference, context, deployment);
   }
 }
