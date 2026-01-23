@@ -751,8 +751,7 @@ export class Flags {
     constName: 'blockNodeIds',
     name: 'block-node-mapping',
     definition: {
-      describe: 'TODO',
-      defaultValue: '',
+      describe: Flags.renderBlockNodeMappingDescription('block-node'),
       type: 'string',
     },
     prompt: undefined,
@@ -762,12 +761,21 @@ export class Flags {
     constName: 'externalBlockNodeIds',
     name: 'external-block-node-mapping',
     definition: {
-      describe: 'TODO',
-      defaultValue: '',
+      describe: Flags.renderBlockNodeMappingDescription('external-block-node'),
       type: 'string',
     },
     prompt: undefined,
   };
+
+  public static renderBlockNodeMappingDescription(name: 'block-node' | 'external-block-node'): string {
+    return (
+      chalk.grey(`Configure ${name} priority mapping`) +
+      chalk.blue(`\n\t(Default: all ${name} included, first's priority is 2)`) +
+      chalk.yellow('\n\t[Format: <id>=<priority>[,<id>=<priority>]]') +
+      chalk.yellow(`\n\t[Example: "--${name}-mapping 1=2,2=1"]`) +
+      chalk.red(`\n\t[Unlisted ${name} will not routed to the consensus node node]`)
+    );
+  }
 
   public static readonly mirrorNodeChartDirectory: CommandFlag = {
     constName: 'mirrorNodeChartDirectory',
