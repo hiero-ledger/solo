@@ -13,6 +13,8 @@ import {type AccountManager} from '../core/account-manager.js';
 import {
   type AccountId,
   AccountInfo,
+  Hbar,
+  Duration,
   HbarUnit,
   Long,
   NodeUpdateTransaction,
@@ -39,6 +41,15 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CommandFlags} from '../types/flag-types.js';
+import {
+  type CreatedPredefinedAccount,
+  type PredefinedAccount,
+  PREDEFINED_ACCOUNT_GROUPS,
+  predefinedEcdsaAccounts,
+  predefinedEcdsaAccountsWithAlias,
+  predefinedEd25519Accounts,
+  type SystemAccount,
+} from './one-shot/predefined-accounts.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -110,6 +121,11 @@ export class AccountCommand extends BaseCommand {
   public static GET_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
     optional: [flags.privateKey, flags.clusterRef],
+  };
+
+  public static PREDEFINED_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.forcePortForward],
   };
 
   private async closeConnections(): Promise<void> {
@@ -667,6 +683,223 @@ export class AccountCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  public async createPredefined(argv: ArgvStruct): Promise<boolean> {
+    const self = this;
+
+    interface Config {
+      namespace: NamespaceName;
+      deployment: DeploymentName;
+      contextName: string;
+      clusterRef: ClusterReferenceName;
+    }
+
+    interface Context {
+      config: Config;
+      createdAccounts: CreatedPredefinedAccount[];
+    }
+
+    const tasks: Listr<Context, any, any> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<void> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+
+            self.configManager.update(argv);
+
+            flags.disablePrompts([flags.clusterRef]);
+
+            const config: Config = {
+              namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
+              deployment: self.configManager.getFlag(flags.deployment),
+              clusterRef: self.configManager.getFlag(flags.clusterRef),
+              contextName: '',
+            };
+
+            config.contextName =
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
+
+            if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
+              throw new SoloError(`namespace ${config.namespace} does not exist`);
+            }
+
+            context_.config = config;
+            context_.createdAccounts = [];
+
+            await self.accountManager.loadNodeClient(
+              config.namespace,
+              self.remoteConfig.getClusterRefs(),
+              config.deployment,
+              self.configManager.getFlag<boolean>(flags.forcePortForward),
+            );
+          },
+        },
+        {
+          title: 'Create predefined accounts',
+          task: async (context_, task): Promise<Listr<Context>> => {
+            const subTasks: SoloListrTask<Context>[] = [];
+            const accountsToCreate: PredefinedAccount[] = [
+              ...predefinedEcdsaAccounts,
+              ...predefinedEcdsaAccountsWithAlias,
+              ...predefinedEd25519Accounts,
+            ];
+
+            for (const [index, account] of accountsToCreate.entries()) {
+              ((index: number, account: PredefinedAccount) => {
+                subTasks.push({
+                  title: `Creating Account ${index}`,
+                  task: async (context_: Context, subTask: SoloListrTaskWrapper<Context>): Promise<void> => {
+                    await helpers.sleep(Duration.ofMillis(100 * index));
+                    const balance = account.balance ?? Hbar.from(0, HbarUnit.Hbar);
+                    const createdAccount = await self.accountManager.createNewAccount(
+                      context_.config.namespace,
+                      account.privateKey,
+                      balance.to(HbarUnit.Hbar).toNumber(),
+                      account.alias,
+                      context_.config.contextName,
+                    );
+
+                    context_.createdAccounts.push({
+                      accountId: AccountId.fromString(createdAccount.accountId),
+                      data: account,
+                      alias: createdAccount.accountAlias,
+                      publicKey: createdAccount.publicKey,
+                    });
+
+                    subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
+                  },
+                });
+              })(index, account);
+            }
+
+            return task.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+        },
+        {
+          title: 'Show accounts',
+          task: async (context_: Context): Promise<void> => {
+            self.showPredefinedAccounts(context_.createdAccounts, context_.config.deployment);
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error in creating predefined accounts: ${error.message}`, error);
+    } finally {
+      await this.closeConnections();
+    }
+
+    return true;
+  }
+
+  private showPredefinedAccounts(
+    createdAccounts: CreatedPredefinedAccount[] = [],
+    deployment: DeploymentName,
+  ): void {
+    if (createdAccounts.length === 0) {
+      return;
+    }
+
+    createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
+      a.accountId.compare(b.accountId),
+    );
+
+    const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+      (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA,
+    );
+    const aliasAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+      (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
+    );
+    const ed25519Accounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+      (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ED25519,
+    );
+
+    const systemAccountsGroupKey: string = 'system-accounts';
+    const ecdsaGroupKey: string = 'accounts-created-ecdsa';
+    const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
+    const ed25519GroupKey: string = 'accounts-created-ed25519';
+
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
+    const operatorAccountData: SystemAccount = {
+      name: 'Operator',
+      accountId: entityId(shard, realm, 2),
+      publicKey: constants.GENESIS_PUBLIC_KEY,
+    };
+
+    if (constants.GENESIS_KEY === constants.DEFAULT_GENESIS_KEY) {
+      operatorAccountData.privateKey = constants.DEFAULT_GENESIS_KEY;
+    }
+
+    const systemAccounts: SystemAccount[] = [operatorAccountData];
+
+    if (systemAccounts.length > 0) {
+      this.logger.addMessageGroup(systemAccountsGroupKey, 'System Accounts');
+
+      for (const account of systemAccounts) {
+        let message: string = `${account.name} Account ID: ${account.accountId.toString()}, Public Key: ${account.publicKey.toString()}`;
+        if (account.privateKey) {
+          message += `, Private Key: ${account.privateKey}`;
+        }
+        this.logger.addMessageGroupMessage(systemAccountsGroupKey, message);
+      }
+
+      this.logger.showMessageGroup(systemAccountsGroupKey);
+    }
+
+    this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts above)');
+    this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
+    this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
+
+    if (aliasAccounts.length > 0) {
+      for (const account of aliasAccounts) {
+        this.logger.addMessageGroupMessage(
+          ecdsaAliasGroupKey,
+          `Account ID: ${account.accountId.toString()}, Public address: ${account.alias}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+        );
+      }
+
+      this.logger.showMessageGroup(ecdsaAliasGroupKey);
+    }
+
+    if (ed25519Accounts.length > 0) {
+      for (const account of ed25519Accounts) {
+        this.logger.addMessageGroupMessage(
+          ed25519GroupKey,
+          `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+        );
+      }
+
+      this.logger.showMessageGroup(ed25519GroupKey);
+    }
+
+    if (ecdsaAccounts.length > 0) {
+      for (const account of ecdsaAccounts) {
+        this.logger.addMessageGroupMessage(
+          ecdsaGroupKey,
+          `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+        );
+      }
+
+      this.logger.showMessageGroup(ecdsaGroupKey);
+    }
+
+    this.logger.showUser(
+      'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
+    );
   }
 
   public async get(argv: ArgvStruct): Promise<boolean> {

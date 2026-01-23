@@ -48,6 +48,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
   public static readonly ACCOUNT_UPDATE = 'update';
   public static readonly ACCOUNT_CREATE = 'create';
   public static readonly ACCOUNT_INFO = 'info';
+  public static readonly ACCOUNT_PREDEFINED = 'predefined';
   public static readonly FILE_CREATE = 'create';
   public static readonly FILE_UPDATE = 'update';
 
@@ -100,6 +101,16 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.get,
               AccountCommand.GET_FLAGS_LIST,
+              [],
+            ),
+          ),
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.ACCOUNT_PREDEFINED,
+              'Creates predefined accounts used by one-shot deployments.',
+              this.accountCommand,
+              this.accountCommand.createPredefined,
+              AccountCommand.PREDEFINED_FLAGS_LIST,
               [],
             ),
           ),
