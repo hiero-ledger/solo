@@ -138,7 +138,7 @@ export class RapidFireCommand extends BaseCommand {
                 const accountId = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
                 // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
                 // Final result should look like: x.x.x.x\:50211=0.0.y
-                return String.raw`${pod.podIp}\\\:${port++}=${accountId}`;
+                return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
               });
 
               for (const row of networkProperties) {
