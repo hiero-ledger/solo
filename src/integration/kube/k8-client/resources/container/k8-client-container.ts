@@ -67,7 +67,7 @@ export class K8ClientContainer implements Container {
           }
         }, 5000);
         reject(new SoloError(`container call timed out after 30 seconds: kubectl ${fullArguments.join(' ')}`));
-      }, 30000);
+      }, 30_000);
 
       process.stdout.on('data', (chunk): void => {
         if (outputPassThroughStream) {
