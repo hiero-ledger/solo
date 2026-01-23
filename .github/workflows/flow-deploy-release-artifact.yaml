@@ -80,9 +80,9 @@ jobs:
           PROCEED="true"
           if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
             if npx semantic-release --dry-run; then
-              echo "::notice file=302-flow-publish-release.yaml::Semantic Release detected a new version"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
             else
-              echo "::notice file=302-flow-publish-release.yaml::Semantic Release did not detect a new version"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did not detect a new version"
               PROCEED="false"
             fi
           else
