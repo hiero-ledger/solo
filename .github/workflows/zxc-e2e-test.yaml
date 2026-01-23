@@ -352,6 +352,7 @@ jobs:
             cd ../solo
 
       - name: Run E2E Tests
+        id: run-e2e-tests
         run: |
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
@@ -451,7 +452,7 @@ jobs:
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ always() && !cancelled() }}
+        if: ${{ always() && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
