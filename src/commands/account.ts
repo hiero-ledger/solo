@@ -11,10 +11,9 @@ import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {
-  type AccountId,
+  AccountId,
   AccountInfo,
   Hbar,
-  Duration,
   HbarUnit,
   Long,
   NodeUpdateTransaction,
@@ -41,6 +40,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CommandFlags} from '../types/flag-types.js';
+import {Duration} from '../core/time/duration.js';
 import {
   type CreatedPredefinedAccount,
   type PredefinedAccount,
@@ -805,10 +805,7 @@ export class AccountCommand extends BaseCommand {
     return true;
   }
 
-  private showPredefinedAccounts(
-    createdAccounts: CreatedPredefinedAccount[] = [],
-    deployment: DeploymentName,
-  ): void {
+  private showPredefinedAccounts(createdAccounts: CreatedPredefinedAccount[] = [], deployment: DeploymentName): void {
     if (createdAccounts.length === 0) {
       return;
     }
