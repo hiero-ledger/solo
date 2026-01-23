@@ -304,10 +304,10 @@ jobs:
           PROCEED="true"
           echo "::group::Verify Package is Created"
             if ls -l output | grep "${{ needs.get-package-info.outputs.package-name }}" > /dev/null 2>&1 ; then
-              echo "::notice file=302-flow-publish-release.yaml,line=237::Package is created"
+              echo "::notice file=flow-deploy-release-artifact.yaml,line=306::Package is created"
             else
               PROCEED="false"
-              echo "::error file=302-flow-publish-release.yaml,line=237::Package is not created"
+              echo "::error file=flow-deploy-release-artifact.yaml,line=306::Package is not created"
               echo "Attempt Manual Publish!"
             fi
           echo "::endgroup::"
