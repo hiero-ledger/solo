@@ -100,13 +100,41 @@ describe('KindClient Integration Tests', function () {
     console.log(`Kind version: ${version.toString()}`);
   });
 
-  it('should create a cluster', async () => {
-    const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().build();
+  it('should create a cluster', async (): Promise<void> => {
+    // after the Kubernetes upgrade in CI, kind commands sometimes fail initially due to a timeout when creating clusters
+    const maxRetries: number = 3;
+    let attempt: number = 0;
+    let lastError: unknown;
 
-    const response: ClusterCreateResponse = await kindClient.createCluster(testClusterName, options);
-    expect(response).to.not.be.undefined;
-    expect(response.name).to.equal(testClusterName);
-  });
+    while (attempt < maxRetries) {
+      try {
+        const controller: AbortController = new AbortController();
+        const onTimeoutCallback: NodeJS.Timeout = setTimeout((): void => {
+          controller.abort();
+        }, Duration.ofSeconds(1).toMillis());
+        console.log(`deleting cluster if it exists before creation attempt ${attempt + 1}`);
+        await kindClient.deleteCluster(testClusterName);
+        const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().build();
+
+        console.log(`creating cluster, attempt ${attempt + 1}`);
+        const response: ClusterCreateResponse = await kindClient.createCluster(testClusterName, options);
+        expect(response).to.not.be.undefined;
+        expect(response.name).to.equal(testClusterName);
+        clearTimeout(onTimeoutCallback);
+        return;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Attempt ${attempt + 1} to create cluster failed: ${error}`);
+        attempt++;
+        if (attempt < maxRetries) {
+          console.log('Retrying cluster creation...');
+        } else {
+          console.error('Max retries reached. Failing test.');
+          throw lastError;
+        }
+      }
+    }
+  }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should list clusters', async () => {
     const clusters: KindCluster[] = await kindClient.getClusters();

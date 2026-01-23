@@ -12,6 +12,7 @@ import {Argv} from '../../../helpers/argv-wrapper.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {getEnvironmentVariable} from '../../../../src/core/constants.js';
+import {Duration} from '../../../../src/core/time/duration.js';
 
 export class BaseCommandTest {
   public static newArgv(): string[] {
@@ -82,7 +83,9 @@ export class BaseCommandTest {
   public static setupDiagnosticLogCollection(options: BaseTestOptions): void {
     const {testName, testLogger, deployment} = options;
 
-    after(async (): Promise<void> => {
+    after(async function (): Promise<void> {
+      this.timeout(Duration.ofMinutes(5).toMillis());
+
       await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
     });
   }
