@@ -90,6 +90,7 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type PriorityMapping,
   type Realm,
   type Shard,
   type SoloListr,
@@ -147,6 +148,7 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
+import {NetworkCommand} from '../network.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2884,7 +2886,7 @@ export class NodeCommandTasks {
     return {
       title: 'Save context data',
       task: context_ => {
-        const outputDirectory = argv[flags.outputDir.name];
+        const outputDirectory: string = argv[flags.outputDir.name];
         if (!outputDirectory) {
           throw new SoloError(
             `Path to export context data not specified. Please set a value for --${flags.outputDir.name}`,
@@ -2894,7 +2896,7 @@ export class NodeCommandTasks {
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
-        const exportedContext = parser(context_);
+        const exportedContext: AnyObject = parser(context_);
         fs.writeFileSync(PathEx.join(outputDirectory, targetFile), JSON.stringify(exportedContext));
       },
     };
@@ -2908,7 +2910,7 @@ export class NodeCommandTasks {
     return {
       title: 'Load context data',
       task: context_ => {
-        const inputDirectory = argv[flags.inputDir.name];
+        const inputDirectory: string = argv[flags.inputDir.name];
         if (!inputDirectory) {
           throw new SoloError(`Path to context data not specified. Please set a value for --${flags.inputDir.name}`);
         }
@@ -3273,12 +3275,35 @@ export class NodeCommandTasks {
 
         task.title += `: ${nodeAlias}`;
 
+        const blockNodeIdsRaw: string = this.configManager.getFlag(flags.blockNodeMapping);
+        const externalBlockNodeIdsRaw: string = this.configManager.getFlag(flags.externalBlockNodeMapping);
+
+        const fallbackIdsForBlockNodes: ComponentId[] = this.remoteConfig.configuration.state.blockNodes.map(
+          (node): ComponentId => node.metadata.id,
+        );
+
+        const fallbackIdsForExternalBlockNodes: ComponentId[] =
+          this.remoteConfig.configuration.state.externalBlockNodes.map((node): ComponentId => node.id);
+
+        const blockNodeMap: PriorityMapping[] = Templates.parseConsensusNodePriorityMapping(
+          blockNodeIdsRaw,
+          fallbackIdsForBlockNodes,
+        );
+
+        const externalBlockNodeMap: PriorityMapping[] = Templates.parseConsensusNodePriorityMapping(
+          externalBlockNodeIdsRaw,
+          fallbackIdsForExternalBlockNodes,
+        );
+
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewConsensusNodeComponent(
             Templates.renderComponentIdFromNodeId(nodeId),
             clusterReference,
             namespace,
             DeploymentPhase.STARTED,
+            undefined,
+            blockNodeMap,
+            externalBlockNodeMap,
           ),
           ComponentTypes.ConsensusNode,
         );
@@ -3324,6 +3349,17 @@ export class NodeCommandTasks {
               [],
             ),
           );
+        }
+      },
+    };
+  }
+
+  public updateBlockNodesJson(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Update block-nodes.json',
+      task: async (): Promise<void> => {
+        for (const node of this.remoteConfig.getConsensusNodes()) {
+          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };

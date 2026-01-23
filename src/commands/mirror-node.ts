@@ -916,9 +916,11 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
-              ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
-              : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            config.valuesArg = helpers.prepareValuesFiles(
+              semver.lt(config.mirrorNodeVersion, '0.130.0')
+                ? constants.MIRROR_NODE_VALUES_FILE_HEDERA
+                : constants.MIRROR_NODE_VALUES_FILE,
+            );
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);

@@ -747,6 +747,28 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeMapping: CommandFlag = {
+    constName: 'blockNodeIds',
+    name: 'block-node-mapping',
+    definition: {
+      describe: 'TODO',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly externalBlockNodeMapping: CommandFlag = {
+    constName: 'externalBlockNodeIds',
+    name: 'external-block-node-mapping',
+    definition: {
+      describe: 'TODO',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly mirrorNodeChartDirectory: CommandFlag = {
     constName: 'mirrorNodeChartDirectory',
     name: 'mirror-node-chart-dir',
@@ -2983,6 +3005,8 @@ export class Flags {
     Flags.zipFile,
     Flags.maxTps,
     Flags.enableMonitoringSupport,
+    Flags.blockNodeMapping,
+    Flags.externalBlockNodeMapping,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

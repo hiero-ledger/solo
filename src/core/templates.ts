@@ -13,7 +13,12 @@ import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReferenceName, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
+import {
+  type ClusterReferenceName,
+  type ComponentId,
+  type NamespaceNameAsString,
+  type PriorityMapping,
+} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 
@@ -66,8 +71,8 @@ export class Templates {
     return `${nodeAlias}-admin`;
   }
 
-  public static renderNodeFriendlyName(prefix: string, nodeAlias: NodeAlias, suffix = ''): string {
-    const parts = [prefix, nodeAlias];
+  public static renderNodeFriendlyName(prefix: string, nodeAlias: NodeAlias, suffix: string = ''): string {
+    const parts: string[] = [prefix, nodeAlias];
     if (suffix) {
       parts.push(suffix);
     }
@@ -75,19 +80,19 @@ export class Templates {
   }
 
   public static extractNodeAliasFromPodName(podName: PodName): NodeAlias {
-    const parts = podName.name.split('-');
+    const parts: string[] = podName.name.split('-');
     if (parts.length !== 3) {
       throw new DataValidationError(`pod name is malformed : ${podName.name}`, 3, parts.length);
     }
     return parts[1].trim() as NodeAlias;
   }
 
-  static prepareReleasePrefix(tag: string): string {
+  public static prepareReleasePrefix(tag: string): string {
     if (!tag) {
       throw new MissingArgumentError('tag cannot be empty');
     }
 
-    const parsed = tag.split('.');
+    const parsed: string[] = tag.split('.');
     if (parsed.length < 3) {
       throw new Error(`tag (${tag}) must include major, minor and patch fields (e.g. v0.40.4)`);
     }
@@ -124,19 +129,19 @@ export class Templates {
     };
   }
 
-  static renderDistinguishedName(
+  public static renderDistinguishedName(
     nodeAlias: NodeAlias,
-    state = 'TX',
-    locality = 'Richardson',
-    org = 'Hedera',
-    orgUnit = 'Hedera',
-    country = 'US',
-  ) {
+    state: string = 'TX',
+    locality: string = 'Richardson',
+    org: string = 'Hedera',
+    orgUnit: string = 'Hedera',
+    country: string = 'US',
+  ): x509.Name {
     return new x509.Name(`CN=${nodeAlias},ST=${state},L=${locality},O=${org},OU=${orgUnit},C=${country}`);
   }
 
   public static renderStagingDir(cacheDirectory: string, releaseTagOverride: string): string {
-    let releaseTag = releaseTagOverride;
+    let releaseTag: string = releaseTagOverride;
     if (!cacheDirectory) {
       throw new IllegalArgumentError('cacheDirectory cannot be empty');
     }
@@ -145,7 +150,7 @@ export class Templates {
       releaseTag = HEDERA_PLATFORM_VERSION;
     }
 
-    const releasePrefix = this.prepareReleasePrefix(releaseTag);
+    const releasePrefix: string = this.prepareReleasePrefix(releaseTag);
     if (!releasePrefix) {
       throw new IllegalArgumentError('releasePrefix cannot be empty');
     }
@@ -224,7 +229,7 @@ export class Templates {
    *
    * @returns the appropriate secret name
    */
-  static renderGrpcTlsCertificatesSecretName(nodeAlias: NodeAlias, type: GrpcProxyTlsEnums) {
+  public static renderGrpcTlsCertificatesSecretName(nodeAlias: NodeAlias, type: GrpcProxyTlsEnums): string {
     switch (type) {
       //? HAProxy Proxy
       case GrpcProxyTlsEnums.GRPC: {
@@ -246,7 +251,10 @@ export class Templates {
    *
    * @returns the appropriate secret labels
    */
-  static renderGrpcTlsCertificatesSecretLabelObject(nodeAlias: NodeAlias, type: GrpcProxyTlsEnums) {
+  public static renderGrpcTlsCertificatesSecretLabelObject(
+    nodeAlias: NodeAlias,
+    type: GrpcProxyTlsEnums,
+  ): Record<string, string> {
     switch (type) {
       //? HAProxy Proxy
       case GrpcProxyTlsEnums.GRPC: {
@@ -304,15 +312,15 @@ export class Templates {
    * @param dnsBaseDomain - the base domain of the cluster
    * @param dnsConsensusNodePattern - the pattern to use for the consensus node
    */
-  static renderConsensusNodeFullyQualifiedDomainName(
+  public static renderConsensusNodeFullyQualifiedDomainName(
     nodeAlias: string,
     nodeId: number,
     namespace: NamespaceNameAsString,
     cluster: ClusterReferenceName,
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
-  ) {
-    const searchReplace = {
+  ): string {
+    const searchReplace: Record<string, string> = {
       '{nodeAlias}': nodeAlias,
       '{nodeId}': nodeId.toString(),
       '{namespace}': namespace,
@@ -426,6 +434,54 @@ export class Templates {
       let [nodeAlias, priority] = data.split('=') as [NodeAlias, number | undefined];
 
       mapping[nodeAlias] = +priority || 1;
+    }
+
+    return mapping;
+  }
+
+  /**
+   * @param rawString - the raw string from the unparsed [flags.blockNodeMapping, flags.externalBlockNodeMapping]
+   * @param fallbackBlockNodeIds - either block node IDs or external block node IDs
+   */
+  public static parseConsensusNodePriorityMapping(
+    rawString: string,
+    fallbackBlockNodeIds: ComponentId[],
+  ): PriorityMapping[] {
+    // if no nodes are specified use one and set highest priority to first block node
+    const useDefault: boolean = typeof rawString !== 'string' || rawString.length === 0;
+
+    if (useDefault) {
+      const mapping: PriorityMapping[] = [];
+
+      for (const [index, blockNodeId] of fallbackBlockNodeIds.entries()) {
+        // set higher priority to first node
+        mapping.push([blockNodeId, index === 0 ? 2 : 1]);
+      }
+
+      return mapping;
+    }
+
+    // Figure out if any priority is explicitly specified
+    const hasPriority: boolean = rawString.includes('=');
+
+    const mapping: PriorityMapping[] = [];
+
+    for (const [index, data] of rawString.split(',').entries()) {
+      // use specified priority if set
+      if (data.includes('=')) {
+        const [blockNodeId, priority] = data.split('=');
+        mapping.push([+blockNodeId, +priority]);
+      }
+
+      // if any node has priority specified, default all unset to 1
+      else if (hasPriority) {
+        mapping.push([+data, 1]);
+      }
+
+      // if no explicit priority is specified, set higher priority to first node
+      else {
+        mapping.push([+data, index === 0 ? 2 : 1]);
+      }
     }
 
     return mapping;
