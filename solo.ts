@@ -20,3 +20,6 @@ await fnm
     const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);
     errorHandler.handle(error);
   });
+// Exit with the proper exit code and force close any open handles that prevent Solo from exiting
+// eslint-disable-next-line n/no-process-exit
+process.exit(process.exitCode);
