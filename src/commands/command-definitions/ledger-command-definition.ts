@@ -103,7 +103,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               AccountCommand.GET_FLAGS_LIST,
               [],
             ),
-          ),
+          )
           .addSubcommand(
             new Subcommand(
               LedgerCommandDefinition.ACCOUNT_PREDEFINED,
