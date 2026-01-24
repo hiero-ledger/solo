@@ -133,12 +133,12 @@ export class RapidFireCommand extends BaseCommand {
                 .pods()
                 .list(context_.config.namespace, ['solo.hedera.com/type=haproxy']);
 
-              let port: number = constants.GRPC_PORT;
+              const port: number = constants.GRPC_PORT;
               const networkProperties: string[] = haproxyPods.map((pod: Pod) => {
                 const accountId = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
                 // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
                 // Final result should look like: x.x.x.x\:50211=0.0.y
-                return String.raw`${pod.podIp}\\\:${port++}=${accountId}`;
+                return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
               });
 
               for (const row of networkProperties) {
