@@ -3357,6 +3357,9 @@ export class NodeCommandTasks {
   public updateBlockNodesJson(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Update block-nodes.json',
+      skip: (): boolean =>
+        this.remoteConfig.configuration.state.blockNodes.length === 0 &&
+        this.remoteConfig.configuration.state.externalBlockNodes.length === 0,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
           await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
