@@ -134,7 +134,7 @@ export class AccountCommand extends BaseCommand {
 
   public static PREDEFINED_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.clusterRef, flags.forcePortForward],
+    optional: [flags.clusterRef, flags.forcePortForward, flags.cacheDir, flags.devMode, flags.quiet],
   };
 
   private async closeConnections(): Promise<void> {
