@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import pino, {type Logger as PinoLogger, type TransportTargetOptions} from 'pino';
+import pino, {type Logger as PinoLogger, type TransportTargetOptions, type LoggerOptions} from 'pino';
+import pinoPretty from 'pino-pretty';
 import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import chalk, {ChalkInstance} from 'chalk';
+import chalk, {type ChalkInstance} from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
@@ -36,7 +37,7 @@ export class SoloPinoLogger implements SoloLogger {
    */
   public constructor(
     @inject(InjectTokens.LogLevel) logLevel?: string,
-    @inject(InjectTokens.DevelopmentMode) private developmentMode?: boolean | null,
+    @inject(InjectTokens.DevelopmentMode) private developmentMode?: boolean,
   ) {
     logLevel = patchInject(logLevel, InjectTokens.LogLevel, this.constructor.name) ?? 'info';
     this.developmentMode = patchInject(developmentMode, InjectTokens.DevelopmentMode, this.constructor.name);
@@ -74,19 +75,33 @@ export class SoloPinoLogger implements SoloLogger {
       },
     };
 
-    this.pinoLogger = pino(
-      {
-        level: logLevel,
-        // Always include traceId when set via mixin
-        mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
-        // Redact obvious secrets if they sneak into objects
-        redact: {
-          paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
-          remove: true,
-        },
+    const baseOptions: LoggerOptions = {
+      level: logLevel,
+      // Always include traceId when set via mixin
+      mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
+      // Redact obvious secrets if they sneak into objects
+      redact: {
+        paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
+        remove: true,
       },
-      pino.transport({targets: [ndjsonTarget, prettyTarget]}),
-    );
+    };
+
+    if (process.env.CI === 'true') {
+      const ndjsonStream: ReturnType<typeof pino.destination> = pino.destination({
+        dest: PathEx.join(logsDirectory, 'solo.ndjson'),
+        sync: true,
+      });
+      const prettyStream: ReturnType<typeof pinoPretty> = pinoPretty({
+        ...prettyTarget.options,
+        destination: pino.destination({
+          dest: PathEx.join(logsDirectory, 'solo.log'),
+          sync: true,
+        }),
+      });
+      this.pinoLogger = pino(baseOptions, pino.multistream([{stream: ndjsonStream}, {stream: prettyStream}] as any));
+    } else {
+      this.pinoLogger = pino(baseOptions, pino.transport({targets: [ndjsonTarget, prettyTarget]}));
+    }
   }
 
   public setDevMode(developmentMode: boolean): void {
@@ -98,30 +113,36 @@ export class SoloPinoLogger implements SoloLogger {
     this.traceId = uuidv4();
   }
 
-  public prepMeta(meta: object | any = {}): object | any {
-    (meta as any).traceId = this.traceId;
+  public prepMeta(meta: Record<string, unknown> = {}): Record<string, unknown> {
+    if (this.traceId) {
+      (meta as Record<string, unknown>)['traceId'] = this.traceId;
+    }
     return meta;
   }
 
-  public showUser(message: any, ...arguments_: any): void {
-    console.log(util.format(message, ...arguments_));
+  public showUser(message: unknown, ...arguments_: unknown[]): void {
+    const formatted = util.format(String(message), ...arguments_.map(String));
+    console.log(formatted);
     // Mirror existing behavior: also persist to logs at info level
-    this.info(util.format(message, ...arguments_));
+    this.info(formatted);
   }
 
-  public showUserError(error: Error | any): void {
+  public showUserError(error: unknown): void {
     // Build chain of causes (up to 10 deep)
-    const stack: {message: any; stacktrace: any}[] = [
-      {message: error?.message ?? String(error), stacktrace: error?.stack},
+    const errorObject = error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
+    const stack: {message: string; stacktrace?: string}[] = [
+      {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
     ];
-    if (error?.cause) {
+
+    if (errorObject?.cause) {
       let depth: number = 0;
-      let cause: any = error.cause;
+      let cause: unknown = errorObject.cause;
       while (cause && depth < 10) {
-        if (cause.stack) {
-          stack.push({message: cause?.message, stacktrace: cause?.stack});
+        const c = cause as {message?: unknown; stack?: string; cause?: unknown};
+        if (c.stack) {
+          stack.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
         }
-        cause = cause.cause;
+        cause = c.cause;
         depth += 1;
       }
     }
@@ -145,7 +166,9 @@ export class SoloPinoLogger implements SoloLogger {
         prefix = 'Caused by: ';
       }
     } else {
-      const lines: string[] = String(error?.message ?? error).split('\n');
+      const lines: string[] = (error as any)?.message
+        ? String((error as any).message).split('\n')
+        : String(error).split('\n');
       for (const line of lines) {
         console.log(chalk.yellow(line));
       }
@@ -156,19 +179,19 @@ export class SoloPinoLogger implements SoloLogger {
     this.toPino('error', error, []);
   }
 
-  public error(message: any, ...arguments_: any): void {
+  public error(message: unknown, ...arguments_: unknown[]): void {
     this.toPino('error', message, arguments_);
   }
 
-  public warn(message: any, ...arguments_: any): void {
+  public warn(message: unknown, ...arguments_: unknown[]): void {
     this.toPino('warn', message, arguments_);
   }
 
-  public info(message: any, ...arguments_: any): void {
+  public info(message: unknown, ...arguments_: unknown[]): void {
     this.toPino('info', message, arguments_);
   }
 
-  public debug(message: any, ...arguments_: any): void {
+  public debug(message: unknown, ...arguments_: unknown[]): void {
     this.toPino('debug', message, arguments_);
   }
 
@@ -268,30 +291,31 @@ export class SoloPinoLogger implements SoloLogger {
     }
   }
 
-  private toPino(level: 'info' | 'warn' | 'error' | 'debug', message: any, arguments_: any[]): void {
+  private toPino(level: 'info' | 'warn' | 'error' | 'debug', message: unknown, arguments_: unknown[]): void {
     // Build base object (traceId via mixin already present, but include explicitly for clarity in unit tests)
-    let object: Record<string, any> = {};
-    const meta: any = this.prepMeta({});
+    let object: Record<string, unknown> = {};
+    const meta: Record<string, unknown> = this.prepMeta({});
 
     // Prefer structured errors/objects when provided
     if (message instanceof Error) {
       object = {...object, ...meta, err: message};
-      this.pinoLogger[level](object, message.message ?? 'Error');
+      this.pinoLogger[level](object as any, (message as Error).message ?? 'Error');
       return;
     }
 
     if (message && typeof message === 'object') {
-      object = {...object, ...meta, ...message};
-      const message_: string = arguments_.length > 0 ? util.format('%s', ...arguments_) : undefined;
+      object = {...object, ...meta, ...(message as Record<string, unknown>)};
+      const message_: string | undefined =
+        arguments_.length > 0 ? util.format('%s', ...arguments_.map(String)) : undefined;
       if (message_) {
-        this.pinoLogger[level](object, message_);
+        this.pinoLogger[level](object as any, message_);
       } else {
-        this.pinoLogger[level](object);
+        this.pinoLogger[level](object as any);
       }
       return;
     }
 
-    const formatted: string = util.format(message, ...arguments_);
-    this.pinoLogger[level](meta, formatted);
+    const formatted: string = util.format(String(message), ...(arguments_ as any[]));
+    this.pinoLogger[level](meta as any, formatted);
   }
 }

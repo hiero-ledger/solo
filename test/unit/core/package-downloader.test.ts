@@ -93,10 +93,7 @@ describe('PackageDownloader', () => {
         throw new Error();
       } catch (error) {
         expect(error.cause).not.to.be.null;
-        if (!(error.cause instanceof ResourceNotFoundError)) {
-          throw error;
-        }
-        expect(error.cause).to.be.instanceof(ResourceNotFoundError);
+        expect(error).to.be.instanceof(ResourceNotFoundError);
       }
     });
 
