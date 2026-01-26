@@ -624,8 +624,6 @@ export class NodeTest extends BaseCommandTest {
         namespace,
         remoteConfig,
         logger,
-        undefined,
-        new AccountId(shard, realm, 1004),
       );
 
       const accountInfo1: AccountInfo = await new AccountInfoQuery()
