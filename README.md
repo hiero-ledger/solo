@@ -44,7 +44,7 @@ Install Solo and all dependencies with Homebrew:
 brew install solo
 ```
 
-This installs Solo along with Node.js, kubectl, Helm, Kind, and k9s.
+This installs Solo along with Node.js, kubectl, Helm, and Kind.
 
 ### Windows (WSL2) and Linux
 
