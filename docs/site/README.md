@@ -14,19 +14,19 @@ Prerequisites
 
 Quick Start
 -----------
-1) Install site dependencies and Hugo modules:
+1. Install site dependencies and Hugo modules:
    ```
    cd docs/site
    task install
    ```
 
-2) Build the site (no Kind required):
+2. Build the site (no Kind required):
    ```
    task build:hugo
    ```
    Outputs to `public/`.
 
-3) Run with live reload:
+3. Run with live reload:
    ```
    hugo server -D --baseURL http://localhost:1313/main/ --cleanDestinationDir
    ```
@@ -47,8 +47,8 @@ Branding & Theming
 
 Editing Styles
 --------------
-1) Update SCSS in `assets/scss/_variables_project.scss` (e.g., buttons, badges, sidebar, code)
-2) Rebuild CSS via `task build:hugo` or `hugo server` to regenerate `public/main/scss/*.css`
+1. Update SCSS in `assets/scss/_variables_project.scss` (e.g., buttons, badges, sidebar, code)
+2. Rebuild CSS via `task build:hugo` or `hugo server` to regenerate `public/main/scss/*.css`
 
 Content Structure
 -----------------
