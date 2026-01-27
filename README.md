@@ -60,7 +60,7 @@ This installs Solo along with Node.js, kubectl, Helm, and Kind.
 If you prefer to manage dependencies manually:
 
 ```bash
-npm install -g @hashgraph/solo
+npm install -g @hashgraph/solo@latest
 ```
 
 Required dependencies: Node.js >= 22.0.0, kubectl, Helm, and Kind.
