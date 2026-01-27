@@ -240,6 +240,6 @@ params:
   # Menu title if your navbar has a versions selector to access old versions of your site.
   # This menu appears only if you have at least one [params.versions] set.
   # version_menu: Releases
-  # versions:
-  #   - {version: main, url: /main}
-  #   - {version: latest, url: /latest}
+  versions:
+  - {version: main, url: /main}
+  - {version: latest, url: /latest}
