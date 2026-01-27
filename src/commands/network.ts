@@ -987,17 +987,6 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
-          title: `Deploy postgres`,
-          task: async ({config: {namespace, contexts}}: NetworkDeployContext): Promise<void> => {
-            try {
-              await this.postgresSharedResource.deploy(namespace, contexts[0]);
-            } catch (error) {
-              throw new SoloError(`Failed deploying postgres shared resource: ${error.message}`, error);
-            }
-          },
-        },
-        /**
-        {
           title: 'Copy gRPC TLS Certificates',
           task: (context_, parentTask): SoloListr<AnyListrContext> =>
             this.certificateManager.buildCopyTlsCertificatesTasks(
@@ -1322,7 +1311,38 @@ export class NetworkCommand extends BaseCommand {
             }
           },
         },
-        **/
+        {
+          title: 'Initialize Postgres pod',
+          task: (context_, task): SoloListr<NetworkDeployContext> => {
+            const config: NetworkDeployConfigClass = context_.config;
+
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = [
+              {
+                title: 'Wait for Postgres pod to be ready',
+                task: async (context_): Promise<void> => {
+                  await this.postgresSharedResource.waitForPodReady(
+                    context_.config.namespace,
+                    context_.config.contexts[0],
+                  );
+                },
+              },
+              {
+                title: 'Run initialization script',
+                task: async (context_): Promise<void> => {
+                  await this.postgresSharedResource.initialize(context_.config.namespace, context_.config.contexts[0]);
+                },
+              },
+            ];
+
+            // set up the sub-tasks
+            return task.newListr(subTasks, {
+              concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,

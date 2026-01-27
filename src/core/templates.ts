@@ -34,6 +34,10 @@ export class Templates {
     return `node${number_}`;
   }
 
+  public static renderPostgresPodName(number_: number): PodName {
+    return PodName.of(`solo-deployment-postgres-postgresql-${number_}`);
+  }
+
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {
     const nodeAliases: NodeAliases = [];
     let nodeNumber: number = existingNodesCount + 1;

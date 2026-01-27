@@ -10,7 +10,17 @@ import {inject, injectable} from 'tsyringe-neo';
 import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
-import * as constants from '../constants.js';
+import {PathEx} from '../../business/utils/path-ex.js';
+import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
+import {PodName} from '../../integration/kube/resources/pod/pod-name.js';
+import {Templates} from '../templates.js';
+import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
+import {type Container} from '../../integration/kube/resources/container/container.js';
+import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
+import * as constants from '../../core/constants.js';
+import os from 'node:os';
+import fs from 'node:fs';
+import {SOLO_CACHE_DIR} from '../../core/constants.js';
 
 @injectable()
 export class PostgresSharedResource {
@@ -30,37 +40,48 @@ export class PostgresSharedResource {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
   }
 
-  public async deploy(namespace: NamespaceName, kubeContext: string): Promise<void> {
-    // {{ .SOLO_USER_DIR }}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
-    // {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
-    //       --set deploymentType=local \
-    //       --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
-    //       --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
-
-    // Implementation for deploying Postgres shared resource
-    //
-    // - alias: postgresql
-    // condition: postgresql.enabled
-    // name: postgresql-ha
-    // repository: oci://registry-1.docker.io/bitnamicharts
-    //   version: 15.3.17
-
-    // helm install my-release oci://REGISTRY_NAME/REPOSITORY_NAME/postgresql-ha
-
-    // const setupMap: Map<string, string> = new Map([['postgresql-ha', 'oci://registry-1.docker.io/bitnamicharts']]);
-    //
-    // await this.chartManager.setup(setupMap);
-
-    await this.chartManager.install(
-      namespace,
-      'solo-postgresql',
-      'postgresql-ha',
-      'oci://registry-1.docker.io/bitnamicharts',
-      '15.3.17',
-      '',
-      kubeContext,
-    );
+  public async waitForPodReady(namespace: NamespaceName, context: string): Promise<void> {
+    await this.k8Factory
+      .getK8(context)
+      .pods()
+      .waitForRunningPhase(
+        namespace,
+        ['app.kubernetes.io/component=postgresql', 'app.kubernetes.io/instance=solo-deployment'],
+        constants.PODS_RUNNING_MAX_ATTEMPTS,
+        constants.PODS_RUNNING_DELAY,
+      );
   }
 
-  public initialize() {}
+  public async initialize(namespace: NamespaceName, context: string): Promise<void> {
+    const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
+    const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
+    const containerReference: ContainerReference = ContainerReference.of(podReference, ContainerName.of('postgresql'));
+    const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+    // TODO download dynamically
+    // https://github.com/hiero-ledger/hiero-mirror-node/blob/main/importer/src/main/resources/db/scripts/init.sh
+    const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'init-postgres.sh'); // script source path
+    await k8Container.copyTo(sourcePath, '/tmp');
+    await k8Container.execContainer('chmod +x /tmp/init-postgres.sh');
+
+    // create a small wrapper that exports env vars and execs the init script to avoid quoting issues
+    const wrapper = `#!/usr/bin/env bash
+    set -e
+    export CREATE_MIRROR_API_USER=true
+    export DB_NAME=mirror_node
+    export PGUSER=postgres
+    export PGPASSWORD=XXXXXXXX
+    export OWNER_USERNAME=solo
+    export OWNER_PASSWORD=XXXXXXXX
+    export PGDATABASE=postgres
+    export PGHOST=127.0.0.1
+    export PGPORT=5432
+    exec /bin/bash /tmp/init-postgres.sh
+    `;
+    const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, `run-init.sh`);
+    fs.writeFileSync(temporaryLocal, wrapper);
+    await k8Container.copyTo(temporaryLocal, '/tmp');
+    await k8Container.execContainer('chmod +x /tmp/run-init.sh');
+    await k8Container.execContainer(`/bin/bash /tmp/run-init.sh`);
+    // fs.rmSync(temporaryLocal);
+  }
 }
