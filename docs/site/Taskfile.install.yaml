@@ -1,4 +1,7 @@
 version: 3
+env:
+  PATH:
+    sh: echo "$(go env GOPATH)/bin:$PATH"
 tasks:
   install:
     desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
@@ -21,7 +24,7 @@ tasks:
       - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
       - npm install
       - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
-      - hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
+      - PATH="$(go env GOPATH)/bin:$PATH" hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
       - printf "\r::endgroup::--------------\n"
 
   install:hugo:
