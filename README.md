@@ -63,7 +63,7 @@ If you prefer to manage dependencies manually:
 npm install -g @hashgraph/solo
 ```
 
-Required dependencies: Node.js >= 22.0.0, kubectl, Helm, Kind, k9s
+Required dependencies: Node.js >= 22.0.0, kubectl, Helm, and Kind.
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
