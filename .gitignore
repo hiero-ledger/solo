@@ -480,7 +480,9 @@ deleteme.yaml
 /contextDir/
 /docs/site/resources/
 /docs/site/.task/
-/docs/site/static/
+/docs/site/static/*
+!/docs/site/static/favicons/
+!/docs/site/static/favicons/**
 /docs/site/nginx/nginx.conf
 /docs/site/hugo.yaml
 /docs/site/content/en/examples/_index.md
