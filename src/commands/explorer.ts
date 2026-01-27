@@ -503,6 +503,18 @@ export class ExplorerCommand extends BaseCommand {
 
         const podReference: PodReference = pods[0].podReference;
 
+        await this.remoteConfig.configuration.components.stopPortForwards(
+          config.clusterRef,
+          podReference,
+          constants.EXPLORER_PORT, // Pod port
+          constants.EXPLORER_PORT, // Local port
+          this.k8Factory.getK8(config.clusterContext),
+          this.logger,
+          ComponentTypes.Explorer,
+          'Explorer',
+        );
+        await this.remoteConfig.persist();
+
         await this.remoteConfig.configuration.components.managePortForward(
           config.clusterRef,
           podReference,
