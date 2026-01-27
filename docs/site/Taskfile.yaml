@@ -24,6 +24,8 @@ env:
   HUGO_HOST: solo.hiero.org
   HUGO_SOLO_VERSION: main
   HUGO_BASEPATH: /
+  PATH:
+    sh: echo "$(go env GOPATH)/bin:$PATH"
 vars:
   hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
@@ -178,10 +180,10 @@ tasks:
       - echo "solo vers           $HUGO_SOLO_VERSION"
       - echo "hugo_base_url       {{.hugo_base_url}}"
       - echo "hugo_local_base_url {{.hugo_local_base_url}}"
-      - hugo version
+      - PATH="$(go env GOPATH)/bin:$PATH" hugo version
       - printf "\r::group::Building the Hugo site\n"
-      - hugo config
-      - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
+      - PATH="$(go env GOPATH)/bin:$PATH" hugo config
+      - PATH="$(go env GOPATH)/bin:$PATH" hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
       - echo "Hugo site built successfully. RC=${?}"
       - printf "\r::endgroup::--------------\n"
 
@@ -263,7 +265,7 @@ tasks:
     silent: true
     cmds:
       - task: "build"
-      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
+      - PATH="$(go env GOPATH)/bin:$PATH" hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   deploy:nginx:
     desc: "Build the Hugo site, configure Nginx, then deploy Nginx to serve the Hugo site for testing multiple versions"
