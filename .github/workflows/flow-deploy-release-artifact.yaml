@@ -110,6 +110,21 @@ jobs:
           TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "version=${TRIMMED_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "version=${TRIMMED_VERSION}"
+          PROCEED="true"
+          OUTVER=""
+          
+          if [[ "${{ steps.calculate-version.outputs.need-release }}" == "true" ]] && [[ -f VERSION ]]; then
+            [[ "${{ inputs.dry-run-enabled }}" == "true" ]] && echo -n "0.0.0-latest" > VERSION
+            cat VERSION
+            TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
+            OUTVER="${TRIMMED_VERSION}"
+            echo "version=${TRIMMED_VERSION}"
+          else
+            PROCEED="false"
+          fi
+
+          echo "version=${OUTVER}" >> "${GITHUB_OUTPUT}"
+          echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
   get-package-info:
     name: 'Get Package Info'
