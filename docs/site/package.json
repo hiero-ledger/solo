@@ -17,14 +17,14 @@
   "spelling": "cSpell:ignore docsy hugo htmltest precheck postbuild rtlcss -",
   "scripts": {},
   "devDependencies": {
-    "@types/node": "^24.3.0",
-    "autoprefixer": "^10.4.21",
-    "cross-env": "^7.0.3",
-    "eslint": "^9.33.0",
+    "@types/node": "24.3.0",
+    "autoprefixer": "10.4.21",
+    "cross-env": "7.0.3",
+    "eslint": "9.33.0",
     "hugo-extended": "0.145.0",
-    "postcss-cli": "^11.0.1",
-    "prettier": "^3.6.2",
-    "rtlcss": "^4.3.0"
+    "postcss-cli": "11.0.1",
+    "prettier": "3.6.2",
+    "rtlcss": "4.3.0"
   },
   "private": true,
   "prettier": {
@@ -32,13 +32,13 @@
     "singleQuote": true
   },
   "dependencies": {
-    "chalk": "^5.6.0",
-    "execa": "^9.6.0",
-    "kleur": "^4.1.5",
-    "mustache": "^4.2.0",
-    "node-pty": "^1.0.0",
-    "postcss": "^8.5.6",
-    "typedoc": "^0.28.16"
+    "chalk": "5.6.0",
+    "execa": "9.6.0",
+    "kleur": "4.1.5",
+    "mustache": "4.2.0",
+    "node-pty": "1.0.0",
+    "postcss": "8.5.6",
+    "typedoc": "0.28.16"
   },
   "main": "index.js",
   "keywords": []
