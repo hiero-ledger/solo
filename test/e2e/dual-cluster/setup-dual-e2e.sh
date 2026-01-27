@@ -25,12 +25,28 @@ elif [[ "${SOLO_CLUSTER_DUALITY}" -gt 2 ]]; then
   SOLO_CLUSTER_DUALITY=2
 fi
 
+KIND_VERSION=$(kind --version | awk '{print $3}')
+echo "Using Kind version: ${KIND_VERSION}"
+DOCKER_VERSION=$(docker --version | awk '{print $3}' | sed 's/,//')
+echo "Using Docker version: ${DOCKER_VERSION}"
+HELM_VERSION=$(helm version --short | sed 's/v//')
+echo "Using Helm version: ${HELM_VERSION}"
+KUBECTL_VERSION=$(kubectl version --client=true | grep Client | awk '{print $3}' | sed 's/v//')
+echo "Using Kubectl version: ${KUBECTL_VERSION}"
+TASK_VERSION=$(task --version | awk '{print $3}')
+echo "Using Task version: ${TASK_VERSION}"
+NODE_VERSION=$(node --version | sed 's/v//')
+echo "Using Node version: ${NODE_VERSION}"
+NPM_VERSION=$(npm --version)
+echo "Using NPM version: ${NPM_VERSION}"
+
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" || true
 done
 
 docker network rm -f kind || true
 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+docker info | grep -i cgroup
 
 # Setup Helm Repos
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/

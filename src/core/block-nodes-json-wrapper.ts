@@ -11,62 +11,102 @@ import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
-interface BlockNodeConnectionData {
-  address: string;
-  port: number;
-  priority: number;
-}
+type BlockNodeConnectionData =
+  | {
+      address: string;
+      port: number;
+      priority: number;
+    }
+  | {
+      address: string;
+      streamingPort: number;
+      servicePort: number;
+      priority: number;
+    };
 
 interface BlockNodesJsonStructure {
   nodes: BlockNodeConnectionData[];
   blockItemBatchSize: number;
 }
 
+/**
+ * Wrapper used to generate `block-nodes.json` file
+ * for the consensus node used to configure block node connections.
+ */
 export class BlockNodesJsonWrapper implements ToJSON {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+  private readonly blockNodes: BlockNodeStateSchema[];
+  private readonly externalBlockNodes: ExternalBlockNodeStateSchema[];
 
   public constructor(
     private readonly blockNodeMap: PriorityMapping[],
-    private readonly blockNodeComponents: BlockNodeStateSchema[],
+    private readonly externalBlockNodeMap: PriorityMapping[],
     @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.blockNodes = this.remoteConfig.configuration.state.blockNodes;
+    this.externalBlockNodes = this.remoteConfig.configuration.state.externalBlockNodes;
   }
 
   public toJSON(): string {
-    const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeMap.map(
-      ([id, priority]): BlockNodeConnectionData => {
-        const blockNodeComponent: BlockNodeStateSchema = this.blockNodeComponents.find(
-          (component): boolean => component.metadata.id === id,
-        );
+    return JSON.stringify(this.buildBlockNodesJsonStructure());
+  }
 
-        const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
-          (cluster): boolean => cluster.name === blockNodeComponent.metadata.cluster,
-        );
-
-        const address: string = Templates.renderSvcFullyQualifiedDomainName(
-          Templates.renderBlockNodeName(blockNodeComponent.metadata.id),
-          blockNodeComponent.metadata.namespace,
-          cluster.dnsBaseDomain,
-        );
-
-        const useLegacyPort: boolean = lt(
-          this.remoteConfig.configuration.versions.blockNodeChart,
-          versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
-        );
-
-        const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
-
-        return {address, port, priority};
-      },
+  private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
+    // Figure out field name for port
+    const useLegacyPortName: boolean = lt(
+      this.remoteConfig.configuration.versions.consensusNode,
+      versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
     );
 
-    const data: BlockNodesJsonStructure = {
+    const blockNodeConnectionData: BlockNodeConnectionData[] = [];
+
+    for (const [id, priority] of this.blockNodeMap) {
+      const blockNodeComponent: BlockNodeStateSchema = this.blockNodes.find(
+        (component): boolean => component.metadata.id === id,
+      );
+
+      const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
+        (cluster): boolean => cluster.name === blockNodeComponent.metadata.cluster,
+      );
+
+      const address: string = Templates.renderSvcFullyQualifiedDomainName(
+        Templates.renderBlockNodeName(blockNodeComponent.metadata.id),
+        blockNodeComponent.metadata.namespace,
+        cluster.dnsBaseDomain,
+      );
+
+      // Figure out the block node port
+      const useLegacyPort: boolean = lt(
+        this.remoteConfig.configuration.versions.blockNodeChart,
+        versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
+      );
+
+      const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
+
+      blockNodeConnectionData.push(
+        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
+      );
+    }
+
+    for (const [id, priority] of this.externalBlockNodeMap) {
+      const blockNodeComponent: ExternalBlockNodeStateSchema = this.externalBlockNodes.find(
+        (component): boolean => component.id === id,
+      );
+
+      const address: string = blockNodeComponent.address;
+      const port: number = blockNodeComponent.port;
+
+      blockNodeConnectionData.push(
+        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
+      );
+    }
+
+    return {
       nodes: blockNodeConnectionData,
       blockItemBatchSize: constants.BLOCK_ITEM_BATCH_SIZE,
     };
-
-    return JSON.stringify(data);
   }
 }

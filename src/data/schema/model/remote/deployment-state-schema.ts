@@ -12,6 +12,7 @@ import {ExplorerStateSchema} from './state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
 import {ComponentIdsSchema} from './state/component-ids-schema.js';
 import {DeploymentStateStructure} from './interfaces/deployment-state-structure.js';
+import {ExternalBlockNodeStateSchema} from './state/external-block-node-state-schema.js';
 
 @Exclude()
 export class DeploymentStateSchema implements DeploymentStateStructure {
@@ -51,6 +52,10 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   @Type((): typeof ExplorerStateSchema => ExplorerStateSchema)
   public explorers: ExplorerStateSchema[];
 
+  @Expose()
+  @Type((): typeof ExternalBlockNodeStateSchema => ExternalBlockNodeStateSchema)
+  public externalBlockNodes: ExternalBlockNodeStateSchema[];
+
   public constructor(
     ledgerPhase?: LedgerPhase,
     componentIds?: ComponentIdsSchema,
@@ -61,6 +66,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     haProxies?: HaProxyStateSchema[],
     envoyProxies?: EnvoyProxyStateSchema[],
     explorers?: ExplorerStateSchema[],
+    externalBlockNodes?: ExternalBlockNodeStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
     this.componentIds = componentIds || new ComponentIdsSchema();
@@ -71,5 +77,6 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     this.haProxies = haProxies || [];
     this.envoyProxies = envoyProxies || [];
     this.explorers = explorers || [];
+    this.externalBlockNodes = externalBlockNodes || [];
   }
 }

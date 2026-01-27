@@ -34,6 +34,9 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY = 'destroy';
   public static readonly NODE_UPGRADE = 'upgrade';
 
+  public static readonly NODE_ADD_EXTERNAL = 'add-external';
+  public static readonly NODE_DELETE_EXTERNAL = 'delete-external';
+
   public static readonly ADD_COMMAND: string =
     `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_ADD}` as const;
   public static readonly DESTROY_COMMAND: string =
@@ -58,7 +61,6 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand.add,
               BlockNodeCommand.ADD_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              false,
             ),
           )
           .addSubcommand(
@@ -70,7 +72,6 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand.destroy,
               BlockNodeCommand.DESTROY_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              false,
             ),
           )
           .addSubcommand(
@@ -82,7 +83,27 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand.upgrade,
               BlockNodeCommand.UPGRADE_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              false,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BlockCommandDefinition.NODE_ADD_EXTERNAL,
+              'Add an external block node for the specified deployment. ' +
+                'You can specify the priority and consensus nodes to which to connect or use the default settings.',
+              this.blockNodeCommand,
+              this.blockNodeCommand.addExternal,
+              BlockNodeCommand.ADD_EXTERNAL_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BlockCommandDefinition.NODE_DELETE_EXTERNAL,
+              'Deletes an external block node from the specified deployment.',
+              this.blockNodeCommand,
+              this.blockNodeCommand.deleteExternal,
+              BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
             ),
           ),
       )

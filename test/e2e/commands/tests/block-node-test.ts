@@ -57,6 +57,42 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloBlockNodeAddExternalArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+    address: string,
+    nodeAliases?: NodeAliases,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = BlockNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      BlockCommandDefinition.COMMAND_NAME,
+      BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+      BlockCommandDefinition.NODE_ADD_EXTERNAL,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.externalBlockNodeAddress),
+      address,
+    );
+
+    if (nodeAliases !== undefined && nodeAliases.length > 0) {
+      const stringBuilder: string[] = [];
+
+      for (const nodeAlias of nodeAliases) {
+        stringBuilder.push(`${nodeAlias}=1`);
+      }
+
+      argv.push(optionFromFlag(Flags.priorityMapping), stringBuilder.join(','));
+    }
+
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
   private static soloBlockNodeDestroyArgv(
     testName: string,
     deployment: DeploymentName,
@@ -82,6 +118,36 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloBlockNodeDeleteExternalArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+    id?: number,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = BlockNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      BlockCommandDefinition.COMMAND_NAME,
+      BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+      BlockCommandDefinition.NODE_DELETE_EXTERNAL,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+
+    if (id !== undefined) {
+      argv.push(optionFromFlag(Flags.id), id.toString());
+    }
+
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
   public static add(options: BaseTestOptions, nodeAliases?: NodeAliases): void {
     const {testName, deployment, clusterReferenceNameArray, localBuildReleaseTag, enableLocalBuildPathTesting} =
       options;
@@ -98,6 +164,27 @@ export class BlockNodeTest extends BaseCommandTest {
           nodeAliases,
         ),
       );
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static addExternal(options: BaseTestOptions, address: string, nodeAliases?: NodeAliases): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+
+    const {soloBlockNodeAddExternalArgv} = BlockNodeTest;
+
+    it(`${testName}: block node add-external`, async (): Promise<void> => {
+      await main(
+        soloBlockNodeAddExternalArgv(testName, deployment, clusterReferenceNameArray[0], address, nodeAliases),
+      );
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static deleteExternal(options: BaseTestOptions, id?: number): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloBlockNodeDeleteExternalArgv} = BlockNodeTest;
+
+    it(`${testName}: block node delete-external`, async (): Promise<void> => {
+      await main(soloBlockNodeDeleteExternalArgv(testName, deployment, clusterReferenceNameArray[1], id));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
@@ -142,6 +229,17 @@ export class BlockNodeTest extends BaseCommandTest {
     nodeAlias: NodeAlias,
     blockNodeIds: ComponentId[],
     excludedBlockNodeIds: ComponentId[] = [],
+    {
+      expectedExternalAddress,
+      expectedExternalPort,
+      unexpectedExternalAddress,
+      unexpectedExternalPort,
+    }: {
+      expectedExternalAddress?: string;
+      expectedExternalPort?: number;
+      unexpectedExternalAddress?: string;
+      unexpectedExternalPort?: number;
+    },
   ): void {
     const {namespace, contexts, testName} = options;
 
@@ -160,6 +258,22 @@ export class BlockNodeTest extends BaseCommandTest {
 
       for (const excludedBlockNodeId of excludedBlockNodeIds) {
         expect(output).to.not.include(`block-node-${excludedBlockNodeId}`);
+      }
+
+      if (expectedExternalAddress !== undefined) {
+        expect(output).to.include(expectedExternalAddress);
+      }
+
+      if (expectedExternalPort !== undefined) {
+        expect(output).to.include(expectedExternalPort.toString());
+      }
+
+      if (unexpectedExternalAddress !== undefined) {
+        expect(output).not.to.include(unexpectedExternalAddress);
+      }
+
+      if (unexpectedExternalPort !== undefined) {
+        expect(output).not.to.include(unexpectedExternalPort.toString());
       }
     });
   }
