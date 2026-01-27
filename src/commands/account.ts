@@ -5,14 +5,16 @@ import {BaseCommand} from './base.js';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
-import {Listr} from 'listr2';
+import {Listr, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
 import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {
-  type AccountId,
+  AccountId,
   AccountInfo,
+  Client,
+  Hbar,
   HbarUnit,
   Long,
   NodeUpdateTransaction,
@@ -28,6 +30,7 @@ import {
   type DeploymentName,
   type Realm,
   type Shard,
+  type AccountIdWithKeyPairObject,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -39,6 +42,16 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CommandFlags} from '../types/flag-types.js';
+import {Duration} from '../core/time/duration.js';
+import {
+  type CreatedPredefinedAccount,
+  type PredefinedAccount,
+  PREDEFINED_ACCOUNT_GROUPS,
+  predefinedEcdsaAccounts,
+  predefinedEcdsaAccountsWithAlias,
+  predefinedEd25519Accounts,
+  type SystemAccount,
+} from './one-shot/predefined-accounts.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -53,7 +66,12 @@ interface UpdateAccountConfig {
 
 interface UpdateAccountContext {
   config: UpdateAccountConfig;
-  accountInfo: {accountId: AccountId | string; balance: number; publicKey: string; privateKey?: string};
+  accountInfo: {
+    accountId: AccountId | string;
+    balance: number;
+    publicKey: string;
+    privateKey?: string;
+  };
 }
 
 @injectable()
@@ -64,13 +82,15 @@ export class AccountCommand extends BaseCommand {
     '- privateKeyRaw: the Ethereum compatible private key, without the `0x` prefix\n' +
     '- for more information see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures';
 
-  private accountInfo: {
-    accountId: string;
-    balance: number;
-    publicKey: string;
-    privateKey?: string;
-    accountAlias?: string;
-  } | null;
+  private accountInfo:
+    | {
+        accountId: string;
+        balance: number;
+        publicKey: string;
+        privateKey?: string;
+        accountAlias?: string;
+      }
+    | undefined;
 
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -79,7 +99,7 @@ export class AccountCommand extends BaseCommand {
     super();
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-    this.accountInfo = null;
+    this.accountInfo = undefined;
     this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
@@ -112,6 +132,11 @@ export class AccountCommand extends BaseCommand {
     optional: [flags.privateKey, flags.clusterRef],
   };
 
+  public static PREDEFINED_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.forcePortForward, flags.cacheDir, flags.devMode, flags.quiet],
+  };
+
   private async closeConnections(): Promise<void> {
     await this.accountManager.close();
   }
@@ -138,12 +163,15 @@ export class AccountCommand extends BaseCommand {
     };
 
     if (shouldRetrievePrivateKey) {
-      const accountKeys = await this.accountManager.getAccountKeysFromSecret(newAccountInfo.accountId, namespace);
+      const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
+        newAccountInfo.accountId,
+        namespace,
+      );
       newAccountInfo.privateKey = accountKeys.privateKey;
 
       // reconstruct private key to retrieve EVM address if private key is ECDSA type
       try {
-        const privateKey = PrivateKey.fromStringDer(newAccountInfo.privateKey);
+        const privateKey: PrivateKey = PrivateKey.fromStringDer(newAccountInfo.privateKey);
         newAccountInfo.privateKeyRaw = privateKey.toStringRaw();
       } catch {
         throw new SoloError(`failed to retrieve EVM address for accountId ${newAccountInfo.accountId}`);
@@ -189,7 +217,7 @@ export class AccountCommand extends BaseCommand {
   }
 
   private async updateAccountInfo(context_: UpdateAccountContext): Promise<boolean> {
-    let amount = context_.config.amount;
+    let amount: number = context_.config.amount;
     if (context_.config.ed25519PrivateKey) {
       if (
         !(await this.accountManager.sendAccountKeyUpdate(
@@ -201,11 +229,12 @@ export class AccountCommand extends BaseCommand {
         throw new SoloError(`failed to update account keys for accountId ${context_.accountInfo.accountId}`);
       }
     } else {
-      amount = amount || (flags.amount.definition.defaultValue as number);
+      const defaultAmount: number = flags.amount.definition.defaultValue as number;
+      amount = amount || defaultAmount;
     }
 
-    const hbarAmount = Number.parseFloat(amount.toString());
-    if (amount && Number.isNaN(hbarAmount)) {
+    const hbarAmount: number = Number.parseFloat(amount.toString());
+    if (Number.isNaN(hbarAmount)) {
       throw new SoloError(`The HBAR amount was invalid: ${amount}`);
     }
 
@@ -224,13 +253,11 @@ export class AccountCommand extends BaseCommand {
     amount: number,
     deploymentName: DeploymentName,
   ): Promise<boolean> {
-    const operatorAccountId = this.accountManager.getOperatorAccountId(deploymentName);
+    const operatorAccountId: AccountId = this.accountManager.getOperatorAccountId(deploymentName);
     return await this.accountManager.transferAmount(operatorAccountId, toAccountId, amount);
   }
 
   public async init(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
     interface Config {
       namespace: NamespaceName;
       nodeAliases: NodeAliases;
@@ -250,15 +277,15 @@ export class AccountCommand extends BaseCommand {
       };
     }
 
-    const tasks: Listr<Context, any, any> = new Listr(
+    const tasks: Listr<Context, ListrRendererValue, ListrRendererValue> = new Listr(
       [
         {
           title: 'Initialize',
           task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<void> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
 
-            self.configManager.update(argv);
+            this.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
 
@@ -266,7 +293,7 @@ export class AccountCommand extends BaseCommand {
             const contextName: string = this.getClusterContext(clusterReference);
 
             const config: Config = {
-              deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
               clusterRef: clusterReference,
               contextName,
               namespace: await this.resolveNamespaceFromDeployment(task),
@@ -282,17 +309,17 @@ export class AccountCommand extends BaseCommand {
             // set config in the context for later tasks to use
             context_.config = config;
 
-            await self.accountManager.loadNodeClient(
+            await this.accountManager.loadNodeClient(
               config.namespace,
-              self.remoteConfig.getClusterRefs(),
-              self.configManager.getFlag<DeploymentName>(flags.deployment),
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
+              this.remoteConfig.getClusterRefs(),
+              this.configManager.getFlag<DeploymentName>(flags.deployment),
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
           },
         },
         {
           title: 'Update special account keys',
-          task: (_, task): SoloListr<Context> => {
+          task: (): SoloListr<Context> => {
             return new Listr(
               [
                 {
@@ -300,13 +327,13 @@ export class AccountCommand extends BaseCommand {
                   task: async (context_: Context): Promise<void> => {
                     const config: Config = context_.config;
 
-                    context_.updateSecrets = await self.k8Factory
+                    context_.updateSecrets = await this.k8Factory
                       .getK8(config.clusterRef)
                       .secrets()
                       .list(config.namespace, ['solo.hedera.com/account-id'])
                       .then((secrets): boolean => secrets.length > 0);
 
-                    context_.accountsBatchedSet = self.accountManager.batchAccounts(this.systemAccounts);
+                    context_.accountsBatchedSet = this.accountManager.batchAccounts(this.systemAccounts);
 
                     context_.resultTracker = {
                       rejectedCount: 0,
@@ -318,12 +345,12 @@ export class AccountCommand extends BaseCommand {
                     const deployment: DeploymentName = config.deployment;
                     const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
                     const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-                    await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 1);
+                    await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 1);
                   },
                 },
                 {
                   title: 'Update special account key sets',
-                  task: (context_: Context): SoloListr<Context> => {
+                  task: (context_: Context, task: SoloListrTaskWrapper<Context>): SoloListr<Context> => {
                     const config: Config = context_.config;
 
                     const subTasks: SoloListrTask<Context>[] = [];
@@ -343,7 +370,7 @@ export class AccountCommand extends BaseCommand {
                         task: async (context_: Context): Promise<void> => {
                           const config: Config = context_.config;
 
-                          context_.resultTracker = await self.accountManager.updateSpecialAccountsKeys(
+                          context_.resultTracker = await this.accountManager.updateSpecialAccountsKeys(
                             config.namespace,
                             currentSet,
                             context_.updateSecrets,
@@ -370,9 +397,9 @@ export class AccountCommand extends BaseCommand {
 
                     for (const nodeAlias of config.nodeAliases) {
                       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-                      const nodeClient = await self.accountManager.refreshNodeClient(
+                      const nodeClient: Client = await this.accountManager.refreshNodeClient(
                         config.namespace,
-                        self.remoteConfig.getClusterRefs(),
+                        this.remoteConfig.getClusterRefs(),
                         nodeAlias,
                         config.deployment,
                       );
@@ -391,7 +418,7 @@ export class AccountCommand extends BaseCommand {
                         const txResp: TransactionResponse = await signedTx.execute(nodeClient);
                         const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(nodeClient);
 
-                        self.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()} for node ${nodeAlias}`);
+                        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()} for node ${nodeAlias}`);
 
                         // save new key in k8s secret
                         const data: {privateKey: string; publicKey: string} = {
@@ -417,17 +444,17 @@ export class AccountCommand extends BaseCommand {
                 {
                   title: 'Display results',
                   task: ({resultTracker: {fulfilledCount, skippedCount, rejectedCount}}: Context): void => {
-                    self.logger.showUser(chalk.green(`Account keys updated SUCCESSFULLY: ${fulfilledCount}`));
+                    this.logger.showUser(chalk.green(`Account keys updated SUCCESSFULLY: ${fulfilledCount}`));
 
                     if (skippedCount > 0) {
-                      self.logger.showUser(chalk.cyan(`Account keys updates SKIPPED: ${skippedCount}`));
+                      this.logger.showUser(chalk.cyan(`Account keys updates SKIPPED: ${skippedCount}`));
                     }
 
                     if (rejectedCount > 0) {
-                      self.logger.showUser(chalk.yellowBright(`Account keys updates with ERROR: ${rejectedCount}`));
+                      this.logger.showUser(chalk.yellowBright(`Account keys updates with ERROR: ${rejectedCount}`));
                     }
 
-                    self.logger.showUser(chalk.gray('Waiting for sockets to be closed....'));
+                    this.logger.showUser(chalk.gray('Waiting for sockets to be closed....'));
 
                     if (rejectedCount > 0) {
                       throw new SoloError(`Account keys updates failed for ${rejectedCount} accounts.`);
@@ -455,16 +482,14 @@ export class AccountCommand extends BaseCommand {
     } finally {
       await this.closeConnections();
       // create two accounts to force the handler to trigger
-      await self.create(argv);
-      await self.create(argv);
+      await this.create(argv);
+      await this.create(argv);
     }
 
     return true;
   }
 
   public async create(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
     interface Config {
       amount: number;
       ecdsaPrivateKey: string;
@@ -484,34 +509,34 @@ export class AccountCommand extends BaseCommand {
       privateKey: PrivateKey;
     }
 
-    const tasks: Listr<Context, any, any> = new Listr(
+    const tasks: Listr<Context, ListrRendererValue, ListrRendererValue> = new Listr(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
+          task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
 
-            self.configManager.update(argv);
+            this.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
 
             const config: Config = {
-              amount: self.configManager.getFlag(flags.amount),
-              ecdsaPrivateKey: self.configManager.getFlag(flags.ecdsaPrivateKey),
+              amount: this.configManager.getFlag(flags.amount),
+              ecdsaPrivateKey: this.configManager.getFlag(flags.ecdsaPrivateKey),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-              deployment: self.configManager.getFlag(flags.deployment),
-              ed25519PrivateKey: self.configManager.getFlag(flags.ed25519PrivateKey),
-              setAlias: self.configManager.getFlag(flags.setAlias),
-              generateEcdsaKey: self.configManager.getFlag(flags.generateEcdsaKey),
-              privateKey: self.configManager.getFlag(flags.privateKey),
-              createAmount: self.configManager.getFlag(flags.createAmount),
-              clusterRef: self.configManager.getFlag(flags.clusterRef),
+              deployment: this.configManager.getFlag(flags.deployment),
+              ed25519PrivateKey: this.configManager.getFlag(flags.ed25519PrivateKey),
+              setAlias: this.configManager.getFlag(flags.setAlias),
+              generateEcdsaKey: this.configManager.getFlag(flags.generateEcdsaKey),
+              privateKey: this.configManager.getFlag(flags.privateKey),
+              createAmount: this.configManager.getFlag(flags.createAmount),
+              clusterRef: this.configManager.getFlag(flags.clusterRef),
             } as Config;
 
             config.contextName =
               this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
-              self.k8Factory.default().contexts().readCurrent();
+              this.k8Factory.default().contexts().readCurrent();
 
             if (!config.amount) {
               config.amount = flags.amount.definition.defaultValue as number;
@@ -524,25 +549,31 @@ export class AccountCommand extends BaseCommand {
             // set config in the context for later tasks to use
             context_.config = config;
 
-            await self.accountManager.loadNodeClient(
+            await this.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfig.getClusterRefs(),
+              this.remoteConfig.getClusterRefs(),
               config.deployment,
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
           },
         },
         {
           title: 'create the new account',
-          task: async (context_, task) => {
+          task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<SoloListr<Context>> => {
             const subTasks: SoloListrTask<Context>[] = [];
 
-            for (let index = 0; index < context_.config.createAmount; index++) {
+            for (let index: number = 0; index < context_.config.createAmount; index++) {
               subTasks.push({
                 title: `Create accounts [${index}]`,
-                task: async (context_: Context) => {
-                  self.accountInfo = await self.createNewAccount(context_);
-                  const accountInfoCopy = {...self.accountInfo};
+                task: async (context_: Context): Promise<void> => {
+                  this.accountInfo = await this.createNewAccount(context_);
+                  const accountInfoCopy: {
+                    accountId: string;
+                    balance: number;
+                    publicKey: string;
+                    privateKey?: string;
+                    accountAlias?: string;
+                  } = {...this.accountInfo};
                   if (!context_.config.privateKey) {
                     delete accountInfoCopy.privateKey;
                   }
@@ -579,35 +610,37 @@ export class AccountCommand extends BaseCommand {
   }
 
   public async update(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
-    const tasks: Listr<UpdateAccountContext, any, any> = new Listr(
+    const tasks: Listr<UpdateAccountContext, ListrRendererValue, ListrRendererValue> = new Listr(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
+          task: async (
+            context_: UpdateAccountContext,
+            task: SoloListrTaskWrapper<UpdateAccountContext>,
+          ): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
 
-            self.configManager.update(argv);
+            this.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
 
-            await self.configManager.executePrompt(task, [flags.accountId]);
+            await this.configManager.executePrompt(task, [flags.accountId]);
 
-            const config = {
-              accountId: self.configManager.getFlag(flags.accountId),
-              amount: self.configManager.getFlag<number>(flags.amount),
+            const config: UpdateAccountConfig = {
+              accountId: this.configManager.getFlag(flags.accountId),
+              amount: this.configManager.getFlag<number>(flags.amount),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-              deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
-              ecdsaPrivateKey: self.configManager.getFlag(flags.ecdsaPrivateKey),
-              ed25519PrivateKey: self.configManager.getFlag(flags.ed25519PrivateKey),
-              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
-            } as UpdateAccountConfig;
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+              ecdsaPrivateKey: this.configManager.getFlag(flags.ecdsaPrivateKey),
+              ed25519PrivateKey: this.configManager.getFlag(flags.ed25519PrivateKey),
+              clusterRef: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
+              contextName: '',
+            };
 
             config.contextName =
               this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
-              self.k8Factory.default().contexts().readCurrent();
+              this.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -616,19 +649,19 @@ export class AccountCommand extends BaseCommand {
             // set config in the context for later tasks to use
             context_.config = config;
 
-            await self.accountManager.loadNodeClient(
+            await this.accountManager.loadNodeClient(
               config.namespace,
-              self.remoteConfig.getClusterRefs(),
+              this.remoteConfig.getClusterRefs(),
               config.deployment,
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
           },
         },
         {
           title: 'get the account info',
-          task: async context_ => {
-            context_.accountInfo = await self.buildAccountInfo(
-              await self.getAccountInfo(context_),
+          task: async (context_: UpdateAccountContext): Promise<void> => {
+            context_.accountInfo = await this.buildAccountInfo(
+              await this.getAccountInfo(context_),
               context_.config.namespace,
               !!context_.config.ed25519PrivateKey,
             );
@@ -636,21 +669,21 @@ export class AccountCommand extends BaseCommand {
         },
         {
           title: 'update the account',
-          task: async context_ => {
-            if (!(await self.updateAccountInfo(context_))) {
+          task: async (context_: UpdateAccountContext): Promise<void> => {
+            if (!(await this.updateAccountInfo(context_))) {
               throw new SoloError(`An error occurred updating account ${context_.accountInfo.accountId}`);
             }
           },
         },
         {
           title: 'get the updated account info',
-          task: async context_ => {
-            self.accountInfo = await self.buildAccountInfo(
-              await self.getAccountInfo(context_),
+          task: async (context_: UpdateAccountContext): Promise<void> => {
+            this.accountInfo = await this.buildAccountInfo(
+              await this.getAccountInfo(context_),
               context_.config.namespace,
               false,
             );
-            this.logger.showJSON('account info', self.accountInfo);
+            this.logger.showJSON('account info', this.accountInfo);
             this.logger.showUser(AccountCommand.ACCOUNT_KEY_USER_MESSAGE);
           },
         },
@@ -669,9 +702,223 @@ export class AccountCommand extends BaseCommand {
     return true;
   }
 
-  public async get(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
+  public async createPredefined(argv: ArgvStruct): Promise<boolean> {
+    interface Config {
+      namespace: NamespaceName;
+      deployment: DeploymentName;
+      contextName: string;
+      clusterRef: ClusterReferenceName;
+    }
 
+    interface Context {
+      config: Config;
+      createdAccounts: CreatedPredefinedAccount[];
+    }
+
+    const tasks: Listr<Context, ListrRendererValue, ListrRendererValue> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts([flags.clusterRef]);
+
+            const config: Config = {
+              namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
+              deployment: this.configManager.getFlag(flags.deployment),
+              clusterRef: this.configManager.getFlag(flags.clusterRef),
+              contextName: '',
+            };
+
+            config.contextName =
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              this.k8Factory.default().contexts().readCurrent();
+
+            if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
+              throw new SoloError(`namespace ${config.namespace} does not exist`);
+            }
+
+            context_.config = config;
+            context_.createdAccounts = [];
+
+            await this.accountManager.loadNodeClient(
+              config.namespace,
+              this.remoteConfig.getClusterRefs(),
+              config.deployment,
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
+            );
+          },
+        },
+        {
+          title: 'Create predefined accounts',
+          task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<Listr<Context>> => {
+            const subTasks: SoloListrTask<Context>[] = [];
+            const accountsToCreate: PredefinedAccount[] = [
+              ...predefinedEcdsaAccounts,
+              ...predefinedEcdsaAccountsWithAlias,
+              ...predefinedEd25519Accounts,
+            ];
+
+            for (const [index, account] of accountsToCreate.entries()) {
+              subTasks.push({
+                title: `Creating Account ${index}`,
+                task: async (context_: Context, subTask: SoloListrTaskWrapper<Context>): Promise<void> => {
+                  await helpers.sleep(Duration.ofMillis(100 * index));
+                  const balance: Hbar = account.balance ?? Hbar.from(0, HbarUnit.Hbar);
+                  const createdAccount: {
+                    accountId: string;
+                    privateKey: string;
+                    publicKey: string;
+                    balance: number;
+                    accountAlias?: string;
+                  } = await this.accountManager.createNewAccount(
+                    context_.config.namespace,
+                    account.privateKey,
+                    balance.to(HbarUnit.Hbar).toNumber(),
+                    account.alias,
+                    context_.config.contextName,
+                  );
+
+                  context_.createdAccounts.push({
+                    accountId: AccountId.fromString(createdAccount.accountId),
+                    data: account,
+                    alias: createdAccount.accountAlias,
+                    publicKey: createdAccount.publicKey,
+                  });
+
+                  subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
+                },
+              });
+            }
+
+            return task.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+        },
+        {
+          title: 'Show accounts',
+          task: async (context_: Context): Promise<void> => {
+            this.showPredefinedAccounts(context_.createdAccounts, context_.config.deployment);
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error in creating predefined accounts: ${error.message}`, error);
+    } finally {
+      await this.closeConnections();
+    }
+
+    return true;
+  }
+
+  private showPredefinedAccounts(createdAccounts: CreatedPredefinedAccount[] = [], deployment: DeploymentName): void {
+    if (createdAccounts.length === 0) {
+      return;
+    }
+
+    createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
+      a.accountId.compare(b.accountId),
+    );
+
+    const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+      (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA,
+    );
+    const aliasAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+      (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
+    );
+    const ed25519Accounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+      (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ED25519,
+    );
+
+    const systemAccountsGroupKey: string = 'system-accounts';
+    const ecdsaGroupKey: string = 'accounts-created-ecdsa';
+    const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
+    const ed25519GroupKey: string = 'accounts-created-ed25519';
+
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
+    const operatorAccountData: SystemAccount = {
+      name: 'Operator',
+      accountId: entityId(shard, realm, 2),
+      publicKey: constants.GENESIS_PUBLIC_KEY,
+    };
+
+    if (constants.GENESIS_KEY === constants.DEFAULT_GENESIS_KEY) {
+      operatorAccountData.privateKey = constants.DEFAULT_GENESIS_KEY;
+    }
+
+    const systemAccounts: SystemAccount[] = [operatorAccountData];
+
+    if (systemAccounts.length > 0) {
+      this.logger.addMessageGroup(systemAccountsGroupKey, 'System Accounts');
+
+      for (const account of systemAccounts) {
+        let message: string = `${account.name} Account ID: ${account.accountId.toString()}, Public Key: ${account.publicKey.toString()}`;
+        if (account.privateKey) {
+          message += `, Private Key: ${account.privateKey}`;
+        }
+        this.logger.addMessageGroupMessage(systemAccountsGroupKey, message);
+      }
+
+      this.logger.showMessageGroup(systemAccountsGroupKey);
+    }
+
+    this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts above)');
+    this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
+    this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
+
+    if (aliasAccounts.length > 0) {
+      for (const account of aliasAccounts) {
+        this.logger.addMessageGroupMessage(
+          ecdsaAliasGroupKey,
+          `Account ID: ${account.accountId.toString()}, Public address: ${account.alias}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+        );
+      }
+
+      this.logger.showMessageGroup(ecdsaAliasGroupKey);
+    }
+
+    if (ed25519Accounts.length > 0) {
+      for (const account of ed25519Accounts) {
+        this.logger.addMessageGroupMessage(
+          ed25519GroupKey,
+          `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+        );
+      }
+
+      this.logger.showMessageGroup(ed25519GroupKey);
+    }
+
+    if (ecdsaAccounts.length > 0) {
+      for (const account of ecdsaAccounts) {
+        this.logger.addMessageGroupMessage(
+          ecdsaGroupKey,
+          `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+        );
+      }
+
+      this.logger.showMessageGroup(ecdsaGroupKey);
+    }
+
+    this.logger.showUser(
+      'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
+    );
+  }
+
+  public async get(argv: ArgvStruct): Promise<boolean> {
     interface Config {
       accountId: string;
       namespace: NamespaceName;
@@ -685,30 +932,31 @@ export class AccountCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: Listr<Context, any, any> = new Listr(
+    const tasks: Listr<Context, ListrRendererValue, ListrRendererValue> = new Listr(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
+          task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
 
-            self.configManager.update(argv);
-            await self.configManager.executePrompt(task, [flags.accountId]);
+            this.configManager.update(argv);
+            await this.configManager.executePrompt(task, [flags.accountId]);
 
             flags.disablePrompts([flags.clusterRef]);
 
-            const config = {
-              accountId: self.configManager.getFlag(flags.accountId),
+            const config: Config = {
+              accountId: this.configManager.getFlag(flags.accountId),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-              deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
-              privateKey: self.configManager.getFlag<boolean>(flags.privateKey),
-              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+              privateKey: this.configManager.getFlag<boolean>(flags.privateKey),
+              clusterRef: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
+              contextName: '',
             } as Config;
 
             config.contextName =
               this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
-              self.k8Factory.default().contexts().readCurrent();
+              this.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -717,23 +965,23 @@ export class AccountCommand extends BaseCommand {
             // set config in the context for later tasks to use
             context_.config = config;
 
-            await self.accountManager.loadNodeClient(
+            await this.accountManager.loadNodeClient(
               config.namespace,
-              self.remoteConfig.getClusterRefs(),
+              this.remoteConfig.getClusterRefs(),
               config.deployment,
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
           },
         },
         {
           title: 'get the account info',
-          task: async context_ => {
-            self.accountInfo = await self.buildAccountInfo(
-              await self.getAccountInfo(context_),
+          task: async (context_: Context): Promise<void> => {
+            this.accountInfo = await this.buildAccountInfo(
+              await this.getAccountInfo(context_),
               context_.config.namespace,
               context_.config.privateKey,
             );
-            this.logger.showJSON('account info', self.accountInfo);
+            this.logger.showJSON('account info', this.accountInfo);
             this.logger.showUser(AccountCommand.ACCOUNT_KEY_USER_MESSAGE);
           },
         },
