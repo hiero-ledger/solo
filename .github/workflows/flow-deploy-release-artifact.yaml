@@ -44,8 +44,8 @@ jobs:
     name: Prepare Workflow Run
     runs-on: hiero-solo-linux-medium
     outputs:
-      version: ${{ steps.tag.outputs.version }}
-      need-release: ${{ steps.calculate-version.outputs.need-release }}
+      version: ${{ steps.set-outputs.outputs.version }}
+      need-release: ${{ steps.set-outputs.outputs.need-release }}
     steps:
       - name: Prepare Release
         uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
@@ -79,10 +79,15 @@ jobs:
         run: |
           PROCEED="true"
           if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
-            if npx semantic-release --dry-run; then
-              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
+            if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
+              if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
+                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
+              else
+                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected NO new version"
+                PROCEED="false"
+              fi
             else
-              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did not detect a new version"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did NOT run successfully"
               PROCEED="false"
             fi
           else
@@ -97,8 +102,8 @@ jobs:
           echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
       - name: Extract Version
-        id: tag
-        if: ${{ steps.calculate-version.outputs.need-release == 'true' }}
+        id: set-outputs
+        if: ${{ !cancelled() && always() }}
         run: |
           cat VERSION
           [[ "${{ inputs.dry-run-enabled }}" == "true" && ! -f VERSION ]] && echo -n "0.0.0-latest" > VERSION
