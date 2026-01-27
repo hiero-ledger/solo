@@ -70,17 +70,17 @@ describe('Node add with hedera local build', (): void => {
 
     it('Should create and update a file', async (): Promise<void> => {
       const {newArgv} = BaseCommandTest;
-      const testCacheDirectory = `./test-cache/${namespace.name}`;
+      const testCacheDirectory: string = `./test-cache/${namespace.name}`;
 
       try {
         // Create a test file
-        const testContent = 'Hello, Hiero! ' + randomBytes(8).toString('hex');
-        const testFilePath = path.join(testCacheDirectory, 'test-file.txt');
+        const testContent: string = 'Hello, Hiero! ' + randomBytes(8).toString('hex');
+        const testFilePath: string = path.join(testCacheDirectory, 'test-file.txt');
         await fs.mkdir(path.dirname(testFilePath), {recursive: true});
         await fs.writeFile(testFilePath, testContent, 'utf8');
 
         // Create file on Hiero
-        const createArguments = newArgv();
+        const createArguments: string[] = newArgv();
         createArguments.push(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
@@ -94,11 +94,11 @@ describe('Node add with hedera local build', (): void => {
         await main(createArguments);
 
         // Update the file with new content
-        const updatedContent = 'Updated content ' + randomBytes(8).toString('hex');
-        const updatedFilePath = path.join(testCacheDirectory, 'test-file-updated.txt');
+        const updatedContent: string = 'Updated content ' + randomBytes(8).toString('hex');
+        const updatedFilePath: string = path.join(testCacheDirectory, 'test-file-updated.txt');
         await fs.writeFile(updatedFilePath, updatedContent, 'utf8');
 
-        const updateArguments = newArgv();
+        const updateArguments: string[] = newArgv();
         updateArguments.push(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
@@ -115,7 +115,10 @@ describe('Node add with hedera local build', (): void => {
 
         // Clean up test files
         try {
-          await Promise.all([fs.unlink(testFilePath).catch(() => {}), fs.unlink(updatedFilePath).catch(() => {})]);
+          await Promise.all([
+            fs.unlink(testFilePath).catch((): void => {}),
+            fs.unlink(updatedFilePath).catch((): void => {}),
+          ]);
         } catch {
           // Ignore cleanup errors
         }

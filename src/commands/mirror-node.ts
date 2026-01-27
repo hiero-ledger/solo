@@ -31,6 +31,7 @@ import {
   type SoloListrTask,
 } from '../types/index.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -452,7 +453,10 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): Promise<void> {
-    if (config.isChartInstalled && semver.gte(config.mirrorNodeVersion, '0.130.0')) {
+    if (
+      config.isChartInstalled &&
+      semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+    ) {
       // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
       const existingSecrets: Secret = await this.k8Factory
         .getK8(config.clusterContext)
@@ -916,9 +920,11 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
-              ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
-              : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            config.valuesArg = helpers.prepareValuesFiles(
+              semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+                ? constants.MIRROR_NODE_VALUES_FILE_HEDERA
+                : constants.MIRROR_NODE_VALUES_FILE,
+            );
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
@@ -1120,7 +1126,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
+            config.valuesArg = semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
               : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
@@ -1272,11 +1278,11 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
-    return semver.lt(version, '0.130.0') ? 'HEDERA' : 'HIERO';
+    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'HEDERA' : 'HIERO';
   }
 
   private getChartNamespace(version: string): string {
-    return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
+    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
