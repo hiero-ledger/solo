@@ -745,6 +745,36 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeMapping: CommandFlag = {
+    constName: 'blockNodeIds',
+    name: 'block-node-mapping',
+    definition: {
+      describe: Flags.renderBlockNodeMappingDescription('block-node'),
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly externalBlockNodeMapping: CommandFlag = {
+    constName: 'externalBlockNodeIds',
+    name: 'external-block-node-mapping',
+    definition: {
+      describe: Flags.renderBlockNodeMappingDescription('external-block-node'),
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static renderBlockNodeMappingDescription(name: 'block-node' | 'external-block-node'): string {
+    return (
+      chalk.grey(`Configure ${name} priority mapping`) +
+      chalk.blue(`\n\t(Default: all ${name} included, first's priority is 2)`) +
+      chalk.yellow('\n\t[Format: <id>=<priority>[,<id>=<priority>]]') +
+      chalk.yellow(`\n\t[Example: "--${name}-mapping 1=2,2=1"]`) +
+      chalk.red(`\n\t[Unlisted ${name} will not routed to the consensus node node]`)
+    );
+  }
+
   public static readonly mirrorNodeChartDirectory: CommandFlag = {
     constName: 'mirrorNodeChartDirectory',
     name: 'mirror-node-chart-dir',
@@ -2983,6 +3013,8 @@ export class Flags {
     Flags.zipFile,
     Flags.maxTps,
     Flags.enableMonitoringSupport,
+    Flags.blockNodeMapping,
+    Flags.externalBlockNodeMapping,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
