@@ -24,6 +24,9 @@ import {
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {main} from '../../../src/index.js';
+import {buildMainArgv} from '../../test-utility.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -42,8 +45,7 @@ export function testSeparateNodeUpdate(
   );
 
   const {
-    opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
-    cmd: {nodeCmd},
+    opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
   } = bootstrapResp;
 
   describe('Node update via separated commands', async (): Promise<void> => {
@@ -89,36 +91,55 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPublicKey, tlsKeyFiles.certificateFile);
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
-      const temporaryDirectory2: string = 'contextDir';
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
+      const temporaryContextDirectory: string = 'contextDir';
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_PREPARE,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.outputDir, temporaryContextDirectory],
+            [flags.nodeAlias, argv.getArg<string>(flags.nodeAlias)],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+            [flags.gossipPublicKey, argv.getArg<string>(flags.gossipPublicKey)],
+            [flags.gossipPrivateKey, argv.getArg<string>(flags.gossipPrivateKey)],
+            [flags.tlsPublicKey, argv.getArg<string>(flags.tlsPublicKey)],
+            [flags.tlsPrivateKey, argv.getArg<string>(flags.tlsPrivateKey)],
+            [flags.newAccountNumber, argv.getArg<string>(flags.newAccountNumber)],
+            [flags.newAdminKey, argv.getArg<string>(flags.newAdminKey)],
+          ]),
+        ),
+      );
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.inputDir, temporaryContextDirectory],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updatePrepare(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateSubmitTransactions(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateExecute(argv),
-      });
+      await main(
+        buildMainArgv(
+          namespace.toString(),
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+          new Map<CommandFlag, string>([
+            [flags.deployment, argv.getArg<DeploymentName>(flags.deployment)],
+            [flags.inputDir, temporaryContextDirectory],
+            [flags.cacheDir, argv.getArg<string>(flags.cacheDir)],
+          ]),
+        ),
+      );
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
