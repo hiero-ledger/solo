@@ -18,7 +18,9 @@ vars:
   CONTEXT: "kind-localbuild-with-custom-config-cluster"
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
 
-  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+  CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
   CN_VERSION: "0.63.0"
