@@ -8,10 +8,10 @@
     "screenshot": "node dist/src/screenshot.js"
   },
   "devDependencies": {
-    "esbuild": "^0.18.0",
+    "esbuild": "^0.25.0",
     "typescript": "^5.0.0",
     "http-server": "^14.1.1",
-    "puppeteer": "^21.3.8",
+    "puppeteer": "^24.36.0",
     "ts-node": "^10.9.1",
     "@types/node": "^20.0.0",
     "@types/puppeteer": "^5.4.7"
