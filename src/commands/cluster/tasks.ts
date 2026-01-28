@@ -28,8 +28,6 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import * as versions from '../../../version.js';
-import * as fs from 'node:fs';
-import * as yaml from 'yaml';
 import {findMinioOperator} from '../../core/helpers.js';
 
 @injectable()
@@ -345,17 +343,29 @@ export class ClusterCommandTasks {
 
         try {
           // Check if ClusterRole already exists using Kubernetes JavaScript API
-          await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
           self.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
         } catch {
           // ClusterRole doesn't exist, create it
           try {
-            const yamlContent = fs.readFileSync(constants.POD_MONITOR_ROLE_TEMPLATE, 'utf8');
-            const clusterRole = yaml.parse(yamlContent);
-
-            await k8.rbac().createClusterRole(clusterRole);
+            await k8.rbac().createClusterRole(
+              constants.POD_MONITOR_ROLE,
+              [
+                {
+                  apiGroups: [''],
+                  resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
+                  verbs: ['get', 'list'],
+                },
+                {
+                  apiGroups: [''],
+                  resources: ['pods/exec'],
+                  verbs: ['create'],
+                },
+              ],
+              {'solo.hedera.com/type': 'cluster-role'},
+            );
             self.logger.showUser(
               `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
             );
@@ -374,7 +384,7 @@ export class ClusterCommandTasks {
       task: async ({config: {context}}): Promise<void> => {
         try {
           // Check if ClusterRole exists using Kubernetes JavaScript API
-          await this.k8Factory.getK8(context).rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          await this.k8Factory.getK8(context).rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
 
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);

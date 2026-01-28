@@ -80,7 +80,7 @@ export class KindExecution {
           reject(
             new KindExecutionException(
               code || 1,
-              `Process exited with code ${code}` + this.standardError(),
+              `Process exited with code ${code}: ${this.standardError()}`,
               this.standardOutput(),
               this.standardError(),
             ),

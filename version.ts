@@ -23,7 +23,7 @@ export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.68.6';
 export const S6_NODE_IMAGE_VERSION: string = constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.40.8';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.145.2';
-export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '25.1.1';
+export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.0.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.73.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
@@ -45,7 +45,9 @@ export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVe
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS: string = 'v0.62.0';
-export const MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE: string = '0.70.0';
+export const MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE: string = '0.69.0';
+
+export const POST_HIERO_MIGRATION_MIRROR_NODE_VERSION: string = '0.130.0';
 
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {

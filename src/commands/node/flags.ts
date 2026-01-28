@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
-import {type CommandFlag} from '../../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 
-export const DEFAULT_FLAGS = {
+export const DEFAULT_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.devMode, flags.cacheDir, flags.releaseTag],
 };
@@ -20,8 +20,8 @@ export const PREPARE_UPGRADE_FLAGS: {optional: CommandFlag[]; required: CommandF
   optional: PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 };
 
-const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
-const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS = [
+const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.app,
   flags.cacheDir,
   flags.debugNodeAlias,
@@ -36,8 +36,8 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS = [
   flags.s6,
 ];
 
-const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
-const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
+const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.app,
   flags.cacheDir,
   flags.debugNodeAlias,
@@ -55,27 +55,27 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
   flags.s6,
 ];
 
-export const UPGRADE_FLAGS = {
+export const UPGRADE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeVersion],
   optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
-export const UPGRADE_PREPARE_FLAGS = {
+export const UPGRADE_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir],
   optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
-export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS = {
+export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
-export const UPGRADE_EXECUTE_FLAGS = {
+export const UPGRADE_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
-export const UPDATE_FLAGS = {
+export const UPDATE_FLAGS: CommandFlags = {
   required: [...COMMON_UPDATE_FLAGS_REQUIRED_FLAGS, flags.nodeAlias],
   optional: [
     ...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS,
@@ -88,7 +88,7 @@ export const UPDATE_FLAGS = {
   ],
 };
 
-export const UPDATE_PREPARE_FLAGS = {
+export const UPDATE_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_UPDATE_FLAGS_REQUIRED_FLAGS, flags.outputDir, flags.nodeAlias],
   optional: [
     ...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS,
@@ -101,19 +101,19 @@ export const UPDATE_PREPARE_FLAGS = {
   ],
 };
 
-export const UPDATE_SUBMIT_TRANSACTIONS_FLAGS = {
+export const UPDATE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
   required: [...COMMON_UPDATE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS],
 };
 
-export const UPDATE_EXECUTE_FLAGS = {
+export const UPDATE_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_UPDATE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS, flags.adminKey, flags.newAdminKey, flags.newAccountNumber],
 };
 
-const COMMON_DESTROY_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
+const COMMON_DESTROY_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment, flags.nodeAlias];
 
-const COMMON_DESTROY_OPTIONAL_FLAGS = [
+const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.cacheDir,
   flags.app,
   flags.chainId,
@@ -130,9 +130,9 @@ const COMMON_DESTROY_OPTIONAL_FLAGS = [
   flags.s6,
 ];
 
-const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment];
+const COMMON_ADD_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
 
-const COMMON_ADD_OPTIONAL_FLAGS = [
+const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.app,
   flags.chainId,
   flags.clusterRef,
@@ -157,59 +157,61 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.generateTlsKeys,
   flags.releaseTag,
   flags.s6,
+  flags.blockNodeMapping,
+  flags.externalBlockNodeMapping,
 ];
 
-export const DESTROY_FLAGS = {
+export const DESTROY_FLAGS: CommandFlags = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS],
   optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DESTROY_PREPARE_FLAGS = {
+export const DESTROY_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.outputDir],
   optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DESTROY_SUBMIT_TRANSACTIONS_FLAGS = {
+export const DESTROY_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DESTROY_EXECUTE_FLAGS = {
+export const DESTROY_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const ADD_FLAGS = {
+export const ADD_FLAGS: CommandFlags = {
   required: [...COMMON_ADD_REQUIRED_FLAGS],
   optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps],
 };
 
-export const ADD_PREPARE_FLAGS = {
+export const ADD_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.outputDir],
   optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey],
 };
 
-export const ADD_SUBMIT_TRANSACTIONS_FLAGS = {
+export const ADD_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_ADD_OPTIONAL_FLAGS],
 };
 
-export const ADD_EXECUTE_FLAGS = {
+export const ADD_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.inputDir],
   optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps],
 };
 
-export const LOGS_FLAGS = {
+export const LOGS_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.outputDir],
 };
 
-export const STATES_FLAGS = {
+export const STATES_FLAGS: CommandFlags = {
   required: [flags.deployment, flags.nodeAliasesUnparsed],
   optional: [flags.clusterRef, flags.quiet],
 };
 
-export const REFRESH_FLAGS = {
+export const REFRESH_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [
     flags.app,
@@ -224,7 +226,7 @@ export const REFRESH_FLAGS = {
   ],
 };
 
-export const KEYS_FLAGS = {
+export const KEYS_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [
     flags.cacheDir,
@@ -238,17 +240,17 @@ export const KEYS_FLAGS = {
   ],
 };
 
-export const STOP_FLAGS = {
+export const STOP_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.nodeAliasesUnparsed, flags.s6],
 };
 
-export const FREEZE_FLAGS = {
+export const FREEZE_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.s6],
 };
 
-export const START_FLAGS = {
+export const START_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [
     flags.app,
@@ -262,12 +264,12 @@ export const START_FLAGS = {
   ],
 };
 
-export const RESTART_FLAGS = {
+export const RESTART_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.s6],
 };
 
-export const SETUP_FLAGS = {
+export const SETUP_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [
     flags.cacheDir,
@@ -283,7 +285,7 @@ export const SETUP_FLAGS = {
   ],
 };
 
-export const DIAGNOSTICS_CONNECTIONS = {
+export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.devMode],
 };

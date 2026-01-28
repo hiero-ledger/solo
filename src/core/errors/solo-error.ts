@@ -18,12 +18,17 @@ export class SoloError extends Error {
   ) {
     super(message);
     this.name = this.constructor.name;
-    this.statusCode = cause?.statusCode;
     // eslint-disable-next-line unicorn/no-useless-error-capture-stack-trace
     Error.captureStackTrace(this, this.constructor);
-    if (cause) {
+    if (cause && Object.keys(cause).length > 0) {
+      // if the cause message is the same as this message and this is a SoloError, re-throw the cause to avoid redundant wrapping
+      if (message === cause.message && this.name === SoloError.name) {
+        throw cause;
+      }
       this.cause = cause;
-      if (cause instanceof Error) {
+      this.statusCode = this.cause.statusCode ?? this.cause.code;
+      delete this.cause.headers; // remove headers to avoid leaking sensitive info
+      if (this.cause instanceof Error) {
         this.stack += `\nCaused by: ${(this.cause as Error).stack}`;
       }
     }

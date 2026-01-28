@@ -148,6 +148,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadLastState(),
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.updateBlockNodesJson(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
