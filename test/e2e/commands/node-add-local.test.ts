@@ -46,7 +46,7 @@ describe('Node add with hedera local build', (): void => {
 
   endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp): void => {
     const {
-      opts: {k8Factory, commandInvoker, accountManager},
+      opts: {k8Factory, accountManager},
       cmd: {networkCmd},
     } = bootstrapResp;
 
@@ -56,13 +56,22 @@ describe('Node add with hedera local build', (): void => {
       await accountManager.close();
 
       if (destroyEnabled()) {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: ConsensusCommandDefinition.COMMAND_NAME,
-          subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-          action: ConsensusCommandDefinition.NETWORK_DESTROY,
-          callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
-        });
+        const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+        const destroyArguments = newArgv();
+        // do NOT set the test cache-dir or push test-only flags here —
+        // `consensus network destroy` does not accept `--cache-dir` or `--quiet`.
+        argvPushGlobalFlags(destroyArguments, namespace.name, false);
+        destroyArguments.push(
+          ConsensusCommandDefinition.COMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+          ConsensusCommandDefinition.NETWORK_DESTROY,
+          '--deployment',
+          `${namespace.name}-deployment`,
+          '--delete-pvcs',
+          '--delete-secrets',
+          '--force',
+        );
+        await main(destroyArguments);
 
         await k8Factory.default().namespaces().delete(namespace);
       }
