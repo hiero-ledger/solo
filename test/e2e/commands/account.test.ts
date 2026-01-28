@@ -108,30 +108,18 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
     describe('ledger system init command', () => {
       it('should succeed with init command', async () => {
-        const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+        const {newArgv} = BaseCommandTest;
         const initArguments: string[] = newArgv();
-        argvPushGlobalFlags(initArguments, testName, true);
         initArguments.push(
           LedgerCommandDefinition.COMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_INIT,
-          '--namespace',
-          namespace.name,
-          '--release-tag',
-          HEDERA_PLATFORM_VERSION_TAG,
-          '--node-aliases-unparsed',
+          '--deployment',
+          `${namespace.name}-deployment`,
+          '--node-aliases',
           argv.getArg<string>(flags.nodeAliasesUnparsed),
-          '--generate-gossip-keys',
-          '--generate-tls-keys',
           '--cluster-ref',
           argv.getArg<string>(flags.clusterRef),
-          '--solo-chart-version',
-          argv.getArg<string>(flags.soloChartVersion),
-          '--realm',
-          String(argv.getArg<number>(flags.realm)),
-          '--shard',
-          String(argv.getArg<number>(flags.shard)),
-          '--force-port-forward',
         );
         await main(initArguments);
       }).timeout(Duration.ofMinutes(8).toMillis());
@@ -199,14 +187,15 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           argv.setArg(flags.amount, 200);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const createArguments: string[] = newArgv();
-          argvPushGlobalFlags(createArguments, testName, true);
           createArguments.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_CREATE,
-            '--amount',
+            '--deployment',
+            `${namespace.name}-deployment`,
+            '--hbar-amount',
             String(argv.getArg<number>(flags.amount)),
           );
           await main(createArguments);
@@ -233,16 +222,17 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.ed25519PrivateKey, constants.GENESIS_KEY);
           argv.setArg(flags.amount, 777);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const createArguments2: string[] = newArgv();
-          argvPushGlobalFlags(createArguments2, testName, true);
           createArguments2.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_CREATE,
+            '--deployment',
+            `${namespace.name}-deployment`,
             '--ed25519-private-key',
             String(argv.getArg<string>(flags.ed25519PrivateKey)),
-            '--amount',
+            '--hbar-amount',
             String(argv.getArg<number>(flags.amount)),
           );
           await main(createArguments2);
@@ -266,16 +256,17 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.amount, 0);
           argv.setArg(flags.accountId, accountId1);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const updateArguments: string[] = newArgv();
-          argvPushGlobalFlags(updateArguments, testName, true);
           updateArguments.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_UPDATE,
+            '--deployment',
+            `${namespace.name}-deployment`,
             '--account-id',
             String(argv.getArg<string>(flags.accountId)),
-            '--amount',
+            '--hbar-amount',
             String(argv.getArg<number>(flags.amount)),
           );
           await main(updateArguments);
@@ -299,18 +290,19 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.ed25519PrivateKey, constants.GENESIS_KEY);
           argv.setArg(flags.amount, 333);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const updateArguments2: string[] = newArgv();
-          argvPushGlobalFlags(updateArguments2, testName, true);
           updateArguments2.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_UPDATE,
+            '--deployment',
+            `${namespace.name}-deployment`,
             '--account-id',
             String(argv.getArg<string>(flags.accountId)),
             '--ed25519-private-key',
             String(argv.getArg<string>(flags.ed25519PrivateKey)),
-            '--amount',
+            '--hbar-amount',
             String(argv.getArg<number>(flags.amount)),
           );
           await main(updateArguments2);
@@ -332,13 +324,14 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           argv.setArg(flags.accountId, accountId1);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const infoArguments: string[] = newArgv();
-          argvPushGlobalFlags(infoArguments, testName, true);
           infoArguments.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_INFO,
+            '--deployment',
+            `${namespace.name}-deployment`,
             '--account-id',
             String(argv.getArg<string>(flags.accountId)),
           );
@@ -361,13 +354,14 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           argv.setArg(flags.accountId, accountId2);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const infoArguments2: string[] = newArgv();
-          argvPushGlobalFlags(infoArguments2, testName, true);
           infoArguments2.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_INFO,
+            '--deployment',
+            `${namespace.name}-deployment`,
             '--account-id',
             String(argv.getArg<string>(flags.accountId)),
           );
@@ -393,13 +387,14 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.ecdsaPrivateKey, ecdsaPrivateKey.toString());
           argv.setArg(flags.setAlias, true);
 
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          const {newArgv} = BaseCommandTest;
           const createEcdsaArguments: string[] = newArgv();
-          argvPushGlobalFlags(createEcdsaArguments, testName, true);
           createEcdsaArguments.push(
             LedgerCommandDefinition.COMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
             LedgerCommandDefinition.ACCOUNT_CREATE,
+            '--deployment',
+            `${namespace.name}-deployment`,
             '--ecdsa-private-key',
             String(argv.getArg<string>(flags.ecdsaPrivateKey)),
             '--set-alias',
@@ -560,6 +555,8 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
             ConsensusCommandDefinition.COMMAND_NAME,
             ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
             ConsensusCommandDefinition.NETWORK_FREEZE,
+            '--deployment',
+            `${namespace.name}-deployment`,
           );
           await main(freezeArguments);
 
@@ -569,6 +566,8 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
             ConsensusCommandDefinition.COMMAND_NAME,
             ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
             ConsensusCommandDefinition.NODE_RESTART,
+            '--deployment',
+            `${namespace.name}-deployment`,
           );
           await main(restartArguments);
         } catch (error) {
