@@ -277,7 +277,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
       // Check if this exact podPort and localPort pair already exists
       const existingConfig: PortForwardConfig | undefined = component.metadata.portForwardConfigs.find(
-        config => config.podPort === podPort && config.localPort === portForwardPortNumber,
+        (config): boolean => config.podPort === podPort && config.localPort === portForwardPortNumber,
       );
 
       if (existingConfig) {
@@ -338,7 +338,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
     // Find the matching port forward config
     const configIndex: number = component.metadata.portForwardConfigs.findIndex(
-      config => config.podPort === podPort && config.localPort === localPort,
+      (config): boolean => config.podPort === podPort && config.localPort === localPort,
     );
 
     if (configIndex === -1) {

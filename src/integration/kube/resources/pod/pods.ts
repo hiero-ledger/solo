@@ -11,7 +11,7 @@ export interface Pods {
    * @param podReference - the reference to the pod
    * @returns a pod object
    */
-  readByReference(podReference: PodReference): Pod;
+  readByReference(podReference: PodReference | null): Pod;
 
   /**
    * Get a pod by name
