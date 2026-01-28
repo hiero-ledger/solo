@@ -31,8 +31,6 @@ import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DeploymentName, type Realm, type Shard} from '../../../src/types/index.js';
-import {BaseCommandTest} from './tests/base-command-test.js';
-import {main} from '../../../src/index.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
@@ -70,7 +68,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
     let testLogger: SoloLogger;
 
     const {
-      opts: {k8Factory, accountManager, configManager, remoteConfig},
+      opts: {k8Factory, accountManager, configManager, commandInvoker, remoteConfig},
       cmd: {nodeCmd},
     } = bootstrapResp;
 
@@ -108,20 +106,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
     describe('ledger system init command', () => {
       it('should succeed with init command', async () => {
-        const {newArgv} = BaseCommandTest;
-        const initArguments: string[] = newArgv();
-        initArguments.push(
-          LedgerCommandDefinition.COMMAND_NAME,
-          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.SYSTEM_INIT,
-          '--deployment',
-          `${namespace.name}-deployment`,
-          '--node-aliases',
-          argv.getArg<string>(flags.nodeAliasesUnparsed),
-          '--cluster-ref',
-          argv.getArg<string>(flags.clusterRef),
-        );
-        await main(initArguments);
+        await commandInvoker.invoke({
+          argv: argv,
+          command: LedgerCommandDefinition.COMMAND_NAME,
+          subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+          action: LedgerCommandDefinition.SYSTEM_INIT,
+          callback: async (argv): Promise<boolean> => accountCmd.init(argv),
+        });
       }).timeout(Duration.ofMinutes(8).toMillis());
 
       describe('special accounts should have new keys', () => {
@@ -187,18 +178,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           argv.setArg(flags.amount, 200);
 
-          const {newArgv} = BaseCommandTest;
-          const createArguments: string[] = newArgv();
-          createArguments.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_CREATE,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--hbar-amount',
-            String(argv.getArg<number>(flags.amount)),
-          );
-          await main(createArguments);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const accountInfo = accountCmd.accountInfo;
@@ -222,20 +208,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.ed25519PrivateKey, constants.GENESIS_KEY);
           argv.setArg(flags.amount, 777);
 
-          const {newArgv} = BaseCommandTest;
-          const createArguments2: string[] = newArgv();
-          createArguments2.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_CREATE,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--ed25519-private-key',
-            String(argv.getArg<string>(flags.ed25519PrivateKey)),
-            '--hbar-amount',
-            String(argv.getArg<number>(flags.amount)),
-          );
-          await main(createArguments2);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const accountInfo = accountCmd.accountInfo;
@@ -256,20 +235,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.amount, 0);
           argv.setArg(flags.accountId, accountId1);
 
-          const {newArgv} = BaseCommandTest;
-          const updateArguments: string[] = newArgv();
-          updateArguments.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_UPDATE,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--account-id',
-            String(argv.getArg<string>(flags.accountId)),
-            '--hbar-amount',
-            String(argv.getArg<number>(flags.amount)),
-          );
-          await main(updateArguments);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_UPDATE,
+            callback: async (argv): Promise<boolean> => accountCmd.update(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const accountInfo = accountCmd.accountInfo;
@@ -290,22 +262,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.ed25519PrivateKey, constants.GENESIS_KEY);
           argv.setArg(flags.amount, 333);
 
-          const {newArgv} = BaseCommandTest;
-          const updateArguments2: string[] = newArgv();
-          updateArguments2.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_UPDATE,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--account-id',
-            String(argv.getArg<string>(flags.accountId)),
-            '--ed25519-private-key',
-            String(argv.getArg<string>(flags.ed25519PrivateKey)),
-            '--hbar-amount',
-            String(argv.getArg<number>(flags.amount)),
-          );
-          await main(updateArguments2);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_UPDATE,
+            callback: async (argv): Promise<boolean> => accountCmd.update(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const accountInfo = accountCmd.accountInfo;
@@ -324,18 +287,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           argv.setArg(flags.accountId, accountId1);
 
-          const {newArgv} = BaseCommandTest;
-          const infoArguments: string[] = newArgv();
-          infoArguments.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_INFO,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--account-id',
-            String(argv.getArg<string>(flags.accountId)),
-          );
-          await main(infoArguments);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_INFO,
+            callback: async (argv): Promise<boolean> => accountCmd.get(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const accountInfo = accountCmd.accountInfo;
@@ -354,18 +312,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           argv.setArg(flags.accountId, accountId2);
 
-          const {newArgv} = BaseCommandTest;
-          const infoArguments2: string[] = newArgv();
-          infoArguments2.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_INFO,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--account-id',
-            String(argv.getArg<string>(flags.accountId)),
-          );
-          await main(infoArguments2);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_INFO,
+            callback: async (argv): Promise<boolean> => accountCmd.get(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const accountInfo = accountCmd.accountInfo;
@@ -387,19 +340,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           argv.setArg(flags.ecdsaPrivateKey, ecdsaPrivateKey.toString());
           argv.setArg(flags.setAlias, true);
 
-          const {newArgv} = BaseCommandTest;
-          const createEcdsaArguments: string[] = newArgv();
-          createEcdsaArguments.push(
-            LedgerCommandDefinition.COMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-            LedgerCommandDefinition.ACCOUNT_CREATE,
-            '--deployment',
-            `${namespace.name}-deployment`,
-            '--ecdsa-private-key',
-            String(argv.getArg<string>(flags.ecdsaPrivateKey)),
-            '--set-alias',
-          );
-          await main(createEcdsaArguments);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+          });
 
           // @ts-expect-error - TS2341: to access private property
           const newAccountInfo = accountCmd.accountInfo;
@@ -547,29 +494,21 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       // hitchhiker account test to test node freeze and restart
       it('Freeze and restart all nodes should succeed', async () => {
         try {
-          const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+          await commandInvoker.invoke({
+            argv: argv,
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NETWORK_FREEZE,
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
+          });
 
-          const freezeArguments: string[] = newArgv();
-          argvPushGlobalFlags(freezeArguments, testName, true);
-          freezeArguments.push(
-            ConsensusCommandDefinition.COMMAND_NAME,
-            ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-            ConsensusCommandDefinition.NETWORK_FREEZE,
-            '--deployment',
-            `${namespace.name}-deployment`,
-          );
-          await main(freezeArguments);
-
-          const restartArguments: string[] = newArgv();
-          argvPushGlobalFlags(restartArguments, testName, true);
-          restartArguments.push(
-            ConsensusCommandDefinition.COMMAND_NAME,
-            ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-            ConsensusCommandDefinition.NODE_RESTART,
-            '--deployment',
-            `${namespace.name}-deployment`,
-          );
-          await main(restartArguments);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NODE_RESTART,
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
+          });
         } catch (error) {
           testLogger.showUserError(error);
         }
@@ -577,3 +516,4 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
     });
   });
 });
+
