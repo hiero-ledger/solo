@@ -1157,21 +1157,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly blockNodeCfg: CommandFlag = {
-    constName: 'blockNodeCfg',
-    name: 'block-node-cfg',
-    definition: {
-      describe:
-        'Configure block node routing for each consensus node. ' +
-        'Maps consensus node names to block node IDs and optional priority (default priority = 1). ' +
-        'Accepts: (1) JSON string: \'{"node1":["1=2","3=1"],"node2":["2"]}\' or (2) path to JSON file: \'block.json\'. ' +
-        'Example: node1 sends blocks to block nodes 1 and 3, node2 sends blocks to block node 2',
-      defaultValue: '',
-      type: 'string',
-    },
-    prompt: undefined,
-  };
-
   public static readonly priorityMapping: CommandFlag = {
     constName: 'priorityMapping',
     name: 'priority-mapping',
@@ -2963,7 +2948,6 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
-    Flags.blockNodeCfg,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
