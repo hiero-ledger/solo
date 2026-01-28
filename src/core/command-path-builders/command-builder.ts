@@ -102,7 +102,6 @@ export class CommandBuilder {
             command: commandGroup.name,
             desc: commandGroup.description,
             builder: (yargs: AnyYargs): AnyYargs => {
-              // yargs.help(); // Enable help for command group level
               for (const subcommand of commandGroup.subcommands) {
                 const handlerDefinition: CommandDefinition = {
                   command: subcommand.name,
@@ -138,7 +137,6 @@ export class CommandBuilder {
               }
 
               yargs.demandCommand(1, `Select a ${commandName} ${commandGroup.name} command`);
-              // return yargs.help();
               return yargs;
             },
           });
@@ -146,7 +144,6 @@ export class CommandBuilder {
 
         yargs.demandCommand(1, demandCommand);
 
-        // return yargs.help();
         return yargs;
       },
     };
