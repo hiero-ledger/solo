@@ -33,7 +33,7 @@
   ],
   "branches":[
     {
-      "name": "main"
+      "name": "ajb-test-branch-semantic-release-publishing-fix"
     },
     {
       "name": "release/([0-9]+).([0-9]+)",
