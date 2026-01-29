@@ -329,7 +329,7 @@ export class K8ClientPod implements Pod {
     return v1Pod;
   }
 
-  public static fromV1Pod(v1Pod: V1Pod, pods: Pods, coreV1Api: CoreV1Api, kubeConfig: KubeConfig): K8ClientPod {
+  public static fromV1Pod(v1Pod: V1Pod, pods: Pods, coreV1Api: CoreV1Api, kubeConfig: KubeConfig): Pod {
     if (!v1Pod) {
       return undefined;
     }

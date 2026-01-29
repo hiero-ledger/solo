@@ -211,7 +211,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // Only check the newest pod
             const newestItem: V1Pod = sortedItems[0];
-            const pod: K8ClientPod = K8ClientPod.fromV1Pod(newestItem, this, this.kubeClient, this.kubeConfig);
+            const pod: Pod = K8ClientPod.fromV1Pod(newestItem, this, this.kubeClient, this.kubeConfig);
             if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
               return resolve([pod]);
             }
