@@ -382,9 +382,6 @@ jobs:
         run: |
           echo "::group::Set Publish Args"
             FLAGS="--access=public"
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-              FLAGS="${FLAGS} --dry-run"
-            fi
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
@@ -397,11 +394,9 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Publish NPM Package"
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-              npm ci
-              task build
+            if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
+              npm publish ${TARBALL} ${FLAGS}
             fi
-            npm publish ${TARBALL} ${FLAGS}
           echo "::endgroup::"
 
   setup:
