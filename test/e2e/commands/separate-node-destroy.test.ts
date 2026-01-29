@@ -37,35 +37,38 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
       const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
 
       const prepareArguments = newArgv();
-      argvPushGlobalFlags(prepareArguments, namespace.name, true);
       prepareArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_PREPARE,
         '--output-dir',
         temporaryDirectory,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(prepareArguments);
 
       const submitArguments = newArgv();
-      argvPushGlobalFlags(submitArguments, namespace.name, true);
-      submitArguments.push(
+        submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
         '--input-dir',
         temporaryDirectory,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(submitArguments);
 
       const executeArguments = newArgv();
-      argvPushGlobalFlags(executeArguments, namespace.name, true);
       executeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_EXECUTE,
         '--input-dir',
         temporaryDirectory,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(executeArguments);
 

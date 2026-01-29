@@ -49,10 +49,9 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
       const argvExecute: Argv = argv.clone();
       argvExecute.setArg(flags.inputDir, temporaryDirectory2);
 
-      const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+      const {newArgv} = BaseCommandTest;
 
       const prepareArguments = newArgv();
-      argvPushGlobalFlags(prepareArguments, namespace.name, true);
       prepareArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
@@ -61,28 +60,32 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
         zipFile,
         '--output-dir',
         temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(prepareArguments);
 
       const submitArguments = newArgv();
-      argvPushGlobalFlags(submitArguments, namespace.name, true);
       submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
         '--input-dir',
         temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(submitArguments);
 
       const executeArguments = newArgv();
-      argvPushGlobalFlags(executeArguments, namespace.name, true);
       executeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_EXECUTE,
         '--input-dir',
         temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(executeArguments);
     }).timeout(Duration.ofMinutes(5).toMillis());

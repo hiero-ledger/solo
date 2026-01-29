@@ -22,9 +22,7 @@ import {LedgerCommandDefinition} from '../../../src/commands/command-definitions
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [
-    'node1=../hiero-consensus-node/hedera-node/data/',
-    '../hiero-consensus-node/hedera-node/data',
-    'node3=../hiero-consensus-node/hedera-node/data',
+
   ].join(',');
 
   const suffix: string = localBuildPath.slice(0, 5);
@@ -56,11 +54,10 @@ describe('Node add with hedera local build', (): void => {
       await accountManager.close();
 
       if (destroyEnabled()) {
-        const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
-        const destroyArguments = newArgv();
+        const {newArgv} = BaseCommandTest;
+        const destroyArguments: string[] = newArgv();
         // do NOT set the test cache-dir or push test-only flags here —
         // `consensus network destroy` does not accept `--cache-dir` or `--quiet`.
-        argvPushGlobalFlags(destroyArguments, namespace.name, false);
         destroyArguments.push(
           ConsensusCommandDefinition.COMMAND_NAME,
           ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,

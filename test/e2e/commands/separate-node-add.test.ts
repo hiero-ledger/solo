@@ -72,48 +72,38 @@ export function testSeparateNodeAdd(
     }).timeout(timeout);
 
     it('should succeed with init command', async (): Promise<void> => {
-      const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+      const {newArgv} = BaseCommandTest;
       const initArguments: string[] = newArgv();
-      argvPushGlobalFlags(initArguments, namespace.name, true);
       initArguments.push(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
         LedgerCommandDefinition.SYSTEM_INIT,
-        '--namespace',
-        namespace.name,
-        '--release-tag',
-        argv.getArg<string>(flags.releaseTag),
-        '--node-aliases-unparsed',
+        '--deployment',
+        bootstrapResp.deployment,
+        '--node-aliases',
         argv.getArg<string>(flags.nodeAliasesUnparsed),
-        '--generate-gossip-keys',
-        '--generate-tls-keys',
         '--cluster-ref',
         argv.getArg<string>(flags.clusterRef),
-        '--realm',
-        String(argv.getArg<number>(flags.realm)),
-        '--shard',
-        String(argv.getArg<number>(flags.shard)),
-        '--force-port-forward',
       );
       await main(initArguments);
     }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
-      const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+      const {newArgv} = BaseCommandTest;
 
       const prepareArguments = newArgv();
-      argvPushGlobalFlags(prepareArguments, namespace.name, true);
       prepareArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_PREPARE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
         '--output-dir',
         temporaryDirectory,
       );
       await main(prepareArguments);
 
       const submitArguments = newArgv();
-      argvPushGlobalFlags(submitArguments, namespace.name, true);
       submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
@@ -124,7 +114,6 @@ export function testSeparateNodeAdd(
       await main(submitArguments);
 
       const executeArguments = newArgv();
-      argvPushGlobalFlags(executeArguments, namespace.name, true);
       executeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
@@ -139,9 +128,8 @@ export function testSeparateNodeAdd(
     }).timeout(Duration.ofMinutes(12).toMillis());
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
-      const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+      const {newArgv} = BaseCommandTest;
       const createArguments = newArgv();
-      argvPushGlobalFlags(createArguments, namespace.name, true);
       createArguments.push(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
@@ -198,10 +186,9 @@ export function testSeparateNodeAdd(
       };
 
       // create more transactions to save more round of states
-      const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+      const {newArgv} = BaseCommandTest;
 
       const createArguments1 = newArgv();
-      argvPushGlobalFlags(createArguments1, namespace.name, true);
       createArguments1.push(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
@@ -212,7 +199,6 @@ export function testSeparateNodeAdd(
       await sleep(Duration.ofSeconds(1));
 
       const createArguments2 = newArgv();
-      argvPushGlobalFlags(createArguments2, namespace.name, true);
       createArguments2.push(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
@@ -221,7 +207,6 @@ export function testSeparateNodeAdd(
       await main(createArguments2);
 
       const freezeArguments = newArgv();
-      argvPushGlobalFlags(freezeArguments, namespace.name, true);
       freezeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
@@ -230,7 +215,6 @@ export function testSeparateNodeAdd(
       await main(freezeArguments);
 
       const statesArguments = newArgv();
-      argvPushGlobalFlags(statesArguments, namespace.name, true);
       statesArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
@@ -239,7 +223,6 @@ export function testSeparateNodeAdd(
       await main(statesArguments);
 
       const restartArguments = newArgv();
-      argvPushGlobalFlags(restartArguments, namespace.name, true);
       restartArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
