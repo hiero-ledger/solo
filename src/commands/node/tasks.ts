@@ -1998,8 +1998,13 @@ export class NodeCommandTasks {
         const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
         const outputDirectory: string = path.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
-        if (!fs.existsSync(outputDirectory)) {
-          fs.mkdirSync(outputDirectory, {recursive: true});
+        try {
+          if (!fs.existsSync(outputDirectory)) {
+            fs.mkdirSync(outputDirectory, {recursive: true});
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to create output directory ${outputDirectory}: ${error}`);
+          return;
         }
 
         this.logger.info(`Helm chart values will be saved to: ${outputDirectory}`);
@@ -2019,8 +2024,13 @@ export class NodeCommandTasks {
 
             // Create directory for this context
             const contextDirectory: string = path.join(outputDirectory, context);
-            if (!fs.existsSync(contextDirectory)) {
-              fs.mkdirSync(contextDirectory, {recursive: true});
+            try {
+              if (!fs.existsSync(contextDirectory)) {
+                fs.mkdirSync(contextDirectory, {recursive: true});
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to create context directory ${contextDirectory}: ${error}`);
+              continue;
             }
 
             for (const release of releases) {
@@ -2036,8 +2046,13 @@ export class NodeCommandTasks {
                 }).toString();
 
                 const valuesFile: string = path.join(contextDirectory, `${release.name}.yaml`);
-                fs.writeFileSync(valuesFile, output);
-                this.logger.info(`Saved Helm values for ${release.name} to ${valuesFile}`);
+                try {
+                  fs.writeFileSync(valuesFile, output);
+                  this.logger.info(`Saved Helm values for ${release.name} to ${valuesFile}`);
+                } catch (error) {
+                  this.logger.warn(`Failed to write values file for ${release.name}: ${error}`);
+                  // Continue with other releases even if one fails
+                }
               } catch (error) {
                 this.logger.warn(`Failed to get values for release ${release.name}: ${error}`);
                 // Continue with other releases even if one fails
