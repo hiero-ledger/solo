@@ -2009,11 +2009,14 @@ export class NodeCommandTasks {
 
         this.logger.info(`Helm chart values will be saved to: ${outputDirectory}`);
 
+        const contextList: string[] = contexts.list();
+        this.logger.info(`Processing Helm releases for contexts: ${contextList.join(', ')}`);
+
         for (const context of contexts.list()) {
           this.logger.info(`Getting Helm releases for context: ${context}`);
 
           try {
-            const releases: ReleaseItem[] = await helmClient.listReleases(false, undefined, context);
+            const releases: ReleaseItem[] = await helmClient.listReleases(true, undefined, context);
 
             if (releases.length === 0) {
               this.logger.info(`No Helm releases found in context: ${context}`);
