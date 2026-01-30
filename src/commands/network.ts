@@ -69,7 +69,6 @@ import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -160,7 +159,6 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
   ) {
     super();
 
@@ -168,11 +166,6 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
-    this.postgresSharedResource = patchInject(
-      postgresSharedResource,
-      InjectTokens.PostgresSharedResource,
-      this.constructor.name,
-    );
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -1309,38 +1302,6 @@ export class NetworkCommand extends BaseCommand {
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
             }
-          },
-        },
-        {
-          title: 'Initialize Postgres pod',
-          task: (context_, task): SoloListr<NetworkDeployContext> => {
-            const config: NetworkDeployConfigClass = context_.config;
-
-            const subTasks: SoloListrTask<NetworkDeployContext>[] = [
-              {
-                title: 'Wait for Postgres pod to be ready',
-                task: async (context_): Promise<void> => {
-                  await this.postgresSharedResource.waitForPodReady(
-                    context_.config.namespace,
-                    context_.config.contexts[0],
-                  );
-                },
-              },
-              {
-                title: 'Run initialization script',
-                task: async (context_): Promise<void> => {
-                  await this.postgresSharedResource.initialize(context_.config.namespace, context_.config.contexts[0]);
-                },
-              },
-            ];
-
-            // set up the sub-tasks
-            return task.newListr(subTasks, {
-              concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
-              rendererOptions: {
-                collapseSubtasks: false,
-              },
-            });
           },
         },
       ],

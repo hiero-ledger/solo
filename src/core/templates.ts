@@ -11,11 +11,11 @@ import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
-import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReferenceName, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConsensusNode} from './model/consensus-node.js';
+import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
@@ -35,7 +35,7 @@ export class Templates {
   }
 
   public static renderPostgresPodName(number_: number): PodName {
-    return PodName.of(`solo-deployment-postgres-postgresql-${number_}`);
+    return PodName.of(`solo-shared-resources-postgres-postgresql-${number_}`);
   }
 
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {
@@ -48,6 +48,10 @@ export class Templates {
     }
 
     return nodeAliases;
+  }
+
+  public static renderMirrorNodeDatabaseInitScriptUrl(release: string): string {
+    return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/heads/release/${release}/importer/src/main/resources/db/scripts/init.sh`;
   }
 
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {

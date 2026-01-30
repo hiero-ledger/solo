@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
+import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
 
 /**
  * Dependency injection tokens
@@ -91,6 +92,7 @@ export class InjectTokens {
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
   public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
+  public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');

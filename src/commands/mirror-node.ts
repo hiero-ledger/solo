@@ -60,6 +60,8 @@ import {Templates} from '../core/templates.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
+import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
+import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -102,6 +104,12 @@ interface MirrorNodeDeployConfigClass {
   newMirrorNodeComponent: MirrorNodeStateSchema;
   isLegacyChartInstalled: boolean;
   id: number;
+  soloChartVersion: string;
+  soloSharedDatabaseHost: string;
+  soloSharedDatabaseOwnerUsername: string;
+  soloSharedDatabaseOwnerPassword: string;
+  soloSharedDatabaseReadonlyUsername: string;
+  soloSharedDatabaseReadonlyPassword: string;
 }
 
 interface MirrorNodeDeployContext {
@@ -148,6 +156,12 @@ interface MirrorNodeUpgradeConfigClass {
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
   id: number;
+  soloChartVersion: string;
+  soloSharedDatabaseHost: string;
+  soloSharedDatabaseOwnerUsername: string;
+  soloSharedDatabaseOwnerPassword: string;
+  soloSharedDatabaseReadonlyUsername: string;
+  soloSharedDatabaseReadonlyPassword: string;
 }
 
 interface MirrorNodeUpgradeContext {
@@ -174,6 +188,8 @@ interface MirrorNodeDestroyContext {
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
   public constructor(
+    @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
+    @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
   ) {
@@ -181,6 +197,16 @@ export class MirrorNodeCommand extends BaseCommand {
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.postgresSharedResource = patchInject(
+      postgresSharedResource,
+      InjectTokens.PostgresSharedResource,
+      this.constructor.name,
+    );
+    this.sharedResourceManager = patchInject(
+      sharedResourceManager,
+      InjectTokens.SharedResourceManager,
+      this.constructor.name,
+    );
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -220,6 +246,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.soloChartVersion,
     ],
   };
 
@@ -406,45 +433,50 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
+    let host, ownerPassword, ownerUsername, readonlyPassword, readonlyUsername;
     if (config.useExternalDatabase) {
-      const {
-        externalDatabaseHost: host,
-        externalDatabaseOwnerUsername: ownerUsername,
-        externalDatabaseOwnerPassword: ownerPassword,
-        externalDatabaseReadonlyUsername: readonlyUsername,
-        externalDatabaseReadonlyPassword: readonlyPassword,
-      } = config;
-
-      valuesArgument += helpers.populateHelmArguments({
-        // Disable default database deployment
-        'stackgres.enabled': false,
-        'postgresql.enabled': false,
-
-        // Set the host and name
-        'db.host': host,
-        'db.name': 'mirror_node',
-
-        // set the usernames
-        'db.owner.username': ownerUsername,
-        'importer.db.username': ownerUsername,
-
-        'grpc.db.username': readonlyUsername,
-        'restjava.db.username': readonlyUsername,
-        'web3.db.username': readonlyUsername,
-
-        // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
-        // 'rest.db.username': readonlyUsername,
-
-        // set the passwords
-        'db.owner.password': ownerPassword,
-        'importer.db.password': ownerPassword,
-
-        'grpc.db.password': readonlyPassword,
-        'restjava.db.password': readonlyPassword,
-        'web3.db.password': readonlyPassword,
-        'rest.db.password': readonlyPassword,
-      });
+      host = config.externalDatabaseHost;
+      ownerPassword = config.externalDatabaseOwnerPassword;
+      ownerUsername = config.externalDatabaseOwnerUsername;
+      readonlyUsername = config.externalDatabaseReadonlyUsername;
+      readonlyPassword = config.externalDatabaseReadonlyPassword;
+    } else {
+      host = config.soloSharedDatabaseHost;
+      ownerPassword = config.soloSharedDatabaseOwnerPassword;
+      ownerUsername = config.soloSharedDatabaseOwnerUsername;
+      readonlyUsername = config.soloSharedDatabaseReadonlyUsername;
+      readonlyPassword = config.soloSharedDatabaseReadonlyPassword;
     }
+
+    valuesArgument += helpers.populateHelmArguments({
+      // Disable default database deployment
+      'stackgres.enabled': false,
+      'postgresql.enabled': false,
+
+      // Set the host and name
+      'db.host': host,
+      'db.name': 'mirror_node',
+
+      // set the usernames
+      'db.owner.username': ownerUsername,
+      'importer.db.username': ownerUsername,
+
+      'grpc.db.username': readonlyUsername,
+      'restjava.db.username': readonlyUsername,
+      'web3.db.username': readonlyUsername,
+
+      // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
+      // 'rest.db.username': readonlyUsername,
+
+      // set the passwords
+      'db.owner.password': ownerPassword,
+      'importer.db.password': ownerPassword,
+
+      'grpc.db.password': readonlyPassword,
+      'restjava.db.password': readonlyPassword,
+      'web3.db.password': readonlyPassword,
+      'rest.db.password': readonlyPassword,
+    });
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
 
@@ -642,11 +674,6 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Check pods are ready',
       task: (context_, task): SoloListr<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
         const subTasks: SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext>[] = [
-          {
-            title: 'Check Postgres DB',
-            labels: ['app.kubernetes.io/component=postgresql', 'app.kubernetes.io/name=postgres'],
-            skip: (): boolean => !!context_.config.useExternalDatabase,
-          },
           {
             title: 'Check REST API',
             labels: ['app.kubernetes.io/component=rest', 'app.kubernetes.io/name=rest'],
@@ -915,6 +942,12 @@ export class MirrorNodeCommand extends BaseCommand {
               config.clusterContext,
             );
 
+            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+              context_.config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
+
             // predefined values first
             config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
@@ -1032,6 +1065,75 @@ export class MirrorNodeCommand extends BaseCommand {
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
+        },
+        {
+          title: 'Install Shared Resources chart',
+          task: async (context_): Promise<void> => {
+            this.sharedResourceManager.enablePostgres();
+            this.sharedResourceManager.enableRedis();
+            await this.sharedResourceManager.installChart(
+              context_.config.namespace,
+              context_.config.chartDirectory,
+              context_.config.soloChartVersion,
+              context_.config.clusterContext,
+            );
+          },
+        },
+        {
+          title: 'Initialize Postgres pod',
+          task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
+            const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+              {
+                title: 'Wait for Postgres pod to be ready',
+                task: async (context_): Promise<void> => {
+                  await this.postgresSharedResource.waitForPodReady(
+                    context_.config.namespace,
+                    context_.config.clusterContext,
+                  );
+                },
+              },
+              {
+                title: 'Run initialization script',
+                task: async (context_): Promise<void> => {
+                  await this.postgresSharedResource.initializeMirrorNode(
+                    context_.config.namespace,
+                    context_.config.clusterContext,
+                  );
+                },
+              },
+              {
+                title: 'Load database connection details',
+                task: async (context_: MirrorNodeDeployContext): Promise<void> => {
+                  const secrets: Secret[] = await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .secrets()
+                    .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+                  const passwordsSecret: Secret = secrets.find(
+                    secret => secret.name === 'solo-shared-resources-passwords',
+                  );
+                  context_.config.soloSharedDatabaseHost =
+                    'solo-shared-resources-postgres-postgresql.solo-e2e.svc.cluster.local';
+                  context_.config.soloSharedDatabaseOwnerUsername = 'postgres';
+                  context_.config.soloSharedDatabaseOwnerPassword = Base64.decode(passwordsSecret.data['password']);
+                  context_.config.soloSharedDatabaseReadonlyUsername = Base64.decode(
+                    passwordsSecret.data['HIERO_MIRROR_REST_DB_USERNAME'],
+                  );
+                  context_.config.soloSharedDatabaseReadonlyPassword = Base64.decode(
+                    passwordsSecret.data['HIERO_MIRROR_REST_DB_PASSWORD'],
+                  );
+                },
+              },
+            ];
+
+            // set up the sub-tasks
+            return task.newListr(subTasks, {
+              concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+          skip: context_ => !!context_.config.useExternalDatabase,
         },
         this.enableMirrorNodeTask(),
         this.checkPodsAreReadyNodeTask(),
