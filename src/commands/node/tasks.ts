@@ -2624,6 +2624,14 @@ export class NodeCommandTasks {
           if (config.newAdminKey) {
             nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
           }
+
+          // also sign with new account's key if account is being updated
+          if (config.newAccountNumber) {
+            const accountKeys = await self.accountManager.getAccountKeysFromSecret(
+              config.newAccountNumber,
+              config.namespace);
+              nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+          }
           const signedTx = await nodeUpdateTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
