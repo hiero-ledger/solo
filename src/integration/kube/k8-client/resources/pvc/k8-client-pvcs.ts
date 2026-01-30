@@ -2,7 +2,6 @@
 
 import {type Pvcs} from '../../../resources/pvc/pvcs.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
-import {StatusCodes} from 'http-status-codes';
 import {
   V1ObjectMeta,
   V1PersistentVolumeClaim,
@@ -14,66 +13,42 @@ import {
 import {Duration} from '../../../../../core/time/duration.js';
 import {type Pvc} from '../../../resources/pvc/pvc.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
-import {KubeApiResponse} from '../../../kube-api-response.js';
-import {ResourceOperation} from '../../../resources/resource-operation.js';
-import {ResourceType} from '../../../resources/resource-type.js';
 import {K8ClientPvc} from './k8-client-pvc.js';
-import {type IncomingMessage} from 'node:http';
 import {type PvcReference} from '../../../resources/pvc/pvc-reference.js';
 
 export class K8ClientPvcs implements Pvcs {
   public constructor(private readonly kubeClient: CoreV1Api) {}
 
   public async delete(pvcReference: PvcReference): Promise<boolean> {
-    let resp: {response: IncomingMessage; body?: V1PersistentVolumeClaim};
     try {
-      resp = await this.kubeClient.deleteNamespacedPersistentVolumeClaim(
-        pvcReference.name.toString(),
-        pvcReference.namespace.toString(),
-      );
+      await this.kubeClient.deleteNamespacedPersistentVolumeClaim({
+        name: pvcReference.name.toString(),
+        namespace: pvcReference.namespace.toString(),
+      });
     } catch (error) {
       throw new SoloError(
         `Failed to delete pvc [pvc=${pvcReference.name.toString()}, ns=${pvcReference.namespace.toString()}], error: ${error.message}`,
       );
     }
-
-    KubeApiResponse.check(
-      resp.response,
-      ResourceOperation.DELETE,
-      ResourceType.PERSISTENT_VOLUME_CLAIM,
-      pvcReference.namespace,
-      pvcReference.name.toString(),
-    );
-
-    return resp.response.statusCode === StatusCodes.OK;
+    return true;
   }
 
   public async list(namespace: NamespaceName, labels: string[]): Promise<string[]> {
     const pvcs: string[] = [];
     const labelSelector: string = labels ? labels.join(',') : undefined;
 
-    let resp: {body: V1PersistentVolumeClaimList; response?: IncomingMessage};
+    let resp: V1PersistentVolumeClaimList;
     try {
-      resp = await this.kubeClient.listNamespacedPersistentVolumeClaim(
-        namespace.name,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
+      resp = await this.kubeClient.listNamespacedPersistentVolumeClaim({
+        namespace: namespace.name,
         labelSelector,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        Duration.ofMinutes(5).toMillis(),
-      );
+        timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+      });
     } catch (error) {
       throw new SoloError('Failed to list pvcs', error);
     }
 
-    KubeApiResponse.check(resp.response, ResourceOperation.LIST, ResourceType.PERSISTENT_VOLUME_CLAIM, namespace, '');
-
-    for (const item of resp.body.items) {
+    for (const item of resp.items) {
       pvcs.push(item.metadata!.name as string);
     }
 
@@ -95,22 +70,17 @@ export class K8ClientPvcs implements Pvcs {
     v1Pvc.spec = v1Spec;
     v1Pvc.metadata = v1Metadata;
 
-    let result: {response: IncomingMessage; body?: V1PersistentVolumeClaim};
+    let result: V1PersistentVolumeClaim;
     try {
-      result = await this.kubeClient.createNamespacedPersistentVolumeClaim(pvcReference.namespace.toString(), v1Pvc);
+      result = await this.kubeClient.createNamespacedPersistentVolumeClaim({
+        namespace: pvcReference.namespace.toString(),
+        body: v1Pvc,
+      });
     } catch (error) {
       throw new SoloError('Failed to create pvc', error);
     }
 
-    KubeApiResponse.check(
-      result.response,
-      ResourceOperation.CREATE,
-      ResourceType.PERSISTENT_VOLUME_CLAIM,
-      pvcReference.namespace,
-      pvcReference.name.toString(),
-    );
-
-    if (result?.body) {
+    if (result) {
       return new K8ClientPvc(pvcReference);
     } else {
       throw new SoloError('Failed to create pvc');

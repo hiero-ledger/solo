@@ -10,13 +10,8 @@ import {
 } from '@kubernetes/client-node';
 import {type Leases} from '../../../resources/lease/leases.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
-import type http from 'node:http';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
-import {getReasonPhrase, StatusCodes} from 'http-status-codes';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
-import {sleep} from '../../../../../core/helpers.js';
-import {Duration} from '../../../../../core/time/duration.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {K8ClientLease} from './k8-client-lease.js';
 import {type Lease} from '../../../resources/lease/lease.js';
@@ -27,6 +22,9 @@ import {
   ResourceReplaceError,
 } from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
+import {sleep} from '../../../../../core/helpers.js';
+import {Duration} from '../../../../../core/time/duration.js';
+import {getReasonPhrase, StatusCodes} from 'http-status-codes';
 
 export class K8ClientLeases implements Leases {
   private readonly logger: SoloLogger;
@@ -54,71 +52,67 @@ export class K8ClientLeases implements Leases {
     spec.acquireTime = new V1MicroTime();
     lease.spec = spec;
 
-    let result: {response: http.IncomingMessage; body: V1Lease};
+    let result: V1Lease;
     try {
-      result = await this.coordinationApiClient.createNamespacedLease(namespace.name, lease);
+      result = await this.coordinationApiClient.createNamespacedLease({namespace: namespace.name, body: lease});
     } catch (error) {
       throw new ResourceCreateError(ResourceType.LEASE, namespace, leaseName, error);
     }
 
-    this.handleKubernetesClientError(result.response, result.body, 'Failed to create namespaced lease');
-
-    return K8ClientLease.fromV1Lease(result.body as V1Lease);
+    return K8ClientLease.fromV1Lease(result);
   }
 
   public async delete(namespace: NamespaceName, name: string): Promise<V1Status> {
-    let result: {response: http.IncomingMessage; body: V1Lease};
+    let result: V1Lease;
     try {
-      result = await this.coordinationApiClient.deleteNamespacedLease(name, namespace.name);
+      result = await this.coordinationApiClient.deleteNamespacedLease({name, namespace: namespace.name});
     } catch (error) {
       throw new ResourceDeleteError(ResourceType.LEASE, namespace, name, error);
     }
 
-    this.handleKubernetesClientError(result.response, result.body, 'Failed to delete namespaced lease');
-
-    return result.body as V1Status;
+    return result;
   }
 
-  public async read(namespace: NamespaceName, leaseName: string, timesCalled?: number): Promise<Lease> {
-    let result: {response: http.IncomingMessage; body: V1Lease};
+  public async read(namespace: NamespaceName, leaseName: string, timesCalled: number = 0): Promise<Lease> {
+    let result: V1Lease;
     try {
-      result = await this.coordinationApiClient.readNamespacedLease(leaseName, namespace.name);
+      result = await this.coordinationApiClient.readNamespacedLease({name: leaseName, namespace: namespace.name});
     } catch (error) {
-      throw new ResourceReadError(ResourceType.LEASE, namespace, leaseName, error);
-    }
-
-    if (result.response?.statusCode === StatusCodes.INTERNAL_SERVER_ERROR && timesCalled < 4) {
-      // could be k8s control plane has no resources available
-      this.logger.debug(
-        `Retrying readNamespacedLease(${leaseName}, ${namespace}) in 5 seconds because of ${getReasonPhrase(StatusCodes.INTERNAL_SERVER_ERROR)}`,
-      );
-      await sleep(Duration.ofSeconds(5));
-      try {
-        return await this.read(namespace, leaseName, timesCalled + 1);
-      } catch (error) {
+      if (error.code === StatusCodes.INTERNAL_SERVER_ERROR && timesCalled < 4) {
+        // could be k8s control plane has no resources available
+        this.logger.debug(
+          `Retrying readNamespacedLease(${leaseName}, ${namespace}) in 5 seconds because of ${getReasonPhrase(StatusCodes.INTERNAL_SERVER_ERROR)}`,
+        );
+        await sleep(Duration.ofSeconds(5));
+        try {
+          return await this.read(namespace, leaseName, timesCalled + 1);
+        } catch (error) {
+          throw new ResourceReadError(ResourceType.LEASE, namespace, leaseName, error);
+        }
+      } else {
         throw new ResourceReadError(ResourceType.LEASE, namespace, leaseName, error);
       }
     }
 
-    this.handleKubernetesClientError(result.response, result.body, 'Failed to read namespaced lease');
-
-    return K8ClientLease.fromV1Lease(result.body);
+    return K8ClientLease.fromV1Lease(result);
   }
 
   public async renew(namespace: NamespaceName, leaseName: string, lease: Lease): Promise<Lease> {
     const v1Lease: V1Lease = K8ClientLease.toV1Lease(lease);
     v1Lease.spec.renewTime = new V1MicroTime();
 
-    let result: {response: http.IncomingMessage; body: V1Lease};
+    let result: V1Lease;
     try {
-      result = await this.coordinationApiClient.replaceNamespacedLease(leaseName, namespace.name, v1Lease);
+      result = await this.coordinationApiClient.replaceNamespacedLease({
+        name: leaseName,
+        namespace: namespace.name,
+        body: v1Lease,
+      });
     } catch (error) {
       throw new ResourceReplaceError(ResourceType.LEASE, namespace, leaseName, error);
     }
 
-    this.handleKubernetesClientError(result.response, result.body, 'Failed to renew namespaced lease');
-
-    return K8ClientLease.fromV1Lease(result.body as V1Lease);
+    return K8ClientLease.fromV1Lease(result);
   }
 
   public async transfer(lease: Lease, newHolderName: string): Promise<Lease> {
@@ -127,42 +121,17 @@ export class K8ClientLeases implements Leases {
     v1Lease.spec.renewTime = new V1MicroTime();
     v1Lease.spec.holderIdentity = newHolderName;
 
-    let result: {response: http.IncomingMessage; body: V1Lease};
+    let result: V1Lease;
     try {
-      result = await this.coordinationApiClient.replaceNamespacedLease(
-        v1Lease.metadata.name,
-        v1Lease.metadata.namespace,
-        v1Lease,
-      );
+      result = await this.coordinationApiClient.replaceNamespacedLease({
+        name: v1Lease.metadata.name,
+        namespace: v1Lease.metadata.namespace,
+        body: v1Lease,
+      });
     } catch (error) {
       throw new ResourceReplaceError(ResourceType.LEASE, lease.namespace, v1Lease.metadata.name, error);
     }
 
-    this.handleKubernetesClientError(result.response, result.body, 'Failed to transfer namespaced lease');
-
-    return K8ClientLease.fromV1Lease(result.body as V1Lease);
-  }
-
-  /**
-   * @param response - response object from the kubeclient call
-   * @param error - body of the response becomes the error if the status is not OK
-   * @param errorMessage - the error message to be passed in case it fails
-   *
-   * @throws SoloError - if the status code is not OK
-   */
-  private handleKubernetesClientError(
-    response: http.IncomingMessage,
-    error: Error | unknown,
-    errorMessage: string,
-  ): void {
-    const statusCode: number = +response?.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
-
-    if (statusCode <= StatusCodes.ACCEPTED) {
-      return;
-    }
-    errorMessage += `, statusCode: ${statusCode}`;
-    this.logger.error(errorMessage, error);
-
-    throw new SoloError(errorMessage, errorMessage, {statusCode: statusCode});
+    return K8ClientLease.fromV1Lease(result);
   }
 }
