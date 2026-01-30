@@ -100,6 +100,9 @@ export function testSeparateNodeAdd(
         argv.getArg<string>(flags.deployment),
         '--output-dir',
         temporaryDirectory,
+        '--pvcs',
+        '--gossip-keys',
+        '--tls-keys',
       );
       await main(prepareArguments);
 
@@ -108,6 +111,8 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
         '--input-dir',
         temporaryDirectory,
       );
@@ -118,6 +123,8 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
         '--input-dir',
         temporaryDirectory,
       );
@@ -134,6 +141,9 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+
       );
       await main(createArguments);
     });
@@ -193,6 +203,9 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+
       );
       await main(createArguments1);
 
@@ -203,6 +216,8 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_CREATE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(createArguments2);
 
@@ -211,6 +226,8 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.NETWORK_FREEZE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(freezeArguments);
 
@@ -219,6 +236,10 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.STATE_DOWNLOAD,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+        '--node-aliases',
+        argv.getArg<string>(flags.nodeAliasesUnparsed),
       );
       await main(statesArguments);
 
@@ -227,6 +248,8 @@ export function testSeparateNodeAdd(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.NODE_RESTART,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
       );
       await main(restartArguments);
 

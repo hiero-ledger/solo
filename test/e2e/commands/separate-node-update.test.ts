@@ -109,6 +109,8 @@ export function testSeparateNodeUpdate(
         temporaryDirectory2,
         '--deployment',
         argv.getArg<string>(flags.deployment),
+        '--node-alias',
+        updateNodeId,
       );
       await main(prepareArguments);
 

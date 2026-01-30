@@ -56,12 +56,10 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        '--upgrade-zip-file',
-        zipFile,
-        '--output-dir',
-        temporaryDirectory2,
         '--deployment',
         argv.getArg<string>(flags.deployment),
+        '--output-dir',
+        temporaryDirectory2,
       );
       await main(prepareArguments);
 
@@ -70,6 +68,8 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+        '--upgrade-zip-file',
+        zipFile,
         '--input-dir',
         temporaryDirectory2,
         '--deployment',
@@ -82,6 +82,8 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+        '--upgrade-zip-file',
+        zipFile,
         '--input-dir',
         temporaryDirectory2,
         '--deployment',

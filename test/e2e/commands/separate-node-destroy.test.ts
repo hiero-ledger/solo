@@ -45,6 +45,8 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
         temporaryDirectory,
         '--deployment',
         argv.getArg<string>(flags.deployment),
+        `--node-alias`,
+        nodeAlias,
       );
       await main(prepareArguments);
 
@@ -57,6 +59,8 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
         temporaryDirectory,
         '--deployment',
         argv.getArg<string>(flags.deployment),
+        `--node-alias`,
+        nodeAlias,
       );
       await main(submitArguments);
 
@@ -69,6 +73,8 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
         temporaryDirectory,
         '--deployment',
         argv.getArg<string>(flags.deployment),
+        `--node-alias`,
+        nodeAlias,
       );
       await main(executeArguments);
 
