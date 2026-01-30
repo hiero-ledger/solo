@@ -192,7 +192,7 @@ export default [
       ],
       'no-invalid-this': ['off', {}],
       '@typescript-eslint/no-unused-expressions': 'off',
-      'curly': ['error', 'all'],
+      curly: ['error', 'all'],
       '@typescript-eslint/no-extraneous-class': [
         'error',
         {
@@ -219,7 +219,6 @@ export default [
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
       'unicorn/no-await-expression-member': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
-      'unicorn/prefer-logical-operator-over-ternary': 'warn', // TODO error
     },
   },
   {
