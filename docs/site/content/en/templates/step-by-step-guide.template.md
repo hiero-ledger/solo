@@ -59,7 +59,7 @@ sudo apt-get update
 sudo apt-get install -y docker.io
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo usermod -aG docker $USER
+sudo usermod -aG docker ${USER}
 # Log out and back in for group changes to take effect
 
 # 3. Install kubectl
