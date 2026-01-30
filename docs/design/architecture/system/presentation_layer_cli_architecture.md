@@ -37,11 +37,11 @@ platform.
     * [Network](#network)
     * [Node](#node-1)
     * [State](#state)
-    * [Diagnostic](#diagnostic)
   * [Deployment](#deployment-1)
     * [Cluster](#cluster)
     * [Config](#config-1)
     * [State](#state-1)
+    * [Diagnostic](#diagnostic)
   * [Explorer](#explorer-1)
     * [Node](#node-2)
   * [Keys](#keys-1)
@@ -132,31 +132,31 @@ flags may be specified at any level of the command hierarchy.
 
 ### Final Vision
 
-| Group       | Resource               | Operation(s)                                                                                                           |
-|-------------|------------------------|------------------------------------------------------------------------------------------------------------------------|
-| block       | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
-| cluster-ref | config                 | < list & info & connect & disconnect >                                                                     |
-| consensus   | network                | < info & deploy & freeze & upgrade & destroy >                                                         |
+| Group       | Resource               | Operation(s)                                                                       |
+|-------------|------------------------|------------------------------------------------------------------------------------|
+| block       | node                   | < list & info & logs & add & upgrade & destroy >                                   |
+| cluster-ref | config                 | < list & info & connect & disconnect >                                             |
+| consensus   | network                | < info & deploy & freeze & upgrade & destroy >                                     |
 | consensus   | node                   | < list & info & logs & add & update & destroy & start & stop & restart & refresh > |
-| consensus   | state                  | < list & download & upload >                                                                                   |
-| consensus   | diagnostic             | < logs & configs & all >                                                                                       |
-| consensus   | dev-node-add           | < prepare & submit-transactions & execute >                                                                    |
-| consensus   | dev-node-update        | < prepare & submit-transactions & execute >                                                                    |
-| consensus   | dev-node-upgrade       | < prepare & submit-transactions & execute >                                                                    |
-| consensus   | dev-node-delete        | < prepare & submit-transactions & execute >                                                                    |
-| consensus   | dev-freeze             | < prepare-upgrade & freeze-upgrade >                                                                               |
-| deployment  | config                 | < list & info & create & delete & import >                                                             |
-| deployment  | cluster                | < list & info & attach & detach >                                                                          |
-| deployment  | state                  | < info & destroy >                                                                                                 |
-| explorer    | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
-| keys        | consensus              | < generate >                                                                                                           |
-| ledger      | system                 | < init & accounts-rekey & staking-setup >                                                                      |
-| ledger      | account                | < list & info & create & update & delete & import >                                                |
-| ledger      | crypto                 | < transfer & balance >                                                                                             |
-| ledger      | file                   | < create & update >                                                                                                |
-| mirror      | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
-| relay       | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
-| one-shot | < single & multi > | < info & deploy & destroy >                                                                                    |
+| consensus   | state                  | < list & download & upload >                                                       |
+| consensus   | dev-node-add           | < prepare & submit-transactions & execute >                                        |
+| consensus   | dev-node-update        | < prepare & submit-transactions & execute >                                        |
+| consensus   | dev-node-upgrade       | < prepare & submit-transactions & execute >                                        |
+| consensus   | dev-node-delete        | < prepare & submit-transactions & execute >                                        |
+| consensus   | dev-freeze             | < prepare-upgrade & freeze-upgrade >                                               |
+| deployment  | config                 | < list & info & create & delete & import >                                         |
+| deployment  | cluster                | < list & info & attach & detach >                                                  |
+| deployment  | state                  | < info & destroy >                                                                 |
+| deployment  | diagnostic             | < logs & configs & all & connections >                                             |
+| explorer    | node                   | < list & info & logs & add & upgrade & destroy >                                   |
+| keys        | consensus              | < generate >                                                                       |
+| ledger      | system                 | < init & accounts-rekey & staking-setup >                                          |
+| ledger      | account                | < list & info & create & update & delete & import >                                |
+| ledger      | crypto                 | < transfer & balance >                                                             |
+| ledger      | file                   | < create & update >                                                                |
+| mirror      | node                   | < list & info & logs & add & upgrade & destroy >                                   |
+| relay       | node                   | < list & info & logs & add & upgrade & destroy >                                   |
+| one-shot    | < single & multi > | < info & deploy & destroy >                                                        |
 
 #### Example Commands
 
@@ -266,7 +266,6 @@ associated with each group.
 | **Network**    | `network`      | Ledger/network wide consensus operations such as freeze, upgrade, and deploy. Operates on the entire ledger and all consensus node instances. |
 | **Node**       | `node`         | List, create, manage, or destroy consensus node instances. Operates on a single consensus node instance at a time.                            |
 | **State**      | `state`        | List, download, and upload consensus node state backups to/from individual consensus node instances.                                          |
-| **Diagnostic** | `diagnostic`   | Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.                                           |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -274,11 +273,12 @@ associated with each group.
 
 ### Deployment
 
-| Resource Name | Command Syntax | Description                                                                                                                                       |
-|---------------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Cluster**   | `cluster`      | View and manage Solo cluster references used by a deployment.                                                                                     |
-| **Config**    | `config`       | List, view, create, delete, and import deployments. These commands affect the local configuration only.                                           |
-| **State**     | `state`        | View the actual state of the deployment on the Kubernetes clusters or teardown/destroy all remote and local configuration for a given deployment. |
+| Resource Name  | Command Syntax | Description                                                                                                                                       |
+|----------------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Cluster**    | `cluster`      | View and manage Solo cluster references used by a deployment.                                                                                     |
+| **Config**     | `config`       | List, view, create, delete, and import deployments. These commands affect the local configuration only.                                           |
+| **State**      | `state`        | View the actual state of the deployment on the Kubernetes clusters or teardown/destroy all remote and local configuration for a given deployment. |
+| **Diagnostic** | `diagnostic`   | Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.                                               |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -434,11 +434,12 @@ operations associated with each resource.
 
 #### Diagnostic
 
-| Operation Name | Command Syntax | Description                                                                |
-|----------------|----------------|----------------------------------------------------------------------------|
-| **Logs**       | `logs`         | Collects logs from consensus nodes in the deployment.                      |
-| **Configs**    | `configs`      | Collects configuration files from consensus nodes.                         |
-| **All**        | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes. |
+| Operation Name  | Command Syntax | Description                                                                |
+|-----------------|----------------|----------------------------------------------------------------------------|
+| **Logs**        | `logs`         | Collects logs from consensus nodes in the deployment.                      |
+| **Configs**     | `configs`      | Collects configuration files from consensus nodes.                         |
+| **All**         | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes. |
+| **Connections** | `connections`  | Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.   |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
