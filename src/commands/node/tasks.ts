@@ -8,6 +8,8 @@ import {type PlatformInstaller} from '../../core/platform-installer.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
+import {type HelmClient} from '../../integration/helm/helm-client.js';
+import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
@@ -1984,6 +1986,88 @@ export class NodeCommandTasks {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
         await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
+      },
+    };
+  }
+
+  public getHelmChartValues(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Get Helm chart values from all releases',
+      task: async (): Promise<void> => {
+        const contexts: Contexts = this.k8Factory.default().contexts();
+        const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
+        const outputDirectory: string = path.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+
+        try {
+          if (!fs.existsSync(outputDirectory)) {
+            fs.mkdirSync(outputDirectory, {recursive: true});
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to create output directory ${outputDirectory}: ${error}`);
+          return;
+        }
+
+        this.logger.info(`Helm chart values will be saved to: ${outputDirectory}`);
+
+        const contextList: string[] = contexts.list();
+        this.logger.info(`Processing Helm releases for contexts: ${contextList.join(', ')}`);
+
+        for (const context of contexts.list()) {
+          this.logger.info(`Getting Helm releases for context: ${context}`);
+
+          try {
+            const releases: ReleaseItem[] = await helmClient.listReleases(true, undefined, context);
+
+            if (releases.length === 0) {
+              this.logger.info(`No Helm releases found in context: ${context}`);
+              continue;
+            }
+
+            this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
+
+            // Create directory for this context
+            const contextDirectory: string = path.join(outputDirectory, context);
+            try {
+              if (!fs.existsSync(contextDirectory)) {
+                fs.mkdirSync(contextDirectory, {recursive: true});
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to create context directory ${contextDirectory}: ${error}`);
+              continue;
+            }
+
+            for (const release of releases) {
+              try {
+                this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
+
+                const getAllCommand: string = `helm get all ${release.name} -n ${release.namespace} --kube-context ${context}`;
+                const output: string = execSync(getAllCommand, {
+                  encoding: 'utf8',
+                  cwd: process.cwd(),
+                  shell: '/bin/bash',
+                  maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                }).toString();
+
+                const valuesFile: string = path.join(contextDirectory, `${release.name}.yaml`);
+                try {
+                  fs.writeFileSync(valuesFile, output);
+                  this.logger.info(`Saved Helm values for ${release.name} to ${valuesFile}`);
+                } catch (error) {
+                  this.logger.warn(`Failed to write values file for ${release.name}: ${error}`);
+                  // Continue with other releases even if one fails
+                }
+              } catch (error) {
+                this.logger.warn(`Failed to get values for release ${release.name}: ${error}`);
+                // Continue with other releases even if one fails
+              }
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to list Helm releases in context ${context}: ${error}`);
+            // Continue with other contexts even if one fails
+          }
+        }
+
+        this.logger.showUser(`Helm chart values saved to ${outputDirectory}`);
       },
     };
   }

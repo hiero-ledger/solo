@@ -14,7 +14,7 @@ const context: {logger: SoloLogger} = {logger: undefined};
 await fnm
   .main(process.argv, context)
   .then((): void => {
-    context.logger.info('Solo CLI completed, via entrypoint');
+    context.logger?.info('Solo CLI completed, via entrypoint');
   })
   .catch((error): void => {
     const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);
@@ -22,4 +22,4 @@ await fnm
   });
 // Exit with the proper exit code and force close any open handles that prevent Solo from exiting
 // eslint-disable-next-line n/no-process-exit
-process.exit(process.exitCode);
+process.exit(process.exitCode ?? 0);

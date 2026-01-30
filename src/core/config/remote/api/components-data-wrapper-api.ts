@@ -45,4 +45,16 @@ export interface ComponentsDataWrapperApi {
     reuse?: boolean,
     nodeId?: number,
   ): Promise<number>;
+
+  stopPortForwards(
+    clusterReference: ClusterReferenceName,
+    podReference: PodReference,
+    podPort: number,
+    localPort: number,
+    k8Client: K8,
+    logger: SoloLogger,
+    componentType: ComponentTypes,
+    label: string,
+    nodeId?: number,
+  ): Promise<void>;
 }

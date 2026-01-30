@@ -75,6 +75,7 @@ new EndToEndTestSuiteBuilder()
       NodeTest.start(options);
 
       AccountTest.accountCreationShouldSucceed(options);
+      AccountTest.predefinedAccountCreationShouldSucceed(options);
 
       NodeTest.upgrade(options);
 

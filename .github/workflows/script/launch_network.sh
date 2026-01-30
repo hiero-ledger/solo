@@ -24,6 +24,7 @@ export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
 export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
+export SOLO_LOG_LEVEL=debug
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
