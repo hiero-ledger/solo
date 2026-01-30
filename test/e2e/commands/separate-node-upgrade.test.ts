@@ -60,6 +60,8 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
         argv.getArg<string>(flags.deployment),
         '--output-dir',
         temporaryDirectory2,
+        '--upgrade-zip-file',
+        zipFile,
       );
       await main(prepareArguments);
 
