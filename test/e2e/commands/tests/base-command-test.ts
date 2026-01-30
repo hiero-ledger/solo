@@ -60,7 +60,7 @@ export class BaseCommandTest {
       argv.setArg(Flags.deployment, deployment);
       argv.setCommand(
         DeploymentCommandDefinition.COMMAND_NAME,
-        DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+        DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
         DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
       );
 

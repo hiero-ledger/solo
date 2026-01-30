@@ -43,7 +43,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
-  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostics';
+  public static readonly DIAGNOSTICS_SUBCOMMAND_NAME = 'diagnostics';
   private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
 
@@ -67,7 +67,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
 
   public static readonly CONNECTIONS_COMMAND =
-    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -128,7 +128,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
       )
       .addCommandGroup(
         new CommandGroup(
-          DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
           DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_DESCRIPTION,
         )
           .addSubcommand(
