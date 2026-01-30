@@ -42,7 +42,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  public readByReference(podReference: PodReference): Pod {
+  public readByReference(podReference: PodReference | null): Pod {
     return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig);
   }
 
@@ -89,9 +89,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       Duration.ofMinutes(5).toMillis(),
     );
 
-    return result?.body?.items?.map(
-      (item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig),
-    );
+    const sortedItems: V1Pod[] = result?.body?.items
+      ? // eslint-disable-next-line unicorn/no-array-sort
+        [...result.body.items].sort(
+          (a, b): number =>
+            new Date(b.metadata?.creationTimestamp || 0).getTime() -
+            new Date(a.metadata?.creationTimestamp || 0).getTime(),
+        )
+      : [];
+
+    return sortedItems.map((item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig));
   }
 
   public async waitForReadyStatus(
@@ -182,7 +189,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
             undefined,
             undefined,
             labelSelector,
-            1,
+            undefined, // remove limit to get all pods
             undefined,
             undefined,
             undefined,
@@ -190,32 +197,23 @@ export class K8ClientPods extends K8ClientBase implements Pods {
           );
 
           this.logger.debug(
-            `[attempt: ${attempts}/${maxAttempts}] ${resp.body?.items?.length}/${1} pod found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
+            `[attempt: ${attempts}/${maxAttempts}] ${resp.body?.items?.length} pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
           );
 
-          if (resp.body?.items?.length === 1) {
-            let phaseMatchCount: number = 0;
-            let predicateMatchCount: number = 0;
+          if (resp.body?.items?.length > 0) {
+            // Sort pods by creation timestamp descending (newest first)
+            // eslint-disable-next-line unicorn/no-array-sort
+            const sortedItems: V1Pod[] = [...resp.body.items].sort((a, b): number => {
+              const aTime: number = a.metadata?.creationTimestamp?.getTime() || 0;
+              const bTime: number = b.metadata?.creationTimestamp?.getTime() || 0;
+              return bTime - aTime;
+            });
 
-            for (const item of resp.body.items) {
-              if (phases.includes(item.status?.phase)) {
-                phaseMatchCount++;
-              }
-
-              if (
-                podItemPredicate &&
-                podItemPredicate(K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig))
-              ) {
-                predicateMatchCount++;
-              }
-            }
-
-            if (phaseMatchCount === 1 && (!podItemPredicate || predicateMatchCount === 1)) {
-              return resolve(
-                resp?.body?.items?.map(
-                  (item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig),
-                ),
-              );
+            // Only check the newest pod
+            const newestItem: V1Pod = sortedItems[0];
+            const pod: Pod = K8ClientPod.fromV1Pod(newestItem, this, this.kubeClient, this.kubeConfig);
+            if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
+              return resolve([pod]);
             }
           }
         } catch (error) {
@@ -227,7 +225,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         } else {
           return reject(
             new SoloError(
-              `Expected number of pod (${1}) not found for labels: ${labelSelector}, phases: ${phases.join(',')} [attempts = ${attempts}/${maxAttempts}]`,
+              `Expected at least 1 pod not found for labels: ${labelSelector}, phases: ${phases.join(',')} [attempts = ${attempts}/${maxAttempts}]`,
             ),
           );
         }
