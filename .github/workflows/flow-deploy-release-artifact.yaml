@@ -78,9 +78,7 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
           PROCEED="true"
-          # TODO: remove comment before merging
-          # if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
-          if [[ "true" ]]; then
+          if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
             if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
               if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
                 echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
