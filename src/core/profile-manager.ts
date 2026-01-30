@@ -254,9 +254,7 @@ export class ProfileManager {
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const sourceFilePath: string = this.configManager.getFlagFile(flag);
       if (!sourceFilePath) {
-        throw new SoloError(
-          `Configuration file path is missing for: ${flag.name}, path: ${sourceFilePath}`,
-        );
+        throw new SoloError(`Configuration file path is missing for: ${flag.name}, path: ${sourceFilePath}`);
       }
       const sourceAbsoluteFilePath: string = PathEx.resolve(sourceFilePath);
       if (!fs.existsSync(sourceAbsoluteFilePath)) {
