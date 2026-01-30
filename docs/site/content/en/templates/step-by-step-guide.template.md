@@ -2,17 +2,17 @@
 title: "Solo User Guide"
 weight: 20
 description: >
-  Learn how to set up your first Hedera test network using Solo. This step-by-step guide covers installation, deployment, and basic network operations.
+  Learn how to set up your first Hiero test network using Solo. This step-by-step guide covers installation, deployment, and basic network operations.
 type: docs
 ---
 
 ## Introduction
 
-Welcome to the world of Hedera development! If you're looking to build and test applications on the Hedera network but don't want to spend HBAR on testnet or mainnet transactions, you've come to the right place. Solo is your gateway to running your own local Hedera test network, giving you complete control over your development environment.
+Welcome to the world of Hiero development! If you're looking to build and test applications on the Hiero network but don't want to spend HBAR on testnet or mainnet transactions, you've come to the right place. Solo is your gateway to running your own local Hiero test network, giving you complete control over your development environment.
 
-Solo is an opinionated command-line interface (CLI) tool designed to deploy and manage standalone Hiero test networks. Think of it as your personal Hedera sandbox where you can experiment, test features, and develop applications without any external dependencies or costs.
+Solo is an opinionated command-line interface (CLI) tool designed to deploy and manage standalone Hiero test networks. Think of it as your personal Hiero sandbox where you can experiment, test features, and develop applications without any external dependencies or costs.
 
-By the end of this tutorial, you'll have your own Hedera test network running locally, complete with consensus nodes, mirror nodes, and all the infrastructure needed to submit transactions and test your applications.
+By the end of this tutorial, you'll have your own Hiero test network running locally, complete with consensus nodes, mirror nodes, and all the infrastructure needed to submit transactions and test your applications.
 
 ## System Requirements
 
@@ -36,7 +36,7 @@ Choose your platform below:
 # 2. Install Docker Desktop
 # Download from: https://www.docker.com/products/docker-desktop
 # Start Docker Desktop and allocate at least 12 GB of memory:
-#   Docker Desktop > Settings > Resources > Memory
+# Docker Desktop > Settings > Resources > Memory
 
 # 3. Install Solo (this installs all other dependencies automatically)
 brew install solo
@@ -78,7 +78,7 @@ solo --version
 
 {{< tab header="Windows (WSL2)" lang="bash" >}}
 # First, in Windows PowerShell (as Administrator):
-#   wsl --install Ubuntu
+# wsl --install Ubuntu
 # Then reboot and open the Ubuntu terminal.
 # All commands below run in your Ubuntu (WSL2) terminal.
 
@@ -149,7 +149,7 @@ After cleaning up, retry the installation with `brew install solo`.
 
 ## Deploying Your Network
 
-With Solo installed, deploying a complete Hedera test network takes just **one command**:
+With Solo installed, deploying a complete Hiero test network takes just **one command**:
 
 ```bash
 solo one-shot single deploy
@@ -171,7 +171,7 @@ The deployment takes a few minutes. When complete, your network is ready to use.
 
 | Component | Description |
 |-----------|-------------|
-| Consensus Node | Hedera consensus node for processing transactions |
+| Consensus Node | Hiero consensus node for processing transactions |
 | Mirror Node | Stores and serves historical data |
 | Explorer UI | Web interface for viewing accounts and transactions |
 | JSON RPC Relay | Ethereum-compatible JSON RPC interface |
@@ -262,7 +262,7 @@ kubectl logs -n <namespace> <pod-name>
 
 ### Updating the Network
 
-To update nodes to a new Hedera version:
+To update nodes to a new Hiero version:
 
 ```bash
 solo consensus network upgrade --deployment <deployment-name> --upgrade-version v0.66.0
@@ -306,7 +306,7 @@ rm -rf ~/.solo
 
 ## Next Steps
 
-Congratulations! You now have a working Hedera test network. Here's what to explore next:
+Congratulations! You now have a working Hiero test network. Here's what to explore next:
 
 1. **[Using Solo with Hiero JavaScript SDK](javascript-sdk.md)** - Create accounts, topics, and submit transactions using the SDK.
 
