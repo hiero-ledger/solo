@@ -22,7 +22,7 @@ on:
         description: "Perform Dry Run"
         type: boolean
         required: false
-        default: false
+        default: true
 
 env:
   REGISTRY: ghcr.io
@@ -41,73 +41,143 @@ permissions:
 
 jobs:
   prepare-release:
-    name: Release / Prepare
+    name: Prepare Workflow Run
     runs-on: hiero-solo-linux-medium
     outputs:
-      version: ${{ steps.tag.outputs.version }}
+      version: ${{ steps.set-outputs.outputs.version }}
+      need-release: ${{ steps.set-outputs.outputs.need-release }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+      - name: Prepare Release
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
         with:
-          egress-policy: audit
+          checkout: 'true'
+          checkout-ref: '${{ github.ref }}'
+          checkout-token: '${{ secrets.GH_ACCESS_TOKEN }}'
+          setup-node: 'true'
+          node-version: '22'
+          node-registry: 'https://registry.npmjs.org/'
 
-      - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup JQ
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
         with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: 22
+          version: 1.7
 
       - name: Install Semantic Release
         run: |
-          npm install -g semantic-release@23.1.1 @semantic-release/git@10.0.1 @semantic-release/exec@6.0.3 gradle-semantic-release-plugin@1.7.6
-          npm install -g conventional-changelog-conventionalcommits@7.0.2 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
+          npm install -g semantic-release@25.0.2 @semantic-release/git@10.0.1 @semantic-release/github@12.0.2 @semantic-release/exec@7.1.0 gradle-semantic-release-plugin@1.7.6
+          npm install -g conventional-changelog-conventionalcommits@9.1.0 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
 
-      - name: Calculate Next Version
+      - name: Calculate Next Version (default branch)
+        id: calculate-version
         env:
-          NPM_TOKEN: ${{ secrets.NPM_HG_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
           GIT_AUTHOR_NAME: ${{ secrets.GIT_USER_NAME }}
           GIT_AUTHOR_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
           GIT_COMMITTER_NAME: ${{ secrets.GIT_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
-          npx semantic-release --dry-run
-          ls -al
-          cat VERSION
+          PROCEED="true"
+          if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
+            if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
+              if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
+                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
+              else
+                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected NO new version"
+                PROCEED="false"
+              fi
+            else
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did NOT run successfully"
+              PROCEED="false"
+            fi
+            echo "::group::SemVer output"
+            echo "${SEMREL_OUTPUT}"
+            echo "::endgroup::"
+          else
+            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+              jq -r '.version' './package.json' > VERSION
+              PROCEED="true"
+            else
+              PROCEED="false"
+            fi
+          fi
+
+          echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
       - name: Extract Version
-        id: tag
+        id: set-outputs
+        if: ${{ !cancelled() && always() }}
         run: |
-          cat VERSION
-          [[ "${{ github.event.inputs.dry-run-enabled }}" == true && ! -f VERSION ]] && echo -n "0.0.0-latest" > VERSION
-          TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
-          echo "version=${TRIMMED_VERSION}" >> $GITHUB_OUTPUT
-          echo "version=${TRIMMED_VERSION}"
+          PROCEED="true"
+          OUTVER=""
+          
+          if [[ "${{ steps.calculate-version.outputs.need-release }}" == "true" ]] && [[ -f VERSION ]]; then
+            cat VERSION
+            TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
+            OUTVER="${TRIMMED_VERSION}"
+            echo "version=${TRIMMED_VERSION}"
+          elif [[ "${{ steps.calculate-version.outputs.need-release }}" == "true" ]] && [[ "${{ inputs.dry-run-enabled }}" == "true" ]] && [[ ! -f VERSION ]]; then
+            VER=$(jq -r '.version' './package.json')
+            OUTVER="${VER}"
+            echo "Dry run enabled and VERSION file not found, using package.json version: ${VER}"
+          else
+            PROCEED="false"
+          fi
 
-  create-github-release:
-    name: Github / Release
+          echo "version=${OUTVER}" >> "${GITHUB_OUTPUT}"
+          echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
+
+  get-package-info:
+    name: 'Get Package Info'
     runs-on: hiero-solo-linux-medium
+    if: ${{ needs.prepare-release.outputs.need-release == 'true' }}
     needs:
       - prepare-release
     outputs:
-      npm-artifact-name: ${{ steps.set-publish-data.outputs.artifact-name }}
+      package-name: ${{ steps.set-package-name.outputs.package-name }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
         with:
-          egress-policy: audit
+          checkout: 'true'
+          checkout-ref: '${{ github.ref }}'
+          checkout-token: '${{ secrets.GITHUB_TOKEN }}'
+          checkout-fetch-depth: '1'
 
-      - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup JQ
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
         with:
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          persist-credentials: false
-          fetch-depth: 0
+          version: 1.7
+
+      - name: Generate Package name
+        id: set-package-name
+        run: |
+          clean_pkg_name() {
+            echo "${1}" | sed 's/^@//; s/\//-/g'
+          }
+          pname=$(jq -r '.name' './package.json')
+          full_pname=$(clean_pkg_name "${pname}-${{ needs.prepare-release.outputs.version }}.tgz")
+          echo "package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
+
+  create-github-release:
+    name: 'Create GitHub Release'
+    runs-on: hiero-solo-linux-medium
+    if: ${{ needs.prepare-release.outputs.need-release == 'true' }}
+    needs:
+      - prepare-release
+      - get-package-info
+    outputs:
+      need-publish: ${{ steps.verify-package.outputs.need-publish }}
+    steps:
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
+        with:
+          checkout: 'true'
+          checkout-ref: '${{ github.ref }}'
+          checkout-token: '${{ secrets.GH_ACCESS_TOKEN }}'
+          setup-node: 'true'
+          node-version: '22'
+          node-registry: 'https://registry.npmjs.org/'
 
       - name: Install GnuPG Tools
         run: |
@@ -141,11 +211,6 @@ jobs:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: 22
-
       - name: Setup JQ
         uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
         with:
@@ -154,7 +219,8 @@ jobs:
       - name: Build Production Distribution
         run: |
           set -eo pipefail
-          npm install
+          npm install -g npm@11.7.0
+          npm ci
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
           [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
           task build
@@ -186,8 +252,8 @@ jobs:
 
       - name: Install Semantic Release
         run: |
-          npm install -g semantic-release@23.1.1 @semantic-release/git@10.0.1 @semantic-release/exec@6.0.3 gradle-semantic-release-plugin@1.7.6
-          npm install -g conventional-changelog-conventionalcommits@7.0.2 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
+          npm install -g semantic-release@25.0.2 @semantic-release/git@10.0.1 @semantic-release/github@12.0.2 @semantic-release/exec@7.1.0 gradle-semantic-release-plugin@1.7.6
+          npm install -g conventional-changelog-conventionalcommits@9.1.0 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
 
       - name: Install Dependencies
@@ -214,17 +280,12 @@ jobs:
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             FLAGS="--dry-run"
           fi
-          
+
           npx semantic-release --no-sign ${FLAGS}
 
-      # Upload the artifact
-      - name: Upload Solo Package Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
-        with:
-          name: solo-npm-package
-          path: ./output/${{ steps.set-publish-data.outputs.artifact-name }}
-          if-no-files-found: error
+          if [[ -d "dist" ]]; then
+            ls -l dist
+          fi
 
       - name: Deploy to JFrog Registry
         if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
@@ -237,45 +298,103 @@ jobs:
           GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
           echo "Example assets created and uploaded to release."
 
-  # Add a publishing job for solo npmjs
+      - name: Create NPM Package
+        run: |
+          echo "::group::View Version to publish to npm"
+            echo "Version to publish:"
+            cat package.json | grep 'version'
+          echo "::endgroup::"
+
+          echo "::group::Build NPM Package"
+          task build
+          echo "::endgroup::"
+
+          echo "::group::Create Package"
+            FLAGS=""
+            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+              echo "Command: npm pack --pack-destination \"output\""
+              FLAGS="--dry-run"
+            fi
+            mkdir -p "output"
+            npm pack --pack-destination "output" ${FLAGS}
+          echo "::endgroup::"
+
+      - name: Verify Package is Created
+        id: verify-package
+        run: |
+          PROCEED="true"
+          echo "::group::Verify Package is Created"
+            if ls -l output | grep "${{ needs.get-package-info.outputs.package-name }}" > /dev/null 2>&1 ; then
+              echo "::notice file=flow-deploy-release-artifact.yaml,line=306::Package is created"
+            else
+              PROCEED="false"
+              echo "::error file=flow-deploy-release-artifact.yaml,line=306::Package is not created"
+              echo "Attempt Manual Publish!"
+            fi
+          echo "::endgroup::"
+          echo "need-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Package
+        if: ${{ steps.verify-package.outputs.need-publish == 'true' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: npm-package
+          path: output
+          if-no-files-found: error
+
   publish-npm-package:
-    name: Publish Solo NPM Package
+    name: Publish Release packages
     runs-on: ubuntu-latest
     needs:
+      - get-package-info
       - create-github-release
-    if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+    if: ${{ needs.create-github-release.outputs.need-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+      - name: Prepare Job
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: 22
-          registry-url: 'https://registry.npmjs.org'
+          checkout: 'true'
+          checkout-ref: '${{ github.ref }}'
+          checkout-token: '${{ secrets.GITHUB_TOKEN }}'
+          setup-node: 'true'
+          node-version: '22'
+          node-registry: 'https://registry.npmjs.org/'
 
       - name: Install NPM latest
         run: npm install -g npm@11.7.0
 
-      - name: Download Solo NPM Package Artifact
+      - name: Download NPM Package Artifact
+        if: ${{ inputs.dry-run-enabled != true }}
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: solo-npm-package
+          name: npm-package
+          path: output
 
-      - name: Publish Solo NPM Package
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish NPM Package
         run: |
-          args="--access=public"
-          
-          package="${{ needs.create-github-release.outputs.npm-artifact-name }}"
-          echo "::group::Publishing package: ${package} with args: ${args}"
-          npm publish ${package} ${args}
+          echo "::group::Set Publish Args"
+            FLAGS="--access=public"
+            echo "flags=${FLAGS}"
+          echo "::endgroup::"
+
+          echo "::group::Set tarball output"
+            TARBALL="./output/${{ needs.get-package-info.outputs.package-name }}"
+            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+              TARBALL=""
+            fi
+            echo "tarball=${TARBALL}"
+          echo "::endgroup::"
+
+          echo "::group::Publish NPM Package"
+            if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
+              npm publish ${TARBALL} ${FLAGS}
+            fi
           echo "::endgroup::"
 
   setup:
