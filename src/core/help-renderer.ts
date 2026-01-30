@@ -37,13 +37,23 @@ export class HelpRenderer {
         const firstPart: string[] = columns.slice(0, 2);
         const secondPart: string = columns.slice(2).join(' ');
         columns = [...firstPart, secondPart];
+      } else if (columns.length === 1 && table.length > 0) {
+        const descriptions: string[] = columns[0].split(/(\[.+])/);
+        table.at(-1)[2] += ` ${descriptions[0].trim()}`;
+        if (descriptions[1]) {
+          table.at(-1)[3] += ` ${descriptions[1].trim()}`.trim();
+        }
       }
 
-      const descriptions: string[] = columns[2].split(/(\[.+])/);
-      columns[2] = descriptions[0];
-      columns[3] = descriptions[1] || '';
-      columns = columns.map((column: string): string => column.trim());
-      table.push(columns);
+      try {
+        const descriptions: string[] = columns[2].split(/(\[.+])/);
+        columns[2] = descriptions[0];
+        columns[3] = descriptions[1] || '';
+        columns = columns.map((column: string): string => column.trim());
+        table.push(columns);
+      } catch (error) {
+        this.logger.debug(`Error processing line for help rendering: ${line}`, error as Error);
+      }
     }
 
     return table;
@@ -56,8 +66,12 @@ export class HelpRenderer {
 
     const requiredTable: Table = table.filter((row: string[]): boolean => row[3].includes('required'));
     const optionalTable: Table = table.filter((row: string[]): boolean => !row[3].includes('required'));
-    // eslint-disable-next-line unicorn/prefer-spread
-    return requiredTable.concat(optionalTable);
+
+    return [
+      ...requiredTable,
+      ['', '', '', ''], // add a blank line between required and optional flags
+      ...optionalTable,
+    ];
   }
 
   private calculateMaxColumnLengths(table: Table): number[] {

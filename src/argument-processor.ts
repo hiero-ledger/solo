@@ -67,7 +67,10 @@ export class ArgumentProcessor {
           // Set exit code but don't exit immediately - allows I/O buffers to flush
           process.exitCode = 1;
           // Throw error to propagate through async call chains if given unknown argument
-          throw new SoloError(message, error);
+
+          if (!rootCmd.parsed.argv.help) {
+            throw new SoloError(message, error);
+          }
         } else {
           logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ?? ''}`));
           throw new SoloError(message, error);

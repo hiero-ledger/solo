@@ -619,14 +619,7 @@ export class NodeTest extends BaseCommandTest {
 
       await queryBalance(accountManager, namespace, remoteConfig, logger);
 
-      await createAccount(
-        accountManager,
-        namespace,
-        remoteConfig,
-        logger,
-        undefined,
-        new AccountId(shard, realm, 1004),
-      );
+      await createAccount(accountManager, namespace, remoteConfig, logger);
 
       const accountInfo1: AccountInfo = await new AccountInfoQuery()
         .setAccountId(new AccountId(shard, realm, 1001))
