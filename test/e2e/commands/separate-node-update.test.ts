@@ -92,12 +92,6 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
       const temporaryDirectory2: string = 'contextDir';
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
-
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
-
       const {newArgv} = BaseCommandTest;
 
       const prepareArguments = newArgv();
@@ -111,6 +105,18 @@ export function testSeparateNodeUpdate(
         argv.getArg<string>(flags.deployment),
         '--node-alias',
         updateNodeId,
+        '--new-admin-key',
+        argv.getArg<string>(flags.newAdminKey),
+        '--new-account-number',
+        argv.getArg<string>(flags.newAccountNumber),
+        '--tls-public-key',
+        argv.getArg<string>(flags.tlsPublicKey),
+        '--tls-private-key',
+        argv.getArg<string>(flags.tlsPrivateKey),
+        '--gossip-public-key',
+        argv.getArg<string>(flags.gossipPublicKey),
+        '--gossip-private-key',
+        argv.getArg<string>(flags.gossipPrivateKey),
       );
       await main(prepareArguments);
 
