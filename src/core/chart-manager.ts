@@ -76,6 +76,16 @@ export class ChartManager {
   }
 
   async addRepo(name: string, url: string, force: boolean) {
+    // detect if repo already exists for name provided and the url matches, if so, exit, otherwise force update
+    const repositories: Repository[] = await this.helm.listRepositories();
+    const existingRepo: Repository | undefined = repositories.find((repo: Repository) => repo.name === name);
+    if (existingRepo) {
+      if (existingRepo.url === url) {
+        this.logger.debug(`Repo already exists: ${name} -> ${url}`);
+        return url;
+      }
+      this.logger.debug(`Repo URL mismatch for ${name}: existing URL is ${existingRepo.url}, new URL is ${url}`);
+    }
     this.logger.debug(`Adding repo ${name} -> ${url}`, {repoName: name, repoURL: url});
     const options = new AddRepoOptionsBuilder().forceUpdate(force).build();
     await this.helm.addRepository(new Repository(name, url), options);

@@ -1,5 +1,10 @@
 [
   {
+    "name": "Consensus Node JVM Parameters",
+    "directory": "consensus-node-jvm-parameters",
+    "local-java-build": false
+  },
+  {
     "name": "Multicluster Backup and Restore",
     "directory": "multicluster-backup-restore",
     "local-java-build": false

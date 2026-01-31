@@ -78,7 +78,7 @@ export class IntervalLock implements Lock {
     }
 
     // In most production cases, the environment variable should be preferred over the constructor argument.
-    this._durationSeconds = durationSeconds ? durationSeconds : DEFAULT_LEASE_DURATION;
+    this._durationSeconds = durationSeconds ?? DEFAULT_LEASE_DURATION;
   }
 
   /**
