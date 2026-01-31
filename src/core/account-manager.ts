@@ -878,10 +878,11 @@ export class AccountManager {
       .freezeWith(this._nodeClient);
 
     // Sign the transaction with the old key and new key
-    const signTx: any = await (await transaction.sign(oldPrivateKey)).sign(newPrivateKey);
+    let signedTransaction: any = await transaction.sign(oldPrivateKey);
+    signedTransaction = await signedTransaction.sign(newPrivateKey);
 
     // SIgn the transaction with the client operator private key and submit to a Hedera network
-    const txResponse: any = await signTx.execute(this._nodeClient);
+    const txResponse: any = await signedTransaction.execute(this._nodeClient);
 
     // Request the receipt of the transaction
     const receipt: any = await txResponse.getReceipt(this._nodeClient);
