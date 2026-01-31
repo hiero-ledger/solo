@@ -478,7 +478,8 @@ export class ProfileManager {
   }
 
   private async bumpHederaConfigVersion(applicationPropertiesPath: string) {
-    const lines = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+    const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileContents.split('\n');
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
@@ -534,7 +535,8 @@ export class ProfileManager {
     realm: Realm,
     shard: Shard,
   ) {
-    const lines = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+    const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileContents.split('\n');
 
     let realmUpdated: boolean = false;
     let shardUpdated: boolean = false;
