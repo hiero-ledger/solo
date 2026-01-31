@@ -1,4 +1,4 @@
-# One-Shot Falcon Deployment Example
+# Consensus Node JVM Parameters Example
 
 This example demonstrates how to use the Solo **one-shot falcon** commands to provide custom JVM parameters to the consensus node and quickly deploy and destroy a complete Hiero Hashgraph network with all components in a single command.
 
