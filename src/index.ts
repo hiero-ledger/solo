@@ -21,9 +21,11 @@ if (!process.stdout.isTTY) {
   chalk.level = 0;
 }
 
-export async function main(argv: string[], context?: {logger: SoloLogger}) {
+export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
-    Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
+    const developerMode: boolean = argv.includes('--dev');
+    const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
+    Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
   } catch (error) {
     console.error(`Error initializing container: ${error?.message}`, error);
     throw new SoloError('Error initializing container');
