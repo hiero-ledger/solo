@@ -52,7 +52,6 @@ If need to provide customized configuration files for Hedera application, please
 * `--api-permission-properties` - to provide custom api-permission.properties file
 * `--bootstrap-properties` - to provide custom bootstrap.properties file
 * `--application-properties` - to provide custom application.properties file
-* `--block-node-cfg` - to configure block node routing for each consensus node
 
 For example:
 
@@ -62,19 +61,12 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,n
 
 ### Block Node Routing Configuration
 
-For network delay testing and simulating different network topologies, you can configure how each consensus node sends blocks to specific block nodes using the `--block-node-cfg` flag:
+For network delay testing and simulating different network topologies, you can configure how each consensus node sends blocks to specific block nodes using the `--priority-mapping` flag:
 
 ```bash
-# Using JSON string directly
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" \
-  -i node1,node2,node3 \
-  --block-node-cfg '{"node1":[1,3],"node2":[2],"node3":[1,2]}'
-
-# Or using a JSON file
-echo '{"node1":[1,3],"node2":[2],"node3":[1,2]}' > block-config.json
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" \
-  -i node1,node2,node3 \
-  --block-node-cfg block-config.json
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --priority-mapping node1,node2
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --priority-mapping node2,node3
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --priority-mapping node1
 ```
 
 This configuration maps consensus node names to arrays of block node IDs. For example:
@@ -82,3 +74,4 @@ This configuration maps consensus node names to arrays of block node IDs. For ex
 * `node1` sends blocks to block nodes 1 and 3
 * `node2` sends blocks to block node 2
 * `node3` sends blocks to block nodes 1 and 2
+
