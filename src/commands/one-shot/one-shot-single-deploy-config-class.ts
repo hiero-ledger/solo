@@ -21,4 +21,5 @@ export interface OneShotSingleDeployConfigClass {
   predefinedAccounts: boolean;
   minimalSetup: boolean;
   force: boolean;
+  quiet: boolean;
 }

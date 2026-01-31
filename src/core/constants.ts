@@ -104,7 +104,7 @@ export const JSON_RPC_RELAY_CHART: string = 'hedera-json-rpc';
 export const JSON_RPC_RELAY_RELEASE_NAME: string = 'relay';
 
 export const MIRROR_NODE_CHART_URL: string =
-  getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
+  getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-mirror-node/charts';
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
