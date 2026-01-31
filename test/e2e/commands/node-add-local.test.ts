@@ -22,7 +22,9 @@ import {LedgerCommandDefinition} from '../../../src/commands/command-definitions
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [
-
+    'node1=../hiero-consensus-node/hedera-node/data/',
+    '../hiero-consensus-node/hedera-node/data',
+    'node3=../hiero-consensus-node/hedera-node/data',
   ].join(',');
 
   const suffix: string = localBuildPath.slice(0, 5);

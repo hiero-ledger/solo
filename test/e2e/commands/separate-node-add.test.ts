@@ -143,7 +143,6 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.ACCOUNT_CREATE,
         '--deployment',
         argv.getArg<string>(flags.deployment),
-
       );
       await main(createArguments);
     });
@@ -205,7 +204,6 @@ export function testSeparateNodeAdd(
         LedgerCommandDefinition.ACCOUNT_CREATE,
         '--deployment',
         argv.getArg<string>(flags.deployment),
-
       );
       await main(createArguments1);
 

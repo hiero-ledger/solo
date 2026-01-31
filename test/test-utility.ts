@@ -100,9 +100,7 @@ export function getTemporaryDirectory(): string {
   return fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-'));
 }
 
-export function deployNetworkTest(
-  argv: Argv,
-): void {
+export function deployNetworkTest(argv: Argv): void {
   it('should succeed with consensus network deploy', async (): Promise<void> => {
     const {newArgv} = BaseCommandTest;
     const deployArguments: string[] = newArgv();
@@ -121,9 +119,7 @@ export function deployNetworkTest(
   }).timeout(Duration.ofMinutes(5).toMillis());
 }
 
-export function startNodesTest(
-  argv: Argv,
-): void {
+export function startNodesTest(argv: Argv): void {
   it('should succeed with consensus node setup command', async (): Promise<void> => {
     // cache this, because `solo consensus node setup.finalize()` will reset it to false
     const {newArgv} = BaseCommandTest;
@@ -432,8 +428,9 @@ export function endToEndTestSuite(
           DeploymentCommandDefinition.CONFIG_CREATE,
           '--deployment',
           argv.getArg<string>(flags.deployment),
-          // namespace 
-          '--namespace', namespace.name
+          // namespace
+          '--namespace',
+          namespace.name,
         );
         await main(createArguments);
       });
@@ -466,7 +463,7 @@ export function endToEndTestSuite(
           KeysCommandDefinition.CONSENSUS_GENERATE,
           '--deployment',
           argv.getArg<string>(flags.deployment),
-          // add --gossip-keys --tls-keys node-aliases 
+          // add --gossip-keys --tls-keys node-aliases
           '--gossip-keys',
           '--tls-keys',
           '--node-aliases',

@@ -45,13 +45,13 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
         temporaryDirectory,
         '--deployment',
         argv.getArg<string>(flags.deployment),
-        `--node-alias`,
+        '--node-alias',
         nodeAlias,
       );
       await main(prepareArguments);
 
       const submitArguments = newArgv();
-        submitArguments.push(
+      submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
@@ -59,7 +59,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
         temporaryDirectory,
         '--deployment',
         argv.getArg<string>(flags.deployment),
-        `--node-alias`,
+        '--node-alias',
         nodeAlias,
       );
       await main(submitArguments);
@@ -73,7 +73,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
         temporaryDirectory,
         '--deployment',
         argv.getArg<string>(flags.deployment),
-        `--node-alias`,
+        '--node-alias',
         nodeAlias,
       );
       await main(executeArguments);
