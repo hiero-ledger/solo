@@ -2629,8 +2629,9 @@ export class NodeCommandTasks {
           if (config.newAccountNumber) {
             const accountKeys = await self.accountManager.getAccountKeysFromSecret(
               config.newAccountNumber,
-              config.namespace);
-              nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+              config.namespace,
+            );
+            nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
           }
           const signedTx = await nodeUpdateTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
