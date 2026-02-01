@@ -10,7 +10,6 @@ import * as constants from '../../../src/core/constants.js';
 import {ArgumentProcessor} from '../../../src/argument-processor.js';
 
 describe('ArgumentProcessor', () => {
-  let logger: SoloLogger;
   let originalExit: (code?: string | number | null | undefined) => never;
   let originalExitCode: number | string | undefined;
   let consoleOutput: string[];
@@ -19,7 +18,7 @@ describe('ArgumentProcessor', () => {
   beforeEach(() => {
     // Initialize container
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
-    logger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
+    void container.resolve<SoloLogger>(InjectTokens.SoloLogger);
 
     // Capture console output
     consoleOutput = [];

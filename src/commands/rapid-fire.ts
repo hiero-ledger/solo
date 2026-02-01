@@ -117,11 +117,12 @@ export class RapidFireCommand extends BaseCommand {
   private deployNlgChart(): SoloListrTask<RapidFireStartContext> {
     return {
       title: 'Deploy Network Load Generator chart',
-      task: (context_, task): SoloListr<RapidFireStartContext> => {
+
+      task: (context_, _task): SoloListr<RapidFireStartContext> => {
         const subTasks: SoloListrTask<RapidFireStartContext>[] = [
           {
             title: 'Install Network Load Generator chart',
-            task: async (context_, task): Promise<void> => {
+            task: async (context_, _task): Promise<void> => {
               let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
 
               if (context_.config.valuesFile) {
@@ -194,7 +195,7 @@ export class RapidFireCommand extends BaseCommand {
         ];
 
         // set up the sub-tasks
-        return task.newListr(subTasks, {
+        return _task.newListr(subTasks, {
           concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
           rendererOptions: {
             collapseSubtasks: false,
@@ -419,7 +420,8 @@ export class RapidFireCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     return this.allStopTasks(argv, {
       title: 'Uninstall Network Load Generator chart',
-      task: async (context_, task): Promise<void> => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      task: async (context_, _task): Promise<void> => {
         await this.chartManager.uninstall(
           context_.config.namespace,
           constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,

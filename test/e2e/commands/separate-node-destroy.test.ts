@@ -29,14 +29,13 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
 
   const {
     opts: {k8Factory, accountManager, remoteConfig, logger},
-    cmd: {nodeCmd},
   } = bootstrapResp;
 
   describe('Node delete via separated commands', async (): Promise<void> => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
-      const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+      const {newArgv} = BaseCommandTest;
 
-      const prepareArguments = newArgv();
+      const prepareArguments: string[] = newArgv();
       prepareArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
@@ -50,7 +49,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
       );
       await main(prepareArguments);
 
-      const submitArguments = newArgv();
+      const submitArguments: string[] = newArgv();
       submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
@@ -64,7 +63,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
       );
       await main(submitArguments);
 
-      const executeArguments = newArgv();
+      const executeArguments: string[] = newArgv();
       executeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,

@@ -159,7 +159,8 @@ export class VfkitDependencyManager extends BaseDependencyManager {
    * Handle any post-download processing before copying to destination
    * Child classes can override this for custom extraction or processing
    */
-  protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected async processDownloadedPackage(packageFilePath: string, _temporaryDirectory: string): Promise<string[]> {
     return [packageFilePath];
   }
 

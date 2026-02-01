@@ -51,7 +51,6 @@ export function testSeparateNodeAdd(
 
   const {
     opts: {k8Factory, accountManager, remoteConfig, logger},
-    cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
   describe('Node add via separated commands should success', async (): Promise<void> => {
@@ -91,7 +90,7 @@ export function testSeparateNodeAdd(
     it('should add a new node to the network successfully', async (): Promise<void> => {
       const {newArgv} = BaseCommandTest;
 
-      const prepareArguments = newArgv();
+      const prepareArguments: string[] = newArgv();
       prepareArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
@@ -106,7 +105,7 @@ export function testSeparateNodeAdd(
       );
       await main(prepareArguments);
 
-      const submitArguments = newArgv();
+      const submitArguments: string[] = newArgv();
       submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
@@ -118,7 +117,7 @@ export function testSeparateNodeAdd(
       );
       await main(submitArguments);
 
-      const executeArguments = newArgv();
+      const executeArguments: string[] = newArgv();
       executeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
@@ -136,7 +135,7 @@ export function testSeparateNodeAdd(
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
       const {newArgv} = BaseCommandTest;
-      const createArguments = newArgv();
+      const createArguments: string[] = newArgv();
       createArguments.push(
         LedgerCommandDefinition.COMMAND_NAME,
         LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
@@ -219,7 +218,7 @@ export function testSeparateNodeAdd(
       );
       await main(createArguments2);
 
-      const freezeArguments = newArgv();
+      const freezeArguments: string[] = newArgv();
       freezeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
@@ -229,7 +228,7 @@ export function testSeparateNodeAdd(
       );
       await main(freezeArguments);
 
-      const statesArguments = newArgv();
+      const statesArguments: string[] = newArgv();
       statesArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
@@ -241,7 +240,7 @@ export function testSeparateNodeAdd(
       );
       await main(statesArguments);
 
-      const restartArguments = newArgv();
+      const restartArguments: string[] = newArgv();
       restartArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,

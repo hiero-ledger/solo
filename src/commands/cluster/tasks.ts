@@ -199,6 +199,7 @@ export class ClusterCommandTasks {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public installMinioOperator(_: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
@@ -236,7 +237,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
 
@@ -284,7 +286,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public installGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
 
@@ -332,7 +335,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
 
@@ -378,7 +382,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
       task: async ({config: {context}}): Promise<void> => {
@@ -398,9 +402,6 @@ export class ClusterCommandTasks {
   }
 
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install cluster charts',
       task: async (context_, task) => {
@@ -445,7 +446,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -462,7 +464,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -482,7 +485,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public uninstallGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Grafana Agent chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {

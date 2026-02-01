@@ -45,7 +45,6 @@ export function testSeparateNodeUpdate(
 
   const {
     opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
-    cmd: {nodeCmd},
   } = bootstrapResp;
 
   describe('Node update via separated commands', async (): Promise<void> => {
@@ -94,7 +93,7 @@ export function testSeparateNodeUpdate(
       const temporaryDirectory2: string = 'contextDir';
       const {newArgv} = BaseCommandTest;
 
-      const prepareArguments = newArgv();
+      const prepareArguments: string[] = newArgv();
       prepareArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
@@ -120,7 +119,7 @@ export function testSeparateNodeUpdate(
       );
       await main(prepareArguments);
 
-      const submitArguments = newArgv();
+      const submitArguments: string[] = newArgv();
       submitArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
@@ -132,7 +131,7 @@ export function testSeparateNodeUpdate(
       );
       await main(submitArguments);
 
-      const executeArguments = newArgv();
+      const executeArguments: string[] = newArgv();
       executeArguments.push(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,

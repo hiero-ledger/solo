@@ -339,8 +339,7 @@ export function endToEndTestSuite(
 
   const {
     namespace,
-    cmd: {initCmd, clusterCmd, networkCmd, nodeCmd, deploymentCmd},
-    opts: {k8Factory, chartManager, commandInvoker},
+    opts: {k8Factory, chartManager},
   } = bootstrapResp;
 
   describe(`E2E Test Suite for '${testName}'`, function (): void {
@@ -405,7 +404,7 @@ export function endToEndTestSuite(
       it("should success with 'cluster-ref config connect'", async (): Promise<void> => {
         const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
         await localConfig.load();
-        const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+        const {newArgv} = BaseCommandTest;
         const connectArguments: string[] = newArgv();
         connectArguments.push(
           ClusterReferenceCommandDefinition.COMMAND_NAME,
@@ -455,7 +454,7 @@ export function endToEndTestSuite(
       });
 
       it('generate key files', async (): Promise<void> => {
-        const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+        const {newArgv} = BaseCommandTest;
         const generateArguments: string[] = newArgv();
         generateArguments.push(
           KeysCommandDefinition.COMMAND_NAME,
@@ -551,7 +550,12 @@ export async function createAccount(
 
   // Get the new account ID
   const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-  const accountInfo = {
+  const accountInfo: {
+    accountId: string;
+    privateKey: string;
+    publicKey: string;
+    balance: number;
+  } = {
     accountId: getReceipt.accountId.toString(),
     privateKey: privateKey.toString(),
     publicKey: privateKey.publicKey.toString(),

@@ -690,7 +690,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     appName = constants.HEDERA_APP_NAME,
     chainId = constants.HEDERA_CHAIN_ID,
-    loadBalancerEnabled: boolean = false,
+    _loadBalancerEnabled: boolean = false,
   ) {
     let releaseTag = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {

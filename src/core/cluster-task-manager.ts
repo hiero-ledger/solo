@@ -65,7 +65,7 @@ export class ClusterTaskManager extends ShellRunner {
     const onSudoRequested: (message: string) => void = (message: string): void => {
       task.title = message;
     };
-    const onSudoGranted: (message: string) => void = (message: string): void => {
+    const onSudoGranted: (_message: string) => void = (_message: string): void => {
       task.title = originalTitle;
     };
     return {onSudoGranted, onSudoRequested};
@@ -75,7 +75,8 @@ export class ClusterTaskManager extends ShellRunner {
     return [
       {
         title: 'Install git, iptables...',
-        task: async (_, subTask) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        task: async (_, _subTask) => {
           try {
             await this.run('git version');
           } catch {
@@ -92,7 +93,8 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install brew...',
-        task: async (_, subTask) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        task: async (_, _subTask) => {
           const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
           if (!brewInstalled) {
             this.logger.info('Homebrew not found, installing Homebrew...');
@@ -104,7 +106,8 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install podman...',
-        task: async (_, subTask) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        task: async (_, _subTask) => {
           try {
             const podmanVersion: string[] = await this.run('podman --version');
             this.logger.info(`Podman already installed: ${podmanVersion}`);
@@ -226,7 +229,8 @@ export class ClusterTaskManager extends ShellRunner {
   private defaultCreateClusterTask(parentTask): SoloListrTask<InitContext> {
     return {
       title: 'Creating local cluster...',
-      task: async context_ => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      task: async _context_ => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutablePath();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
@@ -237,8 +241,6 @@ export class ClusterTaskManager extends ShellRunner {
   }
 
   public setupLocalClusterTasks(): SoloListrTask<InitContext>[] {
-    const self = this;
-
     return [
       {
         title: 'Install Kind',
@@ -253,7 +255,7 @@ export class ClusterTaskManager extends ShellRunner {
 
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
-          const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
+          const subTasks = this.depManager.taskCheckDependencies<InitContext>(deps);
 
           // set up the sub-tasks
           return task.newListr(subTasks, {

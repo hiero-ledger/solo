@@ -47,7 +47,6 @@ describe('Node add with hedera local build', (): void => {
   endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp): void => {
     const {
       opts: {k8Factory, accountManager},
-      cmd: {networkCmd},
     } = bootstrapResp;
 
     after(async function (): Promise<void> {

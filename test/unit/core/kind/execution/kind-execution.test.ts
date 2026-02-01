@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars */
+
 import {expect} from 'chai';
 import Sinon from 'sinon';
 import {EventEmitter} from 'node:events';
@@ -10,10 +12,10 @@ import {KindParserException} from '../../../../../src/integration/kind/errors/ki
 class MockKindExecution {
   private output: string[] = [];
   private errOutput: string[] = [];
-  private exitCodeValue: number | null = null;
+  private exitCodeValue: number | undefined = undefined;
   private mockProcess: EventEmitter;
 
-  constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+  public constructor(_command: string[], _workingDirectory: string, _environmentVariables: Record<string, string>) {
     // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess = new EventEmitter();
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
@@ -29,10 +31,10 @@ class MockKindExecution {
 
     // Listen for events from our mock process
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
-    this.mockProcess.stdout.on('data', data => this.output.push(data.toString()));
+    this.mockProcess.stdout.on('data', (data): void => this.output.push(data.toString()));
     // @ts-expect-error TS2339: Property stderr does not exist on type EventEmitter<DefaultEventMap>
-    this.mockProcess.stderr.on('data', data => this.errOutput.push(data.toString()));
-    this.mockProcess.on('exit', code => {
+    this.mockProcess.stderr.on('data', (data): void => this.errOutput.push(data.toString()));
+    this.mockProcess.on('exit', (code): void => {
       this.exitCodeValue = code ?? 0;
     });
   }

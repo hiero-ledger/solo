@@ -958,9 +958,10 @@ export class NodeCommandHandlers extends CommandHandler {
    * @param acceptedPhases - the state at which the node can be, not matching any of the states throws an error
    * @param excludedPhases - the state at which the node can't be, matching any of the states throws an error
    */
+
   public validateSingleNodeState({
-    acceptedPhases,
-    excludedPhases,
+    acceptedPhases: _acceptedPhases,
+    excludedPhases: _excludedPhases,
   }: {
     acceptedPhases?: DeploymentPhase[];
     excludedPhases?: DeploymentPhase[];
@@ -991,11 +992,12 @@ export class NodeCommandHandlers extends CommandHandler {
    * @param acceptedPhases - the state at which the node can be, not matching any of the states throws an error
    * @param excludedPhases - the state at which the node can't be, matching any of the states throws an error
    */
+
   private validateNodeState(
     nodeAlias: NodeAlias,
     components: ComponentsDataWrapperApi,
-    acceptedPhases: Optional<DeploymentPhase[]>,
-    excludedPhases: Optional<DeploymentPhase[]>,
+    _acceptedPhases: Optional<DeploymentPhase[]>,
+    _excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {
     let nodeComponent: ConsensusNodeStateSchema;
     try {
