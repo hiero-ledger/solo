@@ -413,6 +413,9 @@ jobs:
             echo "::notice::No JSON log files found"
           else
             for logFile in "${json_files[@]}"; do
+              if [[ -z "$logFile" ]]; then
+                continue
+              fi          
               echo "::group::JSON Format"
               cat $logFile | jq
               echo "::endgroup::" 
