@@ -37,11 +37,9 @@ export class PackageDownloader {
   }
 
   urlExists(url: string) {
-    const self = this;
-
     return new Promise<boolean>(resolve => {
       try {
-        self.logger.debug(`Checking URL: ${url}`);
+        this.logger.debug(`Checking URL: ${url}`);
         // attempt to send a HEAD request to check URL exists
 
         const request = url.startsWith('http://')
@@ -50,7 +48,7 @@ export class PackageDownloader {
 
         request.on('response', r => {
           const statusCode = r.statusCode;
-          self.logger.debug({
+          this.logger.debug({
             response: {
               // @ts-ignore
               connectOptions: r['connect-options'],
@@ -67,14 +65,14 @@ export class PackageDownloader {
         });
 
         request.on('error', error => {
-          self.logger.error(error);
+          this.logger.error(error);
           resolve(false);
           request.destroy();
         });
 
         request.end(); // make the request
       } catch (error: Error | any) {
-        self.logger.error(error);
+        this.logger.error(error);
         resolve(false);
       }
     });
@@ -120,11 +118,9 @@ export class PackageDownloader {
    * @throws {Error} - if the file cannot be read
    */
   computeFileHash(this: any, filePath: string, algo = 'sha384') {
-    const self = this;
-
     return new Promise<string>((resolve, reject) => {
       try {
-        self.logger.debug(`Computing checksum for '${filePath}' using algo '${algo}'`);
+        this.logger.debug(`Computing checksum for '${filePath}' using algo '${algo}'`);
         const checksum = crypto.createHash(algo);
         const s = fs.createReadStream(filePath);
         s.on('data', d => {
@@ -132,7 +128,7 @@ export class PackageDownloader {
         });
         s.on('end', () => {
           const d = checksum.digest('hex');
-          self.logger.debug(`Computed checksum '${d}' for '${filePath}' using algo '${algo}'`);
+          this.logger.debug(`Computed checksum '${d}' for '${filePath}' using algo '${algo}'`);
           resolve(d);
         });
 

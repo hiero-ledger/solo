@@ -319,7 +319,6 @@ export class PlatformInstaller {
   }
 
   async setPlatformDirPermissions(podReference: PodReference, context?: string) {
-    const self = this;
     if (!podReference) {
       throw new MissingArgumentError('podReference is required');
     }
@@ -328,7 +327,7 @@ export class PlatformInstaller {
       const destinationPaths = [constants.HEDERA_HAPI_PATH, constants.HEDERA_HGCAPP_DIR];
 
       for (const destinationPath of destinationPaths) {
-        await self.setPathPermission(podReference, destinationPath, undefined, undefined, undefined, context);
+        await this.setPathPermission(podReference, destinationPath, undefined, undefined, undefined, context);
       }
 
       return true;
@@ -339,16 +338,15 @@ export class PlatformInstaller {
 
   /** Return a list of task to perform node directory setup */
   taskSetup(podReference: PodReference, stagingDirectory: string, isGenesis: boolean, context?: string) {
-    const self = this;
     return new Listr(
       [
         {
           title: 'Copy configuration files',
-          task: async () => await self.copyConfigurationFiles(stagingDirectory, podReference, isGenesis, context),
+          task: async () => await this.copyConfigurationFiles(stagingDirectory, podReference, isGenesis, context),
         },
         {
           title: 'Set file permissions',
-          task: async () => await self.setPlatformDirPermissions(podReference, context),
+          task: async () => await this.setPlatformDirPermissions(podReference, context),
         },
       ],
       {
@@ -405,11 +403,10 @@ export class PlatformInstaller {
    * @param contexts list of k8s contexts
    */
   copyNodeKeys(stagingDirectory: string, consensusNodes: ConsensusNode[], contexts: string[]) {
-    const self = this;
     const subTasks: any[] = [
       {
         title: 'Copy TLS keys',
-        task: async () => await self.copyTLSKeys(consensusNodes, stagingDirectory, contexts),
+        task: async () => await this.copyTLSKeys(consensusNodes, stagingDirectory, contexts),
       },
     ];
 
@@ -421,7 +418,7 @@ export class PlatformInstaller {
             [
               {
                 title: 'Copy Gossip keys',
-                task: async () => await self.copyGossipKeys(consensusNode, stagingDirectory, consensusNodes),
+                task: async () => await this.copyGossipKeys(consensusNode, stagingDirectory, consensusNodes),
               },
             ],
             {

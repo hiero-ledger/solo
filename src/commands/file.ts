@@ -309,8 +309,6 @@ Troubleshooting:
    * @param isCreate - True for create operation, false for update
    */
   private async executeFileOperation(argv: ArgvStruct, isCreate: boolean): Promise<boolean> {
-    const self = this;
-
     interface Context extends FileUploadContext {
       createdFileId?: string;
       isSystemFile?: boolean;
@@ -322,7 +320,7 @@ Troubleshooting:
           title: 'Initialize configuration',
           task: async context_ => {
             const result: {config: FileUploadConfig; fileContent: Uint8Array; expectedSize: number} =
-              await self.initializeFileConfig(argv, !isCreate);
+              await this.initializeFileConfig(argv, !isCreate);
             context_.config = result.config;
             context_.fileContent = result.fileContent;
             context_.expectedSize = result.expectedSize;
@@ -340,7 +338,7 @@ Troubleshooting:
           task: async context_ => {
             const useGenesisKey: boolean = context_.isSystemFile || false;
 
-            context_.treasuryPrivateKey = await self.loadClientAndKeys(
+            context_.treasuryPrivateKey = await this.loadClientAndKeys(
               context_.config.namespace,
               context_.config.deployment,
               useGenesisKey,
@@ -351,7 +349,7 @@ Troubleshooting:
           title: 'Check if file exists',
           skip: () => isCreate, // Skip for create operation
           task: async context_ => {
-            const client: any = self.accountManager._nodeClient!;
+            const client: any = this.accountManager._nodeClient!;
 
             try {
               const fileIdObject: FileId = FileId.fromString(context_.config.fileId);
@@ -359,26 +357,26 @@ Troubleshooting:
               const fileInfo: any = await fileInfoQuery.execute(client);
 
               context_.fileExists = true;
-              self.logger.showUser(chalk.green(`File ${context_.config.fileId} exists. Proceeding with update.`));
-              self.logger.showUser(chalk.gray(`  Current size: ${fileInfo.size.toString()} bytes`));
+              this.logger.showUser(chalk.green(`File ${context_.config.fileId} exists. Proceeding with update.`));
+              this.logger.showUser(chalk.gray(`  Current size: ${fileInfo.size.toString()} bytes`));
               const keysCount: number = fileInfo.keys ? fileInfo.keys.toArray().length : 0;
-              self.logger.showUser(chalk.gray(`  Keys: ${keysCount}`));
+              this.logger.showUser(chalk.gray(`  Keys: ${keysCount}`));
 
               // Check if file is a system file (no keys = immutable)
               if (keysCount === 0) {
                 if (context_.isSystemFile) {
-                  self.logger.showUser(
+                  this.logger.showUser(
                     chalk.cyan(
                       `ℹ️  File ${context_.config.fileId} is a system file (no keys). Automatically using genesis key for update.`,
                     ),
                   );
                 } else {
-                  self.logger.showUser(
+                  this.logger.showUser(
                     chalk.yellow(
                       `⚠️  Warning: File ${context_.config.fileId} has no keys but is not in system file range (0.0.101-0.0.200).`,
                     ),
                   );
-                  self.logger.showUser(
+                  this.logger.showUser(
                     chalk.yellow(
                       '    Update may fail. Set GENESIS_KEY environment variable if this file requires genesis key authorization.',
                     ),
@@ -399,13 +397,13 @@ Troubleshooting:
         {
           title: isCreate ? 'Create file on Hiero network' : 'Update file on Hiero network',
           task: async (context_, task): Promise<SoloListr<Context>> => {
-            const client: any = self.accountManager._nodeClient!;
+            const client: any = this.accountManager._nodeClient!;
             const subTasks: SoloListrTask<Context>[] = [
               {
                 title: isCreate ? 'Create new file' : 'Update existing file',
                 task: async (context__, task): Promise<SoloListr<Context> | void> => {
                   const {initialContent, needsAppend}: {initialContent: Uint8Array; needsAppend: boolean} =
-                    self.prepareInitialContent(context__.fileContent, isCreate ? 'create' : 'update');
+                    this.prepareInitialContent(context__.fileContent, isCreate ? 'create' : 'update');
 
                   if (isCreate) {
                     // Create new file
@@ -427,7 +425,7 @@ Troubleshooting:
                     context__.createdFileId = createdFileId?.toString();
                     context__.config.fileId = context__.createdFileId!; // Update config with actual file ID
 
-                    self.logger.showUser(chalk.green(`✓ File created with ID: ${context__.createdFileId}`));
+                    this.logger.showUser(chalk.green(`✓ File created with ID: ${context__.createdFileId}`));
                   } else {
                     // Update existing file
                     const fileIdObject: FileId = FileId.fromString(context__.config.fileId);
@@ -445,7 +443,7 @@ Troubleshooting:
                       throw new SoloError(`File update failed with status: ${updateReceipt.status.toString()}`);
                     }
 
-                    self.logger.showUser(chalk.green('✓ File updated successfully'));
+                    this.logger.showUser(chalk.green('✓ File updated successfully'));
                   }
 
                   // Append remaining content if needed
@@ -454,7 +452,7 @@ Troubleshooting:
                       {
                         title: 'Append remaining file content',
                         task: async (context__, appendTask) => {
-                          await self.appendFileChunks(
+                          await this.appendFileChunks(
                             appendTask,
                             client,
                             context__.config.fileId,
@@ -487,8 +485,8 @@ Troubleshooting:
         {
           title: 'Verify uploaded file',
           task: async context_ => {
-            const client = self.accountManager._nodeClient!;
-            await self.verifyFileUpload(client, context_.config.fileId, context_.fileContent);
+            const client = this.accountManager._nodeClient!;
+            await this.verifyFileUpload(client, context_.config.fileId, context_.fileContent);
           },
         },
       ],

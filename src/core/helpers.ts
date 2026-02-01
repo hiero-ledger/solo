@@ -192,7 +192,7 @@ export function renameAndCopyFile(
   sourceFilePath: string,
   expectedBaseName: string,
   destinationDirectory: string,
-  logger: SoloLogger,
+  _logger: SoloLogger,
 ) {
   const sourceDirectory = path.dirname(sourceFilePath);
   if (path.basename(sourceFilePath) !== expectedBaseName) {
@@ -433,28 +433,6 @@ export async function checkNamespace(consensusNodes: ConsensusNode[], k8Factory:
       throw new SoloError(`namespace ${namespace} does not exist in context ${consensusNode.context}`);
     }
   }
-}
-
-/**
- * Print a message and pad both sides with asterisks to make it stand out
- * @param message The message to print
- * @param totalWidth The total width of the padded message
- */
-function printPaddedMessage(message: string, totalWidth: number): string {
-  // If the message is longer than or equal to totalWidth, return it as is
-  if (message.length >= totalWidth) {
-    return message;
-  }
-
-  // Calculate the total padding needed (excluding the message length)
-  const totalPadding = totalWidth - message.length;
-
-  // Split the padding between left and right (favoring left if odd)
-  const leftPadding = Math.floor(totalPadding / 2);
-  const rightPadding = totalPadding - leftPadding;
-
-  // Construct the padded string
-  return '*'.repeat(leftPadding) + message + '*'.repeat(rightPadding);
 }
 
 /**
