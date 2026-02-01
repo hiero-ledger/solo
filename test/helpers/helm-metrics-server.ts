@@ -9,10 +9,10 @@ import {type K8ClientFactory} from '../../src/integration/kube/k8-client/k8-clie
 export class HelmMetricsServer {
   public static readonly NAMESPACE: NamespaceName = NamespaceName.of('kube-system');
   public static readonly CHART_RELEASE_NAME: string = 'metrics-server';
-  public static readonly CHART_NAME: string = 'metrics-server/metrics-server';
+  public static readonly CHART_NAME: string = 'metrics-server';
   public static readonly REPOSITORY_NAME: string = 'metrics-server';
   public static readonly REPOSITORY_URL: string = 'https://kubernetes-sigs.github.io/metrics-server/';
-  public static readonly INSTALL_ARGS: string = '--kubelet-insecure-tls';
+  public static readonly INSTALL_ARGS: string = '--set "args[0]=--kubelet-insecure-tls"';
   public static readonly VERSION: string = ''; // latest version
 
   public static async installMetricsServer(testName: string): Promise<void> {

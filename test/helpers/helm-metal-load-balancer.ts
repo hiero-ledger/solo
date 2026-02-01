@@ -9,7 +9,7 @@ import {type ChartManager} from '../../src/core/chart-manager.js';
 export class HelmMetalLoadBalancer {
   public static readonly NAMESPACE: NamespaceName = NamespaceName.of('metallb-system');
   public static readonly CHART_RELEASE_NAME: string = 'metallb';
-  public static readonly CHART_NAME: string = 'metallb/metallb';
+  public static readonly CHART_NAME: string = 'metallb';
   public static readonly REPOSITORY_NAME: string = 'metallb';
   public static readonly REPOSITORY_URL: string = 'https://metallb.github.io/metallb/';
   public static readonly INSTALL_ARGS: string = '--set speaker.frr.enabled=true';
