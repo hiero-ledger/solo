@@ -97,7 +97,7 @@ export class K8Client implements K8 {
     this.k8Clusters = new K8ClientClusters(this.kubeConfig);
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
     this.k8Contexts = new K8ClientContexts(this.kubeConfig);
-    this.k8Services = new K8ClientServices(this.kubeClient, this.kubeConfig);
+    this.k8Services = new K8ClientServices(this.kubeClient);
     this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig);
     this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods);
     this.k8Pvcs = new K8ClientPvcs(this.kubeClient);
