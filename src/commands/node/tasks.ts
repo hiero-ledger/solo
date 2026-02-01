@@ -343,7 +343,7 @@ export class NodeCommandTasks {
             const retrievedReleaseTag = await shellRunner.run(
               `git -C ${localDataLibraryBuildPath} describe --tags --abbrev=0`,
             );
-            const expectedReleaseTag = releaseTag ? releaseTag : HEDERA_PLATFORM_VERSION;
+            const expectedReleaseTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
             if (retrievedReleaseTag.join('\n') !== expectedReleaseTag) {
               this.logger.showUser(
                 chalk.cyan(
