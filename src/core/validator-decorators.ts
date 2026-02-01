@@ -15,7 +15,7 @@ export const IsDeployments = (validationOptions?: ValidationOptions) => {
         ...validationOptions,
       },
       validator: {
-        validate(value: any, arguments_: ValidationArguments) {
+        validate(value: any, _arguments_: ValidationArguments) {
           if (!isObject(value)) {
             return false;
           }
@@ -63,7 +63,7 @@ export const IsClusterReferences = (validationOptions?: ValidationOptions) => {
         ...validationOptions,
       },
       validator: {
-        validate(value: any, arguments_: ValidationArguments) {
+        validate(value: any, _arguments_: ValidationArguments) {
           if (!isObject(value)) {
             return false;
           }

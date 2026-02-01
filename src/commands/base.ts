@@ -231,14 +231,13 @@ export abstract class BaseCommand extends ShellRunner {
         constants.SOLO_VALUES_DIR,
       ];
     }
-    const self: this = this;
 
     try {
       for (const directoryPath of directories) {
         if (!fs.existsSync(directoryPath)) {
           fs.mkdirSync(directoryPath, {recursive: true});
         }
-        self.logger.debug(`OK: setup directory: ${directoryPath}`);
+        this.logger.debug(`OK: setup directory: ${directoryPath}`);
       }
     } catch (error) {
       throw new SoloError(`failed to create directory: ${error.message}`, error);

@@ -591,7 +591,7 @@ export class AccountManager {
         serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
       }
 
-      for (const [_, context] of clusterReferences) {
+      for (const [, context] of clusterReferences) {
         // get the pod name of the network node
         const pods: Pod[] = await this.k8Factory
           .getK8(context)

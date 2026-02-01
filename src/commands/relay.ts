@@ -227,7 +227,7 @@ export class RelayCommand extends BaseCommand {
     context,
     releaseName,
     deployment,
-    mirrorNodeReleaseName,
+    mirrorNodeReleaseName: _mirrorNodeReleaseName,
     mirrorNamespace,
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
@@ -436,7 +436,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
-          const pods = await this.k8Factory
+          await this.k8Factory
             .getK8(config.context)
             .pods()
             .list(

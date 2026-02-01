@@ -523,7 +523,7 @@ export class NodeTest extends BaseCommandTest {
   }
 
   public static upgrade(options: BaseTestOptions): void {
-    const {testName, namespace, contexts, testLogger: logger, shard, realm, clusterReferences, deployment} = options;
+    const {testName, namespace, contexts, testLogger: logger, shard, realm} = options;
     const {soloNodeUpgradeArgv} = NodeTest;
 
     it(`${testName}: consensus node upgrade`, async (): Promise<void> => {

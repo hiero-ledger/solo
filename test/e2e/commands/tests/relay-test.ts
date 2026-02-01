@@ -75,7 +75,7 @@ export class RelayTest extends BaseCommandTest {
   }
 
   public static add(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
+    const {testName, deployment, namespace, contexts, clusterReferenceNameArray} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     // TODO: Investigate validations

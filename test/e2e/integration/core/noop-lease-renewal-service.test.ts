@@ -17,11 +17,11 @@ export class NoopLeaseRenewalService implements LockRenewalService {
     return scheduleId > 0;
   }
 
-  public async schedule(lease: Lock): Promise<number> {
+  public async schedule(_lease: Lock): Promise<number> {
     return Atomics.add(this.counter, 0, 1);
   }
 
-  public async cancel(scheduleId: number): Promise<boolean> {
+  public async cancel(_scheduleId: number): Promise<boolean> {
     return true;
   }
 
@@ -29,7 +29,7 @@ export class NoopLeaseRenewalService implements LockRenewalService {
     return new Map<number, boolean>();
   }
 
-  public calculateRenewalDelay(lease: Lock): Duration {
+  public calculateRenewalDelay(_lease: Lock): Duration {
     return Duration.ofSeconds(10);
   }
 }

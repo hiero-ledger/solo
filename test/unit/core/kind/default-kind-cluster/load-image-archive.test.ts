@@ -54,6 +54,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
     });
 
     const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
+    expect(result).to.be.instanceOf(LoadImageArchiveResponse);
 
     expect(result).to.be.instanceOf(LoadImageArchiveResponse);
 
@@ -148,6 +149,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
 
     const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
 
+    expect(result).to.be.instanceOf(LoadImageArchiveResponse);
     // Verify the path was passed correctly
     expect(builderArguments.get('name')).to.equal(imageName);
   });
