@@ -272,7 +272,7 @@ export class NodeTest extends BaseCommandTest {
     const argv: string[] = newArgv();
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,

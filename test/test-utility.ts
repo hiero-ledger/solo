@@ -137,7 +137,7 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommandDefinition.COMMAND_NAME,
-      subcommand: DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      subcommand: DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
       action: DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
     });
