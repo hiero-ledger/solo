@@ -123,7 +123,7 @@ export class BackupRestoreCommand extends BaseCommand {
         } else {
           // For secrets, filter to only include Opaque type
           const allSecrets: Secret[] = await k8.secrets().list(namespace, []);
-          resources = allSecrets.filter((secret): boolean => secret.type === 'Opaque');
+          resources = allSecrets.filter((secret: Secret): boolean => secret.type === 'Opaque');
           totalCount = allSecrets.length;
         }
 
@@ -263,21 +263,21 @@ export class BackupRestoreCommand extends BaseCommand {
       [
         {
           title: 'Export ConfigMaps',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             context_.configMapCount = await this.exportConfigMaps(outputDirectory);
             task.title = `Export ConfigMaps: ${context_.configMapCount} exported`;
           },
         },
         {
           title: 'Export Secrets',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             context_.secretCount = await this.exportSecrets(outputDirectory);
             task.title = `Export Secrets: ${context_.secretCount} exported`;
           },
         },
         {
           title: 'Download Node Logs',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const [clusterReference, context] of clusterReferences.entries()) {
               const logsDirectory: string = path.join(outputDirectory, clusterReference, 'logs');
@@ -288,7 +288,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node State Files',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: string = node.name;
@@ -302,11 +302,11 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Compress backup directory',
-          skip: () => {
+          skip: (): boolean => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             return !zipPassword;
           },
-          task: async () => {
+          task: async (): Promise<void> => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
             const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
@@ -473,7 +473,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Get all log zip files directly from logs directory
       const allFiles: string[] = fs.readdirSync(logsDirectory);
       this.logger.showUser(`Files are found in ${logsDirectory} are : ${allFiles.join(', ')}`);
-      const logFiles: string[] = allFiles.filter(file => file.endsWith(constants.LOG_CONFIG_ZIP_SUFFIX));
+      const logFiles: string[] = allFiles.filter((file): boolean => file.endsWith(constants.LOG_CONFIG_ZIP_SUFFIX));
 
       if (logFiles.length === 0) {
         this.logger.showUser(
@@ -561,7 +561,7 @@ export class BackupRestoreCommand extends BaseCommand {
       [
         {
           title: 'Initialize restore configuration',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             // Build pod references map
             const podReferences: any = {};
 
@@ -591,7 +591,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Freeze network (if running)',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             try {
               // Use the existing freeze command to freeze the network
               await invokeSoloCommand(
@@ -615,28 +615,28 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Import ConfigMaps',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             context_.configMapCount = await this.importConfigMaps(inputDirectory);
             task.title = `Import ConfigMaps: ${context_.configMapCount} imported`;
           },
         },
         {
           title: 'Import Secrets',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             context_.secretCount = await this.importSecrets(inputDirectory);
             task.title = `Import Secrets: ${context_.secretCount} imported`;
           },
         },
         {
           title: 'Wait for consensus node pods',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             await this.waitForConsensusPods();
             task.title = 'Wait for consensus node pods: completed';
           },
         },
         {
           title: 'Restore Logs and Configs',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             await this.restoreLogsAndConfigs(inputDirectory);
             task.title = 'Restore Logs and Configs: completed';
           },
@@ -701,15 +701,15 @@ export class BackupRestoreCommand extends BaseCommand {
     this.logger.showUser(chalk.cyan('Parsing remote configuration...'));
 
     try {
-      let actualConfigData = configData;
+      let actualConfigData: any = configData;
 
       // Check if this is a ConfigMap wrapper (has apiVersion, kind, data)
       if (configData.kind === 'ConfigMap' && configData.data) {
         this.logger.showUser(chalk.gray('  Detected ConfigMap format, extracting remote config data...'));
 
         // Extract the remote config from the ConfigMap data field
-        const remoteConfigKey = 'remote-config-data';
-        const remoteConfigYaml = configData.data[remoteConfigKey];
+        const remoteConfigKey: string = 'remote-config-data';
+        const remoteConfigYaml: any = configData.data[remoteConfigKey];
 
         if (!remoteConfigYaml) {
           throw new SoloError(`ConfigMap does not contain '${remoteConfigKey}' key`);
@@ -743,7 +743,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Keys generation task
       {
         title: 'Generate consensus node keys',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -769,7 +769,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Consensus network deploy task
       {
         title: 'Deploy consensus network',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -821,7 +821,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Consensus node setup task
       {
         title: 'Setup consensus nodes',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -848,7 +848,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Consensus node start task
       {
         title: 'Start consensus nodes',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -884,9 +884,9 @@ export class BackupRestoreCommand extends BaseCommand {
     return [
       {
         title: 'Deploy block nodes',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.blockNodes || context_.deploymentState.blockNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<any> => {
           const blockNodeTasks: any[] = [];
 
           for (const blockNode of context_.deploymentState.blockNodes) {
@@ -955,9 +955,9 @@ export class BackupRestoreCommand extends BaseCommand {
     return [
       {
         title: 'Deploy mirror nodes',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.mirrorNodes || context_.deploymentState.mirrorNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<any> => {
           const mirrorNodeTasks: any[] = [];
 
           for (const mirrorNode of context_.deploymentState.mirrorNodes) {
@@ -1026,9 +1026,9 @@ export class BackupRestoreCommand extends BaseCommand {
     return [
       {
         title: 'Deploy relay nodes',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.relayNodes || context_.deploymentState.relayNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<any> => {
           const relayNodeTasks: any[] = [];
 
           for (const relayNode of context_.deploymentState.relayNodes) {
@@ -1101,9 +1101,9 @@ export class BackupRestoreCommand extends BaseCommand {
     return [
       {
         title: 'Deploy explorers',
-        skip: (context_: any) =>
+        skip: (context_: any): boolean =>
           !context_.deploymentState?.explorers || context_.deploymentState.explorers.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<any> => {
           const explorerTasks: any[] = [];
 
           for (const explorer of context_.deploymentState.explorers) {
@@ -1171,7 +1171,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
     return {
       title: 'Scan backup directory structure',
-      task: async (context_: any) => {
+      task: async (context_: any): Promise<void> => {
         const inputDirectory: string = context_.inputDirectory;
 
         // Verify input directory exists
@@ -1182,8 +1182,8 @@ export class BackupRestoreCommand extends BaseCommand {
         // Read subdirectories
         const entries: fs.Dirent[] = fs.readdirSync(inputDirectory, {withFileTypes: true});
         const clusterReferenceDirectories: string[] = entries
-          .filter(entry => entry.isDirectory())
-          .map(entry => entry.name);
+          .filter((entry): boolean => entry.isDirectory())
+          .map((entry): string => entry.name);
 
         if (clusterReferenceDirectories.length === 0) {
           throw new SoloError(`No cluster directories found in: ${inputDirectory}`);
@@ -1254,7 +1254,7 @@ export class BackupRestoreCommand extends BaseCommand {
         // Build node aliases and validate we have components to deploy
         if (context_.deploymentState!.consensusNodes && context_.deploymentState!.consensusNodes.length > 0) {
           context_.nodeAliases = context_
-            .deploymentState!.consensusNodes.map((n: any) => `node${n.metadata.id}`)
+            .deploymentState!.consensusNodes.map((n: any): `node${string}` => `node${n.metadata.id}`)
             .join(',');
           context_.numConsensusNodes = context_.deploymentState!.consensusNodes.length;
         }
@@ -1280,18 +1280,18 @@ export class BackupRestoreCommand extends BaseCommand {
     const self: BackupRestoreCommand = this;
     return {
       title: 'Initialize configuration',
-      task: async (context_: any) => {
+      task: async (context_: any): Promise<void> => {
         await self.localConfig.load();
         self.configManager.update(argv);
 
-        const inputDirectory = argv[flags.inputDir.name] as string;
+        const inputDirectory: string = argv[flags.inputDir.name] as string;
         if (!inputDirectory) {
           throw new SoloError('Input directory is required. Use --input-dir flag.');
         }
         context_.inputDirectory = inputDirectory;
 
         // Load component-specific options from YAML file if provided
-        const optionsFile = argv[flags.optionsFile.name] as string;
+        const optionsFile: string = argv[flags.optionsFile.name] as string;
         if (optionsFile) {
           self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
 
@@ -1300,8 +1300,8 @@ export class BackupRestoreCommand extends BaseCommand {
           }
 
           try {
-            const optionsContent = fs.readFileSync(optionsFile, 'utf8');
-            const parsedOptions = yaml.parse(optionsContent);
+            const optionsContent: string = fs.readFileSync(optionsFile, 'utf8');
+            const parsedOptions: any = yaml.parse(optionsContent);
             context_.componentOptions = parsedOptions;
 
             self.logger.showUser(chalk.cyan('Component options loaded:'));
@@ -1656,12 +1656,12 @@ export class BackupRestoreCommand extends BaseCommand {
       };
     }
 
-    const tasks = new Listr<RestoreClustersContext>(
+    const tasks: any = new Listr<RestoreClustersContext>(
       [
         self.buildInitializationTask(argv),
         {
           title: 'Extract backup archive',
-          skip: () => {
+          skip: (): boolean => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             return !zipPassword;
           },
@@ -1674,8 +1674,11 @@ export class BackupRestoreCommand extends BaseCommand {
         ...self.buildKindNetworkTask(),
         {
           title: 'Create individual clusters',
-          task: (context_: any, taskListWrapper: any) => {
-            const clusterTasks = self.buildIndividualClusterCreationTasks(context_, metallbConfig);
+          task: (context_: any, taskListWrapper: any): any => {
+            const clusterTasks: SoloListrTask<any>[] = self.buildIndividualClusterCreationTasks(
+              context_,
+              metallbConfig,
+            );
             return taskListWrapper.newListr(clusterTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},
@@ -1706,7 +1709,7 @@ export class BackupRestoreCommand extends BaseCommand {
       await this.taskList
         .callCloseFunctions()
         .then()
-        .catch((error): void => this.logger.error('Error during closing task list:', error));
+        .catch((error: any): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;
@@ -1744,15 +1747,15 @@ export class BackupRestoreCommand extends BaseCommand {
       };
     }
 
-    const tasks = new Listr<RestoreNetworkContext>(
+    const tasks: any = new Listr<RestoreNetworkContext>(
       [
         self.buildInitializationTask(argv),
         // Flatten scan backup directory task (to load config and deployment state)
         self.buildScanBackupDirectoryTask(),
         {
           title: 'Initialize cluster configurations',
-          task: (context_: any, taskListWrapper: any) => {
-            const initTasks = self.buildClusterInitializationTasks(context_, shard, realm);
+          task: (context_: any, taskListWrapper: any): any => {
+            const initTasks: any[] = self.buildClusterInitializationTasks(context_, shard, realm);
             return taskListWrapper.newListr(initTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},
@@ -1781,7 +1784,7 @@ export class BackupRestoreCommand extends BaseCommand {
       await this.taskList
         .callCloseFunctions()
         .then()
-        .catch((error): void => this.logger.error('Error during closing task list:', error));
+        .catch((error: any): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;

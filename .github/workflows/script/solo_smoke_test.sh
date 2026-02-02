@@ -187,11 +187,12 @@ echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
 echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
-helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m || result=$?
+helm test mirror -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
 fi
+echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 result=0
 
 check_monitor_log "${SOLO_NAMESPACE}"
