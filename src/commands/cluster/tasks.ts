@@ -125,18 +125,16 @@ export class ClusterCommandTasks {
     loadRemoteConfig: boolean = false,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
 
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task) => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         if (loadRemoteConfig) {
-          await self.remoteConfig.loadAndValidate(argv);
+          await this.remoteConfig.loadAndValidate(argv);
         }
         context_.config = await configInit(argv, context_, task);
       },
@@ -144,13 +142,10 @@ export class ClusterCommandTasks {
   }
 
   public showClusterList(): SoloListrTask<AnyListrContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'List all available clusters',
       task: async () => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
@@ -199,7 +194,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installMinioOperator(_: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -236,10 +231,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
+  public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install Prometheus Stack chart',
       task: async context_ => {
@@ -252,7 +244,7 @@ export class ClusterCommandTasks {
         );
 
         if (isPrometheusInstalled) {
-          self.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
+          this.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -264,9 +256,9 @@ export class ClusterCommandTasks {
               '',
               context_.config.context,
             );
-            self.logger.showUser('✅ Prometheus Stack chart installed successfully');
+            this.logger.showUser('✅ Prometheus Stack chart installed successfully');
           } catch (error) {
-            self.logger.debug('Error installing Prometheus Stack chart', error);
+            this.logger.debug('Error installing Prometheus Stack chart', error);
             try {
               await this.chartManager.uninstall(
                 clusterSetupNamespace,
@@ -284,10 +276,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
+  public installGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install Grafana Agent chart',
       task: async context_ => {
@@ -300,7 +289,7 @@ export class ClusterCommandTasks {
         );
 
         if (isGrafanaAgentInstalled) {
-          self.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
+          this.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -312,9 +301,9 @@ export class ClusterCommandTasks {
               '',
               context_.config.context,
             );
-            self.logger.showUser('✅ Grafana Agent chart installed successfully');
+            this.logger.showUser('✅ Grafana Agent chart installed successfully');
           } catch (error) {
-            self.logger.debug('Error installing Grafana Agent chart', error);
+            this.logger.debug('Error installing Grafana Agent chart', error);
             try {
               await this.chartManager.uninstall(
                 clusterSetupNamespace,
@@ -332,10 +321,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
+  public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install pod-monitor-role ClusterRole',
       task: async context_ => {
@@ -344,7 +330,7 @@ export class ClusterCommandTasks {
         try {
           // Check if ClusterRole already exists using Kubernetes JavaScript API
           await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
-          self.logger.showUser(
+          this.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
         } catch {
@@ -366,11 +352,11 @@ export class ClusterCommandTasks {
               ],
               {'solo.hedera.com/type': 'cluster-role'},
             );
-            self.logger.showUser(
+            this.logger.showUser(
               `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
             );
           } catch (installError) {
-            self.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+            this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
             throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
           }
         }
@@ -378,7 +364,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
       task: async ({config: {context}}): Promise<void> => {
@@ -398,9 +384,6 @@ export class ClusterCommandTasks {
   }
 
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install cluster charts',
       task: async (context_, task) => {
@@ -445,7 +428,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -462,7 +445,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -482,7 +465,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Grafana Agent chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {

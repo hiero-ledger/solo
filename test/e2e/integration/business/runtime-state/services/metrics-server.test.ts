@@ -22,6 +22,7 @@ describe('MetricsServer', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
       const metrics: AggregatedMetrics = await metricsServer.getMetrics('metrics-server-test');
+      console.log(`clusterMetrics = ${JSON.stringify(metrics?.clusterMetrics, null, 2)}`);
       expect(metrics?.clusterMetrics?.length).to.be.greaterThan(0);
     });
   });

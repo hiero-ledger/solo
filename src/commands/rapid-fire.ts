@@ -121,7 +121,7 @@ export class RapidFireCommand extends BaseCommand {
         const subTasks: SoloListrTask<RapidFireStartContext>[] = [
           {
             title: 'Install Network Load Generator chart',
-            task: async (context_, task): Promise<void> => {
+            task: async (context_, _task): Promise<void> => {
               let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
 
               if (context_.config.valuesFile) {
@@ -419,7 +419,7 @@ export class RapidFireCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     return this.allStopTasks(argv, {
       title: 'Uninstall Network Load Generator chart',
-      task: async (context_, task): Promise<void> => {
+      task: async (context_, _task): Promise<void> => {
         await this.chartManager.uninstall(
           context_.config.namespace,
           constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,

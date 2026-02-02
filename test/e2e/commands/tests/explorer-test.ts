@@ -124,9 +124,8 @@ export class ExplorerTest extends BaseCommandTest {
   }
 
   public static add(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger, createdAccountIds} =
-      options;
-    const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloExplorerDeployArgv} = ExplorerTest;
 
     it(`${testName}: explorer node add`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));

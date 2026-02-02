@@ -24,6 +24,7 @@ import {
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {PrivateKey, AccountCreateTransaction, Hbar, HbarUnit, AccountId} from '@hiero-ledger/sdk';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -32,7 +33,7 @@ export function testSeparateNodeUpdate(
   timeout: number,
 ): void {
   const updateNodeId: NodeAlias = 'node2';
-  const newAccountId: string = '0.0.7';
+  let newAccountId: string = '';
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
   argv.setArg(flags.nodeAlias, updateNodeId);
   argv.setArg(flags.newAccountNumber, newAccountId);
@@ -49,6 +50,36 @@ export function testSeparateNodeUpdate(
   describe('Node update via separated commands', async (): Promise<void> => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
+
+    it('should create a new account for the updated node', async (): Promise<void> => {
+      await accountManager.loadNodeClient(
+        namespace,
+        remoteConfig.getClusterRefs(),
+        argv.getArg<DeploymentName>(flags.deployment),
+        argv.getArg<boolean>(flags.forcePortForward),
+      );
+      const privateKey = PrivateKey.generateED25519();
+      const amount = 100;
+
+      const newAccount = await new AccountCreateTransaction()
+        .setKeyWithoutAlias(privateKey)
+        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+        .execute(accountManager._nodeClient);
+
+      const getReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+      const accountId = getReceipt.accountId.toString();
+      logger.info(`New account created for updated node: ${accountId}`);
+      argv.setArg(flags.newAccountNumber, accountId);
+      newAccountId = accountId;
+
+      // save to k8 secret for later use
+      await accountManager.createOrReplaceAccountKeySecret(
+        privateKey,
+        AccountId.fromString(accountId),
+        false,
+        namespace,
+      );
+    }).timeout(Duration.ofMinutes(2).toMillis());
 
     it('cache current version of private keys', async (): Promise<void> => {
       existingServiceMap = await accountManager.getNodeServiceMap(
