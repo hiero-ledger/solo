@@ -2,7 +2,6 @@
 
 import {type HelmClient} from '../helm-client.js';
 import {type HelmClientBuilder} from '../helm-client-builder.js';
-import {KubeAuthentication} from '../request/authentication/kube-authentication.js';
 import {DefaultHelmClient} from './default-helm-client.js';
 
 /**
