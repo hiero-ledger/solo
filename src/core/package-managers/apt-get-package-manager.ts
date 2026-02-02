@@ -6,8 +6,8 @@ import {injectable} from 'tsyringe-neo';
 
 @injectable()
 export class AptGetPackageManager extends ShellRunner implements PackageManager {
-  private onSudoRequested: (message: string) => void = (message: string) => {};
-  private onSudoGranted: (message: string) => void = (message: string) => {};
+  private onSudoRequested: (message: string) => void = (_message: string) => {};
+  private onSudoGranted: (message: string) => void = (_message: string) => {};
 
   constructor() {
     super();
