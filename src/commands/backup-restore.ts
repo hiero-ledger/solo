@@ -1658,7 +1658,7 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Create individual clusters',
           task: (context_: any, taskListWrapper: any): any => {
-            const clusterTasks: SoloListrTask<any>[] = self.buildIndividualClusterCreationTasks(
+            const clusterTasks: SoloListrTask<any>[] = this.buildIndividualClusterCreationTasks(
               context_,
               metallbConfig,
             );
@@ -1736,7 +1736,7 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Initialize cluster configurations',
           task: (context_: any, taskListWrapper: any): any => {
-            const initTasks: any[] = self.buildClusterInitializationTasks(context_, shard, realm);
+            const initTasks: any[] = this.buildClusterInitializationTasks(context_, shard, realm);
             return taskListWrapper.newListr(initTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},
