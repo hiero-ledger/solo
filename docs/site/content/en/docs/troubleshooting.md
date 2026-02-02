@@ -164,11 +164,11 @@ sudo systemctl start docker
 
 ### Old Installation Artifacts
 
-Previous Solo installations can cause issues. Clean up completely:
+Previous Solo installations can cause issues. Clean up Solo-managed clusters:
 
 ```bash
-# Delete all Kind clusters
-for cluster in $(kind get clusters); do
+# Delete only Solo-managed Kind clusters (names starting with "solo")
+kind get clusters | grep '^solo' | while read cluster; do
   kind delete cluster -n "$cluster"
 done
 
@@ -258,14 +258,11 @@ Join the community for discussions and help:
 ### How do I reset everything and start fresh?
 
 ```bash
-# Delete all clusters and Solo config
-for cluster in $(kind get clusters); do
+# Delete only Solo-managed clusters and Solo config
+kind get clusters | grep '^solo' | while read cluster; do
   kind delete cluster -n "$cluster"
 done
 rm -rf ~/.solo
-
-# Create a new cluster
-kind create cluster -n solo
 
 # Deploy fresh
 solo one-shot single deploy

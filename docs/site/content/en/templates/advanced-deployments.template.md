@@ -151,6 +151,16 @@ solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --contex
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
+Example output:
+
+```
+$SOLO_CLUSTER_REF_CONNECT_OUTPUT
+```
+
+```
+$SOLO_DEPLOYMENT_CREATE_OUTPUT
+```
+
 ### 2. Add Cluster to Deployment
 
 Specify the number of consensus nodes:
@@ -163,6 +173,12 @@ solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref k
 # solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 ```
 
+Example output:
+
+```
+$SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
+```
+
 ### 3. Generate Keys
 
 ```bash
@@ -171,16 +187,34 @@ solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLO
 
 PEM key files are generated in `~/.solo/cache/keys/`.
 
+Example output:
+
+```
+$SOLO_NODE_KEY_PEM_OUTPUT
+```
+
 ### 4. Set Up Cluster with Shared Components
 
 ```bash
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
+Example output:
+
+```
+$SOLO_CLUSTER_SETUP_OUTPUT
+```
+
 ### 5. Deploy the Network
 
 ```bash
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+$SOLO_NETWORK_DEPLOY_OUTPUT
 ```
 
 ### 6. Set Up Consensus Nodes
@@ -190,10 +224,22 @@ export CONSENSUS_NODE_VERSION=v0.66.0
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 
+Example output:
+
+```
+$SOLO_NODE_SETUP_OUTPUT
+```
+
 ### 7. Start Consensus Nodes
 
 ```bash
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+$SOLO_NODE_START_OUTPUT
 ```
 
 ### 8. Deploy Mirror Node
@@ -204,16 +250,34 @@ solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO
 
 The `--pinger` flag ensures record files are imported regularly.
 
+Example output:
+
+```
+$SOLO_MIRROR_NODE_DEPLOY_OUTPUT
+```
+
 ### 9. Deploy Explorer
 
 ```bash
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
+Example output:
+
+```
+$SOLO_EXPLORER_DEPLOY_OUTPUT
+```
+
 ### 10. Deploy JSON RPC Relay
 
 ```bash
 solo relay node add -i node1 --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+$SOLO_RELAY_DEPLOY_OUTPUT
 ```
 
 ## Deploying Block Node (Experimental)
@@ -230,6 +294,12 @@ solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag v0.62.6
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+$SOLO_BLOCK_NODE_ADD_OUTPUT
 ```
 
 To destroy Block Node (must be done **before** network destruction):
@@ -366,18 +436,56 @@ When using manual deployment, clean up in reverse order:
 ```bash
 # 1. Destroy relay node
 solo relay node destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+```
 
+Example output:
+
+```
+$SOLO_RELAY_DESTROY_OUTPUT
+```
+
+```bash
 # 2. Destroy mirror node
 solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
+```
 
+Example output:
+
+```
+$SOLO_MIRROR_NODE_DESTROY_OUTPUT
+```
+
+```bash
 # 3. Destroy explorer node
 solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
+```
 
+Example output:
+
+```
+$SOLO_EXPLORER_DESTROY_OUTPUT
+```
+
+```bash
 # 4. Destroy block node (if deployed) - BEFORE network destruction
 solo block node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+```
 
+Example output:
+
+```
+$SOLO_BLOCK_NODE_DESTROY_OUTPUT
+```
+
+```bash
 # 5. Destroy the network
 solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
+```
+
+Example output:
+
+```
+$SOLO_NETWORK_DESTROY_OUTPUT
 ```
 
 ## Additional Examples
