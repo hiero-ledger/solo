@@ -113,16 +113,6 @@ export class DefaultHelmClientBuilder implements HelmClientBuilder {
   }
 
   public async build(): Promise<HelmClient> {
-    new KubeAuthentication(
-      this._kubeApiServer,
-      this._kubeCAFile,
-      this._kubeContext,
-      this._kubeSkipTlsVerification,
-      this._kubeTlsServerName,
-      this._kubeToken,
-      this._kubeConfig,
-    );
-
     const client: DefaultHelmClient = new DefaultHelmClient();
     await client.version();
     return client;
