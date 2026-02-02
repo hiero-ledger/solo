@@ -433,7 +433,6 @@ jobs:
         id: generate-chart
         if: ${{ always() }}
         run: |
-          # cat json_log for debugging
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
           CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
