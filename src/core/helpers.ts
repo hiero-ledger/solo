@@ -27,6 +27,7 @@ import {execSync} from 'node:child_process';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import yaml from 'yaml';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../integration/kube/k8.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -40,7 +41,7 @@ export function getInternalAddress(
 }
 
 export function sleep(duration: Duration): Promise<void> {
-  return new Promise<void>((resolve): void => {
+  return new Promise<void>((resolve: (value: PromiseLike<void> | void) => void): void => {
     setTimeout(resolve, duration.toMillis());
   });
 }
@@ -52,7 +53,7 @@ export function parseNodeAliases(
 ): NodeAliases {
   let nodeAliases: NodeAlias[] = splitFlagInput(input, ',') as NodeAliases;
   if (nodeAliases.length === 0) {
-    nodeAliases = consensusNodes?.map((node: {name: string}) => {
+    nodeAliases = consensusNodes?.map((node: {name: string}): NodeAlias => {
       return node.name as NodeAlias;
     });
     configManager?.setFlag(flags.nodeAliasesUnparsed, nodeAliases.join(','));
@@ -64,7 +65,7 @@ export function parseNodeAliases(
   return nodeAliases;
 }
 
-export function splitFlagInput(input: string, separator = ',') {
+export function splitFlagInput(input: string, separator: string = ','): any[] | string[] {
   if (!input) {
     return [];
   } else if (typeof input !== 'string') {
@@ -73,7 +74,7 @@ export function splitFlagInput(input: string, separator = ',') {
 
   return input
     .split(separator)
-    .map(s => s.trim())
+    .map((s): string => s.trim())
     .filter(Boolean);
 }
 
@@ -85,12 +86,16 @@ export function cloneArray<T>(array: T[]): T[] {
   return structuredClone(array);
 }
 
-export function getTemporaryDirectory() {
+export function getTemporaryDirectory(): string {
   return fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-'));
 }
 
-export function createBackupDirectory(destinationDirectory: string, prefix = 'backup', currentDate = new Date()) {
-  const dateDirectory = util.format(
+export function createBackupDirectory(
+  destinationDirectory: string,
+  prefix: string = 'backup',
+  currentDate: Date = new Date(),
+): string {
+  const dateDirectory: string = util.format(
     '%s%s%s_%s%s%s',
     currentDate.getFullYear(),
     currentDate.getMonth().toString().padStart(2, '0'),
@@ -100,7 +105,7 @@ export function createBackupDirectory(destinationDirectory: string, prefix = 'ba
     currentDate.getSeconds().toString().padStart(2, '0'),
   );
 
-  const backupDirectory = PathEx.join(destinationDirectory, prefix, dateDirectory);
+  const backupDirectory: string = PathEx.join(destinationDirectory, prefix, dateDirectory);
   if (!fs.existsSync(backupDirectory)) {
     fs.mkdirSync(backupDirectory, {recursive: true});
   }
@@ -108,10 +113,10 @@ export function createBackupDirectory(destinationDirectory: string, prefix = 'ba
   return backupDirectory;
 }
 
-export function makeBackup(fileMap = new Map<string, string>(), removeOld = true) {
+export function makeBackup(fileMap: Map<string, string> = new Map<string, string>(), removeOld: boolean = true): void {
   for (const entry of fileMap) {
-    const sourcePath = entry[0];
-    const destinationPath = entry[1];
+    const sourcePath: string = entry[0];
+    const destinationPath: string = entry[1];
     if (fs.existsSync(sourcePath)) {
       fs.cpSync(sourcePath, destinationPath);
       if (removeOld) {
@@ -124,15 +129,15 @@ export function makeBackup(fileMap = new Map<string, string>(), removeOld = true
 export function backupOldTlsKeys(
   nodeAliases: NodeAliases,
   keysDirectory: string,
-  currentDate = new Date(),
-  directoryPrefix = 'tls',
-) {
-  const backupDirectory = createBackupDirectory(keysDirectory, `unused-${directoryPrefix}`, currentDate);
+  currentDate: Date = new Date(),
+  directoryPrefix: string = 'tls',
+): string {
+  const backupDirectory: string = createBackupDirectory(keysDirectory, `unused-${directoryPrefix}`, currentDate);
 
-  const fileMap = new Map<string, string>();
+  const fileMap: Map<string, string> = new Map<string, string>();
   for (const nodeAlias of nodeAliases) {
-    const sourcePath = PathEx.join(keysDirectory, Templates.renderTLSPemPrivateKeyFile(nodeAlias));
-    const destinationPath = PathEx.join(backupDirectory, Templates.renderTLSPemPrivateKeyFile(nodeAlias));
+    const sourcePath: string = PathEx.join(keysDirectory, Templates.renderTLSPemPrivateKeyFile(nodeAlias));
+    const destinationPath: string = PathEx.join(backupDirectory, Templates.renderTLSPemPrivateKeyFile(nodeAlias));
     fileMap.set(sourcePath, destinationPath);
   }
 
@@ -144,15 +149,15 @@ export function backupOldTlsKeys(
 export function backupOldPemKeys(
   nodeAliases: NodeAliases,
   keysDirectory: string,
-  currentDate = new Date(),
-  directoryPrefix = 'gossip-pem',
-) {
-  const backupDirectory = createBackupDirectory(keysDirectory, `unused-${directoryPrefix}`, currentDate);
+  currentDate: Date = new Date(),
+  directoryPrefix: string = 'gossip-pem',
+): string {
+  const backupDirectory: string = createBackupDirectory(keysDirectory, `unused-${directoryPrefix}`, currentDate);
 
-  const fileMap = new Map<string, string>();
+  const fileMap: Map<string, string> = new Map<string, string>();
   for (const nodeAlias of nodeAliases) {
-    const sourcePath = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
-    const destinationPath = PathEx.join(backupDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
+    const sourcePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
+    const destinationPath: string = PathEx.join(backupDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
     fileMap.set(sourcePath, destinationPath);
   }
 
@@ -161,7 +166,7 @@ export function backupOldPemKeys(
   return backupDirectory;
 }
 
-export function isNumeric(string_: string) {
+export function isNumeric(string_: string): boolean {
   if (typeof string_ !== 'string') {
     return false;
   } // we only process strings!
@@ -171,14 +176,14 @@ export function isNumeric(string_: string) {
   ); // ...and ensure strings of whitespace fail
 }
 
-export function getEnvironmentValue(environmentVariableArray: string[], name: string) {
-  const kvPair = environmentVariableArray.find(v => v.startsWith(`${name}=`));
+export function getEnvironmentValue(environmentVariableArray: string[], name: string): string {
+  const kvPair: string = environmentVariableArray.find((v): boolean => v.startsWith(`${name}=`));
   return kvPair ? kvPair.split('=')[1] : null;
 }
 
-export function parseIpAddressToUint8Array(ipAddress: string) {
-  const parts = ipAddress.split('.');
-  const uint8Array = new Uint8Array(4);
+export function parseIpAddressToUint8Array(ipAddress: string): Uint8Array<ArrayBuffer> {
+  const parts: string[] = ipAddress.split('.');
+  const uint8Array: Uint8Array<ArrayBuffer> = new Uint8Array(4);
 
   for (let index = 0; index < 4; index++) {
     uint8Array[index] = Number.parseInt(parts[index], 10);
@@ -202,7 +207,7 @@ export function renameAndCopyFile(
   fs.copyFile(
     PathEx.joinWithRealPath(sourceDirectory, expectedBaseName),
     PathEx.join(destinationDirectory, expectedBaseName),
-    error => {
+    (error): void => {
       if (error) {
         throw new SoloError(`Error copying file: ${error.message}`);
       }
@@ -217,9 +222,9 @@ export function renameAndCopyFile(
  * @param index the index of extraEnv to add the debug options to
  * @returns updated valuesArg
  */
-export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlias, index = 0) {
+export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlias, index: number = 0): string {
   if (debugNodeAlias) {
-    const nodeId = Templates.nodeIdFromNodeAlias(debugNodeAlias);
+    const nodeId: number = Templates.nodeIdFromNodeAlias(debugNodeAlias);
     valuesArgument += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=JAVA_OPTS"`;
     valuesArgument += String.raw` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=-agentlib:jdwp=transport=dt_socket\,server=y\,suspend=y\,address=*:${constants.JVM_DEBUG_PORT}"`;
   }
@@ -232,16 +237,18 @@ export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlia
  * @param ctx
  * @returns file writable object
  */
-export function addSaveContextParser(context_: any) {
-  const exportedContext = {} as Record<string, string>;
+export function addSaveContextParser(context_: any): Record<string, string> {
+  const exportedContext: Record<string, string> = {} as Record<string, string>;
 
-  const config = context_.config as NodeAddConfigClass;
-  const exportedFields = ['tlsCertHash', 'upgradeZipHash', 'newNode'];
+  const config: NodeAddConfigClass = context_.config as NodeAddConfigClass;
+  const exportedFields: string[] = ['tlsCertHash', 'upgradeZipHash', 'newNode'];
 
   exportedContext.signingCertDer = context_.signingCertDer.toString();
-  exportedContext.gossipEndpoints = context_.gossipEndpoints.map((ep: any) => `${ep.getDomainName}:${ep.getPort}`);
+  exportedContext.gossipEndpoints = context_.gossipEndpoints.map(
+    (ep: any): `${any}:${any}` => `${ep.getDomainName}:${ep.getPort}`,
+  );
   exportedContext.grpcServiceEndpoints = context_.grpcServiceEndpoints.map(
-    (ep: any) => `${ep.getDomainName}:${ep.getPort}`,
+    (ep: any): `${any}:${any}` => `${ep.getDomainName}:${ep.getPort}`,
   );
   exportedContext.adminKey = context_.adminKey.toString();
   // @ts-ignore
@@ -260,7 +267,7 @@ export function addSaveContextParser(context_: any) {
  * @param ctxData - data in string format
  * @returns file writable object
  */
-export function addLoadContextParser(context_: any, contextData: any) {
+export function addLoadContextParser(context_: any, contextData: any): void {
   const config: any = context_.config;
   context_.signingCertDer = new Uint8Array(contextData.signingCertDer.split(','));
   context_.gossipEndpoints = prepareEndpoints(
@@ -279,7 +286,7 @@ export function addLoadContextParser(context_: any, contextData: any) {
   config.allNodeAliases = [...config.existingNodeAliases, contextData.newNode.name];
   config.newNodeAliases = [contextData.newNode.name];
 
-  const fieldsToImport = ['tlsCertHash', 'upgradeZipHash', 'newNode'];
+  const fieldsToImport: string[] = ['tlsCertHash', 'upgradeZipHash', 'newNode'];
 
   for (const property of fieldsToImport) {
     context_[property] = contextData[property];
@@ -289,10 +296,10 @@ export function addLoadContextParser(context_: any, contextData: any) {
 export function prepareEndpoints(endpointType: string, endpoints: string[], defaultPort: number | string) {
   const returnValue: ServiceEndpoint[] = [];
   for (const endpoint of endpoints) {
-    const parts = endpoint.split(':');
+    const parts: string[] = endpoint.split(':');
 
-    let url = '';
-    let port = defaultPort;
+    let url: string = '';
+    let port: number | string = defaultPort;
 
     if (parts.length === 2) {
       url = parts[0].trim();
@@ -330,7 +337,7 @@ export function addFlagsToArgv(
     required: CommandFlag[];
     optional: CommandFlag[];
   },
-) {
+): any {
   argv.required = flags.required;
   argv.optional = flags.optional;
 
@@ -346,7 +353,7 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
     return '';
   }
 
-  const resolvedFilePath = PathEx.realPathSync(filePath);
+  const resolvedFilePath: string = PathEx.realPathSync(filePath);
 
   if (!fs.existsSync(resolvedFilePath)) {
     if (defaultPath) {
@@ -378,12 +385,12 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
   }
 }
 
-export function prepareValuesFiles(valuesFile: string) {
-  let valuesArgument = '';
+export function prepareValuesFiles(valuesFile: string): string {
+  let valuesArgument: string = '';
   if (valuesFile) {
-    const valuesFiles = valuesFile.split(',');
+    const valuesFiles: string[] = valuesFile.split(',');
     for (const vf of valuesFiles) {
-      const vfp = PathEx.resolve(vf);
+      const vfp: string = PathEx.resolve(vf);
       valuesArgument += ` --values ${vfp}`;
     }
   }
@@ -392,7 +399,7 @@ export function prepareValuesFiles(valuesFile: string) {
 }
 
 export function populateHelmArguments(valuesMapping: Record<string, string | boolean | number>): string {
-  let valuesArgument = '';
+  let valuesArgument: string = '';
 
   for (const [key, value] of Object.entries(valuesMapping)) {
     valuesArgument += ` --set ${key}=${value}`;
@@ -416,7 +423,7 @@ export function extractContextFromConsensusNodes(
   if (consensusNodes.length === 0) {
     return undefined;
   }
-  const consensusNode = consensusNodes.find(node => node.name === nodeAlias);
+  const consensusNode: ConsensusNode = consensusNodes.find((node): boolean => node.name === nodeAlias);
   return consensusNode ? consensusNode.context : undefined;
 }
 
@@ -426,9 +433,13 @@ export function extractContextFromConsensusNodes(
  * @param k8Factory
  * @param namespace
  */
-export async function checkNamespace(consensusNodes: ConsensusNode[], k8Factory: K8Factory, namespace: NamespaceName) {
+export async function checkNamespace(
+  consensusNodes: ConsensusNode[],
+  k8Factory: K8Factory,
+  namespace: NamespaceName,
+): Promise<void> {
   for (const consensusNode of consensusNodes) {
-    const k8 = k8Factory.getK8(consensusNode.context);
+    const k8: K8 = k8Factory.getK8(consensusNode.context);
     if (!(await k8.namespaces().has(namespace))) {
       throw new SoloError(`namespace ${namespace} does not exist in context ${consensusNode.context}`);
     }
@@ -470,7 +481,7 @@ export function isIpV4Address(input: string): boolean {
  */
 export function ipV4ToBase64(ipv4: string): string {
   // Split the IPv4 address into its octets
-  const octets: number[] = ipv4.split('.').map(octet => {
+  const octets: number[] = ipv4.split('.').map((octet): number => {
     const number_: number = Number.parseInt(octet, 10);
     // eslint-disable-next-line unicorn/prefer-number-properties
     if (isNaN(number_) || number_ < 0 || number_ > 255) {

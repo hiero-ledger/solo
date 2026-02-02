@@ -6,8 +6,18 @@ import {expect} from 'chai';
 import {PathEx} from '../../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../../src/core/constants.js';
 import {type AggregatedMetrics} from '../../../../../../src/business/runtime-state/model/aggregated-metrics.js';
+import {HelmMetricsServer} from '../../../../../helpers/helm-metrics-server.js';
+import {HelmMetalLoadBalancer} from '../../../../../helpers/helm-metal-load-balancer.js';
+import {Duration} from '../../../../../../src/core/time/duration.js';
 
 describe('MetricsServer', (): void => {
+  const testName: string = 'metrics-server-test';
+
+  before(async (): Promise<void> => {
+    await HelmMetricsServer.installMetricsServer(testName);
+    await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
+  }).timeout(Duration.ofMinutes(5).toMillis());
+
   describe('getMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
@@ -16,6 +26,7 @@ describe('MetricsServer', (): void => {
       expect(metrics?.clusterMetrics?.length).to.be.greaterThan(0);
     });
   });
+
   describe('logMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();

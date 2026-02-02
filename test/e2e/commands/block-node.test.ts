@@ -127,14 +127,16 @@ new EndToEndTestSuiteBuilder()
 
       BlockNodeTest.verifyBlockNodesJson(options, 'node1', [], [1, 2], {});
 
-      describe('Should write log metrics', async (): Promise<void> => {
-        await new MetricsServerImpl().logMetrics(
-          testName,
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
-          undefined,
-          undefined,
-          options.contexts,
-        );
+      describe('Write log metrics', async (): Promise<void> => {
+        it('Should write log metrics', async (): Promise<void> => {
+          await new MetricsServerImpl().logMetrics(
+            testName,
+            PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+            undefined,
+            undefined,
+            contexts,
+          );
+        });
       });
     }).timeout(Duration.ofMinutes(30).toMillis());
   })
