@@ -212,7 +212,8 @@ export class ConfigManager {
    * getUnusedConfigs() to get an array of unused properties.
    */
   public getConfig(configName: string, flags: CommandFlag[], extraProperties: string[] = []): object {
-    const self = this;
+    const getFlag = this.getFlag.bind(this);
+
     // build the dynamic class that will keep track of which properties are used
     const NewConfigClass = class {
       private usedConfigs: Map<string, number>;
@@ -223,7 +224,7 @@ export class ConfigManager {
         // add the flags as properties to this class
         if (flags) {
           for (const flag of flags) {
-            this[`_${flag.constName}`] = self.getFlag(flag);
+            this[`_${flag.constName}`] = getFlag(flag);
             Object.defineProperty(this, flag.constName, {
               get() {
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
@@ -282,7 +283,7 @@ export class ConfigManager {
 
     // add the new instance to the configMaps so that it can be used to get the
     // unused configurations using the configName from the BaseCommand
-    self._configMaps.set(configName, newConfigInstance);
+    this._configMaps.set(configName, newConfigInstance);
 
     return newConfigInstance;
   }

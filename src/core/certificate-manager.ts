@@ -113,21 +113,20 @@ export class CertificateManager {
     grpcTlsKeyPathsUnparsed: string,
     grpcWebTlsKeyPathsUnparsed: string,
   ): SoloListr<AnyListrContext> {
-    const self = this;
     const subTasks = [];
 
     const grpcTlsParsedValues = {
       title: 'Copy gRPC TLS Certificate data',
       certType: GrpcProxyTlsEnums.GRPC,
-      certs: self.parseAndValidate(grpcTlsCertificatePathsUnparsed, 'gRPC TLS Certificate paths'),
-      keys: self.parseAndValidate(grpcTlsKeyPathsUnparsed, 'gRPC TLS Certificate Key paths'),
+      certs: this.parseAndValidate(grpcTlsCertificatePathsUnparsed, 'gRPC TLS Certificate paths'),
+      keys: this.parseAndValidate(grpcTlsKeyPathsUnparsed, 'gRPC TLS Certificate Key paths'),
     };
 
     const grpcWebTlsParsedValue = {
       certType: GrpcProxyTlsEnums.GRPC_WEB,
       title: 'Copy gRPC Web TLS data',
-      certs: self.parseAndValidate(grpcWebTlsCertificatePathsUnparsed, 'gRPC Web TLS Certificate paths'),
-      keys: self.parseAndValidate(grpcWebTlsKeyPathsUnparsed, 'gRPC Web Certificate TLS Key paths'),
+      certs: this.parseAndValidate(grpcWebTlsCertificatePathsUnparsed, 'gRPC Web TLS Certificate paths'),
+      keys: this.parseAndValidate(grpcWebTlsKeyPathsUnparsed, 'gRPC Web Certificate TLS Key paths'),
     };
 
     if (grpcTlsParsedValues.certs.length !== grpcTlsParsedValues.keys.length) {
@@ -156,7 +155,7 @@ export class CertificateManager {
 
         subTasks.push({
           title: `${title} for node ${nodeAlias}`,
-          task: () => self.copyTlsCertificate(nodeAlias, cert, key, certType),
+          task: () => this.copyTlsCertificate(nodeAlias, cert, key, certType),
         });
       }
     }

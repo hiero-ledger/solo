@@ -448,8 +448,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               await this.localConfig.load();
               await this.remoteConfig.loadAndValidate(argv);
-
-              const self = this;
               const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
               const accountsToCreate = [
@@ -458,9 +456,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 ...predefinedEd25519Accounts,
               ];
 
-              await self.accountManager.loadNodeClient(
+              await this.accountManager.loadNodeClient(
                 config.namespace,
-                self.remoteConfig.getClusterRefs(),
+                this.remoteConfig.getClusterRefs(),
                 context_.config.deployment,
               );
 
@@ -475,7 +473,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     ): Promise<void> => {
                       await helpers.sleep(Duration.ofMillis(100 * index));
 
-                      const createdAccount = await self.accountManager.createNewAccount(
+                      const createdAccount = await this.accountManager.createNewAccount(
                         context_.config.namespace,
                         account.privateKey,
                         account.balance.to(HbarUnit.Hbar).toNumber(),

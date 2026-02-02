@@ -334,10 +334,7 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
-
-      const self: this = this;
-
-      const k8: K8 = self.k8Factory.getK8(context);
+      const k8 = this.k8Factory.getK8(context);
 
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
@@ -357,8 +354,8 @@ export class NodeCommandTasks {
             }
           } catch {
             // if we can't find the release tag in the local build path directory, we will skip the check and continue
-            self.logger.warn('Could not find release tag in local build path directory');
-            self.logger.showUser(
+            this.logger.warn('Could not find release tag in local build path directory');
+            this.logger.showUser(
               chalk.yellowBright(
                 'The release tag could not be verified, please ensure that the release tag passed on the command line ' +
                   'matches the release tag of the code in the local build path directory',
@@ -373,7 +370,7 @@ export class NodeCommandTasks {
             storedError = null;
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
-              await self.copyLocalBuildPathToNode(k8, podReference, self.configManager, localDataLibraryBuildPath);
+              await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
             } catch (error) {
               storedError = error;
             }
@@ -612,8 +609,6 @@ export class NodeCommandTasks {
    * When generating a single key the alias in config.nodeAlias is used
    */
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
-    const self: this = this;
-
     return {
       title: 'Generate gossip keys',
       task: (context_, task): any => {
@@ -621,11 +616,7 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = self.keyManager.taskGenerateGossipKeys(
-          nodeAliases,
-          config.keysDir,
-          config.curDate,
-        );
+        const subTasks = this.keyManager.taskGenerateGossipKeys(nodeAliases, config.keysDir, config.curDate);
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
@@ -638,7 +629,6 @@ export class NodeCommandTasks {
    * When generating a single key the alias in config.nodeAlias is used
    */
   private _generateGrpcTlsKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
-    const self: this = this;
     return {
       title: 'Generate gRPC TLS Keys',
       task: (context_, task): any => {
@@ -646,11 +636,7 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = self.keyManager.taskGenerateTLSKeys(
-          nodeAliases,
-          config.keysDir,
-          config.curDate,
-        );
+        const subTasks = this.keyManager.taskGenerateTLSKeys(nodeAliases, config.keysDir, config.curDate);
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
@@ -659,11 +645,10 @@ export class NodeCommandTasks {
   }
 
   public copyGrpcTlsCertificates(): SoloListrTask<NodeAddContext> {
-    const self: this = this;
     return {
       title: 'Copy gRPC TLS Certificates',
       task: (context_, task) =>
-        self.certificateManager.buildCopyTlsCertificatesTasks(
+        this.certificateManager.buildCopyTlsCertificatesTasks(
           task,
           context_.config.grpcTlsCertificatePath,
           context_.config.grpcWebTlsCertificatePath,
@@ -732,11 +717,7 @@ export class NodeCommandTasks {
     }
   }
 
-  public prepareUpgradeZip(): {
-    title: 'Prepare upgrade zip file for node upgrade process';
-    task: (context_) => Promise<void>;
-  } {
-    const self: this = this;
+  public prepareUpgradeZip() {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
@@ -767,9 +748,9 @@ export class NodeCommandTasks {
             .readByRef(containerReference)
             .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
 
-          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
-        context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
+        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -810,7 +791,6 @@ export class NodeCommandTasks {
   public checkExistingNodesStakedAmount(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
-    const self: this = this;
     return {
       title: 'Check existing nodes staked amount',
       task: async (context_): Promise<void> => {
@@ -824,8 +804,8 @@ export class NodeCommandTasks {
         );
         const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
-          const accountId: string = accountMap.get(nodeAlias);
-          await self.accountManager.transferAmount(treasuryAccountId, accountId, 1);
+          const accountId = accountMap.get(nodeAlias);
+          await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -880,24 +860,23 @@ export class NodeCommandTasks {
   public sendFreezeUpgradeTransaction(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
-    const self: this = this;
     return {
       title: 'Send freeze upgrade transaction',
       task: async (context_): Promise<void> => {
         const {upgradeZipHash}: any = context_;
         const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
         try {
-          const futureDate: Date = new Date();
-          self.logger.debug(`Current time: ${futureDate}`);
+          const futureDate = new Date();
+          this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          self.logger.debug(`Freeze time: ${futureDate}`);
+          this.logger.debug(`Freeze time: ${futureDate}`);
 
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
 
           // query the balance
-          const balance: any = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
-          self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+          const balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
           const freezeUpgradeTx: any = await new FreezeTransaction()
@@ -908,8 +887,8 @@ export class NodeCommandTasks {
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const freezeUpgradeReceipt: any = await freezeUpgradeTx.getReceipt(nodeClient);
-          self.logger.debug(
+          const freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
+          this.logger.debug(
             `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
             freezeUpgradeReceipt.status.toString(),
           );
@@ -921,7 +900,6 @@ export class NodeCommandTasks {
   }
 
   public sendFreezeTransaction(): SoloListrTask<NodeFreezeContext> {
-    const self: this = this;
     return {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
@@ -932,11 +910,11 @@ export class NodeCommandTasks {
             this.remoteConfig.getClusterRefs(),
             deployment,
           );
-          const futureDate: Date = new Date();
-          self.logger.debug(`Current time: ${futureDate}`);
+          const futureDate = new Date();
+          this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          self.logger.debug(`Freeze time: ${futureDate}`);
+          this.logger.debug(`Freeze time: ${futureDate}`);
 
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
@@ -948,7 +926,7 @@ export class NodeCommandTasks {
 
           const freezeOnlyReceipt: any = await freezeOnlyTransaction.getReceipt(nodeClient);
 
-          self.logger.debug(
+          this.logger.debug(
             `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
             freezeOnlyReceipt.status.toString(),
           );
@@ -965,7 +943,6 @@ export class NodeCommandTasks {
   public downloadNodeGeneratedFilesForDynamicAddressBook(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext
   > {
-    const self: this = this;
     return {
       title: 'Download generated files from an existing node',
       task: async ({
@@ -1024,7 +1001,6 @@ export class NodeCommandTasks {
   }
 
   public downloadNodeUpgradeFiles(): SoloListrTask<NodeUpgradeContext> {
-    const self: this = this;
     return {
       title: 'Download upgrade files from an existing node',
       task: async (context_): Promise<void> => {
@@ -1045,11 +1021,11 @@ export class NodeCommandTasks {
         for (const upgradeDirectory of upgradeDirectories) {
           // check if directory upgradeDirectory exist in root container
           if (
-            !(await self.k8Factory.getK8(context).containers().readByRef(containerReference).hasDir(upgradeDirectory))
+            !(await this.k8Factory.getK8(context).containers().readByRef(containerReference).hasDir(upgradeDirectory))
           ) {
             continue;
           }
-          const files: any[] | TDirectoryData[] = await self.k8Factory
+          const files = await this.k8Factory
             .getK8(context)
             .containers()
             .readByRef(containerReference)
@@ -1063,7 +1039,7 @@ export class NodeCommandTasks {
               continue;
             }
             this.logger.debug(`Copying file: ${file.name}`);
-            await self.k8Factory
+            await this.k8Factory
               .getK8(context)
               .containers()
               .readByRef(containerReference)
@@ -1148,34 +1124,25 @@ export class NodeCommandTasks {
     }
   }
 
-  public loadConfiguration(
-    argv: ArgvStruct,
-    leaseWrapper: LeaseWrapper,
-    leaseManager: LockManager,
-  ): {
-    title: 'Load configuration';
-    task: () => Promise<void>;
-  } {
-    const self: this = this;
+  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
     return {
       title: 'Load configuration',
-      task: async (): Promise<void> => {
-        await self.localConfig.load();
-        await self.remoteConfig.loadAndValidate(argv);
+      task: async () => {
+        await this.localConfig.load();
+        await this.remoteConfig.loadAndValidate(argv);
         leaseWrapper.lease = await leaseManager.create();
       },
     };
   }
 
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
-    const self: this = this;
     return {
       title: 'Identify existing network nodes',
       task: async (context_, task): Promise<any> => {
         const config: any = context_.config;
         config.existingNodeAliases = [];
-        const clusterReferences: Map<ClusterReferenceName, Context> = this.remoteConfig.getClusterRefs();
-        config.serviceMap = await self.accountManager.getNodeServiceMap(
+        const clusterReferences = this.remoteConfig.getClusterRefs();
+        config.serviceMap = await this.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
           config.deployment,
@@ -1187,20 +1154,12 @@ export class NodeCommandTasks {
           config.existingNodeAliases.push(networkNodeServices.nodeAlias);
         }
         config.allNodeAliases = [...config.existingNodeAliases];
-        return self.taskCheckNetworkNodePods(context_, task, config.existingNodeAliases);
+        return this.taskCheckNetworkNodePods(context_, task, config.existingNodeAliases);
       },
     };
   }
 
-  public uploadStateFiles(
-    skip: SkipCheck | boolean,
-    stateFileDirectory?: string,
-  ): {
-    title: 'Upload state files network nodes';
-    task: (context_) => Promise<void>;
-    skip: ((context_: any) => Promise<boolean> | boolean) | boolean;
-  } {
-    const self: this = this;
+  public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     return {
       title: 'Upload state files network nodes',
       task: async (context_): Promise<void> => {
@@ -1244,7 +1203,7 @@ export class NodeCommandTasks {
               config.namespace.name,
             );
             if (!fs.existsSync(statesDirectory)) {
-              self.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              this.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
               throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
             }
 
@@ -1253,22 +1212,22 @@ export class NodeCommandTasks {
               .filter((file): boolean => file.startsWith(podName) && file.endsWith('-state.zip'));
 
             if (stateFiles.length === 0) {
-              self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
-              self.logger.showUserError(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              this.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              this.logger.showUserError(`No state file found for pod ${podName} (node: ${nodeAlias})`);
               continue;
             }
 
             zipFile = path.join(statesDirectory, stateFiles[0]);
-            self.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
+            this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
             // It's a single file or use default from config
             zipFile = stateFileDirectory || config.stateFile;
           }
 
-          self.logger.debug(`Uploading state files to pod ${podReference.name}`);
+          this.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
-          self.logger.info(
+          this.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
@@ -1284,7 +1243,7 @@ export class NodeCommandTasks {
           // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
           // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
           // The chown is required so the hedera process can access the extracted state files.
-          self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+          this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
           await container.execContainer([
             'bash',
             '-c',
@@ -1292,9 +1251,9 @@ export class NodeCommandTasks {
           ]);
 
           // Clean up old rounds - keep only the latest/biggest round
-          self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName: string = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
@@ -1303,7 +1262,7 @@ export class NodeCommandTasks {
 
           // Rename node ID directories to match the target node
           if (sourceNodeId !== targetNodeId) {
-            self.logger.info(
+            this.logger.info(
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
             const renameScriptName: string = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
@@ -1325,12 +1284,11 @@ export class NodeCommandTasks {
     };
   }
 
-  public identifyNetworkPods(maxAttempts?: number): {title: 'Identify network pods'; task: (context_, task) => any} {
-    const self: this = this;
+  public identifyNetworkPods(maxAttempts?: number) {
     return {
       title: 'Identify network pods',
-      task: (context_, task): any => {
-        return self.taskCheckNetworkNodePods(context_, task, context_.config.nodeAliases, maxAttempts);
+      task: (context_, task) => {
+        return this.taskCheckNetworkNodePods(context_, task, context_.config.nodeAliases, maxAttempts);
       },
     };
   }
@@ -1340,7 +1298,6 @@ export class NodeCommandTasks {
   ): SoloListrTask<
     NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext | NodeSetupContext
   > {
-    const self: this = this;
     return {
       title: 'Fetch platform software into network nodes',
       task: (context_, task) => {
@@ -1362,7 +1319,7 @@ export class NodeCommandTasks {
         context_.config.releaseTag = releaseTag;
 
         return localBuildPath === ''
-          ? self._fetchPlatformSoftware(
+          ? this._fetchPlatformSoftware(
               context_.config[aliasesField],
               podRefs,
               releaseTag,
@@ -1370,7 +1327,7 @@ export class NodeCommandTasks {
               this.platformInstaller,
               context_.config.consensusNodes,
             )
-          : self._uploadPlatformSoftware(
+          : this._uploadPlatformSoftware(
               context_.config[aliasesField],
               podRefs,
               task,
@@ -1853,12 +1810,11 @@ export class NodeCommandTasks {
   public triggerStakeWeightCalculate<T extends {config: AnyObject}>(
     transactionType: NodeSubcommandType,
   ): SoloListrTask<T> {
-    const self: this = this;
     return {
       title: 'Trigger stake weight calculate',
-      task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-        self.logger.info(
+      task: async context_ => {
+        const config = context_.config;
+        this.logger.info(
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
         );
         await sleep(Duration.ofSeconds(60));
@@ -1889,7 +1845,7 @@ export class NodeCommandTasks {
           }
         }
 
-        config.nodeClient = await self.accountManager.refreshNodeClient(
+        config.nodeClient = await this.accountManager.refreshNodeClient(
           config.namespace,
           this.remoteConfig.getClusterRefs(),
           skipNodeAlias,
@@ -1901,14 +1857,13 @@ export class NodeCommandTasks {
         for (const nodeAlias of accountMap.keys()) {
           const accountId: string = accountMap.get(nodeAlias);
           config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
-          await self.accountManager.transferAmount(treasuryAccountId, accountId, 1);
+          await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
   }
 
   public addNodeStakes(): SoloListrTask<NodeStartContext> {
-    const self: this = this;
     return {
       title: 'Add node stakes',
       task: (context_, task): SoloListr<NodeStartContext> | void => {
@@ -1930,8 +1885,7 @@ export class NodeCommandTasks {
               stakeAmountParsed.length > 0 ? stakeAmountParsed[nodeIndex] : HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
             subTasks.push({
               title: `Adding stake for node: ${chalk.yellow(nodeAlias)}`,
-              task: async (): Promise<void> =>
-                await self._addStake(context_.config.namespace, accountId, nodeAlias, +stakeAmount),
+              task: async () => await this._addStake(context_.config.namespace, accountId, nodeAlias, +stakeAmount),
             });
             nodeIndex++;
           }
@@ -1949,11 +1903,10 @@ export class NodeCommandTasks {
   }
 
   public stakeNewNode(): SoloListrTask<NodeAddContext> {
-    const self: this = this;
     return {
       title: 'Stake new node',
-      task: async (context_): Promise<void> => {
-        await self.accountManager.refreshNodeClient(
+      task: async context_ => {
+        await this.accountManager.refreshNodeClient(
           context_.config.namespace,
           this.remoteConfig.getClusterRefs(),
           context_.config.nodeAlias,
@@ -2634,17 +2587,16 @@ export class NodeCommandTasks {
   }
 
   public sendNodeUpdateTransaction(): SoloListrTask<NodeUpdateContext> {
-    const self: this = this;
     return {
       title: 'Send node update transaction',
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
 
-        const nodeId: number = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-        self.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
+        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
 
         if (config.existingNodeAliases.length > 1) {
-          config.nodeClient = await self.accountManager.refreshNodeClient(
+          config.nodeClient = await this.accountManager.refreshNodeClient(
             config.namespace,
             this.remoteConfig.getClusterRefs(),
             config.nodeAlias,
@@ -2656,28 +2608,26 @@ export class NodeCommandTasks {
           let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
 
           if (config.tlsPublicKey && config.tlsPrivateKey) {
-            self.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer: Uint8Array<ArrayBuffer> = self.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash: Buffer<ArrayBufferLike> = crypto.createHash('sha384').update(tlsCertDer).digest();
+            this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
+            const tlsCertDer = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+            const tlsCertHash = crypto.createHash('sha384').update(tlsCertDer).digest();
             nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
 
-            const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, self.logger);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, self.logger);
+            const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
+            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
-            self.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer: Uint8Array<ArrayBuffer> = self.keyManager.getDerFromPemCertificate(
-              config.gossipPublicKey,
-            );
+            this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
+            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
-            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, self.logger);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, self.logger);
+            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
+            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
 
           if (config.newAccountNumber) {
@@ -2695,10 +2645,19 @@ export class NodeCommandTasks {
           if (config.newAdminKey) {
             nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
           }
-          const signedTx: any = await nodeUpdateTx.sign(config.adminKey);
-          const txResp: any = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt: any = await txResp.getReceipt(config.nodeClient);
-          self.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+
+          // also sign with new account's key if account is being updated
+          if (config.newAccountNumber) {
+            const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+              config.newAccountNumber,
+              config.namespace,
+            );
+            nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+          }
+          const signedTx = await nodeUpdateTx.sign(config.adminKey);
+          const txResp = await signedTx.execute(config.nodeClient);
+          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
 
           // If admin key was updated, save the new key to k8s secret
           if (config.newAdminKey) {
@@ -2708,7 +2667,7 @@ export class NodeCommandTasks {
               publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
             };
 
-            const isAdminKeySecretCreated: boolean = await self.k8Factory
+            const isAdminKeySecretCreated: boolean = await this.k8Factory
               .getK8(context)
               .secrets()
               .createOrReplace(
@@ -2725,7 +2684,7 @@ export class NodeCommandTasks {
               throw new SoloError(`failed to create admin key secret for node '${config.nodeAlias}'`);
             }
 
-            self.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
+            this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
           }
         } catch (error) {
           throw new SoloError(`Error updating node to network: ${error.message}`, error);
@@ -2757,7 +2716,6 @@ export class NodeCommandTasks {
     transactionType: NodeSubcommandType,
     skip: SkipCheck | boolean = false,
   ): SoloListrTask<NodeDestroyContext | NodeAddContext | NodeUpdateContext> {
-    const self: this = this;
     return {
       title,
       task: async (context_): Promise<void> => {
@@ -2772,7 +2730,7 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] = '';
         }
 
-        config.serviceMap ||= await self.accountManager.getNodeServiceMap(
+        config.serviceMap ||= await this.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
           config.deployment,
@@ -2842,7 +2800,7 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const profileValuesFile: string = await self.profileManager.prepareValuesForNodeTransaction(
+        const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'config.txt'),
           PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
         );
@@ -2890,7 +2848,7 @@ export class NodeCommandTasks {
               false,
               'Solo chart version',
             );
-            await self.chartManager.upgrade(
+            await this.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -2899,7 +2857,7 @@ export class NodeCommandTasks {
               valuesArgumentMap[clusterReference],
               context,
             );
-            showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );
       },
@@ -3376,16 +3334,14 @@ export class NodeCommandTasks {
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
   ): SoloListrTask<AnyListrContext> {
-    // eslint-disable-next-line unicorn/no-this-assignment
-    const self: this = this;
-    const {required, optional}: {_: string[]} & Record<string, any> = argv;
+    const {required, optional} = argv;
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
-        await self.localConfig.load();
-        await self.remoteConfig.loadAndValidate(argv);
+        await this.localConfig.load();
+        await this.remoteConfig.loadAndValidate(argv);
 
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);

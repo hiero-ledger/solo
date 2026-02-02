@@ -20,10 +20,8 @@ export class ShellRunner {
     verbose: boolean = false,
     detached: boolean = false,
   ): Promise<string[]> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const callStack: string = new Error('INFO').stack; // capture the callstack to be included in error
-    self.logger.info(`Executing command: '${cmd}'`);
+    this.logger.info(`Executing command: '${cmd}'`);
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
@@ -70,11 +68,11 @@ export class ShellRunner {
 
           if (verbose) {
             for (const m of errorOutput) {
-              self.logger.showUser(chalk.red(m));
+              this.logger.showUser(chalk.red(m));
             }
           }
 
-          self.logger.error(`Error executing: '${cmd}'`, {
+          this.logger.error(`Error executing: '${cmd}'`, {
             commandExitCode: code,
             commandExitSignal: signal,
             commandOutput: output,
@@ -85,7 +83,7 @@ export class ShellRunner {
           reject(error);
         }
 
-        self.logger.debug(`Finished executing: '${cmd}'`, {
+        this.logger.debug(`Finished executing: '${cmd}'`, {
           commandExitCode: code,
           commandExitSignal: signal,
           commandOutput: output,

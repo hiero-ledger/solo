@@ -13,7 +13,7 @@ class MockKindExecution {
   private exitCodeValue: number | null = null;
   private mockProcess: EventEmitter;
 
-  constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+  constructor(_command: string[], _workingDirectory: string, _environmentVariables: Record<string, string>) {
     // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess = new EventEmitter();
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
@@ -209,7 +209,7 @@ describe('KindExecution', () => {
     it('should parse successful response into the specified class', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             const result = await execution.responseAs(TestResponse);
@@ -234,7 +234,7 @@ describe('KindExecution', () => {
     it('should reject if the process exits with error', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             await execution.responseAs(TestResponse);
@@ -265,7 +265,7 @@ describe('KindExecution', () => {
 
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingClass is not assignable to parameter of type
             await execution.responseAs(FailingClass);
@@ -301,7 +301,7 @@ describe('KindExecution', () => {
     it('should parse successful response into a list of the specified class', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
             const result = await execution.responseAsList(TestItem);
@@ -329,7 +329,7 @@ describe('KindExecution', () => {
     it('should handle empty output', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
             const result = await execution.responseAsList(TestItem);
@@ -359,7 +359,7 @@ describe('KindExecution', () => {
 
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingItem is not assignable to parameter of type
             const result = await execution.responseAsList(FailingItem);

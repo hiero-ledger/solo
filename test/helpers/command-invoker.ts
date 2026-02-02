@@ -66,10 +66,8 @@ export class CommandInvoker {
   }
 
   private updateConfigManager(): (argv: ArgvStruct) => Promise<AnyObject> {
-    const self: this = this;
-
     return async (argv: ArgvStruct): Promise<AnyObject> => {
-      self.configManager.update(argv);
+      this.configManager.update(argv);
       return argv;
     };
   }

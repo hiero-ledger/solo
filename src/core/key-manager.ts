@@ -185,7 +185,6 @@ export class KeyManager {
       certPems.push(cert.toString('pem'));
     }
 
-    const self = this;
     return new Promise((resolve, reject) => {
       try {
         this.logger.debug(`Storing ${keyName} key for node: ${nodeAlias}`, {nodeKeyFiles});
@@ -201,7 +200,7 @@ export class KeyManager {
           fs.writeFileSync(nodeKeyFiles.certificateFile, certPem + '\n', {flag: 'a'});
         }
 
-        self.logger.debug(`Stored ${keyName} key for node: ${nodeAlias}`, {
+        this.logger.debug(`Stored ${keyName} key for node: ${nodeAlias}`, {
           nodeKeyFiles,
         });
 
@@ -472,16 +471,14 @@ export class KeyManager {
   taskGenerateGossipKeys(
     nodeAliases: NodeAliases,
     keysDirectory: string,
-    currentDate: Date = new Date(),
-    allNodeAliases: NodeAliases | null = null,
-  ): SoloListrTask<any>[] {
-    allNodeAliases = allNodeAliases || nodeAliases; // TODO: unused variable
-    if (!Array.isArray(nodeAliases) || !nodeAliases.every((nodeAlias): boolean => typeof nodeAlias === 'string')) {
+    currentDate = new Date(),
+    _allNodeAliases: NodeAliases | null = null,
+  ) {
+    if (!Array.isArray(nodeAliases) || !nodeAliases.every(nodeAlias => typeof nodeAlias === 'string')) {
       throw new IllegalArgumentError(
         'nodeAliases must be an array of strings, nodeAliases = ' + JSON.stringify(nodeAliases),
       );
     }
-    const self: this = this;
     const subTasks: SoloListrTask<any>[] = [
       {
         title: 'Backup old files',
@@ -492,13 +489,9 @@ export class KeyManager {
     for (const nodeAlias of nodeAliases) {
       subTasks.push({
         title: `Gossip key for node: ${chalk.yellow(nodeAlias)}`,
-        task: async (): Promise<void> => {
-          const signingKey: NodeKeyObject = await self.generateSigningKey(nodeAlias);
-          const signingKeyFiles: PrivateKeyAndCertificateObject = await self.storeSigningKey(
-            nodeAlias,
-            signingKey,
-            keysDirectory,
-          );
+        task: async () => {
+          const signingKey = await this.generateSigningKey(nodeAlias);
+          const signingKeyFiles = await this.storeSigningKey(nodeAlias, signingKey, keysDirectory);
           this.logger.debug(`generated Gossip signing keys for node ${nodeAlias}`, {keyFiles: signingKeyFiles});
         },
       });
@@ -525,8 +518,7 @@ export class KeyManager {
     if (!Array.isArray(nodeAliases) || !nodeAliases.every((nodeAlias): boolean => typeof nodeAlias === 'string')) {
       throw new SoloError('nodeAliases must be an array of strings');
     }
-    const self: this = this;
-    const nodeKeyFiles: Map<any, any> = new Map();
+    const nodeKeyFiles = new Map();
     const subTasks: SoloListrTask<any>[] = [
       {
         title: 'Backup old files',
@@ -537,9 +529,9 @@ export class KeyManager {
     for (const nodeAlias of nodeAliases) {
       subTasks.push({
         title: `TLS key for node: ${chalk.yellow(nodeAlias)}`,
-        task: async (): Promise<void> => {
-          const tlsKey: NodeKeyObject = await self.generateGrpcTlsKey(nodeAlias);
-          const tlsKeyFiles: PrivateKeyAndCertificateObject = await self.storeTLSKey(nodeAlias, tlsKey, keysDirectory);
+        task: async () => {
+          const tlsKey = await this.generateGrpcTlsKey(nodeAlias);
+          const tlsKeyFiles = await this.storeTLSKey(nodeAlias, tlsKey, keysDirectory);
           nodeKeyFiles.set(nodeAlias, {
             tlsKeyFiles,
           });
