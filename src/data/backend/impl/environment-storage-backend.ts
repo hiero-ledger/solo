@@ -91,12 +91,10 @@ export class EnvironmentStorageBackend implements StorageBackend {
     return Buffer.from(value, 'utf8');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async writeBytes(_key: string, _data: Buffer): Promise<void> {
     throw new UnsupportedStorageOperationError('writeBytes is not supported by the environment storage backend');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async delete(_key: string): Promise<void> {
     throw new UnsupportedStorageOperationError('delete is not supported by the environment storage backend');
   }

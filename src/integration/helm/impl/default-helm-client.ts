@@ -123,7 +123,6 @@ export class DefaultHelmClient implements HelmClient {
    * Applies the default namespace and authentication configuration to the given builder.
    * @param _builder - The builder to apply to which the defaults should be applied
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private applyBuilderDefaults(_builder: HelmExecutionBuilder): void {}
 
   /**

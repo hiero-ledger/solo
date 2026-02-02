@@ -916,7 +916,6 @@ export class NetworkCommand extends BaseCommand {
       {key: 'thanosrulers', crd: 'thanosrulers.monitoring.coreos.com'},
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, context] of clusterRefs) {
       let valuesArgument: string = '';
       let missingCount: number = 0;

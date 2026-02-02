@@ -171,7 +171,6 @@ export class ClusterCommandTasks {
         }
 
         const deploymentsWithSelectedCluster = Object.entries(deployments)
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))
           .map(([deploymentName, deployment]) => ({
             name: deploymentName,
@@ -194,7 +193,6 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public installMinioOperator(_: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
@@ -232,11 +230,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install Prometheus Stack chart',
       task: async context_ => {
@@ -281,11 +275,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public installGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install Grafana Agent chart',
       task: async context_ => {
@@ -330,11 +320,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install pod-monitor-role ClusterRole',
       task: async context_ => {
