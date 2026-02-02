@@ -78,7 +78,7 @@ export class SharedResourceManager {
         .map(([key, value]) => String.raw`--set \"${key}=${value}\"`)
         .join(' ');
 
-      this.chartManager.install(
+      await this.chartManager.install(
         namespace,
         constants.SOLO_SHARED_RESOURCES_CHART,
         constants.SOLO_SHARED_RESOURCES_CHART,

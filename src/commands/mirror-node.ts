@@ -62,6 +62,7 @@ import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
+import type {Container} from '../integration/kube/resources/container/container.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -440,12 +441,6 @@ export class MirrorNodeCommand extends BaseCommand {
       ownerUsername = config.externalDatabaseOwnerUsername;
       readonlyUsername = config.externalDatabaseReadonlyUsername;
       readonlyPassword = config.externalDatabaseReadonlyPassword;
-    } else {
-      host = config.soloSharedDatabaseHost;
-      ownerPassword = config.soloSharedDatabaseOwnerPassword;
-      ownerUsername = config.soloSharedDatabaseOwnerUsername;
-      readonlyUsername = config.soloSharedDatabaseReadonlyUsername;
-      readonlyPassword = config.soloSharedDatabaseReadonlyPassword;
     }
 
     valuesArgument += helpers.populateHelmArguments({
@@ -798,51 +793,38 @@ export class MirrorNodeCommand extends BaseCommand {
                   return; //! stop the execution
                 }
 
-                const pods: Pod[] = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .pods()
-                  .list(namespace, ['app.kubernetes.io/name=postgres']);
-                if (pods.length === 0) {
-                  throw new SoloError('postgres pod not found');
-                }
-                const postgresPodName: PodName = pods[0].podReference.name;
-                const postgresContainerName: ContainerName = ContainerName.of('postgresql');
-                const postgresPodReference: PodReference = PodReference.of(namespace, postgresPodName);
+                const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
+                const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
                 const containerReference: ContainerReference = ContainerReference.of(
-                  postgresPodReference,
-                  postgresContainerName,
+                  podReference,
+                  ContainerName.of('postgresql'),
                 );
-                const mirrorEnvironmentVariables: string = await this.k8Factory
+                const k8Container: Container = this.k8Factory
                   .getK8(config.clusterContext)
                   .containers()
-                  .readByRef(containerReference)
-                  .execContainer('/bin/bash -c printenv');
-                const mirrorEnvironmentVariablesArray: string[] = mirrorEnvironmentVariables.split('\n');
+                  .readByRef(containerReference);
+
                 const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
-
-                const MIRROR_IMPORTER_DB_OWNER: string = helpers.getEnvironmentValue(
-                  mirrorEnvironmentVariablesArray,
-                  `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`,
-                );
-                const MIRROR_IMPORTER_DB_OWNERPASSWORD: string = helpers.getEnvironmentValue(
-                  mirrorEnvironmentVariablesArray,
-                  `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`,
-                );
-                const MIRROR_IMPORTER_DB_NAME: string = helpers.getEnvironmentValue(
-                  mirrorEnvironmentVariablesArray,
-                  `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
-                );
-
-                await this.k8Factory
+                const secrets: Secret[] = await this.k8Factory
                   .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer([
-                    'psql',
-                    `postgresql://${MIRROR_IMPORTER_DB_OWNER}:${MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${MIRROR_IMPORTER_DB_NAME}`,
-                    '-c',
-                    sqlQuery,
-                  ]);
+                  .secrets()
+                  .list(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+                const passwordsSecret: Secret = secrets.find(
+                  secret => secret.name === 'solo-shared-resources-passwords',
+                );
+
+                const DB_OWNER: string = 'postgres';
+                const DB_OWNER_PASSWORD: string = Base64.decode(passwordsSecret.data[`password`]);
+                const MIRROR_IMPORTER_DB_NAME: string = Base64.decode(
+                  passwordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
+                );
+
+                await k8Container.execContainer([
+                  'psql',
+                  `postgresql://${DB_OWNER}:${DB_OWNER_PASSWORD}@127.0.0.1:5432/${MIRROR_IMPORTER_DB_NAME}`,
+                  '-c',
+                  sqlQuery,
+                ]);
               },
             },
           ],
@@ -1121,6 +1103,28 @@ export class MirrorNodeCommand extends BaseCommand {
                   context_.config.soloSharedDatabaseReadonlyPassword = Base64.decode(
                     passwordsSecret.data['HIERO_MIRROR_REST_DB_PASSWORD'],
                   );
+
+                  const host: string = context_.config.soloSharedDatabaseHost;
+                  const ownerPassword: string = context_.config.soloSharedDatabaseOwnerPassword;
+                  const ownerUsername: string = context_.config.soloSharedDatabaseOwnerUsername;
+                  const readonlyUsername: string = context_.config.soloSharedDatabaseReadonlyUsername;
+                  const readonlyPassword: string = context_.config.soloSharedDatabaseReadonlyPassword;
+
+                  // Update values
+                  context_.config.valuesArg += helpers.populateHelmArguments({
+                    'db.host': host,
+                    'db.owner.username': ownerUsername,
+                    'importer.db.username': ownerUsername,
+                    'grpc.db.username': readonlyUsername,
+                    'restjava.db.username': readonlyUsername,
+                    'web3.db.username': readonlyUsername,
+                    'db.owner.password': ownerPassword,
+                    'importer.db.password': ownerPassword,
+                    'grpc.db.password': readonlyPassword,
+                    'restjava.db.password': readonlyPassword,
+                    'web3.db.password': readonlyPassword,
+                    'rest.db.password': readonlyPassword,
+                  });
                 },
               },
             ];
