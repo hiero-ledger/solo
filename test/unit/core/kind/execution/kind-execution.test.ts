@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-/* eslint-disable @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import {expect} from 'chai';
 import Sinon from 'sinon';
@@ -211,7 +211,7 @@ describe('KindExecution', () => {
     it('should parse successful response into the specified class', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             const result = await execution.responseAs(TestResponse);
@@ -236,7 +236,7 @@ describe('KindExecution', () => {
     it('should reject if the process exits with error', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             await execution.responseAs(TestResponse);
@@ -267,7 +267,7 @@ describe('KindExecution', () => {
 
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingClass is not assignable to parameter of type
             await execution.responseAs(FailingClass);
@@ -303,7 +303,7 @@ describe('KindExecution', () => {
     it('should parse successful response into a list of the specified class', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
             const result = await execution.responseAsList(TestItem);
@@ -331,7 +331,7 @@ describe('KindExecution', () => {
     it('should handle empty output', async () => {
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
             const result = await execution.responseAsList(TestItem);
@@ -361,7 +361,7 @@ describe('KindExecution', () => {
 
       const allPassing = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, _reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingItem is not assignable to parameter of type
             const result = await execution.responseAsList(FailingItem);

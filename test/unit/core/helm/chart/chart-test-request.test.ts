@@ -16,7 +16,6 @@ describe('ChartTestRequest Tests', () => {
 
     const nonDefaultOptRequest = new ChartTestRequest('apache', options);
 
-    // Verify behavior through apply method
     expect(nonDefaultOptRequest.options).to.equal(options);
     expect(nonDefaultOptRequest.options).to.not.be.null;
     expect(nonDefaultOptRequest.options).not.equal(TestChartOptionsBuilder.builder().build());

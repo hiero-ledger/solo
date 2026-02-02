@@ -21,6 +21,8 @@ import fs from 'node:fs';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
+import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
+import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 
 const testName: string = 'node-upgrade-test';
 
@@ -55,6 +57,8 @@ new EndToEndTestSuiteBuilder()
         for (const item of contexts) {
           await container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item).namespaces().delete(namespace);
         }
+        await HelmMetricsServer.installMetricsServer(testName);
+        await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
@@ -79,14 +83,16 @@ new EndToEndTestSuiteBuilder()
 
       NodeTest.upgrade(options);
 
-      describe('Should write log metrics', async (): Promise<void> => {
-        await new MetricsServerImpl().logMetrics(
-          testName,
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
-          undefined,
-          undefined,
-          options.contexts,
-        );
+      describe('Write log metrics', async (): Promise<void> => {
+        it('Should write log metrics', async (): Promise<void> => {
+          await new MetricsServerImpl().logMetrics(
+            testName,
+            PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+            undefined,
+            undefined,
+            contexts,
+          );
+        });
       });
     }).timeout(Duration.ofMinutes(30).toMillis());
   })

@@ -57,7 +57,11 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
 
   helm upgrade --install metrics-server metrics-server/metrics-server \
     --namespace kube-system \
-    --set "args[0]=--kubelet-insecure-tls"
+    --set "args[0]=--kubelet-insecure-tls" \
+    --wait
+
+  # Wait for metrics server to be ready
+  kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
 
   # Only install metallb when running multi-cluster (metalLB is unnecessary for our single-cluster KinD E2E)
   if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 ]]; then

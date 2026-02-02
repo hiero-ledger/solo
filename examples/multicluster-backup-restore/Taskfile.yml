@@ -65,6 +65,14 @@ tasks:
   initial-deploy:
     desc: Create dual clusters and deploy network with external database
     cmds:
+      # Install Solo CLI if using released version
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
       # Delete existing clusters
       - cmd: echo "🗑️  Cleaning up existing clusters..."
       - cmd: kind delete cluster -n solo-e2e-c1 || true

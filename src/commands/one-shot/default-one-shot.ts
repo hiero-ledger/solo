@@ -448,7 +448,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               await this.localConfig.load();
               await this.remoteConfig.loadAndValidate(argv);
-
               const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
               const accountsToCreate = [

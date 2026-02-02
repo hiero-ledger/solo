@@ -415,7 +415,7 @@ jobs:
             for logFile in "${json_files[@]}"; do
               if [[ -z "$logFile" ]]; then
                 continue
-              fi          
+              fi
               echo "::group::JSON Format"
               cat $logFile | jq
               echo "::endgroup::" 
@@ -433,6 +433,7 @@ jobs:
         id: generate-chart
         if: ${{ always() }}
         run: |
+          echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
           CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
           

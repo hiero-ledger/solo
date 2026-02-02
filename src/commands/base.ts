@@ -231,7 +231,6 @@ export abstract class BaseCommand extends ShellRunner {
         constants.SOLO_VALUES_DIR,
       ];
     }
-
     try {
       for (const directoryPath of directories) {
         if (!fs.existsSync(directoryPath)) {

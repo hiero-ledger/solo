@@ -13,8 +13,8 @@ export class NoopLeaseRenewalService implements LockRenewalService {
     Atomics.store(this.counter, 0, 1);
   }
 
-  public async isScheduled(scheduleId: number): Promise<boolean> {
-    return scheduleId > 0;
+  public async isScheduled(_scheduleId: number): Promise<boolean> {
+    return _scheduleId > 0;
   }
 
   public async schedule(_lease: Lock): Promise<number> {

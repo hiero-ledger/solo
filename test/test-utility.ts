@@ -154,7 +154,7 @@ export function startNodesTest(argv: Argv): void {
     const logsArguments: string[] = newArgv();
     logsArguments.push(
       DeploymentCommandDefinition.COMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
       '--deployment',
       argv.getArg<string>(flags.deployment),

@@ -436,13 +436,6 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
-          await this.k8Factory
-            .getK8(config.context)
-            .pods()
-            .list(
-              config.namespace,
-              Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
-            );
           throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
         }
         // reset nodeAlias

@@ -65,7 +65,7 @@ export class ClusterTaskManager extends ShellRunner {
     const onSudoRequested: (message: string) => void = (message: string): void => {
       task.title = message;
     };
-    const onSudoGranted: (_message: string) => void = (_message: string): void => {
+    const onSudoGranted: (message: string) => void = (_message: string): void => {
       task.title = originalTitle;
     };
     return {onSudoGranted, onSudoRequested};
@@ -75,7 +75,6 @@ export class ClusterTaskManager extends ShellRunner {
     return [
       {
         title: 'Install git, iptables...',
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         task: async (_, _subTask) => {
           try {
             await this.run('git version');
@@ -93,7 +92,6 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install brew...',
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         task: async (_, _subTask) => {
           const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
           if (!brewInstalled) {
@@ -106,7 +104,6 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install podman...',
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         task: async (_, _subTask) => {
           try {
             const podmanVersion: string[] = await this.run('podman --version');
@@ -121,7 +118,7 @@ export class ClusterTaskManager extends ShellRunner {
       } as SoloListrTask<InitContext>,
       {
         title: 'Creating local cluster...',
-        task: async (context_, task) => {
+        task: async (_context, task) => {
           const whichPodman: string[] = await this.run('which podman');
           const podmanPath: string = whichPodman.join('').replace('/podman', '');
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
@@ -229,8 +226,7 @@ export class ClusterTaskManager extends ShellRunner {
   private defaultCreateClusterTask(parentTask): SoloListrTask<InitContext> {
     return {
       title: 'Creating local cluster...',
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      task: async _context_ => {
+      task: async _context => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutablePath();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);

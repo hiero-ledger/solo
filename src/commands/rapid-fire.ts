@@ -420,7 +420,6 @@ export class RapidFireCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     return this.allStopTasks(argv, {
       title: 'Uninstall Network Load Generator chart',
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       task: async (context_, _task): Promise<void> => {
         await this.chartManager.uninstall(
           context_.config.namespace,

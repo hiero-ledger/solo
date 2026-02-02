@@ -5,7 +5,7 @@
 network:
 #  --api-permission-properties: ""
 #  --app: ""
-  --application-env: "examples/consensus-node-jvm-parameters/application.env.txt"
+  --application-env: "application.env.txt"
 #  --application-properties: ""
 #  --bootstrap-properties: ""
 #  --genesis-throttles-file: ""

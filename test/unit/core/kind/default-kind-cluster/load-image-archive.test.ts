@@ -56,8 +56,6 @@ describe('DefaultKindClient.loadImageArchive', () => {
     const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
     expect(result).to.be.instanceOf(LoadImageArchiveResponse);
 
-    expect(result).to.be.instanceOf(LoadImageArchiveResponse);
-
     // Verify the correct subcommands were used
     expect(builderSubcommands).to.include('load');
     expect(builderSubcommands).to.include('image-archive');
@@ -69,7 +67,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
       return Promise.resolve(new responseClass(''));
     });
 
-    const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
+    const result = await client.loadImageArchive(imageName);
 
     expect(result).to.be.instanceOf(LoadImageArchiveResponse);
 

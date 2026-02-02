@@ -125,18 +125,16 @@ export class ClusterCommandTasks {
     loadRemoteConfig: boolean = false,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
 
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task) => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         if (loadRemoteConfig) {
-          await self.remoteConfig.loadAndValidate(argv);
+          await this.remoteConfig.loadAndValidate(argv);
         }
         context_.config = await configInit(argv, context_, task);
       },
@@ -144,13 +142,10 @@ export class ClusterCommandTasks {
   }
 
   public showClusterList(): SoloListrTask<AnyListrContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'List all available clusters',
       task: async () => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
@@ -254,7 +249,7 @@ export class ClusterCommandTasks {
         );
 
         if (isPrometheusInstalled) {
-          self.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
+          this.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -266,9 +261,9 @@ export class ClusterCommandTasks {
               '',
               context_.config.context,
             );
-            self.logger.showUser('✅ Prometheus Stack chart installed successfully');
+            this.logger.showUser('✅ Prometheus Stack chart installed successfully');
           } catch (error) {
-            self.logger.debug('Error installing Prometheus Stack chart', error);
+            this.logger.debug('Error installing Prometheus Stack chart', error);
             try {
               await this.chartManager.uninstall(
                 clusterSetupNamespace,
@@ -303,7 +298,7 @@ export class ClusterCommandTasks {
         );
 
         if (isGrafanaAgentInstalled) {
-          self.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
+          this.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -315,9 +310,9 @@ export class ClusterCommandTasks {
               '',
               context_.config.context,
             );
-            self.logger.showUser('✅ Grafana Agent chart installed successfully');
+            this.logger.showUser('✅ Grafana Agent chart installed successfully');
           } catch (error) {
-            self.logger.debug('Error installing Grafana Agent chart', error);
+            this.logger.debug('Error installing Grafana Agent chart', error);
             try {
               await this.chartManager.uninstall(
                 clusterSetupNamespace,
@@ -348,7 +343,7 @@ export class ClusterCommandTasks {
         try {
           // Check if ClusterRole already exists using Kubernetes JavaScript API
           await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
-          self.logger.showUser(
+          this.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
         } catch {
@@ -370,11 +365,11 @@ export class ClusterCommandTasks {
               ],
               {'solo.hedera.com/type': 'cluster-role'},
             );
-            self.logger.showUser(
+            this.logger.showUser(
               `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
             );
           } catch (installError) {
-            self.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+            this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
             throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
           }
         }
@@ -446,7 +441,6 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall MinIO Operator chart',
@@ -464,7 +458,6 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Prometheus Stack chart',
@@ -485,7 +478,6 @@ export class ClusterCommandTasks {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public uninstallGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Grafana Agent chart',
