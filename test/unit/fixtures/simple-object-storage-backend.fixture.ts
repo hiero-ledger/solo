@@ -37,7 +37,7 @@ export class SimpleObjectStorageBackend implements ObjectStorageBackend {
     return Promise.resolve();
   }
 
-  public isSupported(_op: StorageOperation): boolean {
+  public isSupported(operation: StorageOperation): boolean {
     return true;
   }
 }
