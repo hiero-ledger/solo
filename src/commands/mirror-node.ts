@@ -62,7 +62,7 @@ import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
-import type {Container} from '../integration/kube/resources/container/container.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {

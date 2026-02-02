@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {PostgresSharedResource} from '../shared-resources/postgres.js';
-import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
-
 /**
  * Dependency injection tokens
  */
