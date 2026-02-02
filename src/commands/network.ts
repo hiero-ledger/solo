@@ -225,7 +225,6 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
-      flags.blockNodeCfg,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
