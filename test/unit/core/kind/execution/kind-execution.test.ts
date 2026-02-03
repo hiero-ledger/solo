@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 import {expect} from 'chai';
 import Sinon from 'sinon';
 import {EventEmitter} from 'node:events';
