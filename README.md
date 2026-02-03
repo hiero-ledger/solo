@@ -30,40 +30,25 @@ For legacy releases, see [legacy versions](docs/legacy-versions.md).
 
 ### Hardware Requirements
 
-Docker Desktop with at least **12GB of memory** and **6 CPU cores**.
+Docker Desktop (or Docker Engine / Podman on Linux) with at least **12GB of memory** and **6 CPU cores**.
 
 ![Docker Desktop Settings](images/docker-desktop.png)
 
 ## Installation
 
-### macOS (Recommended)
-
-Install Solo and all dependencies with Homebrew:
+Install Solo via Homebrew (macOS, Linux, WSL2):
 
 ```bash
-brew install solo
+brew install hiero-ledger/tools/solo
 ```
 
-This installs Solo along with Node.js, kubectl, Helm, and Kind.
-
-### Windows (WSL2) and Linux
-
-1. Install [Homebrew](https://brew.sh/)
-2. Install Solo via Homebrew:
-   ```bash
-   brew install solo
-   ```
-3. Install [kubectl](https://kubernetes.io/docs/tasks/tools/) separately (required for WSL2/Linux)
-
-### Alternative: npm
-
-If you prefer to manage dependencies manually:
+Or via npm (requires Node.js >= 22.0.0):
 
 ```bash
 npm install -g @hashgraph/solo@latest
 ```
 
-Required dependencies: Node.js >= 22.0.0, kubectl, Helm, and Kind.
+For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/).
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
