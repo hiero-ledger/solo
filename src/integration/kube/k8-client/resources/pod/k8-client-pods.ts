@@ -175,10 +175,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
             `[attempt: ${attempts}/${maxAttempts}] ${response.items?.length} pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
           );
 
-          if (resp.items?.length > 0) {
+          if (response.items?.length > 0) {
             // Sort pods by creation timestamp descending (newest first)
             // eslint-disable-next-line unicorn/no-array-sort
-            const sortedItems: V1Pod[] = [...resp.items].sort((a, b): number => {
+            const sortedItems: V1Pod[] = [...response.items].sort((a, b): number => {
               const aTime: number = a.metadata?.creationTimestamp?.getTime() || 0;
               const bTime: number = b.metadata?.creationTimestamp?.getTime() || 0;
               return bTime - aTime;
