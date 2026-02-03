@@ -39,7 +39,7 @@ Choose your platform below:
 # Docker Desktop > Settings > Resources > Memory
 
 # 3. Install Solo (this installs all other dependencies automatically)
-brew install solo
+brew install hiero-ledger/tools/solo
 
 # Verify the installation
 solo --version
@@ -70,7 +70,7 @@ chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
 # 4. Install Solo (this installs remaining dependencies automatically)
-brew install solo
+brew install hiero-ledger/tools/solo
 
 # Verify the installation
 solo --version
@@ -102,7 +102,7 @@ chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
 # 4. Install Solo (this installs remaining dependencies automatically)
-brew install solo
+brew install hiero-ledger/tools/solo
 
 # Verify the installation
 solo --version
@@ -143,7 +143,7 @@ done
 rm -rf ~/.solo
 ```
 
-After cleaning up, retry the installation with `brew install solo`.
+After cleaning up, retry the installation with `brew install hiero-ledger/tools/solo`.
 
 {{< /details >}}
 
