@@ -19,13 +19,6 @@ tasks:
   deploy:
     desc: Deploy a complete Hiero network using one-shot falcon deploy
     cmds:
-      # if using released version of Solo, make sure to run from solo project root directory
-      - cmd: |
-          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-            cd ../../solo || exit 1
-          else
-            echo "Skipping cd - using development version"
-          fi
       # Install Solo CLI
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then

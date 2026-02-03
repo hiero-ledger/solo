@@ -29,8 +29,10 @@ tasks:
 
       # Solo one-shot falcon deploy
       - cmd: |
+          sed -i.bak "s|--application-env:.*|--application-env: \"{{ .USER_WORKING_DIR }}/application.env.txt\"|" {{ .USER_WORKING_DIR }}/falcon-values.yaml
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --quiet-mode --dev
+          mv {{ .USER_WORKING_DIR }}/falcon-values.yaml.bak {{ .USER_WORKING_DIR }}/falcon-values.yaml
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
