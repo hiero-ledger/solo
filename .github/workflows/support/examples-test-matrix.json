@@ -3,7 +3,7 @@
     "name": "Consensus Node JVM Parameters",
     "directory": "consensus-node-jvm-parameters",
     "local-java-build": false
-  }
+  },
   {
     "name": "One Shot Falcon",
     "directory": "one-shot-falcon",
