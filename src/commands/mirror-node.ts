@@ -808,13 +808,13 @@ export class MirrorNodeCommand extends BaseCommand {
                 const secrets: Secret[] = await this.k8Factory
                   .getK8(config.clusterContext)
                   .secrets()
-                  .list(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+                  .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
                 const passwordsSecret: Secret = secrets.find(
                   secret => secret.name === 'solo-shared-resources-passwords',
                 );
 
                 const DB_OWNER: string = 'postgres';
-                const DB_OWNER_PASSWORD: string = Base64.decode(passwordsSecret.data[`password`]);
+                const DB_OWNER_PASSWORD: string = Base64.decode(passwordsSecret.data['password']);
                 const MIRROR_IMPORTER_DB_NAME: string = Base64.decode(
                   passwordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
                 );
@@ -1093,10 +1093,13 @@ export class MirrorNodeCommand extends BaseCommand {
                   const passwordsSecret: Secret = secrets.find(
                     secret => secret.name === 'solo-shared-resources-passwords',
                   );
+
                   context_.config.soloSharedDatabaseHost =
                     'solo-shared-resources-postgres-postgresql.solo-e2e.svc.cluster.local';
                   context_.config.soloSharedDatabaseOwnerUsername = 'postgres';
-                  context_.config.soloSharedDatabaseOwnerPassword = Base64.decode(passwordsSecret.data['password']);
+                  context_.config.soloSharedDatabaseOwnerPassword = Base64.decode(
+                    passwordsSecret.data['password'],
+                  );
                   context_.config.soloSharedDatabaseReadonlyUsername = Base64.decode(
                     passwordsSecret.data['HIERO_MIRROR_REST_DB_USERNAME'],
                   );

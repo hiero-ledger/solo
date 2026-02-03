@@ -128,7 +128,7 @@ export class PostgresSharedResource {
       .getK8(context)
       .secrets()
       .list(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-    const passwordsSecret: Secret = secrets.find((secret => secret.name === 'solo-shared-resources-passwords'));
+    const passwordsSecret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-passwords');
 
     try {
       const superUserPassword: string = Base64.decode(passwordsSecret.data['password']);
@@ -177,11 +177,13 @@ export class PostgresSharedResource {
 
       const wrapper = wrapperLines.join('\n');
 
-      const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, `run-init.sh`);
+      const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, 'run-init.sh');
       fs.writeFileSync(temporaryLocal, wrapper);
       await k8Container.copyTo(temporaryLocal, '/tmp');
       await k8Container.execContainer('chmod +x /tmp/run-init.sh');
-      await k8Container.execContainer(`/bin/bash /tmp/run-init.sh`);
+      await k8Container.execContainer('/bin/bash /tmp/run-init.sh');
+      await k8Container.execContainer('rm /tmp/.pgpass');
+      await k8Container.execContainer('rm /tmp/run-init.sh');
       fs.rmSync(temporaryLocal);
     } catch (error) {
       throw new SoloError(`Failed to run Mirror Node Postgres initialization script in container: ${error}`, error);
