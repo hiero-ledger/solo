@@ -59,7 +59,7 @@ setup:
   --app-config: ""
   --quiet-mode: false
   --dev: false
-  --local-build-path: "../../hiero-consensus-node/hedera-node/data"
+  --local-build-path: ""
   --admin-public-keys: ""
   --domain-names: ""
 

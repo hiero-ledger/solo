@@ -29,14 +29,8 @@ tasks:
 
       # Solo one-shot falcon deploy
       - cmd: |
-          if [ -d "{{ .USER_WORKING_DIR }}/../../hiero-consensus-node/hedera-node/data" ]; then
-            sed -i.bak 's|--local-build-path: ""|--local-build-path: "{{ .USER_WORKING_DIR }}/../../hiero-consensus-node/hedera-node/data"|' {{ .USER_WORKING_DIR }}/falcon-values.yaml
-          fi
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2
-          if [ -f "{{ .USER_WORKING_DIR }}/falcon-values.yaml.bak" ]; then
-            mv {{ .USER_WORKING_DIR }}/falcon-values.yaml.bak {{ .USER_WORKING_DIR }}/falcon-values.yaml
-          fi
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
