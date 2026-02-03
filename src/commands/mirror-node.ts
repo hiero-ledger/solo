@@ -1498,7 +1498,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
-      throw new SoloError('Mirror node not found in remove config');
+      throw new SoloError('Mirror node not found in remote config');
     }
 
     return this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
