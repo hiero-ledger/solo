@@ -19,14 +19,14 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 ### Current Releases
 
-| Solo Version | Hedera   | Release Date | End of Support |
-|--------------|----------|--------------|----------------|
-| 0.53.0       | v0.67.2+ | 2026-01-15   | 2026-02-15     |
-| 0.52.0 (LTS) | v0.67.2+ | 2025-12-11   | 2026-03-11     |
-| 0.50.0 (LTS) | v0.66.0+ | 2025-11-13   | 2026-02-13     |
-| 0.48.0 (LTS) | v0.66.0+ | 2025-10-24   | 2026-01-24     |
+| Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
+|--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
+| 0.53.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.58.1    | v0.67.2+ | >= v1.32.2 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-01-15   | 2026-02-15     |
+| 0.52.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.67.2+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-11   | 2026-03-11     |
+| 0.50.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-11-13   | 2026-02-13     |
+| 0.48.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-10-24   | 2026-01-24     |
 
-For legacy releases, see [legacy versions](docs/legacy-versions.md).
+To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
 ### Hardware Requirements
 
