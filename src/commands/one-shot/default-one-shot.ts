@@ -511,10 +511,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {
-              const outputDirectory: string = PathEx.join(
-                constants.SOLO_HOME_DIR,
-                `one-shot-${context_.config.deployment}`,
-              );
+              const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
               this.showOneShotUserNotes(context_, false, PathEx.join(outputDirectory, 'notes'));
               this.showVersions(PathEx.join(outputDirectory, 'versions'));
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
@@ -614,6 +611,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
     fs.writeFileSync(outputFile, context.config.deployment);
     this.logger.showUser(chalk.green(`✅ Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
+  }
+
+  private getOneShotOutputDirectory(deploymentName: string): string {
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
   }
 
   private showAccounts(
@@ -1085,7 +1086,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             try {
               this.k8Factory.default().contexts().updateCurrent(clusterContext.toString());
               const namespaces = await this.k8Factory.default().namespaces().list();
-              const targetNamespace = namespaces.find(ns => ns.name === deployment.namespace.name);
+              const targetNamespace = namespaces.find(ns => ns.name === deployment.namespace);
               
               if (!targetNamespace) {
                 this.logger.showUser(
@@ -1139,7 +1140,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return;
               }
 
-              const remoteConfigData = yaml.parse(remoteConfigMap.data['remote-config-data']);
+              const remoteConfigData = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
               context_.remoteConfig = remoteConfigData;
             } catch (error) {
               this.logger.showUser(
@@ -1208,10 +1209,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             // Show information about where files are stored
-            const outputDirectory = PathEx.join(
-              constants.SOLO_HOME_DIR,
-              `one-shot-${context_.deploymentName}`,
-            );
+            const outputDirectory = this.getOneShotOutputDirectory(context_.deploymentName);
             
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
             
