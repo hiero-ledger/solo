@@ -4,13 +4,8 @@ import {SoloError} from '../core/errors/solo-error.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
-import {
-  type ComponentId,
-  type DeploymentName,
-  type SoloListr,
-  type SoloListrTask,
-} from '../types/index.js';
+import {type ArgvStruct} from '../types/aliases.js';
+import {type DeploymentName, type SoloListr} from '../types/index.js';
 import {type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -49,11 +44,7 @@ export class UpgradeCommand extends BaseCommand {
     @inject(InjectTokens.NodeCommandHandlers) private readonly nodeCommandHandlers?: NodeCommandHandlers,
   ) {
     super();
-    this.mirrorNodeCommand = patchInject(
-      mirrorNodeCommand,
-      InjectTokens.MirrorNodeCommand,
-      this.constructor.name,
-    );
+    this.mirrorNodeCommand = patchInject(mirrorNodeCommand, InjectTokens.MirrorNodeCommand, this.constructor.name);
     this.relayCommand = patchInject(relayCommand, InjectTokens.RelayCommand, this.constructor.name);
     this.explorerCommand = patchInject(explorerCommand, InjectTokens.ExplorerCommand, this.constructor.name);
     this.blockNodeCommand = patchInject(blockNodeCommand, InjectTokens.BlockNodeCommand, this.constructor.name);
@@ -116,7 +107,7 @@ export class UpgradeCommand extends BaseCommand {
         },
         {
           title: 'Upgrade Consensus Nodes',
-          task: async (context_): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             try {
               const consensusNodes =
                 this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
@@ -163,9 +154,9 @@ export class UpgradeCommand extends BaseCommand {
         },
         {
           title: 'Upgrade Mirror Node',
-          task: async (context_): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             try {
-              const mirrorNodes =
+              const mirrorNodes: MirrorNodeStateSchema[] =
                 this.remoteConfig.configuration.components.getComponentByType<MirrorNodeStateSchema>(
                   ComponentTypes.MirrorNode,
                 );
@@ -175,14 +166,16 @@ export class UpgradeCommand extends BaseCommand {
                 return;
               }
 
-              const mirrorNode = mirrorNodes[0];
+              const _mirrorNode: MirrorNodeStateSchema = mirrorNodes[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
               if (currentVersion && currentVersion.version === versions.MIRROR_NODE_VERSION) {
                 this.logger.info(`Mirror node already at latest version ${versions.MIRROR_NODE_VERSION}, skipping`);
                 return;
               }
 
-              this.logger.info(`Upgrading mirror node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.MIRROR_NODE_VERSION}`);
+              this.logger.info(
+                `Upgrading mirror node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.MIRROR_NODE_VERSION}`,
+              );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
@@ -205,18 +198,19 @@ export class UpgradeCommand extends BaseCommand {
         },
         {
           title: 'Upgrade Relay',
-          task: async (context_): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             try {
-              const relayNodes = this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
-                ComponentTypes.RelayNodes,
-              );
+              const relayNodes: RelayNodeStateSchema[] =
+                this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+                  ComponentTypes.RelayNodes,
+                );
 
               if (relayNodes.length === 0) {
                 this.logger.info('No relay nodes found, skipping');
                 return;
               }
 
-              const relayNode = relayNodes[0];
+              const _relayNode: RelayNodeStateSchema = relayNodes[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
               if (currentVersion && currentVersion.version === versions.HEDERA_JSON_RPC_RELAY_VERSION) {
                 this.logger.info(
@@ -250,25 +244,28 @@ export class UpgradeCommand extends BaseCommand {
         },
         {
           title: 'Upgrade Explorer',
-          task: async (context_): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             try {
-              const explorers = this.remoteConfig.configuration.components.getComponentByType<ExplorerStateSchema>(
-                ComponentTypes.Explorer,
-              );
+              const explorers: ExplorerStateSchema[] =
+                this.remoteConfig.configuration.components.getComponentByType<ExplorerStateSchema>(
+                  ComponentTypes.Explorer,
+                );
 
               if (explorers.length === 0) {
                 this.logger.info('No explorers found, skipping');
                 return;
               }
 
-              const explorer = explorers[0];
+              const _explorer: ExplorerStateSchema = explorers[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
               if (currentVersion && currentVersion.version === versions.EXPLORER_VERSION) {
                 this.logger.info(`Explorer already at latest version ${versions.EXPLORER_VERSION}, skipping`);
                 return;
               }
 
-              this.logger.info(`Upgrading explorer from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.EXPLORER_VERSION}`);
+              this.logger.info(
+                `Upgrading explorer from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.EXPLORER_VERSION}`,
+              );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
@@ -291,25 +288,28 @@ export class UpgradeCommand extends BaseCommand {
         },
         {
           title: 'Upgrade Block Node',
-          task: async (context_): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             try {
-              const blockNodes = this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
-                ComponentTypes.BlockNode,
-              );
+              const blockNodes: BlockNodeStateSchema[] =
+                this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
+                  ComponentTypes.BlockNode,
+                );
 
               if (blockNodes.length === 0) {
                 this.logger.info('No block nodes found, skipping');
                 return;
               }
 
-              const blockNode = blockNodes[0];
+              const _blockNode: BlockNodeStateSchema = blockNodes[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode);
               if (currentVersion && currentVersion.version === versions.BLOCK_NODE_VERSION) {
                 this.logger.info(`Block node already at latest version ${versions.BLOCK_NODE_VERSION}, skipping`);
                 return;
               }
 
-              this.logger.info(`Upgrading block node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.BLOCK_NODE_VERSION}`);
+              this.logger.info(
+                `Upgrading block node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.BLOCK_NODE_VERSION}`,
+              );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
