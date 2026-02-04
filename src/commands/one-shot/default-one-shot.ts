@@ -1050,10 +1050,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             context_.deployment = deployment;
-            this.logger.showUser(chalk.cyan(`\nNamespace: ${chalk.bold(deployment.namespace.name)}`));
+            this.logger.showUser(chalk.cyan(`\nNamespace: ${chalk.bold(deployment.namespace)}`));
             
             if (deployment.clusters && deployment.clusters.length > 0) {
-              const clusterNames = deployment.clusters.map(c => c.clusterRef).join(', ');
+              const clusterNames = deployment.clusters.map(c => c.toString()).join(', ');
               this.logger.showUser(chalk.cyan(`Clusters: ${chalk.bold(clusterNames)}`));
             }
           },
@@ -1072,7 +1072,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const clusterRef = deployment.clusters.get(0).clusterRef;
+            const clusterRef = deployment.clusters.get(0).toString();
             const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterRef);
             
             if (!clusterContext) {
@@ -1090,7 +1090,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               if (!targetNamespace) {
                 this.logger.showUser(
                   chalk.yellow(
-                    `\n⚠️  Namespace '${deployment.namespace.name}' not found in cluster '${clusterRef}'.` +
+                    `\n⚠️  Namespace '${deployment.namespace}' not found in cluster '${clusterRef}'.` +
                     '\nThe deployment may have been destroyed or is not accessible.'
                   )
                 );
@@ -1119,10 +1119,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             const deployment = context_.deployment;
             
             try {
+              const namespaceName = NamespaceName.of(deployment.namespace);
               const configMaps = await this.k8Factory
                 .default()
                 .configMaps()
-                .getByNamespaceName(deployment.namespace);
+                .list(namespaceName, []);
               
               const remoteConfigMap = configMaps.find(
                 cm => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME
@@ -1131,7 +1132,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               if (!remoteConfigMap) {
                 this.logger.showUser(
                   chalk.yellow(
-                    `\n⚠️  Remote configuration not found in namespace '${deployment.namespace.name}'.` +
+                    `\n⚠️  Remote configuration not found in namespace '${deployment.namespace}'.` +
                     '\nThe deployment may have been partially destroyed.'
                   )
                 );
