@@ -1062,6 +1062,24 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         {
+          title: 'Load redis credentials',
+          task: async (context_): Promise<void> => {
+            const secrets: Secret[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .secrets()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+            const secret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-redis');
+
+            // Update values
+            context_.config.valuesArg += helpers.populateHelmArguments({
+              'redis.enabled': false,
+              'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
+              'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
+              'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
+            });
+          },
+        },
+        {
           title: 'Initialize Postgres pod',
           task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
@@ -1080,6 +1098,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   await this.postgresSharedResource.initializeMirrorNode(
                     context_.config.namespace,
                     context_.config.clusterContext,
+                    this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
                   );
                 },
               },
@@ -1094,12 +1113,9 @@ export class MirrorNodeCommand extends BaseCommand {
                     secret => secret.name === 'solo-shared-resources-passwords',
                   );
 
-                  context_.config.soloSharedDatabaseHost =
-                    'solo-shared-resources-postgres-postgresql.solo-e2e.svc.cluster.local';
+                  context_.config.soloSharedDatabaseHost = `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`;
                   context_.config.soloSharedDatabaseOwnerUsername = 'postgres';
-                  context_.config.soloSharedDatabaseOwnerPassword = Base64.decode(
-                    passwordsSecret.data['password'],
-                  );
+                  context_.config.soloSharedDatabaseOwnerPassword = Base64.decode(passwordsSecret.data['password']);
                   context_.config.soloSharedDatabaseReadonlyUsername = Base64.decode(
                     passwordsSecret.data['HIERO_MIRROR_REST_DB_USERNAME'],
                   );

@@ -52,7 +52,11 @@ export class PostgresSharedResource {
       );
   }
 
-  public async initializeMirrorNode(namespace: NamespaceName, context: string): Promise<void> {
+  public async initializeMirrorNode(
+    namespace: NamespaceName,
+    context: string,
+    prefix: string = 'HIERO',
+  ): Promise<void> {
     const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
     const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
     const containerReference: ContainerReference = ContainerReference.of(podReference, ContainerName.of('postgresql'));
@@ -130,63 +134,79 @@ export class PostgresSharedResource {
       .list(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
     const passwordsSecret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-passwords');
 
-    try {
-      const superUserPassword: string = Base64.decode(passwordsSecret.data['password']);
-      const databaseName: string = Base64.decode(passwordsSecret.data['HIERO_MIRROR_IMPORTER_DB_NAME']);
-      const ownerUsername: string = Base64.decode(passwordsSecret.data['HIERO_MIRROR_IMPORTER_DB_OWNER']);
-      const ownerPassword: string = Base64.decode(passwordsSecret.data['HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD']);
+    const maxAttempts: number = 3;
+    const backoff: number = 2000;
+    let attempt: number = 1;
+    while (attempt < maxAttempts) {
+      try {
+        const superUserPassword: string = Base64.decode(passwordsSecret.data['password']);
+        const databaseName: string = Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_NAME`]);
+        const ownerUsername: string = Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNER`]);
+        const ownerPassword: string = Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`]);
 
-      const wrapperLines: string[] = [
-        '#!/usr/bin/env bash',
-        'set -e',
-        '',
-        '# connection and DB vars',
-        'export POSTGRES_USER=postgres',
-        'export PGUSER=postgres',
-        'export PGDATABASE=postgres',
-        'export PGHOST=127.0.0.1',
-        'export PGPORT=5432',
-        `export DB_NAME=${databaseName}`,
-        `export OWNER_USERNAME=${ownerUsername}`,
-        `export OWNER_PASSWORD=${ownerPassword}`,
-        '',
-        '# superuser password (from your secrets list)',
-        `export SUPERUSER_PASSWORD=${superUserPassword}`,
-        '',
-        '# build .pgpass with both postgres (superuser) and owner credentials',
-        'cat > /tmp/.pgpass <<EOF',
-        `127.0.0.1:5432:*:postgres:${superUserPassword}`,
-        `127.0.0.1:5432:${databaseName}:${ownerUsername}:${ownerPassword}`,
-        'EOF',
-        'chmod 600 /tmp/.pgpass',
-        'export PGPASSFILE=/tmp/.pgpass',
-        'unset PGPASSWORD   # ensure libpq uses PGPASSFILE',
-        '',
-        '# export the other API user passwords used by init script',
-        'export CREATE_MIRROR_API_USER=true',
-        `export GRAPHQL_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_GRAPHQL_DB_PASSWORD'])}`,
-        `export GRPC_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_GRPC_DB_PASSWORD'])}`,
-        `export IMPORTER_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_IMPORTER_DB_PASSWORD'])}`,
-        `export REST_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_REST_DB_PASSWORD'])}`,
-        `export REST_JAVA_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_RESTJAVA_DB_PASSWORD'])}`,
-        `export ROSETTA_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_ROSETTA_DB_PASSWORD'])}`,
-        `export WEB3_PASSWORD=${Base64.decode(passwordsSecret.data['HIERO_MIRROR_WEB3_DB_PASSWORD'])}`,
-        '',
-        'exec /bin/bash /tmp/init-postgres.sh',
-      ];
+        const wrapperLines: string[] = [
+          '#!/usr/bin/env bash',
+          'set -e',
+          '',
+          '# connection and DB vars',
+          'export POSTGRES_USER=postgres',
+          'export PGUSER=postgres',
+          'export PGDATABASE=postgres',
+          'export PGHOST=127.0.0.1',
+          'export PGPORT=5432',
+          `export DB_NAME=${databaseName}`,
+          `export OWNER_USERNAME=${ownerUsername}`,
+          `export OWNER_PASSWORD=${ownerPassword}`,
+          '',
+          '# superuser password (from your secrets list)',
+          `export SUPERUSER_PASSWORD=${superUserPassword}`,
+          '',
+          '# build .pgpass with both postgres (superuser) and owner credentials',
+          'cat > /tmp/.pgpass <<EOF',
+          `127.0.0.1:5432:*:postgres:${superUserPassword}`,
+          `127.0.0.1:5432:${databaseName}:${ownerUsername}:${ownerPassword}`,
+          'EOF',
+          'chmod 600 /tmp/.pgpass',
+          'export PGPASSFILE=/tmp/.pgpass',
+          'unset PGPASSWORD   # ensure libpq uses PGPASSFILE',
+          '',
+          '# export the other API user passwords used by init script',
+          'export CREATE_MIRROR_API_USER=true',
+          `export GRAPHQL_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_GRAPHQL_DB_PASSWORD`])}`,
+          `export GRPC_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_GRPC_DB_PASSWORD`])}`,
+          `export IMPORTER_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`])}`,
+          `export REST_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_REST_DB_PASSWORD`])}`,
+          `export REST_JAVA_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_RESTJAVA_DB_PASSWORD`])}`,
+          `export ROSETTA_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_ROSETTA_DB_PASSWORD`])}`,
+          `export WEB3_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_WEB3_DB_PASSWORD`])}`,
+          '',
+          'exec /bin/bash /tmp/init-postgres.sh',
+        ];
 
-      const wrapper = wrapperLines.join('\n');
+        const wrapper = wrapperLines.join('\n');
 
-      const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, 'run-init.sh');
-      fs.writeFileSync(temporaryLocal, wrapper);
-      await k8Container.copyTo(temporaryLocal, '/tmp');
-      await k8Container.execContainer('chmod +x /tmp/run-init.sh');
-      await k8Container.execContainer('/bin/bash /tmp/run-init.sh');
-      await k8Container.execContainer('rm /tmp/.pgpass');
-      await k8Container.execContainer('rm /tmp/run-init.sh');
-      fs.rmSync(temporaryLocal);
-    } catch (error) {
-      throw new SoloError(`Failed to run Mirror Node Postgres initialization script in container: ${error}`, error);
+        const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, 'run-init.sh');
+        fs.writeFileSync(temporaryLocal, wrapper);
+        await k8Container.copyTo(temporaryLocal, '/tmp');
+        await k8Container.execContainer('chmod +x /tmp/run-init.sh');
+        await k8Container.execContainer('/bin/bash /tmp/run-init.sh');
+        // await k8Container.execContainer('rm /tmp/.pgpass');
+        // await k8Container.execContainer('rm /tmp/run-init.sh');
+        fs.rmSync(temporaryLocal);
+        break;
+      } catch (error) {
+        this.logger.error(
+          `Failed to run Mirror Node Postgres initialization script in container. Attempt ${attempt} out of ${maxAttempts}: ${error}`,
+        );
+        attempt++;
+        if (attempt > maxAttempts) {
+          throw new SoloError(
+            `Failed to run Mirror Node Postgres initialization script in container after ${attempt} attempts: ${error}`,
+            error,
+          );
+        }
+        await new Promise(resolve => setTimeout(resolve, backoff * attempt)); // wait before retrying
+      }
     }
   }
 }
