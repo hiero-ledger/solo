@@ -113,7 +113,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
-    let config: OneShotSingleDeployConfigClass | null = null;
+    let config: OneShotSingleDeployConfigClass | undefined = undefined;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newOneShotSingleDeployTaskList(
@@ -744,7 +744,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           createdAccounts: formattedCreatedAccounts,
         };
 
-        fs.writeFileSync(outputFile, JSON.stringify(outputData, null, 2));
+        fs.writeFileSync(outputFile, JSON.stringify(outputData, undefined, 2));
         this.logger.showUser(chalk.green(`✅ Created accounts saved to file in JSON format: ${outputFile}`));
       }
 
@@ -1006,12 +1006,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  public async info(argv: ArgvStruct): Promise<boolean> {
+  public async info(_argv: ArgvStruct): Promise<boolean> {
     const tasks = new Listr(
       [
         {
           title: 'Check for cached deployment',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_, _task): Promise<void> => {
             const deploymentFromFlag = this.configManager.getFlag(flags.deployment);
             if (deploymentFromFlag) {
               context_.deploymentName = deploymentFromFlag;
@@ -1058,7 +1058,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         {
           title: 'Load local configuration',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_, _task): Promise<void> => {
             await this.localConfig.load();
 
             const deployment = this.localConfig.configuration.deployments.find(d => d.name === context_.deploymentName);
@@ -1164,7 +1164,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         {
           title: 'Display deployment information',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_, _task): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
             // Show versions

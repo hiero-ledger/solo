@@ -21,18 +21,18 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'mirror';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'mirror';
+  protected static override readonly DESCRIPTION: string =
     'Mirror Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NODE_SUBCOMMAND_NAME = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
+  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, or destroy mirror node instances. Operates on a single mirror node instance at a time.';
 
-  public static readonly NODE_ADD = 'add';
-  public static readonly NODE_DESTROY = 'destroy';
-  public static readonly NODE_UPGRADE = 'upgrade';
+  public static readonly NODE_ADD: string = 'add';
+  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_UPGRADE: string = 'upgrade';
 
   public static readonly ADD_COMMAND =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}` as const;
