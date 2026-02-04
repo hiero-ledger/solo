@@ -303,11 +303,11 @@ jobs:
           fi
 
       - name: Deploy to JFrog Registry
-        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         run: jf npm publish
 
       - name: Create Example Asset Archives and Upload to Release
-        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         run: |
           echo "Creating example asset archives for release..."
           GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
@@ -434,7 +434,7 @@ jobs:
         id: set-inputs
         run: |
           set -eo pipefail
-          if [[ "${{ inputs.dry-run-enabled }}" == 'true' ]]; then
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
             echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT
             echo "tag_ref=${{ github.ref }}"
