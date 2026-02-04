@@ -3,7 +3,10 @@
     [
       "@semantic-release/commit-analyzer",
       {
-        "preset": "conventionalcommits"
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "breaking": true, "release": "minor" }
+        ],
       }
     ],
     [
@@ -15,24 +18,10 @@
     "@semantic-release/git",
     "@semantic-release/github"
   ],
-  "releaseRules": [
-    { "breaking": "true", "release": "minor" }
-  ],
   "verifyRelease": [
     [
       "@semantic-release/exec",
       { "cmd": "echo ${nextRelease.version} > VERSION" }
-    ]
-  ],
-  "prepare": [
-    [
-      "@semantic-release/git",
-      {
-        "assets": [
-          "package.json",
-          "package-lock.json"
-        ]
-      }
     ]
   ],
   "branches":[
