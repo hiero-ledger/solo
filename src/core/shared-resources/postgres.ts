@@ -114,8 +114,6 @@ export class PostgresSharedResource {
         const buffer: Buffer<any> = Buffer.from(await response.arrayBuffer());
         fs.writeFileSync(initScriptLocalPath, buffer);
       }
-
-      // fs.chmodSync(initScriptLocalPath, 0o755);
     }
 
     try {
@@ -190,8 +188,8 @@ export class PostgresSharedResource {
         await k8Container.copyTo(temporaryLocal, '/tmp');
         await k8Container.execContainer('chmod +x /tmp/run-init.sh');
         await k8Container.execContainer('/bin/bash /tmp/run-init.sh');
-        // await k8Container.execContainer('rm /tmp/.pgpass');
-        // await k8Container.execContainer('rm /tmp/run-init.sh');
+        await k8Container.execContainer('rm /tmp/.pgpass');
+        await k8Container.execContainer('rm /tmp/run-init.sh');
         fs.rmSync(temporaryLocal);
         break;
       } catch (error) {
