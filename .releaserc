@@ -6,7 +6,7 @@
         "preset": "conventionalcommits",
         "releaseRules": [
           { "breaking": true, "release": "minor" }
-        ],
+        ]
       }
     ],
     [
@@ -15,14 +15,20 @@
         "preset": "conventionalcommits"
       }
     ],
-    "@semantic-release/git",
-    "@semantic-release/github"
-  ],
-  "verifyRelease": [
     [
       "@semantic-release/exec",
-      { "cmd": "echo ${nextRelease.version} > VERSION" }
-    ]
+      {
+        "prepareCmd": "npm version ${nextRelease.version} --no-git-tag-version && echo ${nextRelease.version} > VERSION"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "package-lock.json"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
   ],
   "branches":[
     {
