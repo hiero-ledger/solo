@@ -453,7 +453,7 @@ export class NodeCommandTasks {
           title,
           task: async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
             if (enableDebugger && isDebugNode) {
-              await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+              const accountsToCreate: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
                 default: false,
               });
