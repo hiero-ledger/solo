@@ -476,7 +476,7 @@ jobs:
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
   hugo-docs-publish:
     name: Hugo Docs Publish
-    if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+    if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     needs:
       - prepare-release
       - hugo-docs-build-main
