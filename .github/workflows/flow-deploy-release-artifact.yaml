@@ -424,6 +424,7 @@ jobs:
       tag-ref: ${{ steps.set-inputs.outputs.tag_ref }}
     needs:
       - prepare-release
+    if: ${{ inputs.dry-run-enabled != 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
