@@ -651,10 +651,15 @@ export class RelayCommand extends BaseCommand {
 
             context_.config = config;
 
-            // If --latest flag is set, use the latest version from version.ts
+            // If --latest flag is set, fetch the latest version dynamically
             const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
             if (useLatest) {
-              config.relayReleaseTag = versions.HEDERA_JSON_RPC_RELAY_VERSION;
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              config.relayReleaseTag = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.JSON_RPC_RELAY_CHART_URL,
+                constants.JSON_RPC_RELAY_CHART,
+              );
               this.logger.debug(`Using latest relay version: ${config.relayReleaseTag}`);
             }
 

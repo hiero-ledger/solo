@@ -691,10 +691,17 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config = config;
 
-            // If --latest flag is set, use the latest version from version.ts
+            // If --latest flag is set, fetch the latest version dynamically
             const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
             if (useLatest) {
-              config.explorerVersion = versions.EXPLORER_VERSION;
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              // Explorer uses OCI registry, need to extract chart name from URL
+              const explorerChartName: string = 'hiero-explorer-chart';
+              config.explorerVersion = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.EXPLORER_CHART_URL,
+                explorerChartName,
+              );
               this.logger.debug(`Using latest explorer version: ${config.explorerVersion}`);
             }
 

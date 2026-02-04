@@ -12,7 +12,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import * as versions from '../../version.js';
 import {type MirrorNodeCommand} from './mirror-node.js';
 import {type RelayCommand} from './relay.js';
 import {type ExplorerCommand} from './explorer.js';
@@ -120,16 +119,14 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               // Check if upgrade is needed
+              // Note: For consensus nodes, we skip version checking since fetching latest from
+              // builds.hedera.com is not yet implemented. We'll attempt upgrade and let the
+              // individual command handle it (will fail with helpful error message)
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.ConsensusNode);
-              if (currentVersion && currentVersion.version === versions.HEDERA_PLATFORM_VERSION) {
-                this.logger.info(
-                  `Consensus nodes already at latest version ${versions.HEDERA_PLATFORM_VERSION}, skipping`,
-                );
-                return;
-              }
-
+              
               this.logger.info(
-                `Upgrading consensus nodes from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.HEDERA_PLATFORM_VERSION}`,
+                `Attempting to upgrade consensus nodes from ${currentVersion ? currentVersion.version : 'unknown'} ` +
+                `(Note: --latest for consensus nodes requires explicit version specification)`,
               );
 
               // Create a new argv for the upgrade command with all necessary flags
@@ -137,7 +134,6 @@ export class UpgradeCommand extends BaseCommand {
                 ...argv,
                 flags: {
                   ...argv.flags,
-                  [flags.upgradeVersion.name]: versions.HEDERA_PLATFORM_VERSION,
                   [flags.latest.name]: true,
                 },
               };
@@ -167,20 +163,29 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
-              if (currentVersion && currentVersion.version === versions.MIRROR_NODE_VERSION) {
-                this.logger.info(`Mirror node already at latest version ${versions.MIRROR_NODE_VERSION}, skipping`);
+              
+              // Fetch latest version dynamically
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              const latestVersion: string = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.MIRROR_NODE_CHART_URL,
+                constants.MIRROR_NODE_CHART,
+              );
+              
+              if (currentVersion && currentVersion.version === latestVersion) {
+                this.logger.info(`Mirror node already at latest version ${latestVersion}, skipping`);
                 return;
               }
 
               this.logger.info(
-                `Upgrading mirror node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.MIRROR_NODE_VERSION}`,
+                `Upgrading mirror node from ${currentVersion ? currentVersion.version : 'unknown'} to ${latestVersion}`,
               );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
                 flags: {
                   ...argv.flags,
-                  [flags.mirrorNodeVersion.name]: versions.MIRROR_NODE_VERSION,
+                  [flags.mirrorNodeVersion.name]: latestVersion,
                   [flags.latest.name]: true,
                 },
               };
@@ -210,22 +215,31 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
-              if (currentVersion && currentVersion.version === versions.HEDERA_JSON_RPC_RELAY_VERSION) {
+              
+              // Fetch latest version dynamically
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              const latestVersion: string = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.JSON_RPC_RELAY_CHART_URL,
+                constants.JSON_RPC_RELAY_CHART,
+              );
+              
+              if (currentVersion && currentVersion.version === latestVersion) {
                 this.logger.info(
-                  `Relay node already at latest version ${versions.HEDERA_JSON_RPC_RELAY_VERSION}, skipping`,
+                  `Relay node already at latest version ${latestVersion}, skipping`,
                 );
                 return;
               }
 
               this.logger.info(
-                `Upgrading relay node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.HEDERA_JSON_RPC_RELAY_VERSION}`,
+                `Upgrading relay node from ${currentVersion ? currentVersion.version : 'unknown'} to ${latestVersion}`,
               );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
                 flags: {
                   ...argv.flags,
-                  [flags.relayReleaseTag.name]: versions.HEDERA_JSON_RPC_RELAY_VERSION,
+                  [flags.relayReleaseTag.name]: latestVersion,
                   [flags.latest.name]: true,
                 },
               };
@@ -255,20 +269,30 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
-              if (currentVersion && currentVersion.version === versions.EXPLORER_VERSION) {
-                this.logger.info(`Explorer already at latest version ${versions.EXPLORER_VERSION}, skipping`);
+              
+              // Fetch latest version dynamically
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              const explorerChartName: string = 'hiero-explorer-chart';
+              const latestVersion: string = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.EXPLORER_CHART_URL,
+                explorerChartName,
+              );
+              
+              if (currentVersion && currentVersion.version === latestVersion) {
+                this.logger.info(`Explorer already at latest version ${latestVersion}, skipping`);
                 return;
               }
 
               this.logger.info(
-                `Upgrading explorer from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.EXPLORER_VERSION}`,
+                `Upgrading explorer from ${currentVersion ? currentVersion.version : 'unknown'} to ${latestVersion}`,
               );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
                 flags: {
                   ...argv.flags,
-                  [flags.explorerVersion.name]: versions.EXPLORER_VERSION,
+                  [flags.explorerVersion.name]: latestVersion,
                   [flags.latest.name]: true,
                 },
               };
@@ -298,20 +322,29 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode);
-              if (currentVersion && currentVersion.version === versions.BLOCK_NODE_VERSION) {
-                this.logger.info(`Block node already at latest version ${versions.BLOCK_NODE_VERSION}, skipping`);
+              
+              // Fetch latest version dynamically
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              const latestVersion: string = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.BLOCK_NODE_CHART_URL,
+                constants.BLOCK_NODE_CHART,
+              );
+              
+              if (currentVersion && currentVersion.version === latestVersion) {
+                this.logger.info(`Block node already at latest version ${latestVersion}, skipping`);
                 return;
               }
 
               this.logger.info(
-                `Upgrading block node from ${currentVersion ? currentVersion.version : 'unknown'} to ${versions.BLOCK_NODE_VERSION}`,
+                `Upgrading block node from ${currentVersion ? currentVersion.version : 'unknown'} to ${latestVersion}`,
               );
 
               const upgradeArgv: ArgvStruct = {
                 ...argv,
                 flags: {
                   ...argv.flags,
-                  [flags.upgradeVersion.name]: versions.BLOCK_NODE_VERSION,
+                  [flags.upgradeVersion.name]: latestVersion,
                   [flags.latest.name]: true,
                 },
               };

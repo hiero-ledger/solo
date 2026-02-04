@@ -718,10 +718,15 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            // If --latest flag is set, use the latest version from version.ts
+            // If --latest flag is set, fetch the latest version dynamically
             const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
             if (useLatest) {
-              config.upgradeVersion = versions.BLOCK_NODE_VERSION;
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              config.upgradeVersion = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.BLOCK_NODE_CHART_URL,
+                constants.BLOCK_NODE_CHART,
+              );
               this.logger.debug(`Using latest block node version: ${config.upgradeVersion}`);
             }
 

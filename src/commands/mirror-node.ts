@@ -1108,10 +1108,15 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            // If --latest flag is set, use the latest version from version.ts
+            // If --latest flag is set, fetch the latest version dynamically
             const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
             if (useLatest) {
-              config.mirrorNodeVersion = versions.MIRROR_NODE_VERSION;
+              const {VersionHelper} = await import('../core/helpers/version-helper.js');
+              config.mirrorNodeVersion = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.MIRROR_NODE_CHART_URL,
+                constants.MIRROR_NODE_CHART,
+              );
               this.logger.debug(`Using latest mirror node version: ${config.mirrorNodeVersion}`);
             }
 
