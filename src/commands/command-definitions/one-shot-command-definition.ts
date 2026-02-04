@@ -42,6 +42,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
 
   public static readonly SINGLE_DEPLOY = 'deploy';
   public static readonly SINGLE_DESTROY = 'destroy';
+  public static readonly INFO_COMMAND_NAME = 'show';
   public static readonly MULTIPLE_DEPLOY = 'deploy';
   public static readonly MULTIPLE_DESTROY = 'destroy';
 
@@ -125,6 +126,20 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               [constants.HELM],
             ),
           ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          OneShotCommandDefinition.INFO_COMMAND_NAME,
+          'Display information about one-shot deployments.',
+        ).addSubcommand(
+          new Subcommand(
+            'deployment',
+            'Display information about the last one-shot deployment including name, versions, and deployed components.',
+            this.oneShotCommand,
+            this.oneShotCommand.info,
+            DefaultOneShotCommand.INFO_FLAGS_LIST,
+          ),
+        ),
       )
       .build();
   }
