@@ -27,19 +27,18 @@ export class UpgradeCommandDefinition extends BaseCommandDefinition {
     'This command will upgrade consensus nodes, mirror node, relay, explorer, and block node.';
 
   public static readonly ALL_SUBCOMMAND = 'all';
+  private static readonly ALL_SUBCOMMAND_DESCRIPTION =
+    'Upgrades all network components to their latest versions. Components already at the latest version will be skipped.';
 
   public static readonly ALL_COMMAND = `${UpgradeCommandDefinition.COMMAND_NAME}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(UpgradeCommandDefinition.COMMAND_NAME, UpgradeCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
-        new CommandGroup(
-          'all',
-          'Upgrades all network components to their latest versions. Components already at the latest version will be skipped.',
-        ).addSubcommand(
+        new CommandGroup('all', UpgradeCommandDefinition.ALL_SUBCOMMAND_DESCRIPTION).addSubcommand(
           new Subcommand(
             'all',
-            'Upgrades all network components to their latest versions. Components already at the latest version will be skipped.',
+            UpgradeCommandDefinition.ALL_SUBCOMMAND_DESCRIPTION,
             this.upgradeCommand,
             this.upgradeCommand.all,
             UpgradeCommand.UPGRADE_ALL_FLAGS_LIST,

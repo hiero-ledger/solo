@@ -166,7 +166,6 @@ export class UpgradeCommand extends BaseCommand {
                 return;
               }
 
-              const _mirrorNode: MirrorNodeStateSchema = mirrorNodes[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
               if (currentVersion && currentVersion.version === versions.MIRROR_NODE_VERSION) {
                 this.logger.info(`Mirror node already at latest version ${versions.MIRROR_NODE_VERSION}, skipping`);
@@ -210,7 +209,6 @@ export class UpgradeCommand extends BaseCommand {
                 return;
               }
 
-              const _relayNode: RelayNodeStateSchema = relayNodes[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
               if (currentVersion && currentVersion.version === versions.HEDERA_JSON_RPC_RELAY_VERSION) {
                 this.logger.info(
@@ -256,7 +254,6 @@ export class UpgradeCommand extends BaseCommand {
                 return;
               }
 
-              const _explorer: ExplorerStateSchema = explorers[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
               if (currentVersion && currentVersion.version === versions.EXPLORER_VERSION) {
                 this.logger.info(`Explorer already at latest version ${versions.EXPLORER_VERSION}, skipping`);
@@ -300,7 +297,6 @@ export class UpgradeCommand extends BaseCommand {
                 return;
               }
 
-              const _blockNode: BlockNodeStateSchema = blockNodes[0];
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode);
               if (currentVersion && currentVersion.version === versions.BLOCK_NODE_VERSION) {
                 this.logger.info(`Block node already at latest version ${versions.BLOCK_NODE_VERSION}, skipping`);
