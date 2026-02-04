@@ -82,6 +82,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
+      it(`${testName}: show deployment`, async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning ${testName}: show deployment`);
+        await main(soloOneShotShowDeployment(testName, deployment));
+        testLogger.info(`${testName}: finished ${testName}: show deployment`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
       it('Should perform a simple TransferTransaction', async (): Promise<void> => {
         // These should be set in your environment or test config
         const operatorId: AccountId = AccountId.fromString('0.0.2');
@@ -137,6 +143,15 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloOneShotShowDeployment(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.INFO_COMMAND_NAME, 'deployment');
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

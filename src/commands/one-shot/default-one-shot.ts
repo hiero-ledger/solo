@@ -80,7 +80,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly INFO_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet],
+    optional: [flags.quiet, flags.deployment],
   };
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
@@ -1012,47 +1012,70 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         {
           title: 'Check for cached deployment',
           task: async (context_, task): Promise<void> => {
+            const deploymentFromFlag = this.configManager.getFlag(flags.deployment);
+            if (deploymentFromFlag) {
+              context_.deploymentName = deploymentFromFlag;
+              this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentFromFlag)} (from flag)`));
+              return;
+            }
+
             const cacheFile = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
-            
-            if (!fs.existsSync(cacheFile)) {
+
+            if (fs.existsSync(cacheFile)) {
+              const deploymentName = fs.readFileSync(cacheFile, 'utf8').trim();
+              if (deploymentName) {
+                context_.deploymentName = deploymentName;
+                this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentName)} (from cache)`));
+                return;
+              }
+            }
+
+            await this.localConfig.load();
+            const deployments = this.localConfig.configuration.deployments;
+            if (deployments.length === 1) {
+              context_.deploymentName = deployments[0].name;
+              this.logger.showUser(
+                chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (single local deployment)`),
+              );
+              return;
+            }
+
+            if (deployments.length > 1) {
+              const deploymentNames = deployments.map(d => d.name).join(', ');
               throw new SoloError(
-                'No cached deployment found. Please run a one-shot deployment first.\n' +
-                `Expected cache file: ${cacheFile}`
+                'No cached deployment found and multiple local deployments exist.\n' +
+                  `Please specify ${optionFromFlag(flags.deployment)}.\n` +
+                  `Available deployments: ${deploymentNames}`,
               );
             }
 
-            const deploymentName = fs.readFileSync(cacheFile, 'utf8').trim();
-            
-            if (!deploymentName) {
-              throw new SoloError('Cached deployment file is empty.');
-            }
-
-            context_.deploymentName = deploymentName;
-            this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentName)}`));
+            throw new SoloError(
+              'No cached deployment found. Please run a one-shot deployment first or pass ' +
+                `${optionFromFlag(flags.deployment)}.\n` +
+                `Expected cache file: ${cacheFile}`,
+            );
           },
         },
         {
           title: 'Load local configuration',
           task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
-            
-            const deployment = this.localConfig.configuration.deployments.find(
-              d => d.name === context_.deploymentName
-            );
-            
+
+            const deployment = this.localConfig.configuration.deployments.find(d => d.name === context_.deploymentName);
+
             if (!deployment) {
               this.logger.showUser(
                 chalk.yellow(
                   `\n⚠️  Deployment '${context_.deploymentName}' not found in local configuration.\n` +
-                  'This may be a deployment that was created but not properly registered.'
-                )
+                    'This may be a deployment that was created but not properly registered.',
+                ),
               );
               return;
             }
 
             context_.deployment = deployment;
             this.logger.showUser(chalk.cyan(`\nNamespace: ${chalk.bold(deployment.namespace)}`));
-            
+
             if (deployment.clusters && deployment.clusters.length > 0) {
               const clusterNames = deployment.clusters.map(c => c.toString()).join(', ');
               this.logger.showUser(chalk.cyan(`Clusters: ${chalk.bold(clusterNames)}`));
@@ -1073,12 +1096,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const clusterRef = deployment.clusters.get(0).toString();
-            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterRef);
-            
+            const clusterReference = deployment.clusters.get(0).toString();
+            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference);
+
             if (!clusterContext) {
               this.logger.showUser(
-                chalk.yellow(`\n⚠️  Cluster reference '${clusterRef}' not found in configuration.`)
+                chalk.yellow(`\n⚠️  Cluster reference '${clusterReference}' not found in configuration.`),
               );
               return;
             }
@@ -1087,13 +1110,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.k8Factory.default().contexts().updateCurrent(clusterContext.toString());
               const namespaces = await this.k8Factory.default().namespaces().list();
               const targetNamespace = namespaces.find(ns => ns.name === deployment.namespace);
-              
+
               if (!targetNamespace) {
                 this.logger.showUser(
                   chalk.yellow(
-                    `\n⚠️  Namespace '${deployment.namespace}' not found in cluster '${clusterRef}'.` +
-                    '\nThe deployment may have been destroyed or is not accessible.'
-                  )
+                    `\n⚠️  Namespace '${deployment.namespace}' not found in cluster '${clusterReference}'.` +
+                      '\nThe deployment may have been destroyed or is not accessible.',
+                  ),
                 );
                 return;
               }
@@ -1101,10 +1124,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               context_.clusterConnected = true;
             } catch (error) {
               this.logger.showUser(
-                chalk.yellow(
-                  `\n⚠️  Unable to connect to cluster '${clusterRef}'.\n` +
-                  `Error: ${error.message}`
-                )
+                chalk.yellow(`\n⚠️  Unable to connect to cluster '${clusterReference}'.\n` + `Error: ${error.message}`),
               );
             }
           },
@@ -1118,24 +1138,19 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             const deployment = context_.deployment;
-            
+
             try {
               const namespaceName = NamespaceName.of(deployment.namespace);
-              const configMaps = await this.k8Factory
-                .default()
-                .configMaps()
-                .list(namespaceName, []);
-              
-              const remoteConfigMap = configMaps.find(
-                cm => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME
-              );
+              const configMaps = await this.k8Factory.default().configMaps().list(namespaceName, []);
+
+              const remoteConfigMap = configMaps.find(cm => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME);
 
               if (!remoteConfigMap) {
                 this.logger.showUser(
                   chalk.yellow(
                     `\n⚠️  Remote configuration not found in namespace '${deployment.namespace}'.` +
-                    '\nThe deployment may have been partially destroyed.'
-                  )
+                      '\nThe deployment may have been partially destroyed.',
+                  ),
                 );
                 return;
               }
@@ -1143,9 +1158,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               const remoteConfigData = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
               context_.remoteConfig = remoteConfigData;
             } catch (error) {
-              this.logger.showUser(
-                chalk.yellow(`\n⚠️  Unable to fetch remote configuration: ${error.message}`)
-              );
+              this.logger.showUser(chalk.yellow(`\n⚠️  Unable to fetch remote configuration: ${error.message}`));
             }
           },
         },
@@ -1165,62 +1178,58 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             if (context_.remoteConfig) {
               const components = context_.remoteConfig.components?.state;
-              
+
               if (components) {
                 this.logger.showUser(chalk.cyan('\nDeployed Components:'));
-                
+
                 if (components.consensusNodes && components.consensusNodes.length > 0) {
                   const nodeNames = components.consensusNodes.map(n => n.name).join(', ');
                   this.logger.showUser(
-                    `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`
+                    `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`,
                   );
                 }
-                
+
                 if (components.mirrorNodes && components.mirrorNodes.length > 0) {
                   this.logger.showUser(
-                    `  ${chalk.green('✓')} Mirror Nodes: ${chalk.bold(components.mirrorNodes.length)}`
+                    `  ${chalk.green('✓')} Mirror Nodes: ${chalk.bold(components.mirrorNodes.length)}`,
                   );
                 }
-                
+
                 if (components.blockNodes && components.blockNodes.length > 0) {
                   this.logger.showUser(
-                    `  ${chalk.green('✓')} Block Nodes: ${chalk.bold(components.blockNodes.length)}`
+                    `  ${chalk.green('✓')} Block Nodes: ${chalk.bold(components.blockNodes.length)}`,
                   );
                 }
-                
+
                 if (components.relayNodes && components.relayNodes.length > 0) {
                   this.logger.showUser(
-                    `  ${chalk.green('✓')} Relay Nodes: ${chalk.bold(components.relayNodes.length)}`
+                    `  ${chalk.green('✓')} Relay Nodes: ${chalk.bold(components.relayNodes.length)}`,
                   );
                 }
-                
+
                 if (components.explorers && components.explorers.length > 0) {
-                  this.logger.showUser(
-                    `  ${chalk.green('✓')} Explorers: ${chalk.bold(components.explorers.length)}`
-                  );
+                  this.logger.showUser(`  ${chalk.green('✓')} Explorers: ${chalk.bold(components.explorers.length)}`);
                 }
               }
             } else {
               this.logger.showUser(
-                chalk.yellow(
-                  '\n⚠️  Remote configuration not available. Cannot display deployed components.'
-                )
+                chalk.yellow('\n⚠️  Remote configuration not available. Cannot display deployed components.'),
               );
             }
 
             // Show information about where files are stored
             const outputDirectory = this.getOneShotOutputDirectory(context_.deploymentName);
-            
+
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
-            
+
             if (fs.existsSync(outputDirectory)) {
               this.logger.showUser(`Output directory: ${chalk.bold(outputDirectory)}`);
-              
+
               const notesFile = PathEx.join(outputDirectory, 'notes');
               const versionsFile = PathEx.join(outputDirectory, 'versions');
               const forwardsFile = PathEx.join(outputDirectory, 'forwards');
               const accountsFile = PathEx.join(outputDirectory, 'accounts.json');
-              
+
               if (fs.existsSync(notesFile)) {
                 this.logger.showUser(`  ${chalk.green('✓')} Notes: ${notesFile}`);
               }
@@ -1234,9 +1243,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.logger.showUser(`  ${chalk.green('✓')} Accounts: ${accountsFile}`);
               }
             } else {
-              this.logger.showUser(
-                chalk.yellow(`\n⚠️  Output directory not found: ${outputDirectory}`)
-              );
+              this.logger.showUser(chalk.yellow(`\n⚠️  Output directory not found: ${outputDirectory}`));
             }
 
             this.logger.showUser(chalk.green('\n✓ Deployment information retrieved successfully.\n'));
