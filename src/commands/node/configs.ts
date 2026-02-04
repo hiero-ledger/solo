@@ -159,7 +159,6 @@ export class NodeCommandConfigs {
     if (useLatest) {
       const versions = await import('../../../version.js');
       context_.config.upgradeVersion = versions.HEDERA_PLATFORM_VERSION;
-      task.logger.debug(`Using latest consensus node version: ${context_.config.upgradeVersion}`);
     }
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
