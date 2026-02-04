@@ -123,10 +123,10 @@ export class UpgradeCommand extends BaseCommand {
               // builds.hedera.com is not yet implemented. We'll attempt upgrade and let the
               // individual command handle it (will fail with helpful error message)
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.ConsensusNode);
-              
+
               this.logger.info(
                 `Attempting to upgrade consensus nodes from ${currentVersion ? currentVersion.version : 'unknown'} ` +
-                `(Note: --latest for consensus nodes requires explicit version specification)`,
+                  '(Note: --latest for consensus nodes requires explicit version specification)',
               );
 
               // Create a new argv for the upgrade command with all necessary flags
@@ -163,7 +163,7 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
-              
+
               // Fetch latest version dynamically
               const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
@@ -171,7 +171,7 @@ export class UpgradeCommand extends BaseCommand {
                 constants.MIRROR_NODE_CHART_URL,
                 constants.MIRROR_NODE_CHART,
               );
-              
+
               if (currentVersion && currentVersion.version === latestVersion) {
                 this.logger.info(`Mirror node already at latest version ${latestVersion}, skipping`);
                 return;
@@ -215,7 +215,7 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
-              
+
               // Fetch latest version dynamically
               const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
@@ -223,11 +223,9 @@ export class UpgradeCommand extends BaseCommand {
                 constants.JSON_RPC_RELAY_CHART_URL,
                 constants.JSON_RPC_RELAY_CHART,
               );
-              
+
               if (currentVersion && currentVersion.version === latestVersion) {
-                this.logger.info(
-                  `Relay node already at latest version ${latestVersion}, skipping`,
-                );
+                this.logger.info(`Relay node already at latest version ${latestVersion}, skipping`);
                 return;
               }
 
@@ -269,7 +267,7 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
-              
+
               // Fetch latest version dynamically
               const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const explorerChartName: string = 'hiero-explorer-chart';
@@ -278,7 +276,7 @@ export class UpgradeCommand extends BaseCommand {
                 constants.EXPLORER_CHART_URL,
                 explorerChartName,
               );
-              
+
               if (currentVersion && currentVersion.version === latestVersion) {
                 this.logger.info(`Explorer already at latest version ${latestVersion}, skipping`);
                 return;
@@ -322,7 +320,7 @@ export class UpgradeCommand extends BaseCommand {
               }
 
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode);
-              
+
               // Fetch latest version dynamically
               const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
@@ -330,7 +328,7 @@ export class UpgradeCommand extends BaseCommand {
                 constants.BLOCK_NODE_CHART_URL,
                 constants.BLOCK_NODE_CHART,
               );
-              
+
               if (currentVersion && currentVersion.version === latestVersion) {
                 this.logger.info(`Block node already at latest version ${latestVersion}, skipping`);
                 return;
