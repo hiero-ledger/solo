@@ -13,12 +13,12 @@ This document describes how to set up a local development environment and contri
 - [Code formatting](#code-formatting)
 - [How to Update Component Versions](#how-to-update-component-versions)
 - [How to Inspect the Cluster](#how-to-inspect-the-cluster)
-    - [Kubectl](#kubectl)
-    - [K9S (Recommended)](#k9s-recommended)
+  - [Kubectl](#kubectl)
+  - [K9S (Recommended)](#k9s-recommended)
 - [Pull Request Requirements](#pull-request-requirements)
-    - [DCO (Developer Certificate of Origin)](#dco-developer-certificate-of-origin)
-    - [Conventional Commit PR titles (required)](#conventional-commit-pr-titles-required)
-    - [Additional guidelines](#additional-guidelines)
+  - [DCO (Developer Certificate of Origin)](#dco-developer-certificate-of-origin)
+  - [Conventional Commit PR titles (required)](#conventional-commit-pr-titles-required)
+  - [Additional guidelines](#additional-guidelines)
 
 ---
 
@@ -53,8 +53,7 @@ $ npm link
 > *Notes*:
 > - This only needs to be done once.
 > - If solo already exists in your **PATH**, remove it first.
-> - Alternatively, you can run commands via:
-  ```npm run solo-test -- <COMMAND> <ARGS>```
+> - Alternatively, you can run commands via: `npm run solo-test -- <COMMAND> <ARGS>`
 
 4. Run the CLI:
 ```bash
@@ -74,15 +73,15 @@ $ tail -f $HOME/.solo/logs/solo.log | jq
 
 # How to run the tests
 
-* Unit tests:
-    ```bash
-    $ task test
-    ```
+- Unit tests:
+  ```bash
+  $ task test
+  ```
 
-* All other Integration and E2E test tasks can be listed using
-    ```bash
-    $ task --list-all
-    ```
+- All other Integration and E2E test tasks can be listed using
+  ```bash
+  $ task --list-all
+  ```
 
 
 
@@ -114,9 +113,9 @@ Common kubectl commands:
 > **K9S** is the primary tool used by the Solo team to inspect and debug Solo deployments.
 
 Why **K9S**:
-* Terminal UI that makes it faster to navigate Kubernetes resources
-* Quickly view logs, events, and descriptions
-* Simple and intuitive
+- Terminal UI that makes it faster to navigate Kubernetes resources
+- Quickly view logs, events, and descriptions
+- Simple and intuitive
 
 Start **K9S**:
 ```bash
@@ -156,5 +155,3 @@ This is required for consistent release notes and changelog generation.
 - Prefer small, focused PRs that are easy to review.
 - If you are unsure where to start, open a draft PR early to get feedback.
 - Add description and link all related issues to the PR.
-
----
