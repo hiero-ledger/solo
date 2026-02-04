@@ -38,6 +38,11 @@ on:
         type: boolean
         required: false
         default: false
+      example-directory:
+        description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
+        type: string
+        required: false
+        default: ""
   workflow_call:
     inputs:
       node-version:
@@ -55,6 +60,11 @@ on:
         type: boolean
         required: false
         default: false
+      example-directory:
+        description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
+        type: string
+        required: false
+        default: ""
   push:
     branches:
       - trunk-merge/**
@@ -87,8 +97,25 @@ jobs:
       - name: Generate Matrix
         id: set_matrix
         run: |
-          # Read the JSON file and convert it to a compact format
-          JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+          EXAMPLE_DIR="${{ inputs.example-directory }}"
+          
+          if [ -n "$EXAMPLE_DIR" ]; then
+            # Filter to specific example
+            echo "Filtering matrix for example directory: $EXAMPLE_DIR"
+            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
+            
+            if [ "$JSON_CONTENT" = "[]" ]; then
+              echo "Error: Example directory '$EXAMPLE_DIR' not found in matrix"
+              echo "Available examples:"
+              cat .github/workflows/support/examples-test-matrix.json | jq -r '.[].directory'
+              exit 1
+            fi
+          else
+            # Use all examples
+            echo "Using all examples from matrix"
+            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+          fi
+          
           echo "Generated matrix: $JSON_CONTENT"
           
           # Set the output variable 'matrix' with the JSON content
@@ -174,7 +201,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
         with:
           cache-read-only: false
 

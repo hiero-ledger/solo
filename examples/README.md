@@ -5,7 +5,8 @@
 | Example Directory                                                   | Description                                                                                                         |
 |---------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | [address-book](./address-book/)                                     | Example of using Yahcli to pull the ledger and mirror node address book                                             |
-| [multicluster-backup-restore](./multicluster-backup-restore/)         | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes              |
+| [consensus-node-jvm-parameters](./consensus-node-jvm-parameters/)   | Example of customizing JVM parameters for Solo consensus nodes                                                      |
+| [multicluster-backup-restore](./multicluster-backup-restore/)       | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes             |
 | [custom-network-config](./custom-network-config/)                   | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.)                                 |
 | [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                          |
 | [hardhat-with-solo](./hardhat-with-solo/)                           | Example of using Hardhat to test a smart contract with a local Solo deployment                                      |

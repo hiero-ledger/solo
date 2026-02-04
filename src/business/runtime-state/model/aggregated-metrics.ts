@@ -58,7 +58,7 @@ export class AggregatedMetrics extends Metrics {
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +
       `"runtimeInMinutes": ${this.runtimeInMinutes}, ` +
       `"transactionCount": ${this.transactionCount}, ` +
-      `"events": [${this.events.map(event => `"${event}"`).join(',')}], ` +
+      `"events": [${this.events.map((event): `"${string}"` => `"${event}"`).join(',')}], ` +
       '"clusterMetrics": [';
     for (let index: number = 0; index < this.clusterMetrics?.length; index++) {
       outputString += this.clusterMetrics[index].toString();

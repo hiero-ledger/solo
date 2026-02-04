@@ -5,12 +5,10 @@ import {describe, it, beforeEach, afterEach} from 'mocha';
 import {Container} from '../../../src/core/dependency-injection/container-init.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
-import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import * as constants from '../../../src/core/constants.js';
 import {ArgumentProcessor} from '../../../src/argument-processor.js';
 
 describe('ArgumentProcessor', () => {
-  let logger: SoloLogger;
   let originalExit: (code?: string | number | null | undefined) => never;
   let originalExitCode: number | string | undefined;
   let consoleOutput: string[];
@@ -19,7 +17,7 @@ describe('ArgumentProcessor', () => {
   beforeEach(() => {
     // Initialize container
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
-    logger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
+    void container.resolve(InjectTokens.SoloLogger);
 
     // Capture console output
     consoleOutput = [];

@@ -23,33 +23,34 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'ledger';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'ledger';
+  protected static override readonly DESCRIPTION: string =
     'System, Account, and Crypto ledger-based management operations. ' +
     'These commands require an operational set of consensus nodes and may require an operational mirror node.';
 
-  public static readonly SYSTEM_SUBCOMMAND_NAME = 'system';
-  private static readonly SYSTEM_SUBCOMMAND_DESCRIPTION =
+  public static readonly SYSTEM_SUBCOMMAND_NAME: string = 'system';
+  private static readonly SYSTEM_SUBCOMMAND_DESCRIPTION: string =
     'Perform a full ledger initialization on a new deployment, ' +
     'rekey privileged/system accounts, or setup network staking parameters.';
 
-  public static readonly ACCOUNT_SUBCOMMAND_NAME = 'account';
-  private static readonly ACCOUNT_SUBCOMMAND_DESCRIPTION =
+  public static readonly ACCOUNT_SUBCOMMAND_NAME: string = 'account';
+  private static readonly ACCOUNT_SUBCOMMAND_DESCRIPTION: string =
     'View, list, create, update, delete, and import ledger accounts.';
 
-  public static readonly CRYPTO_SUBCOMMAND_NAME = 'crypto';
-  private static readonly CRYPTO_SUBCOMMAND_DESCRIPTION =
+  public static readonly CRYPTO_SUBCOMMAND_NAME: string = 'crypto';
+  private static readonly CRYPTO_SUBCOMMAND_DESCRIPTION: string =
     'Transfer native crypto tokens or query native token account balances.';
 
-  public static readonly FILE_SUBCOMMAND_NAME = 'file';
-  private static readonly FILE_SUBCOMMAND_DESCRIPTION = 'Upload or update files on the Hiero network.';
+  public static readonly FILE_SUBCOMMAND_NAME: string = 'file';
+  private static readonly FILE_SUBCOMMAND_DESCRIPTION: string = 'Upload or update files on the Hiero network.';
 
-  public static readonly SYSTEM_INIT = 'init';
-  public static readonly ACCOUNT_UPDATE = 'update';
-  public static readonly ACCOUNT_CREATE = 'create';
-  public static readonly ACCOUNT_INFO = 'info';
-  public static readonly FILE_CREATE = 'create';
-  public static readonly FILE_UPDATE = 'update';
+  public static readonly SYSTEM_INIT: string = 'init';
+  public static readonly ACCOUNT_UPDATE: string = 'update';
+  public static readonly ACCOUNT_CREATE: string = 'create';
+  public static readonly ACCOUNT_INFO: string = 'info';
+  public static readonly ACCOUNT_PREDEFINED: string = 'predefined';
+  public static readonly FILE_CREATE: string = 'create';
+  public static readonly FILE_UPDATE: string = 'update';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
@@ -100,6 +101,16 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.get,
               AccountCommand.GET_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.ACCOUNT_PREDEFINED,
+              'Creates predefined accounts used by one-shot deployments.',
+              this.accountCommand,
+              this.accountCommand.createPredefined,
+              AccountCommand.PREDEFINED_FLAGS_LIST,
               [],
             ),
           ),

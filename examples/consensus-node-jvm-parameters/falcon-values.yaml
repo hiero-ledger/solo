@@ -1,0 +1,157 @@
+# One-Shot Falcon Deployment Configuration
+# This file configures all components of the Hiero network deployment
+
+# Network-wide configuration for consensus network deployment
+network:
+#  --api-permission-properties: ""
+#  --app: ""
+  --application-env: "application.env.txt"
+#  --application-properties: ""
+#  --bootstrap-properties: ""
+#  --genesis-throttles-file: ""
+#  --cache-dir: ""
+#  --chain-id: ""
+#  --chart-dir: ""
+#  --solo-chart-version: ""
+#  --debug-node-alias: ""
+#  --load-balancer: false
+#  --log4j2-xml: ""
+#  --pvcs: false
+#  --profile-file: ""
+#  --profile: ""
+#  --quiet-mode: false
+#  --release-tag: "v0.65.0"
+#  --settings-txt: ""
+#  --values-file: ""
+#  --grpc-tls-certificate-path: ""
+#  --grpc-web-tls-certificate-path: ""
+#  --grpc-tls-key-path: ""
+#  --grpc-web-tls-key-path: ""
+#  --haproxy-ips: ""
+#  --envoy-ips: ""
+#  --storage-type: ""
+#  --gcs-write-access-key: ""
+#  --gcs-write-secrets: ""
+#  --gcs-endpoint: ""
+#  --gcs-bucket: ""
+#  --gcs-bucket-prefix: ""
+#  --aws-write-access-key: ""
+#  --aws-write-secrets: ""
+#  --aws-endpoint: ""
+#  --aws-bucket: ""
+#  --aws-bucket-region: ""
+#  --aws-bucket-prefix: ""
+#  --backup-bucket: ""
+#  --backup-write-access-key: ""
+#  --backup-write-secrets: ""
+#  --backup-endpoint: ""
+#  --backup-region: ""
+#  --backup-provider: ""
+#  --domain-names: ""
+#  --service-monitor: false
+#  --pod-log: false
+
+## Setup configuration for consensus nodes
+#setup:
+#  --cache-dir: ""
+#  --release-tag: "v0.65.0"
+#  --app: ""
+#  --app-config: ""
+#  --quiet-mode: false
+#  --dev: false
+#  --local-build-path: "../hiero-consensus-node/hedera-node/data"
+#  --admin-public-keys: ""
+#  --domain-names: ""
+#
+## Consensus node start configuration
+#consensusNode:
+#  --app: ""
+#  --quiet-mode: false
+#  --debug-node-alias: ""
+#  --state-file: ""
+#  --stake-amounts: ""
+#  --force-port-forward: true
+#
+## Mirror node deployment configuration
+#mirrorNode:
+#  --cache-dir: ""
+#  --chart-dir: ""
+#  --mirror-node-version: ""
+#  --values-file: ""
+#  --enable-ingress: true
+#  --ingress-controller-value-file: ""
+#  --mirror-static-ip: ""
+#  --domain-name: ""
+#  --profile-file: ""
+#  --profile: ""
+#  --force-port-forward: true
+#  --quiet-mode: false
+#  --pinger: false
+#  --operator-id: ""
+#  --operator-key: ""
+#  --use-external-database: false
+#  --external-database-host: ""
+#  --external-database-owner-username: ""
+#  --external-database-owner-password: ""
+#  --external-database-readonly-username: ""
+#  --external-database-readonly-password: ""
+#  --storage-type: ""
+#  --storage-read-access-key: ""
+#  --storage-read-secrets: ""
+#  --storage-endpoint: ""
+#  --storage-bucket: ""
+#  --storage-bucket-prefix: ""
+#  --storage-bucket-region: ""
+#
+## Relay node deployment configuration
+#relayNode:
+#  --cache-dir: ""
+#  --chart-dir: ""
+#  --relay-release: ""
+#  --values-file: ""
+#  --node-aliases: ""
+#  --replica-count: 1
+#  --chain-id: ""
+#  --domain-name: ""
+#  --operator-id: ""
+#  --operator-key: ""
+#  --profile-file: ""
+#  --profile: ""
+#  --force-port-forward: true
+#  --quiet-mode: false
+#  --mirror-node-id: null
+#  --mirror-namespace: ""
+#
+## Block node deployment configuration
+#blockNode:
+#  --chart-dir: ""
+#  --block-node-chart-version: ""
+#  --release-tag: ""
+#  --image-tag: ""
+#  --values-file: ""
+#  --enable-ingress: false
+#  --domain-name: ""
+#  --dev: false
+#  --quiet-mode: false
+#
+## Explorer node deployment configuration
+#explorerNode:
+#  --cache-dir: ""
+#  --chart-dir: ""
+#  --solo-chart-version: ""
+#  --explorer-version: ""
+#  --values-file: ""
+#  --enable-ingress: true
+#  --ingress-controller-value-file: ""
+#  --domain-name: ""
+#  --enable-explorer-tls: false
+#  --explorer-tls-host-name: "explorer.solo.local"
+#  --tls-cluster-issuer-type: "self-signed"
+#  --explorer-static-ip: ""
+#  --profile-file: ""
+#  --profile: ""
+#  --cluster-setup-namespace: ""
+#  --force-port-forward: true
+#  --quiet-mode: false
+#  --mirror-node-id: null
+#  --mirror-namespace: ""

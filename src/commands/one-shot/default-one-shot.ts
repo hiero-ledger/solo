@@ -70,7 +70,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.valuesFile, flags.numberOfConsensusNodes],
+    optional: [flags.quiet, flags.force, flags.valuesFile, flags.numberOfConsensusNodes],
   };
 
   public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
@@ -146,9 +146,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               // if valuesFile is set, read the yaml file and save flags to different config sections to be used
               // later for consensus node, mirror node, block node, explorer node, relay node
-              if (context_.config.valuesFile) {
+              if (config.valuesFile) {
                 const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
-                const profileItems = yaml.parse(valuesFileContent) as Record<string, AnyObject>;
+                const profileItems: Record<string, AnyObject> = yaml.parse(valuesFileContent) as Record<
+                  string,
+                  AnyObject
+                >;
 
                 // Override with values from file if they exist
                 if (profileItems.network) {
@@ -173,14 +176,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.relayNodeConfiguration = profileItems.relayNode;
                 }
               }
-              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
-              context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
-              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
-              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
-              context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
-              context_.config.force = argv.force;
+              config.clusterRef = config.clusterRef || `solo-${uniquePostfix}`;
+              config.context = config.context || this.k8Factory.default().contexts().readCurrent();
+              config.deployment = config.deployment || `solo-deployment-${uniquePostfix}`;
+              config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
+              config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
+              config.force = argv.force;
 
               context_.createdAccounts = [];
+
+              this.logger.debug(`quiet: ${config.quiet}`);
 
               return;
             },
@@ -197,7 +202,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
               if (existingRemoteConfigs.length > 0) {
                 const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
-                const promptOptions = {
+                const promptOptions: {default: boolean; message: string} = {
                   default: false,
                   message:
                     '⚠️ Warning: Existing solo deployment detected in cluster.\n\n' +
@@ -213,7 +218,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 }
               }
             },
-            skip: (context_: OneShotSingleDeployContext): boolean => context_.config.force === true,
+            skip: (context_: OneShotSingleDeployContext): boolean =>
+              context_.config.force === true || context_.config.quiet === true,
           },
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
@@ -442,8 +448,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               await this.localConfig.load();
               await this.remoteConfig.loadAndValidate(argv);
-
-              const self = this;
               const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
               const accountsToCreate = [
@@ -452,9 +456,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 ...predefinedEd25519Accounts,
               ];
 
-              await self.accountManager.loadNodeClient(
+              await this.accountManager.loadNodeClient(
                 config.namespace,
-                self.remoteConfig.getClusterRefs(),
+                this.remoteConfig.getClusterRefs(),
                 context_.config.deployment,
               );
 
@@ -469,7 +473,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     ): Promise<void> => {
                       await helpers.sleep(Duration.ofMillis(100 * index));
 
-                      const createdAccount = await self.accountManager.createNewAccount(
+                      const createdAccount = await this.accountManager.createNewAccount(
                         context_.config.namespace,
                         account.privateKey,
                         account.balance.to(HbarUnit.Hbar).toNumber(),
@@ -884,6 +888,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
@@ -901,7 +906,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+        (): boolean =>
+          constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+          this.remoteConfig.configuration.components.state.blockNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,

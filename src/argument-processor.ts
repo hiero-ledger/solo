@@ -12,7 +12,7 @@ import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 
 export class ArgumentProcessor {
-  public static process(argv: string[]) {
+  public static process(argv: string[]): any {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
@@ -43,7 +43,7 @@ export class ArgumentProcessor {
     // Expand the terminal width to the maximum available
     rootCmd.wrap(rootCmd.terminalWidth());
 
-    rootCmd.fail((message, error) => {
+    rootCmd.fail((message, error): void => {
       if (message) {
         if (
           message.includes('Unknown argument') ||
@@ -52,7 +52,7 @@ export class ArgumentProcessor {
         ) {
           if (message.toLowerCase().includes('select')) {
             // Show what subcommands are available then exit normally
-            rootCmd.showHelp(output => {
+            rootCmd.showHelp((output): void => {
               helpRenderer.render(rootCmd, output);
             });
             // Use SilentBreak to exit cleanly without error display
@@ -61,13 +61,16 @@ export class ArgumentProcessor {
 
           // For unknown/missing arguments, show message and help
           logger.showUser(message);
-          rootCmd.showHelp(output => {
+          rootCmd.showHelp((output): void => {
             helpRenderer.render(rootCmd, output);
           });
           // Set exit code but don't exit immediately - allows I/O buffers to flush
           process.exitCode = 1;
           // Throw error to propagate through async call chains if given unknown argument
-          throw new SoloError(message, error);
+
+          if (!rootCmd.parsed.argv.help) {
+            throw new SoloError(message, error);
+          }
         } else {
           logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ?? ''}`));
           throw new SoloError(message, error);

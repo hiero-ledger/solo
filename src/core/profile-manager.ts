@@ -252,16 +252,20 @@ export class ProfileManager {
     await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
-      const filePath: string = this.configManager.getFlagFile(flag);
-      if (!filePath) {
-        throw new SoloError(`Configuration file path is missing for: ${flag.name}`);
+      const sourceFilePath: string = this.configManager.getFlagFile(flag);
+      const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
+      const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
+      if (!fs.existsSync(sourceAbsoluteFilePath)) {
+        throw new SoloError(
+          `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
+        );
       }
 
-      const fileName: string = path.basename(filePath);
-      const destinationPath: string = PathEx.join(stagingDirectory, 'templates', fileName);
-      this.logger.debug(`Copying configuration file to staging: ${filePath} -> ${destinationPath}`);
+      const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
+      const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
+      this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
-      fs.cpSync(filePath, destinationPath, {force: true});
+      fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
     }
 
     this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
@@ -472,7 +476,8 @@ export class ProfileManager {
   }
 
   private async bumpHederaConfigVersion(applicationPropertiesPath: string) {
-    const lines = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+    const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileContents.split('\n');
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
@@ -528,7 +533,8 @@ export class ProfileManager {
     realm: Realm,
     shard: Shard,
   ) {
-    const lines = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+    const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileContents.split('\n');
 
     let realmUpdated: boolean = false;
     let shardUpdated: boolean = false;
@@ -682,7 +688,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     appName = constants.HEDERA_APP_NAME,
     chainId = constants.HEDERA_CHAIN_ID,
-    loadBalancerEnabled: boolean = false,
+    _loadBalancerEnabled: boolean = false,
   ) {
     let releaseTag = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {

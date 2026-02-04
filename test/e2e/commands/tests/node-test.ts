@@ -272,7 +272,7 @@ export class NodeTest extends BaseCommandTest {
     const argv: string[] = newArgv();
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
@@ -523,7 +523,7 @@ export class NodeTest extends BaseCommandTest {
   }
 
   public static upgrade(options: BaseTestOptions): void {
-    const {testName, namespace, contexts, testLogger: logger, shard, realm, clusterReferences, deployment} = options;
+    const {testName, namespace, contexts, testLogger: logger, shard, realm} = options;
     const {soloNodeUpgradeArgv} = NodeTest;
 
     it(`${testName}: consensus node upgrade`, async (): Promise<void> => {
@@ -619,14 +619,7 @@ export class NodeTest extends BaseCommandTest {
 
       await queryBalance(accountManager, namespace, remoteConfig, logger);
 
-      await createAccount(
-        accountManager,
-        namespace,
-        remoteConfig,
-        logger,
-        undefined,
-        new AccountId(shard, realm, 1004),
-      );
+      await createAccount(accountManager, namespace, remoteConfig, logger);
 
       const accountInfo1: AccountInfo = await new AccountInfoQuery()
         .setAccountId(new AccountId(shard, realm, 1001))

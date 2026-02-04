@@ -24,6 +24,7 @@ export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
 export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
+export SOLO_LOG_LEVEL=debug
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -149,7 +150,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 # Upgrade to latest version
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
-export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
+export CONSENSUS_NODE_VERSION=$(grep -A1 "HEDERA_PLATFORM_VERSION" version.ts | grep -o "'[^']*'" | tail -1 | sed "s/'//g")
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev

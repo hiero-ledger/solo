@@ -57,13 +57,22 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
 
   helm upgrade --install metrics-server metrics-server/metrics-server \
     --namespace kube-system \
-    --set "args[0]=--kubelet-insecure-tls"
+    --set "args[0]=--kubelet-insecure-tls" \
+    --wait
 
-  helm upgrade --install metallb metallb/metallb \
-    --namespace metallb-system --create-namespace --atomic --wait \
-    --set speaker.frr.enabled=true
+  # Wait for metrics server to be ready
+  kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
 
-  kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+  # Only install metallb when running multi-cluster (metalLB is unnecessary for our single-cluster KinD E2E)
+  if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 ]]; then
+    helm upgrade --install metallb metallb/metallb \
+      --namespace metallb-system --create-namespace --atomic --wait \
+      --set speaker.frr.enabled=true
+
+    kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
+  else
+    echo "Skipping metallb install for single-cluster test run"
+  fi
 
   # Deploy the diagnostics container if not running in CI
   if [[ -z "${CI}" ]]; then

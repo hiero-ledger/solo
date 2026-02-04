@@ -8,7 +8,7 @@ export interface Pod {
   /**
    * The pod reference
    */
-  readonly podReference: PodReference;
+  readonly podReference: PodReference | null;
 
   /**
    * The labels of the pod

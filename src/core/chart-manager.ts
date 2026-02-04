@@ -76,6 +76,16 @@ export class ChartManager {
   }
 
   async addRepo(name: string, url: string, force: boolean) {
+    // detect if repo already exists for name provided and the url matches, if so, exit, otherwise force update
+    const repositories: Repository[] = await this.helm.listRepositories();
+    const existingRepo: Repository | undefined = repositories.find((repo: Repository) => repo.name === name);
+    if (existingRepo) {
+      if (existingRepo.url === url) {
+        this.logger.debug(`Repo already exists: ${name} -> ${url}`);
+        return url;
+      }
+      this.logger.debug(`Repo URL mismatch for ${name}: existing URL is ${existingRepo.url}, new URL is ${url}`);
+    }
     this.logger.debug(`Adding repo ${name} -> ${url}`, {repoName: name, repoURL: url});
     const options = new AddRepoOptionsBuilder().forceUpdate(force).build();
     await this.helm.addRepository(new Repository(name, url), options);
@@ -87,7 +97,7 @@ export class ChartManager {
    * @param namespaceName - the namespace name
    * @param kubeContext - the kube context
    */
-  async getInstalledCharts(namespaceName: NamespaceName, kubeContext?: string) {
+  public async getInstalledCharts(namespaceName: NamespaceName, kubeContext?: string): Promise<string[]> {
     try {
       const result: ReleaseItem[] = await this.helm.listReleases(!namespaceName, namespaceName?.name, kubeContext);
       // convert to string[]
@@ -98,24 +108,28 @@ export class ChartManager {
     }
   }
 
-  async install(
+  public async install(
     namespaceName: NamespaceName,
     chartReleaseName: string,
     chartName: string,
     repoName: string,
     version: string,
-    valuesArgument = '',
+    valuesArgument: string = '',
     kubeContext: string,
-  ) {
+    atomic: boolean = false,
+    waitFor: boolean = false,
+  ): Promise<boolean> {
     try {
-      const isInstalled = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
+      const isInstalled: boolean = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
       if (isInstalled) {
         this.logger.debug(`OK: chart is already installed:${chartReleaseName} (${chartName}) (${repoName})`);
       } else {
         this.logger.debug(`> installing chart:${chartName}`);
-        const builder = InstallChartOptionsBuilder.builder()
+        const builder: InstallChartOptionsBuilder = InstallChartOptionsBuilder.builder()
           .version(version)
           .kubeContext(kubeContext)
+          .atomic(atomic)
+          .waitFor(waitFor)
           .extraArgs(valuesArgument);
         if (namespaceName) {
           builder.createNamespace(true);

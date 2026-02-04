@@ -97,8 +97,6 @@ export class DeploymentCommand extends BaseCommand {
    * Create new deployment inside the local config
    */
   public async create(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
     interface Config {
       quiet: boolean;
       namespace: NamespaceName;
@@ -107,7 +105,7 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    interface Context {
+    interface _Context {
       config: Config;
     }
 
@@ -116,23 +114,23 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.localConfig.load();
+            await this.localConfig.load();
 
-            self.configManager.update(argv);
+            this.configManager.update(argv);
 
-            await self.configManager.executePrompt(task, [flags.namespace, flags.deployment]);
+            await this.configManager.executePrompt(task, [flags.namespace, flags.deployment]);
 
             context_.config = {
-              quiet: self.configManager.getFlag<boolean>(flags.quiet),
-              namespace: self.configManager.getFlag<NamespaceName>(flags.namespace),
-              deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
-              realm: self.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
-              shard: self.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              namespace: this.configManager.getFlag<NamespaceName>(flags.namespace),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+              realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
+              shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
             } as Config;
 
             if (
-              self.localConfig.configuration.deployments &&
-              self.localConfig.configuration.deployments.some(
+              this.localConfig.configuration.deployments &&
+              this.localConfig.configuration.deployments.some(
                 (d: Deployment): boolean => d.name === context_.config.deployment,
               )
             ) {
@@ -282,18 +280,16 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
     const tasks = this.taskList.newTaskList(
       [
-        self.initializeClusterAddConfig(argv),
-        self.verifyClusterAddArgs(),
-        self.checkNetworkState(),
-        self.testClusterConnection(),
-        self.verifyClusterAddPrerequisites(),
-        self.checkForExistingDeployments(),
-        self.addClusterRefToDeployments(),
-        self.createOrEditRemoteConfigForNewDeployment(argv),
+        this.initializeClusterAddConfig(argv),
+        this.verifyClusterAddArgs(),
+        this.checkNetworkState(),
+        this.testClusterConnection(),
+        this.verifyClusterAddPrerequisites(),
+        this.checkForExistingDeployments(),
+        this.addClusterRefToDeployments(),
+        this.createOrEditRemoteConfigForNewDeployment(argv),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -312,8 +308,6 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public async list(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
     interface Config {
       clusterName: ClusterReferenceName;
     }
@@ -327,12 +321,12 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.localConfig.load();
+            await this.localConfig.load();
 
-            self.configManager.update(argv);
-            await self.configManager.executePrompt(task, [flags.clusterRef]);
+            this.configManager.update(argv);
+            await this.configManager.executePrompt(task, [flags.clusterRef]);
             context_.config = {
-              clusterName: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
+              clusterName: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
           },
         },
@@ -341,11 +335,11 @@ export class DeploymentCommand extends BaseCommand {
           task: async context_ => {
             const clusterName = context_.config.clusterName;
 
-            const context = self.localConfig.configuration.clusterRefs.get(clusterName)?.toString();
+            const context = this.localConfig.configuration.clusterRefs.get(clusterName)?.toString();
 
-            self.k8Factory.default().contexts().updateCurrent(context);
+            this.k8Factory.default().contexts().updateCurrent(context);
 
-            const namespaces = await self.k8Factory.default().namespaces().list();
+            const namespaces = await this.k8Factory.default().namespaces().list();
             const namespacesWithRemoteConfigs: NamespaceNameAsString[] = [];
 
             for (const namespace of namespaces) {
@@ -357,7 +351,7 @@ export class DeploymentCommand extends BaseCommand {
               }
             }
 
-            self.logger.showList(`Deployments inside cluster: ${chalk.cyan(clusterName)}`, namespacesWithRemoteConfigs);
+            this.logger.showList(`Deployments inside cluster: ${chalk.cyan(clusterName)}`, namespacesWithRemoteConfigs);
           },
         },
       ],
@@ -379,13 +373,10 @@ export class DeploymentCommand extends BaseCommand {
    * Initializes and populates the config and context for 'deployment cluster attach'
    */
   public initializeClusterAddConfig(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<void> => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         this.configManager.update(argv);
 

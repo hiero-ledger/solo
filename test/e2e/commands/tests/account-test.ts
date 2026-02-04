@@ -8,6 +8,9 @@ import {accountCreationShouldSucceed} from '../../../test-utility.js';
 import {it} from 'mocha';
 import {type AccountManager} from '../../../../src/core/account-manager.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {main} from '../../../../src/index.js';
+import {Flags} from '../../../../src/commands/flags.js';
+import {LedgerCommandDefinition} from '../../../../src/commands/command-definitions/ledger-command-definition.js';
 
 export class AccountTest extends BaseCommandTest {
   public static accountCreationShouldSucceed(options: BaseTestOptions): void {
@@ -22,6 +25,25 @@ export class AccountTest extends BaseCommandTest {
       await remoteConfig.load(namespace);
 
       accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
+    });
+  }
+
+  public static predefinedAccountCreationShouldSucceed(options: BaseTestOptions): void {
+    const {testName, deployment} = options;
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = AccountTest;
+
+    it(`${testName}: ledger account predefined should succeed`, async (): Promise<void> => {
+      const argv: string[] = newArgv();
+      argv.push(
+        LedgerCommandDefinition.COMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        LedgerCommandDefinition.ACCOUNT_PREDEFINED,
+        optionFromFlag(Flags.deployment),
+        deployment,
+      );
+      argvPushGlobalFlags(argv, testName, true);
+
+      await main(argv);
     });
   }
 }

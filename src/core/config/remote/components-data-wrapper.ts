@@ -5,7 +5,7 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
+import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
@@ -276,8 +276,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       }
 
       // Check if this exact podPort and localPort pair already exists
-      const existingConfig = component.metadata.portForwardConfigs.find(
-        config => config.podPort === podPort && config.localPort === portForwardPortNumber,
+      const existingConfig: PortForwardConfig | undefined = component.metadata.portForwardConfigs.find(
+        (config): boolean => config.podPort === podPort && config.localPort === portForwardPortNumber,
       );
 
       if (existingConfig) {
@@ -293,5 +293,69 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     return portForwardPortNumber;
+  }
+
+  /**
+   * Stops port forwarding for a component by removing the configuration and stopping the forward
+   * @param clusterReference The cluster reference
+   * @param podReference The pod reference
+   * @param podPort The port on the pod
+   * @param localPort The local port
+   * @param k8Client The Kubernetes client to use for stopping port forwarding
+   * @param logger Logger for messages
+   * @param componentType The component type
+   * @param label Label for the port forward
+   * @param nodeId Optional node ID for finding component when cluster reference is not available
+   */
+  public async stopPortForwards(
+    clusterReference: ClusterReferenceName,
+    podReference: PodReference,
+    podPort: number,
+    localPort: number,
+    k8Client: K8,
+    logger: SoloLogger,
+    componentType: ComponentTypes,
+    label: string,
+    nodeId?: number,
+  ): Promise<void> {
+    // Find component by cluster reference or nodeId
+    let component: BaseStateSchema;
+    if (clusterReference) {
+      const schemeComponents: BaseStateSchema[] = this.getComponentsByClusterReference<BaseStateSchema>(
+        componentType,
+        clusterReference,
+      );
+      component = schemeComponents[0];
+    } else {
+      const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+      component = this.getComponentById<BaseStateSchema>(componentType, componentId);
+    }
+
+    if (component === undefined || !component.metadata.portForwardConfigs) {
+      logger.showUser(`No port forward config found for ${label}`);
+      return;
+    }
+
+    // Find the matching port forward config
+    const configIndex: number = component.metadata.portForwardConfigs.findIndex(
+      (config): boolean => config.podPort === podPort && config.localPort === localPort,
+    );
+
+    if (configIndex === -1) {
+      logger.showUser(`Port forward config not found for ${label} with podPort=${podPort}, localPort=${localPort}`);
+      return;
+    }
+
+    // Stop the port forward - use null pod reference since stopping should work regardless of pod
+    await k8Client.pods().readByReference(null).stopPortForward(localPort);
+
+    logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding stopped');
+    logger.addMessageGroupMessage(
+      constants.PORT_FORWARDING_MESSAGE_GROUP,
+      `${label} port forward stopped on localhost:${localPort}`,
+    );
+
+    // Remove the config from component metadata
+    component.metadata.portForwardConfigs.splice(configIndex, 1);
   }
 }
