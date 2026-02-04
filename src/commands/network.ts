@@ -884,6 +884,7 @@ export class NetworkCommand extends BaseCommand {
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
+        console.log('fetch is:', fetch);
         console.trace('ensurePodLogsCrd: About to call fetch for CRD_URL:', CRD_URL);
         const response = await fetch(CRD_URL);
         this.logger.showUser(`URL ${CRD_URL} response = ${JSON.stringify(response, null, 2)}`);
