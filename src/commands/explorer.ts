@@ -27,6 +27,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import * as versions from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
@@ -196,6 +197,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
+      flags.latest,
       flags.namespace,
       flags.profileFile,
       flags.profileName,
@@ -688,6 +690,13 @@ export class ExplorerCommand extends BaseCommand {
             ) as ExplorerUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, use the latest version from version.ts
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              config.explorerVersion = versions.EXPLORER_VERSION;
+              this.logger.debug(`Using latest explorer version: ${config.explorerVersion}`);
+            }
 
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);

@@ -200,6 +200,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.upgradeVersion,
+      flags.latest,
       flags.id,
     ],
   };
@@ -716,6 +717,13 @@ export class BlockNodeCommand extends BaseCommand {
             ) as BlockNodeUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, use the latest version from version.ts
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              config.upgradeVersion = versions.BLOCK_NODE_VERSION;
+              this.logger.debug(`Using latest block node version: ${config.upgradeVersion}`);
+            }
 
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();

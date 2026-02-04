@@ -154,6 +154,14 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeUpgradeConfigClass;
 
+    // If --latest flag is set, use the latest version from version.ts
+    const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+    if (useLatest) {
+      const versions = await import('../../../version.js');
+      context_.config.upgradeVersion = versions.HEDERA_PLATFORM_VERSION;
+      task.logger.debug(`Using latest consensus node version: ${context_.config.upgradeVersion}`);
+    }
+
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];

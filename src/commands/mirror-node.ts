@@ -239,6 +239,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
+      flags.latest,
       flags.pinger,
       flags.useExternalDatabase,
       flags.operatorId,
@@ -1106,6 +1107,13 @@ export class MirrorNodeCommand extends BaseCommand {
             ) as MirrorNodeUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, use the latest version from version.ts
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              config.mirrorNodeVersion = versions.MIRROR_NODE_VERSION;
+              this.logger.debug(`Using latest mirror node version: ${config.mirrorNodeVersion}`);
+            }
 
             config.namespace = await this.getNamespace(task);
             config.clusterReference = this.getClusterReference();
