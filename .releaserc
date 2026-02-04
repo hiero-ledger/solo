@@ -18,7 +18,8 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "npm version ${nextRelease.version} --no-git-tag-version && echo ${nextRelease.version} > VERSION"
+        "verifyReleaseCmd": "echo ${nextRelease.version} > VERSION",
+        "prepareCmd": "npm version ${nextRelease.version} --no-git-tag-version"
       }
     ],
     [
