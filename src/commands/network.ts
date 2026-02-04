@@ -884,12 +884,39 @@ export class NetworkCommand extends BaseCommand {
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
-        const response: Response = await fetch(CRD_URL);
-        if (!response.ok) {
-          throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
+        const response: any = await fetch(CRD_URL);
+
+        // defensive: test/CI may mock fetch and return a non-Response object (or already-returned body)
+        if (!response) {
+          throw new Error(`Failed to download CRD YAML: empty response from ${CRD_URL}`);
         }
 
-        const yamlContent: string = await response.text();
+        // If the fetch mock returned a plain string/body, accept it directly
+        let yamlContent: string;
+        if (typeof response === 'string') {
+          yamlContent = response;
+        } else if (typeof response.text === 'function') {
+          if (!response.ok) {
+            // prefer detailed status when available
+            const status = response.status ?? 'unknown';
+            const statusText = response.statusText ?? '';
+            throw new Error(`Failed to download CRD YAML: ${status} ${statusText}`);
+          }
+          yamlContent = await response.text();
+        } else if (response.body && typeof response.body === 'string') {
+          yamlContent = response.body;
+        } else if (typeof response.then === 'function') {
+          // unlikely, but if someone returned a thenable that resolves to a body
+          const resolved: any = await response;
+          yamlContent = typeof resolved === 'string' ? resolved : await (typeof resolved.text === 'function' ? resolved.text() : JSON.stringify(resolved));
+        } else {
+          throw new Error(`Failed to download CRD YAML: unsupported response type from ${CRD_URL}`);
+        }
+
+        if (!yamlContent || typeof yamlContent !== 'string') {
+          throw new Error(`Failed to download CRD YAML: empty body from ${CRD_URL}`);
+        }
+
         fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
       }
 
