@@ -154,6 +154,26 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeUpgradeConfigClass;
 
+    // If --latest flag is set, fetch the latest version dynamically
+    const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+    if (useLatest) {
+      // TODO: Implement fetchLatestConsensusNodeVersion from builds.hedera.com
+      // For now, throw an error asking user to specify version explicitly
+      throw new SoloError(
+        'Fetching latest consensus node version from builds.hedera.com is not yet implemented. ' +
+          'Please specify the version explicitly using --upgrade-version flag.',
+      );
+    }
+
+    context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+    context_.config.curDate = new Date();
+    context_.config.existingNodeAliases = [];
+    context_.config.nodeAliases = helpers.parseNodeAliases(
+      context_.config.nodeAliasesUnparsed,
+      this.remoteConfig.getConsensusNodes(),
+      this.configManager,
+    );
+
     // check if the intended package version exists
     if (context_.config.upgradeVersion) {
       const semVersion: SemVer = new SemVer(context_.config.upgradeVersion);
