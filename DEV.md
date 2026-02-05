@@ -30,7 +30,7 @@ This document describes how to set up a local development environment and contri
 - **Kubernetes** (local cluster such as kind, k3d, or equivalent)
 - **task** (Taskfile runner)
 - **Git**
-- **K9S** (optional)
+- **K9s** (optional)
 
 # Initial setup
 
