@@ -51,7 +51,7 @@ Solo leverages maintained Helm charts to deploy:
 
 Since Solo leverages existing Helm charts, it is reasonably easy to seek help from the respective teams that are maintaining those Helm charts:
 
-- <https://github.com/hiero-ledger/hiero-json-rpc-relay> (Smart Contract Team, @Nana)
-- <https://github.com/hiero-ledger/hiero-mirror-node> ( Mirror Node Team, @Steven Sheehy )
+- <https://github.com/hiero-ledger/hiero-json-rpc-relay>
+- <https://github.com/hiero-ledger/hiero-mirror-node>
 
 Showcasing existing tests and how to run them: <https://github.com/hiero-ledger/solo/blob/main/DEV.md>
