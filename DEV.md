@@ -110,7 +110,7 @@ Common kubectl commands:
 
 ## **K9s** *(Recommended)*
 
-> **K9S** is the primary tool used by the Solo team to inspect and debug Solo deployments.
+> **K9s** is the primary tool used by the Solo team to inspect and debug Solo deployments.
 
 Why **K9S**:
 - Terminal UI that makes it faster to navigate Kubernetes resources
