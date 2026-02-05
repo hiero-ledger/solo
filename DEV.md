@@ -14,7 +14,7 @@ This document describes how to set up a local development environment and contri
 - [How to Update Component Versions](#how-to-update-component-versions)
 - [How to Inspect the Cluster](#how-to-inspect-the-cluster)
   - [Kubectl](#kubectl)
-  - [K9S (Recommended)](#k9s-recommended)
+  - [K9s (Recommended)](#k9s-recommended)
 - [Pull Request Requirements](#pull-request-requirements)
   - [DCO (Developer Certificate of Origin)](#dco-developer-certificate-of-origin)
   - [Conventional Commit PR titles (required)](#conventional-commit-pr-titles-required)
@@ -26,11 +26,11 @@ This document describes how to set up a local development environment and contri
 
 - **Node.js** (use the version specified in the repository, if applicable)
 - **npm**
-- **Docker**
+- **Docker or Podman**
 - **Kubernetes** (local cluster such as kind, k3d, or equivalent)
 - **task** (Taskfile runner)
 - **Git**
-- **K9S** (optional)
+- **K9s** (optional)
 
 # Initial setup
 
@@ -108,16 +108,16 @@ Common kubectl commands:
 
 *Official Documentation*: https://kubernetes.io/docs/reference/kubectl/
 
-## **K9S** *(Recommended)*
+## **K9s** *(Recommended)*
 
-> **K9S** is the primary tool used by the Solo team to inspect and debug Solo deployments.
+> **K9s** is the primary tool used by the Solo team to inspect and debug Solo deployments.
 
-Why **K9S**:
+Why **K9s**:
 - Terminal UI that makes it faster to navigate Kubernetes resources
 - Quickly view logs, events, and descriptions
 - Simple and intuitive
 
-Start **K9S**:
+Start **K9s**:
 ```bash
 $ k9s -A
 ```
