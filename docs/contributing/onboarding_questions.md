@@ -35,7 +35,7 @@ At a high level, Solo is responsible for **coordination and lifecycle management
 
 **External Helm charts**
 Solo leverages maintained Helm charts to deploy:
-- Hedera consensus nodes
+- Hiero consensus nodes
 - Mirror Node and Explorer
 - JSON-RPC Relay
 - Block Node
