@@ -4,7 +4,7 @@
 
 Solo is an opinionated tool that empowers developers to deploy **production-like Hiero networks**, bundling the configuration, deployment, lifecycle operations, and common diagnostics.
 
-A Solo-deployed Hedera network enables testing scenarios that are not practical, cost-effective, or even possible on public networks such as Testnet or Mainnet. This includes spinning up isolated networks on demand, running large-scale automated tests, validating infrastructure or protocol changes, and experimenting with configuration or topology.
+A Solo-deployed Hiero network enables testing scenarios that are not practical, cost-effective, or even possible on public networks such as Testnet or Mainnet. This includes spinning up isolated networks on demand, running large-scale automated tests, validating infrastructure or protocol changes, and experimenting with configuration or topology.
 
 **Solo** is designed to make Hedera network lifecycle management straightforward:
 - **Create and tear** down networks quickly
