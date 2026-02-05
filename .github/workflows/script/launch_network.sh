@@ -159,6 +159,13 @@ echo "::endgroup::"
 echo "::group::Final Verification"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before smoke test"
 ps -ef |grep port-forward
+
+# Test deployment config list command
+echo "Testing deployment config list without cluster-ref..."
+npm run solo -- deployment config list --dev
+echo "Testing deployment config list with cluster-ref..."
+npm run solo -- deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
