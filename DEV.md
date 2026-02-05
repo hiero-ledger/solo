@@ -14,7 +14,7 @@ This document describes how to set up a local development environment and contri
 - [How to Update Component Versions](#how-to-update-component-versions)
 - [How to Inspect the Cluster](#how-to-inspect-the-cluster)
   - [Kubectl](#kubectl)
-  - [K9S (Recommended)](#k9s-recommended)
+  - [K9s (Recommended)](#k9s-recommended)
 - [Pull Request Requirements](#pull-request-requirements)
   - [DCO (Developer Certificate of Origin)](#dco-developer-certificate-of-origin)
   - [Conventional Commit PR titles (required)](#conventional-commit-pr-titles-required)
