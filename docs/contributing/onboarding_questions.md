@@ -24,7 +24,7 @@ https://solo.hiero.org/
 
 ### What technologies does Solo use, and what is it written in?
 
-Solo is implemented in **TypeScript (ES2022)**
+Solo is implemented in **TypeScript (ES2022)**.  It is a command-line interface that runs in Node.  It uses Helm charts and Kubernetes commands to deploy, configure, and run the Hiero network and its components.  If you are running locally and you don't want to manage your own Kubernetes cluster, it is recommended to let Solo handle it for you using Kind with Docker or Podman.
 
 At a high level, Solo is responsible for **coordination and lifecycle management**, not for implementing Hedera components themselves.
 
