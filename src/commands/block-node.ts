@@ -45,6 +45,8 @@ import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js'
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 import {execSync} from 'node:child_process';
 import {VersionHelper} from '../core/helpers/version-helper.js';
+
+interface BlockNodeDeployConfigClass {
   chartVersion: string;
   chartDirectory: string;
   blockNodeChartDirectory: string;
