@@ -26,7 +26,7 @@ This document describes how to set up a local development environment and contri
 
 - **Node.js** (use the version specified in the repository, if applicable)
 - **npm**
-- **Docker**
+- **Docker or Podman**
 - **Kubernetes** (local cluster such as kind, k3d, or equivalent)
 - **task** (Taskfile runner)
 - **Git**
