@@ -38,8 +38,13 @@ Choose your platform below:
 # Start Docker Desktop and allocate at least 12 GB of memory:
 # Docker Desktop > Settings > Resources > Memory
 
-# 3. Install Solo (this installs all other dependencies automatically)
-brew install hiero-ledger/tools/solo
+# 3. Remove existing npm based installs
+\[\[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 \]\] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
+
+# 4. Install Solo (this installs all other dependencies automatically)
+brew tap hiero-ledger/tools
+brew update
+brew install solo
 
 # Verify the installation
 solo --version
@@ -69,7 +74,15 @@ curl -fsSLo kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/re
 chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
-# 4. Install Solo (this installs remaining dependencies automatically)
+# 4. Remove existing npm based installs
+\[\[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 \]\] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
+
+# 5. Install Solo (this installs all other dependencies automatically)
+brew tap hiero-ledger/tools
+brew update
+brew install solo
+
+# 6. Install Solo (this installs remaining dependencies automatically)
 brew install hiero-ledger/tools/solo
 
 # Verify the installation
@@ -101,7 +114,15 @@ curl -fsSLo kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/re
 chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
-# 4. Install Solo (this installs remaining dependencies automatically)
+# 4. Remove existing npm based installs
+\[\[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 \]\] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
+
+# 5. Install Solo (this installs all other dependencies automatically)
+brew tap hiero-ledger/tools
+brew update
+brew install solo
+
+# 6. Install Solo (this installs remaining dependencies automatically)
 brew install hiero-ledger/tools/solo
 
 # Verify the installation
