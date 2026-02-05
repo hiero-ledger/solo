@@ -125,19 +125,55 @@ $ k9s -A
 *Official Documentation*: https://k9scli.io/topics/commands/
 
 # Pull Request Requirements
-## DCO (Developer Certificate of Origin)
 
-DCO sign-off is required for all commits. PRs with unsigned commits will fail checks and cannot be merged.
+## DCO (Developer Certificate of Origin) and Signed Commits
+
+Two separate requirements are enforced on this repository:
+
+### 1) DCO Sign-off (required)
+
+All commits must include a **DCO sign-off line**. PRs with **unsigned** *(no sign-off)* commits will fail checks and cannot be merged.
 
 Sign off commits with:
+
 ```bash
 $ git commit -s -m "commit message"
 ```
 
-*(Optional)* Configure Git to always add sign-off:
+This adds a line like, to your commit message:
+
+```bash
+Signed-off-by: Your Name <your@email.com>
+```
+
+*(Optional)* Configure Git to **always** add the sign-off **automatically**:
+
 ```bash
 $ git config --global format.signoff true
 ```
+
+### 2) Cryptographically Signed Commits (required)
+
+In addition to the DCO sign-off, the repository also enforces a GitHub rule that blocks commits that are not **signed and verified**.
+
+This means your commits must be cryptographically signed using GPG or SSH and show a **Verified** badge on GitHub.
+
+If your commits are not signed, they will be rejected even if the DCO check passes.
+
+To enable commit signing, see GitHub documentation:
+
+- [GPG signing](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account)
+- [SSH signing](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
+
+After setup, verify signing is enabled:
+
+```bash
+$ git config --global commit.gpgsign true
+```
+
+Both are required:
+- DCO sign-off line (`-s`)
+- Cryptographic signature (*Verified commit*)
 
 ## Conventional Commit PR titles *(required)*
 
