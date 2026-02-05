@@ -20,6 +20,9 @@ export interface OneShotSingleDeployConfigClass {
   cacheDir: string;
   predefinedAccounts: boolean;
   minimalSetup: boolean;
+  deployMirrorNode: boolean;
+  deployExplorer: boolean;
+  deployRelay: boolean;
   force: boolean;
   quiet: boolean;
 }

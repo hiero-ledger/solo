@@ -70,7 +70,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.force, flags.valuesFile, flags.numberOfConsensusNodes],
+    optional: [flags.quiet, flags.force, flags.valuesFile, flags.numberOfConsensusNodes, flags.deployMirrorNode, flags.deployExplorer, flags.deployRelay],
   };
 
   public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
@@ -187,6 +187,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
+
+              // Initialize deployment toggles with defaults if not specified
+              config.deployMirrorNode = config.deployMirrorNode !== undefined ? config.deployMirrorNode : true;
+              config.deployExplorer = config.deployExplorer !== undefined ? config.deployExplorer : true;
+              config.deployRelay = config.deployRelay !== undefined ? config.deployRelay : true;
 
               context_.createdAccounts = [];
 
@@ -388,6 +393,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return argvPushGlobalFlags(argv, config.cacheDir);
             },
             this.taskList,
+            (): boolean => !config.deployMirrorNode,
           ),
           {
             title: 'Extended setup',
@@ -412,6 +418,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     return argvPushGlobalFlags(argv, config.cacheDir);
                   },
                   this.taskList,
+                  (): boolean => !config.deployExplorer,
                 ),
                 invokeSoloCommand(
                   `solo ${RelayCommandDefinition.ADD_COMMAND}`,
@@ -431,6 +438,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     return argvPushGlobalFlags(argv);
                   },
                   this.taskList,
+                  (): boolean => !config.deployRelay,
                 ),
               ];
 
