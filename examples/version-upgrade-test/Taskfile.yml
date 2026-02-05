@@ -124,9 +124,16 @@ tasks:
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
           --mirror-node-version v0.139.0
 
-      # Upgrade block node
       - cmd: |
-          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
+          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Upgrade network to main with local build path
+      - cmd: |
+          export CONSENSUS_NODE_VERSION=$(grep -A1 "HEDERA_PLATFORM_VERSION" ../../version.ts | grep -o "'[^']*'" | tail -1 | sed "s/'//g")
+          echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
+          $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --upgrade-version ${CONSENSUS_NODE_VERSION} \
+          --deployment {{ .DEPLOYMENT }}
 
       # Upgrade relay
       - cmd: |
@@ -136,12 +143,12 @@ tasks:
       - cmd: |
           $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }}
 
-      # Upgrade network to main with local build path
+      # Upgrade block node
       - cmd: |
-          export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
-          $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --upgrade-version ${CONSENSUS_NODE_VERSION} \
-          --deployment {{ .DEPLOYMENT }} {{ .LOCAL_BUILD_FLAG }}
+          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+
+
 
   verify-functionality:
     desc: Verify all components are working correctly
