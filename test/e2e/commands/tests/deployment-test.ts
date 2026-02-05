@@ -132,6 +132,12 @@ export class DeploymentTest extends BaseCommandTest {
     return argv;
   }
 
+  /**
+   * Lists all local deployment configurations or deployments in a specific cluster.
+   * Tests both scenarios:
+   * 1. Without cluster-ref: Lists all deployments from local configuration
+   * 2. With cluster-ref: Lists deployments from the specified Kubernetes cluster
+   */
   public static listDeployments(options: BaseTestOptions): void {
     const {testName, testLogger, clusterReferenceNameArray} = options;
     const {soloDeploymentConfigListArgv} = DeploymentTest;

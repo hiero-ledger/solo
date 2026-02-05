@@ -324,6 +324,8 @@ export class DeploymentCommand extends BaseCommand {
             await this.localConfig.load();
 
             this.configManager.update(argv);
+            // Note: cluster-ref is now optional. If not provided, we list local deployments.
+            // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
             const clusterName = this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef);
             context_.config = {
               clusterName,
@@ -331,7 +333,7 @@ export class DeploymentCommand extends BaseCommand {
           },
         },
         {
-          title: 'List deployments',
+          title: 'List deployments from configured source',
           task: async context_ => {
             const clusterName = context_.config.clusterName;
 
