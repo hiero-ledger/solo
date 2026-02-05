@@ -39,6 +39,24 @@ tasks:
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2
 
+  deploy-minimal:
+    desc: Deploy with consensus and mirror node only (without explorer and relay)
+    cmds:
+      # Solo one-shot falcon deploy with disabled components
+      - cmd: |
+          $SOLO_COMMAND one-shot falcon deploy \
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
+          --deploy-explorer=false --deploy-relay=false
+
+  deploy-consensus-only:
+    desc: Deploy consensus nodes only (without mirror, explorer, and relay)
+    cmds:
+      # Solo one-shot falcon deploy with only consensus nodes
+      - cmd: |
+          $SOLO_COMMAND one-shot falcon deploy \
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
+          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
     cmds:
