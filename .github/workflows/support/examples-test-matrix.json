@@ -2,6 +2,6 @@
   {
     "name": "Version Upgrade Test",
     "directory": "version-upgrade-test",
-    "local-java-build": true
+    "local-java-build": false
   }
 ]

@@ -19,17 +19,16 @@ vars:
   CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
 
   # Previous versions (current minus one)
-  PREV_CN_VERSION: "v0.64.0"
-  PREV_MIRROR_VERSION: "v0.138.0"
-  PREV_EXPLORER_VERSION: "25.0.0"
-  PREV_RELAY_VERSION: "0.69.0"
+  PREV_CN_VERSION: "v0.68.6"
+  PREV_MIRROR_VERSION: "v0.145.2"
+  PREV_EXPLORER_VERSION: "25.1.1"
+  PREV_RELAY_VERSION: "0.72.0"
   PREV_BLOCK_VERSION: "v0.23.2"
 
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
-  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
 tasks:
   default:
