@@ -117,7 +117,7 @@ Why **K9S**:
 - Quickly view logs, events, and descriptions
 - Simple and intuitive
 
-Start **K9S**:
+Start **K9s**:
 ```bash
 $ k9s -A
 ```
