@@ -884,29 +884,12 @@ export class NetworkCommand extends BaseCommand {
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
-        console.log('fetch is:', fetch);
-        console.trace('ensurePodLogsCrd: About to call fetch for CRD_URL:', CRD_URL);
-        const response = await fetch(CRD_URL);
-        this.logger.showUser(`URL ${CRD_URL} response = ${JSON.stringify(response, null, 2)}`);
-
-        let yamlContent: string;
-        if (typeof response === 'string') {
-          yamlContent = response;
-        } else if (response && typeof response === 'object') {
-          if (response.ok === false) {
-            throw new Error(`Failed to download CRD YAML: ${response.status || 'unknown'} ${response.statusText || ''}`);
-          }
-          if (response.text && typeof response.text === 'function') {
-            yamlContent = await response.text();
-          } else if (response.body && typeof response.body === 'string') {
-            yamlContent = response.body;
-          } else {
-            throw new Error(`Unable to extract text from response: ${JSON.stringify(response)}`);
-          }
-        } else {
-          throw new Error(`Unexpected response type: ${typeof response}`);
+        const response: Response = await fetch(CRD_URL);
+        if (!response.ok) {
+          throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
         }
 
+        const yamlContent: string = await response.text();
         fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
       }
 
