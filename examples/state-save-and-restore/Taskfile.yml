@@ -45,8 +45,8 @@ tasks:
     cmds:
       - task: setup
       - cmd: echo ""
-      - cmd: echo "⏳ Waiting 60 seconds for network to stabilize..."
-      - cmd: sleep 60
+      - cmd: echo "⏳ Waiting 10 seconds for network to stabilize..."
+      - cmd: sleep 10
       # must freeze network before saving state otherwise may get error "file changed as we read it"
       - task: stop-network
       - task: save-state
@@ -218,7 +218,6 @@ tasks:
       - task: destroy-database
       - task: deploy-external-database
       - task: deploy-network-with-state
-      - task: deploy-mirror-external
       - task: restore-database
       - task: verify-state
       - cmd: echo "✅ Network and database restored!"
@@ -284,8 +283,6 @@ tasks:
   stop-network:
     desc: Stop consensus network
     cmds:
-      # must destroy mirror node first otherwise will fail due to could not ping network nodes
-      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
       # freeze network before download otherwise may get error "file changed as we read it"
       - cmd: echo "Freezing network..."
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
