@@ -98,7 +98,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.CONFIG_LIST,
-              'Lists all local deployment configurations.',
+              'Lists all local deployment configurations or deployments in a specific cluster.',
               this.deploymentCommand,
               this.deploymentCommand.list,
               DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
