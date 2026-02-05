@@ -67,6 +67,7 @@ tasks:
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
   default:
-    desc: Run the default deploy task
+    desc: Run the default deploy task and test deploy-minimal
     cmds:
       - task: deploy
+      - task: deploy-minimal
