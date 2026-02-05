@@ -23,6 +23,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ConsensusNodeStateSchema} from '../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {SemVer} from 'semver';
+import {VersionHelper} from '../core/helpers/version-helper.js';
 
 interface UpgradeAllConfigClass {
   deployment: DeploymentName;
@@ -165,7 +166,6 @@ export class UpgradeCommand extends BaseCommand {
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
 
               // Fetch latest version dynamically
-              const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
                 this.logger,
                 constants.MIRROR_NODE_CHART_URL,
@@ -217,7 +217,6 @@ export class UpgradeCommand extends BaseCommand {
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
 
               // Fetch latest version dynamically
-              const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
                 this.logger,
                 constants.JSON_RPC_RELAY_CHART_URL,
@@ -269,8 +268,7 @@ export class UpgradeCommand extends BaseCommand {
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
 
               // Fetch latest version dynamically
-              const {VersionHelper} = await import('../core/helpers/version-helper.js');
-              const explorerChartName: string = 'hiero-explorer-chart';
+              const explorerChartName: string = constants.EXPLORER_CHART;
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
                 this.logger,
                 constants.EXPLORER_CHART_URL,
@@ -322,7 +320,6 @@ export class UpgradeCommand extends BaseCommand {
               const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode);
 
               // Fetch latest version dynamically
-              const {VersionHelper} = await import('../core/helpers/version-helper.js');
               const latestVersion: string = await VersionHelper.fetchLatestVersion(
                 this.logger,
                 constants.BLOCK_NODE_CHART_URL,

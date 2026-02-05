@@ -27,7 +27,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
-import * as versions from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
@@ -41,6 +40,7 @@ import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
 import {SemVer} from 'semver';
+import {VersionHelper} from '../core/helpers/version-helper.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -694,9 +694,8 @@ export class ExplorerCommand extends BaseCommand {
             // If --latest flag is set, fetch the latest version dynamically
             const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
             if (useLatest) {
-              const {VersionHelper} = await import('../core/helpers/version-helper.js');
               // Explorer uses OCI registry, need to extract chart name from URL
-              const explorerChartName: string = 'hiero-explorer-chart';
+              const explorerChartName: string = constants.EXPLORER_CHART;
               config.explorerVersion = await VersionHelper.fetchLatestVersion(
                 this.logger,
                 constants.EXPLORER_CHART_URL,

@@ -166,13 +166,7 @@ export function soloDeploymentDiagnosticsLogs(testName: string, deployment: stri
 export function soloUpgradeAll(testName: string, deployment: string): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
   const argv: string[] = newArgv();
-  argv.push(
-    'upgrade',
-    'all',
-    'all',
-    optionFromFlag(Flags.deployment),
-    deployment,
-  );
+  argv.push('upgrade', 'all', 'all', optionFromFlag(Flags.deployment), deployment);
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
