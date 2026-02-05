@@ -43,6 +43,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {execSync} from 'node:child_process';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -759,6 +760,39 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
+          title: 'Delete StatefulSet for upgrade',
+          task: async ({config}): Promise<void> => {
+            try {
+              const deleteOutput = await this.run('kubectl', [
+                'delete',
+                'statefulset',
+                config.releaseName,
+                '--ignore-not-found=true',
+                '-n',
+                config.namespace.name,
+                '--context',
+                config.context,
+              ]);
+              this.logger.debug(`kubectl delete output: ${deleteOutput.join('\n')}`);
+
+              const waitOutput = await this.run('kubectl', [
+                'wait',
+                '--for=delete',
+                `statefulset/${config.releaseName}`,
+                '-n',
+                config.namespace.name,
+                '--context',
+                config.context,
+                '--timeout=120s',
+              ]);
+              this.logger.debug(`kubectl wait output: ${waitOutput.join('\n')}`);
+            } catch (error) {
+              // Ignore errors, as the StatefulSet may not exist or deletion may fail
+              this.logger.debug(`Failed to delete StatefulSet ${config.releaseName}: ${error.message}`);
+            }
+          },
+        },
+        {
           title: 'Update block node chart',
           task: async ({config}): Promise<void> => {
             const {namespace, releaseName, context, upgradeVersion} = config;
@@ -769,13 +803,14 @@ export class BlockNodeCommand extends BaseCommand {
               'Block node chart version',
             );
 
+            const upgradeValuesArg: string = config.valuesArg ? `--force ${config.valuesArg}` : '--force';
             await this.chartManager.upgrade(
               namespace,
               releaseName,
               constants.BLOCK_NODE_CHART,
               config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
               validatedUpgradeVersion,
-              config.valuesArg,
+              upgradeValuesArg,
               context,
               false,
             );
