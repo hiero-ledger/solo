@@ -237,7 +237,9 @@ jobs:
           npm install -g npm@11.7.0
           npm ci
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
-          [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
+          fi
           task build
 
       - name: Upload Logs
