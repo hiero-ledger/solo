@@ -53,7 +53,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Release
-        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
+        uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # 1.0.5
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -147,7 +147,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
+        uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # 1.0.5
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -185,7 +185,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
+        uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # 1.0.5
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -303,11 +303,11 @@ jobs:
           fi
 
       - name: Deploy to JFrog Registry
-        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         run: jf npm publish
 
       - name: Create Example Asset Archives and Upload to Release
-        if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         run: |
           echo "Creating example asset archives for release..."
           GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
@@ -340,10 +340,10 @@ jobs:
           PROCEED="true"
           echo "::group::Verify Package is Created"
             if ls -l output | grep "${{ needs.get-package-info.outputs.package-name }}" > /dev/null 2>&1 ; then
-              echo "::notice file=flow-deploy-release-artifact.yaml,line=306::Package is created"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Package is created"
             else
               PROCEED="false"
-              echo "::error file=flow-deploy-release-artifact.yaml,line=306::Package is not created"
+              echo "::error file=flow-deploy-release-artifact.yaml::Package is not created"
               echo "Attempt Manual Publish!"
             fi
           echo "::endgroup::"
@@ -371,7 +371,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # 1.0.4
+        uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # 1.0.5
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -434,7 +434,7 @@ jobs:
         id: set-inputs
         run: |
           set -eo pipefail
-          if [[ "${{ inputs.dry-run-enabled }}" == 'true' ]]; then
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
             echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT
             echo "tag_ref=${{ github.ref }}"
@@ -475,7 +475,7 @@ jobs:
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
   hugo-docs-publish:
     name: Hugo Docs Publish
-    if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+    if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     needs:
       - prepare-release
       - hugo-docs-build-main
