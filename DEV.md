@@ -108,7 +108,7 @@ Common kubectl commands:
 
 *Official Documentation*: https://kubernetes.io/docs/reference/kubectl/
 
-## **K9S** *(Recommended)*
+## **K9s** *(Recommended)*
 
 > **K9S** is the primary tool used by the Solo team to inspect and debug Solo deployments.
 
