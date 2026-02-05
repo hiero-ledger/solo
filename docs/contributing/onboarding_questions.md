@@ -40,7 +40,7 @@ Solo leverages maintained Helm charts to deploy:
 - JSON-RPC Relay
 - Block Node
 - Explorer
-- Supporting infrastructure (MinIO, Prometheus, etc.)
+- Additional technologies that run in Kubernetes for proxy, ingress, telemetry, databases, etc.
 
 **Kubernetes as the control plane**  
   Kubernetes provides execution, networking, and isolation. Solo interacts with the cluster via the Kubernetes API, enabling the same workflows on local clusters (Kind, k3d, Minikube) and remote clusters.
