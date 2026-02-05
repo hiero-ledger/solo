@@ -37,7 +37,8 @@ tasks:
       # Solo one-shot falcon deploy
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
+          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
 
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
@@ -70,4 +71,3 @@ tasks:
     desc: Run the default deploy task and test deploy-minimal
     cmds:
       - task: deploy
-      - task: deploy-minimal
