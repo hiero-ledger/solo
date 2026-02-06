@@ -66,7 +66,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
       }
     }
 
-    const version = process.env.npm_package_version ?? '';
+    const version: string = getSoloVersion();
 
     // Handle different output formats
     switch (outputFormat) {
