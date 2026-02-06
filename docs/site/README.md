@@ -22,7 +22,7 @@ Quick Start
 
 2. Build the site (no Kind required):
    ```
-   task build:hugo
+   task build
    ```
    Outputs to `public/`.
 
@@ -62,9 +62,10 @@ Notes
 - The navbar logo is enabled in `hugo.yaml`; placing the SVG is enough for it to render.
 - For color/contrast tweaks, adjust the CSS variables in `_variables_project.scss` and rebuild.
 - If you only need a quick preview, prefer `task build:hugo` + `hugo server` over `task local` (the latter runs additional long builds).
+  > Note: This would only work if you have previously run `task build`.
 
 Troubleshooting
 ---------------
 - **Hugo not found:** ensure Go is installed and `$(go env GOPATH)/bin` is on PATH (the Taskfiles set this automatically).
-- **Styles not updating:** verify SCSS changes are rebuilt (run `task build:hugo` or restart `hugo server`).
+- **Styles not updating:** verify SCSS changes are rebuilt (run `task build` or restart `hugo server`).
 - **Typedoc missing:** run `task build:typedoc` from `docs/site` to regenerate API docs.
