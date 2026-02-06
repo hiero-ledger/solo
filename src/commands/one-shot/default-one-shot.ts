@@ -70,7 +70,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.force, flags.valuesFile, flags.numberOfConsensusNodes, flags.deployMirrorNode, flags.deployExplorer, flags.deployRelay],
+    optional: [
+      flags.quiet,
+      flags.force,
+      flags.valuesFile,
+      flags.numberOfConsensusNodes,
+      flags.deployMirrorNode,
+      flags.deployExplorer,
+      flags.deployRelay,
+    ],
   };
 
   public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
@@ -189,9 +197,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.force = argv.force;
 
               // Initialize deployment toggles with defaults if not specified
-              config.deployMirrorNode = config.deployMirrorNode !== undefined ? config.deployMirrorNode : true;
-              config.deployExplorer = config.deployExplorer !== undefined ? config.deployExplorer : true;
-              config.deployRelay = config.deployRelay !== undefined ? config.deployRelay : true;
+              config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
+              config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
+              config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
 
               context_.createdAccounts = [];
 
