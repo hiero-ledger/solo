@@ -14,8 +14,8 @@ import {Container} from './core/dependency-injection/container-init.js';
 import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
 import {SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
-import {getSoloVersion} from '../version.js';
 import {ArgumentProcessor} from './argument-processor.js';
+import {getSoloVersion} from '../version.js';
 
 if (!process.stdout.isTTY) {
   chalk.level = 0;
@@ -51,17 +51,19 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
 
   logger.debug('Initializing Solo CLI');
   constants.LISTR_DEFAULT_RENDERER_OPTION.logger = new ListrLogger({processOutput: new CustomProcessOutput(logger)});
-  if (argv.length >= 3 && ['-version', '--version', '-v', '--v'].includes(argv[2])) {
+  if (argv.some((argument): boolean => ['-version', '--version', '-v', '--v'].includes(argument))) {
     // Check for --output flag (K8s ecosystem standard)
     const outputFlagIndex: number = argv.findIndex(
       (argument): boolean => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
     );
+
     let outputFormat: string = '';
 
     if (outputFlagIndex !== -1) {
       const outputArgument: string = argv[outputFlagIndex];
+
       if (outputArgument.startsWith('--output=')) {
-        outputFormat = outputArgument.split('=')[1];
+        outputFormat = outputArgument.split('=')[1] ?? '';
       } else if (outputFlagIndex + 1 < argv.length) {
         outputFormat = argv[outputFlagIndex + 1];
       }
