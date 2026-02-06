@@ -17,6 +17,8 @@ export async function update () {
   const TEMPLATE_DIR = 'docs/site/content/en/templates';
   const TARGET_FILE = `${TARGET_DIR_DOCS}/step-by-step-guide.md`;
   const TEMPLATE_FILE = `${TEMPLATE_DIR}/step-by-step-guide.template.md`;
+  const TARGET_ADVANCED_FILE = `${TARGET_DIR_DOCS}/advanced-deployments.md`;
+  const TEMPLATE_ADVANCED_FILE = `${TEMPLATE_DIR}/advanced-deployments.template.md`;
   const TEMPLATE_EXAMPLES_FILE = `${TEMPLATE_DIR}/examples-index.template.md`;
   const BUILD_DIR = 'docs/site/build';
   const EXAMPLES_DIR = 'examples';
@@ -156,6 +158,12 @@ export async function update () {
   const substituted = envsubst(templateContent, process.env);
   writeFileSync(TARGET_FILE, substituted);
 
+  console.log(kleur.cyan(`Generating ${TARGET_ADVANCED_FILE} from ${TEMPLATE_ADVANCED_FILE}`));
+
+  const advancedTemplateContent = readFileSync(TEMPLATE_ADVANCED_FILE, 'utf8');
+  const advancedSubstituted = envsubst(advancedTemplateContent, process.env);
+  writeFileSync(TARGET_ADVANCED_FILE, advancedSubstituted);
+
   // Extract the entire content from examples/README.md (excluding first line)
   console.log(kleur.cyan('Extracting content from examples README'));
 
@@ -170,7 +178,7 @@ export async function update () {
   writeFileSync(`${TARGET_DIR}/examples/_index.md`, examplesPage);
 
   // Cleanup: strip color codes
-  console.log(kleur.cyan('Remove color codes and symbols from target file'));
+  console.log(kleur.cyan('Remove color codes and symbols from target files'));
 
   let cleaned = readFileSync(TARGET_FILE, 'utf8');
   cleaned = cleaned
@@ -178,6 +186,13 @@ export async function update () {
     .replace(/[↓❯•]/g, '');
 
   writeFileSync(TARGET_FILE, cleaned);
+
+  let advancedCleaned = readFileSync(TARGET_ADVANCED_FILE, 'utf8');
+  advancedCleaned = advancedCleaned
+    .replace(/\[32m|\[33m|\[39m/g, '')
+    .replace(/[↓❯•]/g, '');
+
+  writeFileSync(TARGET_ADVANCED_FILE, advancedCleaned);
 
   console.log(kleur.cyan('✅ Script finished'));
 }

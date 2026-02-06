@@ -336,7 +336,7 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
-      const k8 = this.k8Factory.getK8(context);
+      const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
@@ -407,7 +407,9 @@ export class NodeCommandTasks {
       const podReference: PodReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
-        task: async () => await platformInstaller.fetchPlatform(podReference, releaseTag, context),
+        task: async (): Promise<void> => {
+          await platformInstaller.fetchPlatform(podReference, releaseTag, context);
+        },
       });
     }
 
@@ -618,7 +620,11 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks = this.keyManager.taskGenerateGossipKeys(nodeAliases, config.keysDir, config.curDate);
+        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateGossipKeys(
+          nodeAliases,
+          config.keysDir,
+          config.curDate,
+        );
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
@@ -638,7 +644,11 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks = this.keyManager.taskGenerateTLSKeys(nodeAliases, config.keysDir, config.curDate);
+        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateTLSKeys(
+          nodeAliases,
+          config.keysDir,
+          config.curDate,
+        );
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
@@ -649,7 +659,7 @@ export class NodeCommandTasks {
   public copyGrpcTlsCertificates(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Copy gRPC TLS Certificates',
-      task: (context_, task) =>
+      task: (context_, task): any =>
         this.certificateManager.buildCopyTlsCertificatesTasks(
           task,
           context_.config.grpcTlsCertificatePath,
@@ -676,7 +686,7 @@ export class NodeCommandTasks {
         deploymentName,
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
-      const client = this.accountManager._nodeClient;
+      const client: Client = this.accountManager._nodeClient;
       const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
         namespace,
         deploymentName,
@@ -719,7 +729,7 @@ export class NodeCommandTasks {
     }
   }
 
-  public prepareUpgradeZip() {
+  public prepareUpgradeZip(): SoloListrTask<any> {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
@@ -806,7 +816,7 @@ export class NodeCommandTasks {
         );
         const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
-          const accountId = accountMap.get(nodeAlias);
+          const accountId: string = accountMap.get(nodeAlias)!;
           await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
