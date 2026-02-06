@@ -98,14 +98,16 @@ export class DeploymentCommand extends BaseCommand {
    */
   public async create(argv: ArgvStruct): Promise<boolean> {
     interface Config {
-      quiet: boolean;
-      namespace: NamespaceName;
-      deployment: DeploymentName;
-      realm: Realm;
-      shard: Shard;
+      config: {
+        quiet: boolean;
+        namespace: NamespaceName;
+        deployment: DeploymentName;
+        realm: Realm;
+        shard: Shard;
+      };
     }
 
-    const tasks: Listr<Config, 'default', 'default'> = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -117,11 +119,13 @@ export class DeploymentCommand extends BaseCommand {
             await this.configManager.executePrompt(task, [flags.namespace, flags.deployment]);
 
             context_.config = {
-              quiet: this.configManager.getFlag<boolean>(flags.quiet),
-              namespace: this.configManager.getFlag<NamespaceName>(flags.namespace),
-              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
-              realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
-              shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
+              config: {
+                quiet: this.configManager.getFlag<boolean>(flags.quiet),
+                namespace: this.configManager.getFlag<NamespaceName>(flags.namespace),
+                deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+                realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
+                shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
+              },
             } as Config;
 
             if (
@@ -184,7 +188,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: Listr<Context, 'default', 'default'> = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -276,7 +280,7 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
-    const tasks: Listr<DeploymentAddClusterContext, 'default', 'default'> = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList(
       [
         this.initializeClusterAddConfig(argv),
         this.verifyClusterAddArgs(),
@@ -468,8 +472,7 @@ export class DeploymentCommand extends BaseCommand {
       task: async (context_, task): Promise<void> => {
         const {deployment, numberOfConsensusNodes, quiet, namespace} = context_.config;
 
-        const existingClusterReferences =
-          this.localConfig.configuration.deploymentByName(deployment).clusters;
+        const existingClusterReferences = this.localConfig.configuration.deploymentByName(deployment).clusters;
 
         // if there is no remote config don't validate deployment ledger phase
         if (existingClusterReferences.length === 0) {
