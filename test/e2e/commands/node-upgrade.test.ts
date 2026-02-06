@@ -21,7 +21,6 @@ import fs from 'node:fs';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
-import {BlockNodeTest} from './tests/block-node-test.js';
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 
@@ -74,7 +73,6 @@ new EndToEndTestSuiteBuilder()
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
       NodeTest.keys(options);
-      BlockNodeTest.add(options);
 
       NetworkTest.deploy(options);
       NodeTest.setup(options);
