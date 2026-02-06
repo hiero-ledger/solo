@@ -23,7 +23,7 @@ vars:
   PREV_MIRROR_VERSION: "v0.145.2"
   PREV_EXPLORER_VERSION: "25.1.1"
   PREV_RELAY_VERSION: "0.72.0"
-  PREV_BLOCK_VERSION: "v0.23.2"
+  PREV_BLOCK_VERSION: "v0.26.1"
 
   # Local build path for network upgrade
   ROOT_DIR:
