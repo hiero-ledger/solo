@@ -98,13 +98,15 @@ export class DeploymentCommand extends BaseCommand {
    */
   public async create(argv: ArgvStruct): Promise<boolean> {
     interface Config {
-      config: {
-        quiet: boolean;
-        namespace: NamespaceName;
-        deployment: DeploymentName;
-        realm: Realm;
-        shard: Shard;
-      };
+      quiet: boolean;
+      namespace: NamespaceName;
+      deployment: DeploymentName;
+      realm: Realm;
+      shard: Shard;
+    }
+
+    interface _Context {
+      config: Config;
     }
 
     const tasks = this.taskList.newTaskList(
@@ -119,13 +121,11 @@ export class DeploymentCommand extends BaseCommand {
             await this.configManager.executePrompt(task, [flags.namespace, flags.deployment]);
 
             context_.config = {
-              config: {
-                quiet: this.configManager.getFlag<boolean>(flags.quiet),
-                namespace: this.configManager.getFlag<NamespaceName>(flags.namespace),
-                deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
-                realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
-                shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
-              },
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              namespace: this.configManager.getFlag<NamespaceName>(flags.namespace),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+              realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
+              shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
             } as Config;
 
             if (
@@ -330,7 +330,7 @@ export class DeploymentCommand extends BaseCommand {
               flags.clusterRef,
             );
             context_.config = {
-              clusterName,
+              clusterName: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
           },
         },
