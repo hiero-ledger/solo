@@ -105,15 +105,11 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    interface _Context {
-      config: Config;
-    }
-
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListrTask<Config>[] = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
@@ -140,7 +136,7 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Add deployment to local config',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<void> => {
             const {namespace, deployment, realm, shard} = context_.config;
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
@@ -188,7 +184,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListrTask<Context>[] = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -280,7 +276,7 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListrTask<DeploymentAddClusterContext>[] = this.taskList.newTaskList(
       [
         this.initializeClusterAddConfig(argv),
         this.verifyClusterAddArgs(),
@@ -316,17 +312,19 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: Listr<Context, any, any> = new Listr(
+    const tasks: Listr<Context, 'default', 'default'> = new Listr(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, _task): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
             // Note: cluster-ref is now optional. If not provided, we list local deployments.
             // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
-            const clusterName = this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef);
+            const clusterName: ClusterReferenceName | undefined = this.configManager.getFlag<ClusterReferenceName>(
+              flags.clusterRef,
+            );
             context_.config = {
               clusterName,
             } as Config;
@@ -334,16 +332,18 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'List deployments from configured source',
-          task: async context_ => {
-            const clusterName = context_.config.clusterName;
+          task: async (context_): Promise<void> => {
+            const clusterName: ClusterReferenceName | undefined = context_.config.clusterName;
 
             if (clusterName) {
               // List deployments in a specific cluster
-              const context = this.localConfig.configuration.clusterRefs.get(clusterName)?.toString();
+              const context: string | undefined = this.localConfig.configuration.clusterRefs
+                .get(clusterName)
+                ?.toString();
 
               this.k8Factory.default().contexts().updateCurrent(context);
 
-              const namespaces = await this.k8Factory.default().namespaces().list();
+              const namespaces: NamespaceName[] = await this.k8Factory.default().namespaces().list();
               const namespacesWithRemoteConfigs: NamespaceNameAsString[] = [];
 
               for (const namespace of namespaces) {
@@ -428,7 +428,7 @@ export class DeploymentCommand extends BaseCommand {
   public verifyClusterAddArgs(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'Verify args',
-      task: async context_ => {
+      task: async (context_): Promise<void> => {
         const {clusterRef, deployment} = context_.config;
 
         if (!this.localConfig.configuration.clusterRefs.get(clusterRef)) {
@@ -465,10 +465,11 @@ export class DeploymentCommand extends BaseCommand {
   public checkNetworkState(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'check ledger phase',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const {deployment, numberOfConsensusNodes, quiet, namespace} = context_.config;
 
-        const existingClusterReferences = this.localConfig.configuration.deploymentByName(deployment).clusters;
+        const existingClusterReferences: ClusterReferenceName[] =
+          this.localConfig.configuration.deploymentByName(deployment).clusters;
 
         // if there is no remote config don't validate deployment ledger phase
         if (existingClusterReferences.length === 0) {

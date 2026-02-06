@@ -25,37 +25,37 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'deployment';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'deployment';
+  protected static override readonly DESCRIPTION: string =
     'Create, modify, and delete deployment configurations. ' +
     'Deployments are required for most of the other commands.';
 
-  public static readonly CLUSTER_SUBCOMMAND_NAME = 'cluster';
-  private static readonly CLUSTER_SUBCOMMAND_DESCRIPTION =
+  public static readonly CLUSTER_SUBCOMMAND_NAME: string = 'cluster';
+  private static readonly CLUSTER_SUBCOMMAND_DESCRIPTION: string =
     'View and manage Solo cluster references used by a deployment.';
 
-  public static readonly CONFIG_SUBCOMMAND_NAME = 'config';
-  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION =
+  public static readonly CONFIG_SUBCOMMAND_NAME: string = 'config';
+  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION: string =
     'List, view, create, delete, and import deployments. These commands affect the local configuration only.';
 
-  public static readonly STATE_SUBCOMMAND_NAME = 'state';
-  private static readonly STATE_SUBCOMMAND_DESCRIPTION =
+  public static readonly STATE_SUBCOMMAND_NAME: string = 'state';
+  private static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
-  public static readonly DIAGNOSTICS_SUBCOMMAND_NAME = 'diagnostics';
-  private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION =
+  public static readonly DIAGNOSTICS_SUBCOMMAND_NAME: string = 'diagnostics';
+  private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION: string =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
 
-  public static readonly CLUSTER_ATTACH = 'attach';
+  public static readonly CLUSTER_ATTACH: string = 'attach';
 
-  public static readonly CONFIG_LIST = 'list';
-  public static readonly CONFIG_CREATE = 'create';
-  public static readonly CONFIG_DELETE = 'delete';
+  public static readonly CONFIG_LIST: string = 'list';
+  public static readonly CONFIG_CREATE: string = 'create';
+  public static readonly CONFIG_DELETE: string = 'delete';
 
-  public static readonly DIAGNOSTIC_ALL = 'all';
-  public static readonly DIAGNOSTIC_LOGS = 'logs';
-  public static readonly DIAGNOSTIC_CONNECTIONS = 'connections';
+  public static readonly DIAGNOSTIC_ALL: string = 'all';
+  public static readonly DIAGNOSTIC_LOGS: string = 'logs';
+  public static readonly DIAGNOSTIC_CONNECTIONS: string = 'connections';
 
   public static readonly CREATE_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
