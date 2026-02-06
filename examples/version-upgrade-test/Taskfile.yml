@@ -8,7 +8,6 @@ env:
       else
         echo "npm run solo --"
       fi
-  SOLO_LOG_LEVEL: debug
 
 vars:
   NODE_IDENTIFIERS: "node1,node2"
@@ -134,7 +133,7 @@ tasks:
       - cmd: |
           export CONSENSUS_NODE_VERSION=$(grep -A1 "HEDERA_PLATFORM_VERSION" ../../version.ts | grep -o "'[^']*'" | tail -1 | sed "s/'//g")
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
-          $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
+          SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
           --deployment {{ .DEPLOYMENT }} {{ .LOCAL_BUILD_FLAG }}
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
