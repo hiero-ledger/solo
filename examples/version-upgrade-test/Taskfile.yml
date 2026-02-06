@@ -28,8 +28,6 @@ vars:
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
-  CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
-  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
 tasks:
   default:
@@ -135,7 +133,7 @@ tasks:
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
-          --deployment {{ .DEPLOYMENT }} {{ .LOCAL_BUILD_FLAG }}
+          --deployment {{ .DEPLOYMENT }}
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Upgrade relay
