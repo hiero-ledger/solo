@@ -105,7 +105,7 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    const tasks: SoloListrTask<Config>[] = this.taskList.newTaskList(
+    const tasks: Listr<Config, 'default', 'default'> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -184,7 +184,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: SoloListrTask<Context>[] = this.taskList.newTaskList(
+    const tasks: Listr<Context, 'default', 'default'> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -276,7 +276,7 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
-    const tasks: SoloListrTask<DeploymentAddClusterContext>[] = this.taskList.newTaskList(
+    const tasks: Listr<DeploymentAddClusterContext, 'default', 'default'> = this.taskList.newTaskList(
       [
         this.initializeClusterAddConfig(argv),
         this.verifyClusterAddArgs(),
@@ -316,7 +316,7 @@ export class DeploymentCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, _task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
@@ -468,7 +468,7 @@ export class DeploymentCommand extends BaseCommand {
       task: async (context_, task): Promise<void> => {
         const {deployment, numberOfConsensusNodes, quiet, namespace} = context_.config;
 
-        const existingClusterReferences: ClusterReferenceName[] =
+        const existingClusterReferences =
           this.localConfig.configuration.deploymentByName(deployment).clusters;
 
         // if there is no remote config don't validate deployment ledger phase
