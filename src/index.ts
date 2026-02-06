@@ -57,7 +57,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
     let outputFormat: string = '';
 
     if (outputFlagIndex !== -1) {
-      const outputArgument = argv[outputFlagIndex];
+      const outputArgument: string = argv[outputFlagIndex];
 
       if (outputArgument.startsWith('--output=')) {
         outputFormat = outputArgument.split('=')[1] ?? '';
