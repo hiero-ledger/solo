@@ -15,7 +15,7 @@ import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
 import {SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
-import { getSoloVersion } from './version.js';
+import {getSoloVersion} from '../version.js';
 
 if (!process.stdout.isTTY) {
   chalk.level = 0;
