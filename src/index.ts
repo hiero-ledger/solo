@@ -50,8 +50,8 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
   constants.LISTR_DEFAULT_RENDERER_OPTION.logger = new ListrLogger({processOutput: new CustomProcessOutput(logger)});
   if (argv.some((argument): boolean => ['-version', '--version', '-v', '--v'].includes(argument))) {
     // Check for --output flag (K8s ecosystem standard)
-    const outputFlagIndex = argv.findIndex(
-      argument => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
+    const outputFlagIndex: number = argv.findIndex(
+      (argument): boolean => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
     );
 
     let outputFormat = '';
