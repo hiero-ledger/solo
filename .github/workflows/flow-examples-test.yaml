@@ -247,19 +247,6 @@ jobs:
           
           echo "Task completed successfully"
 
-      - name: Add Resource Chart to Workflow Summary
-        if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' }}
-        run: |
-          CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
-          
-          echo "## Resource Usage Chart - ${{ matrix.example.name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat "$CHART_FILE" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📊 Resource monitoring completed for example: \`examples/${{ matrix.example.directory }}\`" >> $GITHUB_STEP_SUMMARY
-
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && failure() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3

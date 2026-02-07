@@ -408,23 +408,6 @@ jobs:
           
           exit $TEST_EXIT_CODE
 
-      - name: Capture Pod Status
-        if: ${{ failure() }}
-        run: |
-          POD_DIAG_DIR="$HOME/.solo/logs/diagnostics/pods"
-          mkdir -p "${POD_DIAG_DIR}"
-          
-          echo "Capturing pod status snapshot..."
-          kubectl get pods --all-namespaces -o wide | tee "${POD_DIAG_DIR}/pod-status.txt" || true
-          
-          echo "Detailed pod phase report..."
-          kubectl get pods --all-namespaces -o json \
-            | jq '[.items[] | {name: .metadata.name, namespace: .metadata.namespace, phase: .status.phase, ready: (.status.conditions // [] | map(select(.type=="Ready"))[0].status)}]' \
-            | tee "${POD_DIAG_DIR}/pod-phase.json" || true
-          
-          echo "Capturing pod events for debugging..."
-          kubectl describe pods --all-namespaces | tee "${POD_DIAG_DIR}/pod-events.txt" || true
-
       - name: Capture Helm Release Values
         if: ${{ failure() }}
         run: |
