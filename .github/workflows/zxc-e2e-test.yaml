@@ -408,29 +408,6 @@ jobs:
           
           exit $TEST_EXIT_CODE
 
-      - name: Capture Helm Release Values
-        if: ${{ failure() }}
-        run: |
-          HELM_DIAG_DIR="$HOME/.solo/logs/diagnostics/helm"
-          mkdir -p "${HELM_DIAG_DIR}"
-          
-          echo "Capturing Helm releases..."
-          helm list --all-namespaces | tee "${HELM_DIAG_DIR}/helm-list.txt" || true
-          releases_json=$(helm list --all-namespaces -o json || echo "[]")
-          echo "${releases_json}" > "${HELM_DIAG_DIR}/helm-list.json"
-          release_count=$(echo "${releases_json}" | jq 'length')
-          if [[ "${release_count}" -eq 0 ]]; then
-            echo "No Helm releases found."
-          else
-            echo "${releases_json}" | jq -c '.[]' | while read -r release; do
-              name=$(echo "${release}" | jq -r '.name')
-              namespace=$(echo "${release}" | jq -r '.namespace')
-              echo "::group::helm get all ${name} (namespace: ${namespace})"
-              helm get all "${name}" --namespace "${namespace}" | tee "${HELM_DIAG_DIR}/helm-${namespace}-${name}.txt" || true
-              echo "::endgroup::"
-            done
-          fi
-
       - name: Log Metrics
         id: log-metrics
         if: always()
