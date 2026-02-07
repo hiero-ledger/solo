@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: false
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -47,6 +52,11 @@ on:
         default: "22"
       released-or-latest:
         description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: false
+      enable_s6_image:
+        description: "Enable S6 image"
         type: boolean
         required: false
         default: false
@@ -65,6 +75,9 @@ defaults:
 permissions:
   contents: read
   actions: read
+
+env:
+  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
 
 jobs:
   generate_matrix:
@@ -200,6 +213,7 @@ jobs:
           else
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
+          echo "Using CONSENSUS_NODE_VERSION: ${CONSENSUS_NODE_VERSION}"
           cd ..
           git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
           cd hiero-consensus-node

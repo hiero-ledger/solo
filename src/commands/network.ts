@@ -11,6 +11,7 @@ import * as constants from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   parseNodeAliases,
   resolveValidJsonFilePath,
   showVersionBanner,
@@ -130,6 +131,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
+  s6: boolean;
 }
 
 interface NetworkDeployContext {
@@ -226,6 +228,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.s6,
     ],
   };
 
@@ -538,6 +541,36 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[clusterReference] +=
           ' --set defaults.sidecars.backupUploader.enabled=true' +
           ` --set defaults.sidecars.backupUploader.config.backupBucket=${config.backupBucket}`;
+      }
+    }
+
+    if (this.configManager.getFlag(flags.s6)) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
+        valuesArgument = addRootImageValues(
+          valuesArgument,
+          `hedera.nodes[${nodeIndex}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+        valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
 
@@ -885,6 +918,7 @@ export class NetworkCommand extends BaseCommand {
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
         const response: Response = await fetch(CRD_URL);
+
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
         }
