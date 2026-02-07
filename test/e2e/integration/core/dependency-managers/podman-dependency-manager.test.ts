@@ -182,6 +182,7 @@ describe('PodmanDependencyManager', (): void => {
     let podmanDependencyManager: PodmanDependencyManager;
     let runStub: SinonStub;
     let fetchStub: SinonStub;
+    let originalFetch: typeof globalThis.fetch;
 
     beforeEach((): void => {
       podmanDependencyManager = new PodmanDependencyManager(
@@ -197,11 +198,13 @@ describe('PodmanDependencyManager', (): void => {
       runStub = sinon.stub(podmanDependencyManager, 'run');
 
       // Mock fetch for fetchLatestReleaseInfo
+      originalFetch = globalThis.fetch;
       globalThis.fetch = sinon.stub() as any;
       fetchStub = globalThis.fetch as SinonStub;
     });
 
     afterEach((): void => {
+      globalThis.fetch = originalFetch;
       runStub.restore();
       sinon.restore();
     });
@@ -352,6 +355,7 @@ describe('PodmanDependencyManager', (): void => {
     let existsSyncStub: SinonStub;
     let rmSyncStub: SinonStub;
     let fetchStub: SinonStub;
+    let originalFetch: typeof globalThis.fetch;
 
     beforeEach((): void => {
       podmanDependencyManager = new PodmanDependencyManager(
@@ -367,6 +371,7 @@ describe('PodmanDependencyManager', (): void => {
       runStub = sinon.stub(podmanDependencyManager, 'run');
 
       // Mock fetch for fetchLatestReleaseInfo
+      originalFetch = globalThis.fetch;
       globalThis.fetch = sinon.stub() as any;
       fetchStub = globalThis.fetch as SinonStub;
 
@@ -381,6 +386,7 @@ describe('PodmanDependencyManager', (): void => {
     });
 
     afterEach((): void => {
+      globalThis.fetch = originalFetch;
       runStub.restore();
       cpSyncStub.restore();
       chmodSyncStub.restore();

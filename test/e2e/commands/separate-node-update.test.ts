@@ -21,6 +21,8 @@ import {
   type NodeKeyObject,
   type PrivateKeyAndCertificateObject,
 } from '../../../src/types/index.js';
+import {BaseCommandTest} from './tests/base-command-test.js';
+import {main} from '../../../src/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
@@ -43,8 +45,7 @@ export function testSeparateNodeUpdate(
   );
 
   const {
-    opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
-    cmd: {nodeCmd},
+    opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
   } = bootstrapResp;
 
   describe('Node update via separated commands', async (): Promise<void> => {
@@ -121,35 +122,57 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
       const temporaryDirectory2: string = 'contextDir';
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
+      const {newArgv} = BaseCommandTest;
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
+      const prepareArguments: string[] = newArgv();
+      prepareArguments.push(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+        '--output-dir',
+        temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+        '--node-alias',
+        updateNodeId,
+        '--new-admin-key',
+        argv.getArg<string>(flags.newAdminKey),
+        '--new-account-number',
+        argv.getArg<string>(flags.newAccountNumber),
+        '--tls-public-key',
+        argv.getArg<string>(flags.tlsPublicKey),
+        '--tls-private-key',
+        argv.getArg<string>(flags.tlsPrivateKey),
+        '--gossip-public-key',
+        argv.getArg<string>(flags.gossipPublicKey),
+        '--gossip-private-key',
+        argv.getArg<string>(flags.gossipPrivateKey),
+      );
+      await main(prepareArguments);
 
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updatePrepare(argv),
-      });
+      const submitArguments: string[] = newArgv();
+      submitArguments.push(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+        '--input-dir',
+        temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+      );
+      await main(submitArguments);
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateSubmitTransactions(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateExecute(argv),
-      });
+      const executeArguments: string[] = newArgv();
+      executeArguments.push(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+        '--input-dir',
+        temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+      );
+      await main(executeArguments);
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
