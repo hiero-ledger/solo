@@ -58,6 +58,7 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {SemVer} from 'semver';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Templates} from '../core/templates.js';
+import {VersionHelper} from '../core/helpers/version-helper.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
@@ -239,6 +240,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
+      flags.latest,
       flags.pinger,
       flags.useExternalDatabase,
       flags.operatorId,
@@ -1106,6 +1108,17 @@ export class MirrorNodeCommand extends BaseCommand {
             ) as MirrorNodeUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, fetch the latest version dynamically
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              config.mirrorNodeVersion = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.MIRROR_NODE_CHART_URL,
+                constants.MIRROR_NODE_CHART,
+              );
+              this.logger.debug(`Using latest mirror node version: ${config.mirrorNodeVersion}`);
+            }
 
             config.namespace = await this.getNamespace(task);
             config.clusterReference = this.getClusterReference();

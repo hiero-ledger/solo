@@ -574,6 +574,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly latest: CommandFlag = {
+    constName: 'latest',
+    name: 'latest',
+    definition: {
+      describe: 'Use the latest version for upgrade (overrides specific version flags)',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly imageTag: CommandFlag = {
     constName: 'imageTag',
     name: 'image-tag',
@@ -2897,6 +2908,7 @@ export class Flags {
     Flags.explorerStaticIp,
     Flags.explorerVersion,
     Flags.inputDir,
+    Flags.latest,
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
     Flags.log4j2Xml,
