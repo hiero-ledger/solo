@@ -86,8 +86,6 @@ tasks:
           # Solo cluster-ref config setup
           $SOLO_COMMAND cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .SOLO_DEPLOYMENT }} --dev
-
       - cmd: |
           # Solo consensus network deploy
           $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \

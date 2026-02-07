@@ -87,8 +87,6 @@ tasks:
           # Solo cluster-ref config setup
           $SOLO_COMMAND cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .SOLO_DEPLOYMENT }} --dev
-
       - cmd: |
           # Solo consensus network deploy
           $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
@@ -102,6 +100,17 @@ tasks:
       - cmd: |
           # Solo consensus node start
           $SOLO_COMMAND consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
+
+      - cmd: |
+          # Solo mirror node add
+          $SOLO_COMMAND mirror node add --deployment {{ .SOLO_DEPLOYMENT }} \
+          --enable-ingress --dev
+      - cmd: |
+          # Solo explorer node add
+          $SOLO_COMMAND explorer node add --deployment {{ .SOLO_DEPLOYMENT }} --dev
+      - cmd: |
+          # Solo relay node add
+          $SOLO_COMMAND relay node add --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
           # Solo consensus dev-node-update prepare
@@ -150,6 +159,16 @@ tasks:
       - cmd: |
           # Solo consensus node stop
           $SOLO_COMMAND consensus node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
+
+      - cmd: |
+          # Solo relay node destroy
+          $SOLO_COMMAND relay node destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev
+      - cmd: |
+          # Solo explorer node destroy
+          $SOLO_COMMAND explorer node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
+      - cmd: |
+          # Solo mirror node destroy
+          $SOLO_COMMAND mirror node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
           # Solo consensus network destroy
