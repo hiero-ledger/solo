@@ -918,7 +918,6 @@ export class NetworkCommand extends BaseCommand {
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
         const response: Response = await fetch(CRD_URL);
-        this.logger.showUser(`URL ${CRD_URL} response = ${JSON.stringify(response, null, 2)}`);
 
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
