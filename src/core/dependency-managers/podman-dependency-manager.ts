@@ -95,7 +95,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
    * Fetches the latest release information from GitHub API
    * @returns Promise with the release base URL, asset name, digest, and version
    */
-  private async fetchLatestReleaseInfo(): Promise<ReleaseInfo> {
+  private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
       const response = await fetch(PODMAN_RELEASES_LIST_URL, {
@@ -118,8 +118,8 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       }
 
       // Get the latest release
-      const latestRelease = releases[0];
-      const version = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+      const release: GitHubRelease = releases.find(release => release.tag_name === tagName);
+      const version: string = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
       // Normalize platform/arch for asset matching
       const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
@@ -139,7 +139,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       }
 
       // Find the matching asset
-      const matchingAsset = latestRelease.assets.find(asset => assetPattern.test(asset.browser_download_url));
+      const matchingAsset = release.assets.find(asset => assetPattern.test(asset.browser_download_url));
 
       if (!matchingAsset) {
         throw new SoloError(`No matching asset found for ${platform}-${arch}`);
@@ -187,11 +187,11 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   }
 
   protected override async preInstall(): Promise<void> {
-    const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
-    this.checksum = latestReleaseInfo.checksum;
-    this.releaseBaseUrl = latestReleaseInfo.downloadUrl;
-    this.artifactFileName = latestReleaseInfo.assetName;
-    this.artifactVersion = latestReleaseInfo.version;
+    const releaseInfo: ReleaseInfo = await this.fetchReleaseInfo(version.PODMAN_VERSION);
+    this.checksum = releaseInfo.checksum;
+    this.releaseBaseUrl = releaseInfo.downloadUrl;
+    this.artifactFileName = releaseInfo.assetName;
+    this.artifactVersion = releaseInfo.version;
   }
 
   protected getDownloadURL(): string {

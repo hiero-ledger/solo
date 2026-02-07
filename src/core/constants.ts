@@ -38,6 +38,7 @@ export const KUBECTL: string = 'kubectl';
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
+export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');

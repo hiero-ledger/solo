@@ -202,8 +202,16 @@ export class ClusterTaskManager extends ShellRunner {
             task: async () => {
               await this.podmanDependencyManager.setupConfig();
               const podmanExecutable: string = await this.podmanDependencyManager.getExecutablePath();
-              await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
-              await this.run(`${podmanExecutable} machine start`);
+              try {
+                await this.run(`${podmanExecutable} machine inspect ${constants.PODMAN_MACHINE_NAME}`);
+              } catch (error) {
+                if (error.message.includes('VM does not exist')) {
+                  await this.run(`${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=16384`); // 16GB
+                  await this.run(`${podmanExecutable} machine start ${constants.PODMAN_MACHINE_NAME}`);
+                } else {
+                  throw new SoloError(`Failed to inspect Podman machine: ${error.message}`);
+                }
+              }
             },
             skip: (): boolean => skipPodmanTasks,
           } as SoloListrTask<InitContext>,
