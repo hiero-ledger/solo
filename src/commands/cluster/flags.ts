@@ -21,7 +21,6 @@ export const SETUP_FLAGS: CommandFlags = {
     flags.clusterSetupNamespace,
     flags.deployMinio,
     flags.deployPrometheusStack,
-    flags.deployGrafanaAgent,
     flags.quiet,
     flags.soloChartVersion,
   ],
