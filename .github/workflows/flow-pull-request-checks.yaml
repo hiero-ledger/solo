@@ -69,6 +69,9 @@ jobs:
           # allow internal Podman/Kind HTTPS calls between pods/services on the runner (no internet egress)
           allowed-endpoints: >
             **.svc.cluster.local.dns.podman:443
+            solidrock.mm.fcix.net:80
+            solidrock.mm.fcix.net:443
+            solidrock.mm.fcix.net.dns.podman:443
 
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

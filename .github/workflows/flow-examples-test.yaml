@@ -241,47 +241,11 @@ jobs:
             exit 1
           fi
           
-          # Start resource monitoring in background
-          ../../.github/workflows/script/monitor-resources.sh start
-          
           # Run the example
           echo "Starting task..."
-          TEST_EXIT_CODE=0
-          task || TEST_EXIT_CODE=$?
-          
-          # Stop resource monitoring and display summary
-          ../../.github/workflows/script/monitor-resources.sh stop
-          
-          if [ $TEST_EXIT_CODE -ne 0 ]; then
-            echo "Task failed with exit code $TEST_EXIT_CODE"
-            exit $TEST_EXIT_CODE
-          fi
+          task
           
           echo "Task completed successfully"
-
-      - name: Generate ASCII Resource Chart
-        id: generate-chart
-        if: ${{ always() }}
-        run: |
-          METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
-          CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
-          
-          if [[ -f "$METRICS_FILE" ]]; then
-            echo "Generating ASCII chart from metrics..."
-            ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
-          
-            if [[ -f "$CHART_FILE" ]]; then
-              echo "chart_generated=true" >> $GITHUB_OUTPUT
-              echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
-              echo "✅ ASCII chart generated successfully"
-            else
-              echo "chart_generated=false" >> $GITHUB_OUTPUT
-              echo "❌ Failed to generate ASCII chart"
-            fi
-          else
-            echo "chart_generated=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No metrics file found, skipping chart generation"
-          fi
 
       - name: Add Resource Chart to Workflow Summary
         if: ${{ always() && steps.generate-chart.outputs.chart_generated == 'true' }}

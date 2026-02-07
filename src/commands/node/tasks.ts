@@ -1959,7 +1959,6 @@ export class NodeCommandTasks {
                 const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (this.configManager.getFlag<boolean>(flags.s6)) {
-                  // First attempt: normal stop
                   await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
 
                   // Wait for graceful shutdown
