@@ -1,4 +1,6 @@
 version: 3
+set:
+  - list_all
 includes:
   tests:
     taskfile: ./Taskfile.tests.yml
