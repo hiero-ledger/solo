@@ -1,4 +1,6 @@
 version: 3
+# Show all tasks by default when running 'task' without arguments
+# This improves task discoverability for developers
 set:
   - list_all
 includes:
