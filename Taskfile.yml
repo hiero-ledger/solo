@@ -1,8 +1,4 @@
 version: 3
-# Show all tasks by default when running 'task' without arguments
-# This improves task discoverability for developers
-set:
-  - list_all
 includes:
   tests:
     taskfile: ./Taskfile.tests.yml
@@ -56,8 +52,35 @@ tasks:
       - npx typedoc --emit none
       - npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log && npx eslint . --quiet
 
+  default:
+    cmds:
+      - list_all
+
   build:
+    deps:
+      - npm-install
     cmds:
       - rm -Rf dist
       - npx tsc
       - node {{.TASKFILE_DIR}}/resources/post-build-script.js
+
+  npm-install:
+    cmds:
+      - |
+          set -euo pipefail
+          cache_dir="{{.TASKFILE_DIR}}/.task"
+          hash_file="${cache_dir}/npm-install.hash"
+          mkdir -p "${cache_dir}"
+
+          current_hash="$(shasum -a 256 package.json package-lock.json | shasum -a 256 | awk '{print $1}')"
+          cached_hash=""
+          if [ -f "${hash_file}" ]; then
+            cached_hash="$(cat "${hash_file}")"
+          fi
+
+          if [ "${current_hash}" != "${cached_hash}" ]; then
+            npm install
+            echo "${current_hash}" > "${hash_file}"
+          else
+            echo "npm install skipped: package.json and package-lock.json unchanged"
+          fi
