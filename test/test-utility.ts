@@ -70,7 +70,6 @@ import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-co
 import {main} from '../src/index.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
 import {NodeTest} from './e2e/commands/tests/node-test.js';
-import {NodeTest} from './e2e/commands/tests/node-test.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');

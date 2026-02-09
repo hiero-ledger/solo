@@ -6,7 +6,7 @@ import {Flags} from '../../../../src/commands/flags.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 
 export class SeparateNodeDestroyTest extends BaseCommandTest {
-  public static soloNodeDeletePrepareArgv(deployment: string, outputDir: string, nodeAlias: NodeAlias): string[] {
+  public static soloNodeDeletePrepareArgv(deployment: string, outputDirectory: string, nodeAlias: NodeAlias): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
@@ -15,7 +15,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
       ConsensusCommandDefinition.DEV_NODE_PREPARE,
       optionFromFlag(Flags.outputDir),
-      outputDir,
+      outputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.nodeAlias),
@@ -26,7 +26,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeDeleteSubmitArgv(deployment: string, inputDir: string, nodeAlias: NodeAlias): string[] {
+  public static soloNodeDeleteSubmitArgv(deployment: string, inputDirectory: string, nodeAlias: NodeAlias): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
@@ -35,7 +35,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
       ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
       optionFromFlag(Flags.inputDir),
-      inputDir,
+      inputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.nodeAlias),
@@ -46,7 +46,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeDeleteExecuteArgv(deployment: string, inputDir: string, nodeAlias: NodeAlias): string[] {
+  public static soloNodeDeleteExecuteArgv(deployment: string, inputDirectory: string, nodeAlias: NodeAlias): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
@@ -55,7 +55,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
       ConsensusCommandDefinition.DEV_NODE_EXECUTE,
       optionFromFlag(Flags.inputDir),
-      inputDir,
+      inputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.nodeAlias),

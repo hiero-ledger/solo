@@ -8,7 +8,7 @@ import {type NodeAlias} from '../../../../src/types/aliases.js';
 export class SeparateNodeUpdateTest extends BaseCommandTest {
   public static soloNodeUpdatePrepareArgv(
     deployment: string,
-    outputDir: string,
+    outputDirectory: string,
     options: {
       nodeAlias: NodeAlias;
       newAdminKey: string;
@@ -27,7 +27,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
       ConsensusCommandDefinition.DEV_NODE_PREPARE,
       optionFromFlag(Flags.outputDir),
-      outputDir,
+      outputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.nodeAlias),
@@ -50,7 +50,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeUpdateSubmitArgv(deployment: string, inputDir: string): string[] {
+  public static soloNodeUpdateSubmitArgv(deployment: string, inputDirectory: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
@@ -59,7 +59,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
       ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
       optionFromFlag(Flags.inputDir),
-      inputDir,
+      inputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
     );
@@ -68,7 +68,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeUpdateExecuteArgv(deployment: string, inputDir: string): string[] {
+  public static soloNodeUpdateExecuteArgv(deployment: string, inputDirectory: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
@@ -77,7 +77,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
       ConsensusCommandDefinition.DEV_NODE_EXECUTE,
       optionFromFlag(Flags.inputDir),
-      inputDir,
+      inputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
     );

@@ -123,19 +123,15 @@ export function testSeparateNodeUpdate(
       const temporaryDirectory2: string = 'contextDir';
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdatePrepareArgv(
-          argv.getArg<string>(flags.deployment),
-          temporaryDirectory2,
-          {
-            nodeAlias: updateNodeId,
-            newAdminKey: argv.getArg<string>(flags.newAdminKey),
-            newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
-            tlsPublicKey: argv.getArg<string>(flags.tlsPublicKey),
-            tlsPrivateKey: argv.getArg<string>(flags.tlsPrivateKey),
-            gossipPublicKey: argv.getArg<string>(flags.gossipPublicKey),
-            gossipPrivateKey: argv.getArg<string>(flags.gossipPrivateKey),
-          },
-        ),
+        SeparateNodeUpdateTest.soloNodeUpdatePrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2, {
+          nodeAlias: updateNodeId,
+          newAdminKey: argv.getArg<string>(flags.newAdminKey),
+          newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
+          tlsPublicKey: argv.getArg<string>(flags.tlsPublicKey),
+          tlsPrivateKey: argv.getArg<string>(flags.tlsPrivateKey),
+          gossipPublicKey: argv.getArg<string>(flags.gossipPublicKey),
+          gossipPrivateKey: argv.getArg<string>(flags.gossipPrivateKey),
+        }),
       );
 
       await main(

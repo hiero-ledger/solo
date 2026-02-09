@@ -424,11 +424,7 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(
-    testName: string,
-    deployment: DeploymentName,
-    nodeAliases?: string,
-  ): string[] {
+  private static soloNodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();

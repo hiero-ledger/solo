@@ -6,11 +6,7 @@ import {ConsensusCommandDefinition} from '../../../../src/commands/command-defin
 import {Flags} from '../../../../src/commands/flags.js';
 
 export class SeparateNodeAddTest extends BaseCommandTest {
-  public static soloLedgerInitArgv(
-    deployment: string,
-    nodeAliases: string,
-    clusterReference: string,
-  ): string[] {
+  public static soloLedgerInitArgv(deployment: string, nodeAliases: string, clusterReference: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
@@ -32,7 +28,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
 
   public static soloNodeAddPrepareArgv(
     deployment: string,
-    outputDir: string,
+    outputDirectory: string,
     options: {
       persistentVolumeClaims?: boolean;
       generateGossipKeys?: boolean;
@@ -49,7 +45,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.outputDir),
-      outputDir,
+      outputDirectory,
     );
 
     if (options.persistentVolumeClaims) {
@@ -68,7 +64,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeAddSubmitArgv(deployment: string, inputDir: string): string[] {
+  public static soloNodeAddSubmitArgv(deployment: string, inputDirectory: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
@@ -79,14 +75,14 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.inputDir),
-      inputDir,
+      inputDirectory,
     );
 
     argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
-  public static soloNodeAddExecuteArgv(deployment: string, inputDir: string): string[] {
+  public static soloNodeAddExecuteArgv(deployment: string, inputDirectory: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
@@ -97,7 +93,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.inputDir),
-      inputDir,
+      inputDirectory,
     );
 
     argvPushGlobalFlags(argv, deployment, false, true);
