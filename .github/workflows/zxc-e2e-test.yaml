@@ -297,6 +297,7 @@ jobs:
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         run: |
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
               export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
