@@ -11,7 +11,7 @@ import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../src/core/constants.js';
 
 // Test data constants
-const PODMAN_VERSION: string = '4.6.1';
+const PODMAN_VERSION: string = version.PODMAN_VERSION.replace('v', '');
 const PODMAN_LOW_VERSION: string = '0.1.0';
 const MOCK_RELEASE_TAG: string = `v${PODMAN_VERSION}`;
 const MOCK_RELEASE_URL: string = `https://github.com/containers/podman/releases/tag/${MOCK_RELEASE_TAG}`;
@@ -299,7 +299,7 @@ describe('PodmanDependencyManager', (): void => {
       );
 
       // @ts-expect-error TS2341: Property fetchReleaseInfo is private
-      const releaseInfo: ReleaseInfo = await podmanDependencyManager.fetchReleaseInfo();
+      const releaseInfo: ReleaseInfo = await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.downloadUrl).to.equal(MOCK_DOWNLOAD_URL_BASE);
       expect(releaseInfo.assetName).to.equal(MOCK_LINUX_ASSET_NAME);
@@ -312,7 +312,7 @@ describe('PodmanDependencyManager', (): void => {
 
       try {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
-        await podmanDependencyManager.fetchReleaseInfo();
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('GitHub API request failed with status 404');
@@ -324,7 +324,7 @@ describe('PodmanDependencyManager', (): void => {
 
       try {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
-        await podmanDependencyManager.fetchReleaseInfo();
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('No releases found');
@@ -336,7 +336,7 @@ describe('PodmanDependencyManager', (): void => {
 
       try {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
-        await podmanDependencyManager.fetchReleaseInfo();
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('No matching asset found for');
