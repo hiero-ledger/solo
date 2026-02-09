@@ -83,7 +83,7 @@ export class Argv implements CloneTrait<Argv> {
     argv.setArg(flags.deployment, currentDeployment);
     argv.setArg(flags.clusterRef, getTestCluster());
     argv.setArg(flags.deploymentClusters, [getTestCluster()]);
-    argv.setArg(flags.context, new K8Client(undefined).contexts().readCurrent());
+    argv.setArg(flags.context, new K8Client(undefined, 'kubectl').contexts().readCurrent());
     argv.setArg(flags.chartDirectory, process.env.SOLO_CHARTS_DIR ?? undefined);
     argv.setArg(flags.quiet, true);
 

@@ -19,7 +19,7 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 describe('Certificate Manager', () => {
   const argv = Argv.initializeEmpty();
 
-  const k8InitSpy = new K8Client(undefined);
+  const k8InitSpy = new K8Client(undefined, 'kubectl');
 
   let certificateManager: CertificateManager;
 

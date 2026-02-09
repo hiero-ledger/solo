@@ -125,7 +125,7 @@ describe('NetworkCommand unit tests', (): void => {
         has: sinon.stub().returns(true),
       });
       options.k8Factory.default().contexts = sinon.stub().returns({
-        readCurrent: sinon.stub().returns(new K8Client(undefined).contexts().readCurrent()),
+        readCurrent: sinon.stub().returns(new K8Client(undefined, 'kubectl').contexts().readCurrent()),
       });
       options.k8Factory.default().configMaps = sinon.stub() as unknown as K8ClientConfigMaps;
       options.k8Factory.default().configMaps.read = sinon.stub();

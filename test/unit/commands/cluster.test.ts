@@ -34,7 +34,7 @@ const getBaseCommandOptions = (context: string) => {
     depManager: sandbox.createStubInstance(DependencyManager),
     localConfig: sandbox.createStubInstance(LocalConfigRuntimeState),
   };
-  options.k8Factory.default.returns(new K8Client(context));
+  options.k8Factory.default.returns(new K8Client(context, 'kubectl'));
   return options;
 };
 
@@ -69,7 +69,7 @@ describe('ClusterCommand unit tests', (): void => {
     });
 
     beforeEach((): void => {
-      const k8Client: K8Client = new K8Client(undefined);
+      const k8Client: K8Client = new K8Client(undefined, 'kubectl');
       const context: string = k8Client.contexts().readCurrent();
       options = getBaseCommandOptions(context);
       options.logger = container.resolve(InjectTokens.SoloLogger);
