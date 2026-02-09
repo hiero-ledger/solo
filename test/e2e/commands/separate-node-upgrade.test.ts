@@ -8,6 +8,8 @@ import {type BootstrapResponse, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_T
 import {Duration} from '../../../src/core/time/duration.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import fs from 'node:fs';
+import {BaseCommandTest} from './tests/base-command-test.js';
+import {main} from '../../../src/index.js';
 import {Zippy} from '../../../src/core/zippy.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
@@ -24,8 +26,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
   const zipFile: string = 'upgrade.zip';
 
   const {
-    opts: {k8Factory, logger, commandInvoker},
-    cmd: {nodeCmd},
+    opts: {k8Factory, logger},
   } = bootstrapResp;
 
   describe('Node upgrade', async (): Promise<void> => {
@@ -47,29 +48,49 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
       const argvExecute: Argv = argv.clone();
       argvExecute.setArg(flags.inputDir, temporaryDirectory2);
 
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradePrepare(argv),
-      });
+      const {newArgv} = BaseCommandTest;
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeSubmitTransactions(argv),
-      });
+      const prepareArguments: string[] = newArgv();
+      prepareArguments.push(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_PREPARE,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+        '--output-dir',
+        temporaryDirectory2,
+        '--upgrade-zip-file',
+        zipFile,
+      );
+      await main(prepareArguments);
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeExecute(argv),
-      });
+      const submitArguments: string[] = newArgv();
+      submitArguments.push(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
+        '--upgrade-zip-file',
+        zipFile,
+        '--input-dir',
+        temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+      );
+      await main(submitArguments);
+
+      const executeArguments: string[] = newArgv();
+      executeArguments.push(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
+        '--upgrade-zip-file',
+        zipFile,
+        '--input-dir',
+        temporaryDirectory2,
+        '--deployment',
+        argv.getArg<string>(flags.deployment),
+      );
+      await main(executeArguments);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
     it('network nodes version file was upgraded', async (): Promise<void> => {
