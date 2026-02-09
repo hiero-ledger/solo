@@ -250,7 +250,7 @@ jobs:
           SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Cleanup Example - ${{ matrix.example.name }}
-        if: always()
+        if: success()
         timeout-minutes: 10
         working-directory: examples/${{ matrix.example.directory }}
         run: |
