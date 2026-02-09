@@ -593,3 +593,13 @@ export function remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): str
   }
   return rows;
 }
+
+export function randAlphaNumber(stringLength: number = 40): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let out: string = '';
+  for (let index: number = 0; index < stringLength; index++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+

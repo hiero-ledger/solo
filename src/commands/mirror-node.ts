@@ -12,7 +12,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
-import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
+import {prepareValuesFiles, randAlphaNumber, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -1093,16 +1093,6 @@ export class MirrorNodeCommand extends BaseCommand {
                 },
               },
               {
-                title: 'Run initialization script',
-                task: async (context_): Promise<void> => {
-                  await this.postgresSharedResource.initializeMirrorNode(
-                    context_.config.namespace,
-                    context_.config.clusterContext,
-                    this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
-                  );
-                },
-              },
-              {
                 title: 'Load database connection details',
                 task: async (context_: MirrorNodeDeployContext): Promise<void> => {
                   const secrets: Secret[] = await this.k8Factory
@@ -1114,14 +1104,10 @@ export class MirrorNodeCommand extends BaseCommand {
                   );
 
                   context_.config.soloSharedDatabaseHost = `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`;
-                  context_.config.soloSharedDatabaseOwnerUsername = 'postgres';
-                  context_.config.soloSharedDatabaseOwnerPassword = Base64.decode(passwordsSecret.data['password']);
-                  context_.config.soloSharedDatabaseReadonlyUsername = Base64.decode(
-                    passwordsSecret.data['HIERO_MIRROR_REST_DB_USERNAME'],
-                  );
-                  context_.config.soloSharedDatabaseReadonlyPassword = Base64.decode(
-                    passwordsSecret.data['HIERO_MIRROR_REST_DB_PASSWORD'],
-                  );
+                  context_.config.soloSharedDatabaseOwnerUsername = 'mirror_node_owner';
+                  context_.config.soloSharedDatabaseOwnerPassword = randAlphaNumber();
+                  context_.config.soloSharedDatabaseReadonlyUsername = 'mirror_node';
+                  context_.config.soloSharedDatabaseReadonlyPassword = randAlphaNumber();
 
                   const host: string = context_.config.soloSharedDatabaseHost;
                   const ownerPassword: string = context_.config.soloSharedDatabaseOwnerPassword;
@@ -1159,6 +1145,16 @@ export class MirrorNodeCommand extends BaseCommand {
           skip: context_ => !!context_.config.useExternalDatabase,
         },
         this.enableMirrorNodeTask(),
+        {
+          title: 'Run database initialization script',
+          task: async (context_): Promise<void> => {
+            await this.postgresSharedResource.initializeMirrorNode(
+              context_.config.namespace,
+              context_.config.clusterContext,
+              this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
+            );
+          },
+        },
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
         this.addMirrorNodeComponents(),

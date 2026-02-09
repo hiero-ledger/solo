@@ -52,6 +52,10 @@ export class PostgresSharedResource {
       );
   }
 
+  private static tryToDecode(value: string): string {
+    return Base64.decode(value) || value;
+  }
+
   public async initializeMirrorNode(
     namespace: NamespaceName,
     context: string,
@@ -126,21 +130,36 @@ export class PostgresSharedResource {
       );
     }
 
-    const secrets: Secret[] = await this.k8Factory
+    const sharedResourcesSecrets: Secret[] = await this.k8Factory
       .getK8(context)
       .secrets()
       .list(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-    const passwordsSecret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-passwords');
+    const postgresPasswordsSecret: Secret = sharedResourcesSecrets.find(
+      secret => secret.name === 'solo-shared-resources-passwords',
+    );
+
+    const mirrorSecrets: Secret[] = await this.k8Factory
+      .getK8(context)
+      .secrets()
+      .list(namespace, [
+        'app.kubernetes.io/name=mirror',
+        'app.kubernetes.io/component=hedera-mirror',
+        'app.kubernetes.io/part-of=hedera-mirror-node',
+      ]);
+
+    const mirrorPasswordsSecret: Secret = mirrorSecrets.find(secret => secret.name === 'mirror-passwords');
 
     const maxAttempts: number = 3;
     const backoff: number = 2000;
     let attempt: number = 1;
     while (attempt < maxAttempts) {
       try {
-        const superUserPassword: string = Base64.decode(passwordsSecret.data['password']);
-        const databaseName: string = Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_NAME`]);
-        const ownerUsername: string = Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNER`]);
-        const ownerPassword: string = Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`]);
+        const superUserPassword: string = Base64.decode(postgresPasswordsSecret.data['password']);
+        const databaseName: string = Base64.decode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_NAME`]);
+        const ownerUsername: string = Base64.decode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNER`]);
+        const ownerPassword: string = Base64.decode(
+          mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
+        );
 
         const wrapperLines: string[] = [
           '#!/usr/bin/env bash',
@@ -168,15 +187,18 @@ export class PostgresSharedResource {
           'export PGPASSFILE=/tmp/.pgpass',
           'unset PGPASSWORD   # ensure libpq uses PGPASSFILE',
           '',
+          '# Grant CREATEROLE to owner user',
+          `psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "ALTER USER ${ownerUsername} WITH CREATEROLE;"`,
+          '',
           '# export the other API user passwords used by init script',
           'export CREATE_MIRROR_API_USER=true',
-          `export GRAPHQL_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_GRAPHQL_DB_PASSWORD`])}`,
-          `export GRPC_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_GRPC_DB_PASSWORD`])}`,
-          `export IMPORTER_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`])}`,
-          `export REST_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_REST_DB_PASSWORD`])}`,
-          `export REST_JAVA_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_RESTJAVA_DB_PASSWORD`])}`,
-          `export ROSETTA_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_ROSETTA_DB_PASSWORD`])}`,
-          `export WEB3_PASSWORD=${Base64.decode(passwordsSecret.data[`${prefix}_MIRROR_WEB3_DB_PASSWORD`])}`,
+          `export GRAPHQL_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_GRAPHQL_DB_PASSWORD`])}`,
+          `export GRPC_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_GRPC_DB_PASSWORD`])}`,
+          `export IMPORTER_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`])}`,
+          `export REST_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_REST_DB_PASSWORD`])}`,
+          `export REST_JAVA_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_RESTJAVA_DB_PASSWORD`])}`,
+          `export ROSETTA_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_ROSETTA_DB_PASSWORD`])}`,
+          `export WEB3_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_WEB3_DB_PASSWORD`])}`,
           '',
           'exec /bin/bash /tmp/init-postgres.sh',
         ];
@@ -188,8 +210,8 @@ export class PostgresSharedResource {
         await k8Container.copyTo(temporaryLocal, '/tmp');
         await k8Container.execContainer('chmod +x /tmp/run-init.sh');
         await k8Container.execContainer('/bin/bash /tmp/run-init.sh');
-        await k8Container.execContainer('rm /tmp/.pgpass');
-        await k8Container.execContainer('rm /tmp/run-init.sh');
+        // await k8Container.execContainer('rm /tmp/.pgpass');
+        // await k8Container.execContainer('rm /tmp/run-init.sh');
         fs.rmSync(temporaryLocal);
         break;
       } catch (error) {
