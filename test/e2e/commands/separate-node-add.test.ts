@@ -33,6 +33,7 @@ import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
+import {SeparateNodeAddTest} from './tests/separate-node-add-test.js';
 import {main} from '../../../src/index.js';
 
 export function testSeparateNodeAdd(
@@ -71,63 +72,27 @@ export function testSeparateNodeAdd(
     }).timeout(timeout);
 
     it('should succeed with init command', async (): Promise<void> => {
-      const {newArgv} = BaseCommandTest;
-      const initArguments: string[] = newArgv();
-      initArguments.push(
-        LedgerCommandDefinition.COMMAND_NAME,
-        LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-        LedgerCommandDefinition.SYSTEM_INIT,
-        '--deployment',
-        bootstrapResp.deployment,
-        '--node-aliases',
-        argv.getArg<string>(flags.nodeAliasesUnparsed),
-        '--cluster-ref',
-        argv.getArg<string>(flags.clusterRef),
+      await main(
+        SeparateNodeAddTest.soloLedgerInitArgv(
+          argv.getArg<string>(flags.deployment),
+          argv.getArg<string>(flags.nodeAliasesUnparsed),
+          argv.getArg<string>(flags.clusterRef),
+        ),
       );
-      await main(initArguments);
     }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
-      const {newArgv} = BaseCommandTest;
-
-      const prepareArguments: string[] = newArgv();
-      prepareArguments.push(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        '--deployment',
-        argv.getArg<string>(flags.deployment),
-        '--output-dir',
-        temporaryDirectory,
-        '--pvcs',
-        '--gossip-keys',
-        '--tls-keys',
+      await main(
+        SeparateNodeAddTest.soloNodeAddPrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, {
+          persistentVolumeClaims: true,
+          generateGossipKeys: true,
+          generateTlsKeys: true,
+        }),
       );
-      await main(prepareArguments);
 
-      const submitArguments: string[] = newArgv();
-      submitArguments.push(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        '--deployment',
-        argv.getArg<string>(flags.deployment),
-        '--input-dir',
-        temporaryDirectory,
-      );
-      await main(submitArguments);
+      await main(SeparateNodeAddTest.soloNodeAddSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory));
 
-      const executeArguments: string[] = newArgv();
-      executeArguments.push(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        '--deployment',
-        argv.getArg<string>(flags.deployment),
-        '--input-dir',
-        temporaryDirectory,
-      );
-      await main(executeArguments);
+      await main(SeparateNodeAddTest.soloNodeAddExecuteArgv(argv.getArg<string>(flags.deployment), temporaryDirectory));
 
       await accountManager.close();
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');

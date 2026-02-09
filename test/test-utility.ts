@@ -64,12 +64,13 @@ import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
-import {ConsensusCommandDefinition} from '../src/commands/command-definitions/consensus-command-definition.js';
 import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
 import {ClusterReferenceCommandDefinition} from '../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 import {main} from '../src/index.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
+import {NodeTest} from './e2e/commands/tests/node-test.js';
+import {NodeTest} from './e2e/commands/tests/node-test.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
@@ -102,51 +103,27 @@ export function getTemporaryDirectory(): string {
 
 export function deployNetworkTest(argv: Argv): void {
   it('should succeed with consensus network deploy', async (): Promise<void> => {
-    const {newArgv} = BaseCommandTest;
-    const deployArguments: string[] = newArgv();
-    deployArguments.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.NETWORK_DEPLOY,
-      '--deployment',
-      argv.getArg<string>(flags.deployment),
-      '--node-aliases',
-      argv.getArg<string>(flags.nodeAliasesUnparsed),
-      '--pvcs',
-      argv.getArg<boolean>(flags.persistentVolumeClaims) ? 'true' : 'false',
+    await main(
+      NodeTest.networkDeployArgv(
+        argv.getArg<string>(flags.deployment),
+        argv.getArg<string>(flags.nodeAliasesUnparsed),
+        argv.getArg<boolean>(flags.persistentVolumeClaims),
+      ),
     );
-    await main(deployArguments);
   }).timeout(Duration.ofMinutes(5).toMillis());
 }
 
 export function startNodesTest(argv: Argv): void {
   it('should succeed with consensus node setup command', async (): Promise<void> => {
     // cache this, because `solo consensus node setup.finalize()` will reset it to false
-    const {newArgv} = BaseCommandTest;
-    const setupArguments: string[] = newArgv();
-    setupArguments.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.NODE_SETUP,
-      '--deployment',
-      argv.getArg<string>(flags.deployment),
-    );
-    await main(setupArguments);
+    const deployment: string = argv.getArg<string>(flags.deployment);
+    await main(NodeTest.nodeSetupArgv(deployment, deployment));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should succeed with consensus node start command', async (): Promise<void> => {
-    const {newArgv} = BaseCommandTest;
-    const startArguments: string[] = newArgv();
-    startArguments.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.NODE_START,
-      '--deployment',
-      argv.getArg<string>(flags.deployment),
-      '--node-aliases',
-      argv.getArg<string>(flags.nodeAliasesUnparsed),
-    );
-    await main(startArguments);
+    const deployment: string = argv.getArg<string>(flags.deployment);
+    const nodeAliases: string = argv.getArg<string>(flags.nodeAliasesUnparsed);
+    await main(NodeTest.nodeStartArgv(deployment, deployment, nodeAliases));
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('deployment diagnostics logs command should work', async (): Promise<void> => {

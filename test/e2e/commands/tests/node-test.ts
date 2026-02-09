@@ -123,6 +123,10 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
+  public static nodeSetupArgv(testName: string, deployment: DeploymentName): string[] {
+    return NodeTest.soloNodeSetupArgv(testName, deployment, false, '', '');
+  }
+
   private static soloNodeAddArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName} = options;
@@ -157,6 +161,25 @@ export class NodeTest extends BaseCommandTest {
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
+    return argv;
+  }
+
+  public static networkDeployArgv(deployment: DeploymentName, nodeAliases: string, pvcsEnabled: boolean): string[] {
+    const {newArgv, optionFromFlag} = NodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DEPLOY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliases,
+      optionFromFlag(Flags.persistentVolumeClaims),
+      pvcsEnabled ? 'true' : 'false',
+    );
+
     return argv;
   }
 
@@ -401,7 +424,11 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
+  private static soloNodeStartArgv(
+    testName: string,
+    deployment: DeploymentName,
+    nodeAliases?: string,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -412,8 +439,15 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
     );
+    if (nodeAliases) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliases);
+    }
     argvPushGlobalFlags(argv, testName);
     return argv;
+  }
+
+  public static nodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
+    return NodeTest.soloNodeStartArgv(testName, deployment, nodeAliases);
   }
 
   private static async verifyAccountCreateWasSuccessful(

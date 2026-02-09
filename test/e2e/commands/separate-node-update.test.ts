@@ -21,11 +21,10 @@ import {
   type NodeKeyObject,
   type PrivateKeyAndCertificateObject,
 } from '../../../src/types/index.js';
-import {BaseCommandTest} from './tests/base-command-test.js';
+import {SeparateNodeUpdateTest} from './tests/separate-node-update-test.js';
 import {main} from '../../../src/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {PrivateKey, AccountCreateTransaction, Hbar, HbarUnit, AccountId} from '@hiero-ledger/sdk';
 
 export function testSeparateNodeUpdate(
@@ -122,57 +121,30 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
       const temporaryDirectory2: string = 'contextDir';
-      const {newArgv} = BaseCommandTest;
 
-      const prepareArguments: string[] = newArgv();
-      prepareArguments.push(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        '--output-dir',
-        temporaryDirectory2,
-        '--deployment',
-        argv.getArg<string>(flags.deployment),
-        '--node-alias',
-        updateNodeId,
-        '--new-admin-key',
-        argv.getArg<string>(flags.newAdminKey),
-        '--new-account-number',
-        argv.getArg<string>(flags.newAccountNumber),
-        '--tls-public-key',
-        argv.getArg<string>(flags.tlsPublicKey),
-        '--tls-private-key',
-        argv.getArg<string>(flags.tlsPrivateKey),
-        '--gossip-public-key',
-        argv.getArg<string>(flags.gossipPublicKey),
-        '--gossip-private-key',
-        argv.getArg<string>(flags.gossipPrivateKey),
+      await main(
+        SeparateNodeUpdateTest.soloNodeUpdatePrepareArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          {
+            nodeAlias: updateNodeId,
+            newAdminKey: argv.getArg<string>(flags.newAdminKey),
+            newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
+            tlsPublicKey: argv.getArg<string>(flags.tlsPublicKey),
+            tlsPrivateKey: argv.getArg<string>(flags.tlsPrivateKey),
+            gossipPublicKey: argv.getArg<string>(flags.gossipPublicKey),
+            gossipPrivateKey: argv.getArg<string>(flags.gossipPrivateKey),
+          },
+        ),
       );
-      await main(prepareArguments);
 
-      const submitArguments: string[] = newArgv();
-      submitArguments.push(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        '--input-dir',
-        temporaryDirectory2,
-        '--deployment',
-        argv.getArg<string>(flags.deployment),
+      await main(
+        SeparateNodeUpdateTest.soloNodeUpdateSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2),
       );
-      await main(submitArguments);
 
-      const executeArguments: string[] = newArgv();
-      executeArguments.push(
-        ConsensusCommandDefinition.COMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        '--input-dir',
-        temporaryDirectory2,
-        '--deployment',
-        argv.getArg<string>(flags.deployment),
+      await main(
+        SeparateNodeUpdateTest.soloNodeUpdateExecuteArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2),
       );
-      await main(executeArguments);
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
