@@ -21,6 +21,8 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
+import {NodeTest} from './node-test.js';
+import {type AnyObject} from '../../../../src/types/aliases.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -400,6 +402,32 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
       await new ShellRunner().run(runSqlCommand);
+    });
+  }
+
+  public static pullAddressBook(options: BaseTestOptions): void {
+    it('should pull address book from mirror node', async (): Promise<void> => {
+      const srv: number = await MirrorNodeTest.forwardRestServicePort(options.contexts, options.namespace);
+
+      const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
+
+      const addressBook: AnyObject = JSON.parse(stdOut[0]);
+
+      expect(addressBook.nodes.length).to.be.greaterThan(0);
+
+      // Validate Node 1 data
+      expect(addressBook.nodes[0].grpc_proxy_endpoint.domain_name).to.equal(
+        NodeTest.firstNodeCustomGrpcWebEndpointAddress,
+      );
+      expect(addressBook.nodes[0].grpc_proxy_endpoint.port).to.equal(NodeTest.firstNodeCustomGrpcWebEndpointPort);
+
+      // Validate Node 2 data
+      expect(addressBook.nodes[1].grpc_proxy_endpoint.domain_name).to.equal(
+        NodeTest.secondNodeCustomGrpcWebEndpointAddress,
+      );
+      expect(addressBook.nodes[1].grpc_proxy_endpoint.port).to.equal(NodeTest.secondNodeCustomGrpcWebEndpointPort);
+
+      await MirrorNodeTest.stopPortForward(options.contexts, srv);
     });
   }
 }

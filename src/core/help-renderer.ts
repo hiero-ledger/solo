@@ -26,9 +26,29 @@ export class HelpRenderer {
     return [input.slice(0, Math.max(0, splitIndex)), input.slice(Math.max(0, splitIndex + 1))];
   }
 
+  private expandDescriptionNewlines(table: Table): Table {
+    const out: Table = [];
+    for (const row of table) {
+      const parts: string[] = (row[2] ?? '').split('\n');
+      out.push([row[0], row[1], parts[0] ?? '', row[3]]);
+      for (let index: number = 1; index < parts.length; index++) {
+        out.push(['', '', parts[index] ?? '', '']);
+      }
+    }
+    return out;
+  }
+
   private createFlagsTable(lines: string[]): Table {
     const table: Table = [];
     for (const line of lines) {
+      // continuation line (no --flag): append to previous description, keep indentation
+      if (!/^\s*(?:-\w,\s*)?--[0-9a-zA-Z][0-9a-zA-Z-]*/.test(line)) {
+        if (table.length > 0) {
+          table.at(-1)[2] += `\n${line.trimEnd().replace(/^\s+/, '')}`;
+        }
+        continue;
+      }
+
       let columns: string[] = line.split(/(--[1-9a-zA-Z|-]+)/);
 
       // if the description contains --flag there will be more than the expected amount of columns
@@ -143,13 +163,13 @@ export class HelpRenderer {
 
     let finalOutput: string = splitOutput[0] + splittingString;
     let lines: string[] = splitOutput[1].split('\n');
-    lines = lines.map((line: string): string => line.replace(/^\s+/, ''));
+    lines = lines.map((line: string): string => line.replace(/\r$/, ''));
 
     // Formatting for flag options
     const table: Table = this.createFlagsTable(lines);
 
     // apply sorting
-    const sortedTable: Table = this.sortFlagsTable(table);
+    const sortedTable: Table = this.expandDescriptionNewlines(this.sortFlagsTable(table));
 
     const columnMaxLengths: number[] = this.calculateMaxColumnLengths(sortedTable);
 

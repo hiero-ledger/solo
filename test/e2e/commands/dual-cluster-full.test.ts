@@ -81,12 +81,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       NetworkTest.deploy(options);
       NodeTest.setup(options);
-      NodeTest.start(options);
+      NodeTest.start(options, true);
 
       NodeTest.PemStop(options);
       NodeTest.PemKill(options);
 
       MirrorNodeTest.add(options);
+
+      MirrorNodeTest.pullAddressBook(options);
 
       NodeTest.add(options);
       NodeTest.update(options);

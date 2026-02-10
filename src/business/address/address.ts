@@ -7,6 +7,7 @@ import {type K8} from '../../integration/kube/k8.js';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Service} from '../../integration/kube/resources/service/service.js';
 import {type LoadBalancerIngress} from '../../integration/kube/resources/load-balancer-ingress.js';
+import {Templates} from '../../core/templates.js';
 
 export class Address {
   public constructor(
@@ -81,11 +82,10 @@ export class Address {
     port: number,
   ): Promise<Address> {
     const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
-
     try {
       const serviceList: Service[] = await k8
         .services()
-        .list(namespace, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
+        .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
 
       if (serviceList && serviceList.length > 0) {
         const svc: Service = serviceList[0];
