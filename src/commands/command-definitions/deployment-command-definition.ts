@@ -54,6 +54,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_DELETE = 'delete';
 
   public static readonly DIAGNOSTIC_ALL = 'all';
+  public static readonly DIAGNOSTIC_DEBUG = 'debug';
   public static readonly DIAGNOSTIC_LOGS = 'logs';
   public static readonly DIAGNOSTIC_CONNECTIONS = 'connections';
 
@@ -137,6 +138,15 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               'Captures logs, configs, and diagnostic artifacts from all consensus nodes and test connections.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.all,
+              NodeFlags.DIAGNOSTICS_CONNECTIONS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTIC_DEBUG,
+              'Captures all diagnostic information (logs, configs, artifacts) and creates a zip archive for easy sharing.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.debug,
               NodeFlags.DIAGNOSTICS_CONNECTIONS,
             ),
           )
