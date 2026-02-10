@@ -660,14 +660,15 @@ export class NodeCommandHandlers extends CommandHandler {
     // First run all diagnostics
     await this.all(argv);
 
-    // Then create a zip file
+    // Then create a zip file from the logs directory
     const outputDirectory: string = (argv.outputDir as string) || constants.SOLO_LOGS_DIR;
     const deployment: string = this.localConfig.getDeploymentName();
     const timestamp: string = new Date().toISOString().replaceAll(/[:.]/g, '-').slice(0, 19);
     const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
-    const zipFilePath: string = path.join(outputDirectory, zipFileName);
+    const zipFilePath: string = path.join(outputDirectory, '..', zipFileName);
 
-    this.logger.showUser(chalk.cyan(`\nCreating debug archive: ${zipFilePath}`));
+    this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
+    this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
 
     try {
       await this.zippy.zip(outputDirectory, zipFilePath);

@@ -147,7 +147,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               'Captures all diagnostic information (logs, configs, artifacts) and creates a zip archive for easy sharing.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.debug,
-              NodeFlags.DIAGNOSTICS_CONNECTIONS,
+              NodeFlags.LOGS_FLAGS,
             ),
           )
           .addSubcommand(
