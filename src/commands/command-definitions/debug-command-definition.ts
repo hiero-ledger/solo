@@ -33,18 +33,20 @@ export class DebugCommandDefinition extends BaseCommandDefinition {
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(DebugCommandDefinition.COMMAND_NAME, DebugCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
-        new CommandGroup(DebugCommandDefinition.SUBCOMMAND_NAME, DebugCommandDefinition.SUBCOMMAND_DESCRIPTION)
-          .addSubcommand(
-            new Subcommand(
-              DebugCommandDefinition.COLLECT_COMMAND,
-              'Collect all diagnostic information from the cluster and save as a zip archive. ' +
-                'Includes cluster info, helm releases, pod logs, deployment resources, network node configurations, and system information.',
-              this.debugCommand,
-              this.debugCommand.collect,
-              DebugCommand.COLLECT_FLAGS_LIST,
-              [],
-            ),
+        new CommandGroup(
+          DebugCommandDefinition.SUBCOMMAND_NAME,
+          DebugCommandDefinition.SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            DebugCommandDefinition.COLLECT_COMMAND,
+            'Collect all diagnostic information from the cluster and save as a zip archive. ' +
+              'Includes cluster info, helm releases, pod logs, deployment resources, network node configurations, and system information.',
+            this.debugCommand,
+            this.debugCommand.collect,
+            DebugCommand.COLLECT_FLAGS_LIST,
+            [],
           ),
+        ),
       )
       .build();
   }
