@@ -123,8 +123,22 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static nodeSetupArgv(testName: string, deployment: DeploymentName): string[] {
-    return NodeTest.soloNodeSetupArgv(testName, deployment, false, '', '');
+  public static nodeSetupWithCacheDirArgv(deployment: DeploymentName, cacheDirectory: string): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SETUP,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
+    );
+
+    argvPushGlobalFlags(argv, deployment, false, true);
+    return argv;
   }
 
   private static soloNodeAddArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
@@ -442,8 +456,28 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static nodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
-    return NodeTest.soloNodeStartArgv(testName, deployment, nodeAliases);
+  public static nodeStartWithCacheDirArgv(
+    deployment: DeploymentName,
+    nodeAliases: string,
+    cacheDirectory: string,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_START,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliases,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
+    );
+
+    argvPushGlobalFlags(argv, deployment, false, true);
+    return argv;
   }
 
   private static async verifyAccountCreateWasSuccessful(

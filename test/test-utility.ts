@@ -116,13 +116,17 @@ export function startNodesTest(testName: string, argv: Argv): void {
   it('should succeed with consensus node setup command', async (): Promise<void> => {
     // cache this, because `solo consensus node setup.finalize()` will reset it to false
     const deployment: string = argv.getArg<string>(flags.deployment);
-    await main(NodeTest.nodeSetupArgv(testName, deployment));
+    const cacheDirectory: string = getTestCacheDirectory(testName);
+    argv.setArg(flags.cacheDir, cacheDirectory);
+    await main(NodeTest.nodeSetupWithCacheDirArgv(deployment, cacheDirectory));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should succeed with consensus node start command', async (): Promise<void> => {
     const deployment: string = argv.getArg<string>(flags.deployment);
     const nodeAliases: string = argv.getArg<string>(flags.nodeAliasesUnparsed);
-    await main(NodeTest.nodeStartArgv(testName, deployment, nodeAliases));
+    const cacheDirectory: string = getTestCacheDirectory(testName);
+    argv.setArg(flags.cacheDir, cacheDirectory);
+    await main(NodeTest.nodeStartWithCacheDirArgv(deployment, nodeAliases, cacheDirectory));
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('deployment diagnostics logs command should work', async (): Promise<void> => {
