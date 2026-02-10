@@ -597,9 +597,9 @@ export class NodeCommandTasks {
       });
     }
 
-    // set up the sub-tasks
+    // Proxy checks for different nodes are independent, run in parallel
     return task.newListr(subTasks, {
-      concurrent: false,
+      concurrent: true,
       rendererOptions: {
         collapseSubtasks: false,
       },
