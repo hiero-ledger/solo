@@ -84,7 +84,7 @@ export class DebugCommand extends BaseCommand {
               ? NamespaceName.of(argv[flags.namespace.name])
               : self.remoteConfig?.getNamespace() || NamespaceName.of('default');
 
-            const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-').split('T')[0];
+            const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-').slice(0, 19);
             const debugDirectory = path.join(outputDirectory, `solo-debug-${deployment}-${timestamp}`);
             const zipFile = `${debugDirectory}.zip`;
 
