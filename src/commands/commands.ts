@@ -17,6 +17,7 @@ import {DeploymentCommandDefinition} from './command-definitions/deployment-comm
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {RapidFireCommandDefinition} from './command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommandDefinition} from './command-definitions/backup-restore-command-definition.js';
+import {DebugCommandDefinition} from './command-definitions/debug-command-definition.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -32,6 +33,7 @@ export class Commands {
     @inject(InjectTokens.ClusterReferenceCommandDefinition)
     private readonly cluster?: ClusterReferenceCommandDefinition,
     @inject(InjectTokens.ConsensusCommandDefinition) private readonly consensus?: ConsensusCommandDefinition,
+    @inject(InjectTokens.DebugCommandDefinition) private readonly debug?: DebugCommandDefinition,
     @inject(InjectTokens.DeploymentCommandDefinition) private readonly deployment?: DeploymentCommandDefinition,
     @inject(InjectTokens.ExplorerCommandDefinition) private readonly explorer?: ExplorerCommandDefinition,
     @inject(InjectTokens.KeysCommandDefinition) private readonly keys?: KeysCommandDefinition,
@@ -46,6 +48,7 @@ export class Commands {
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
     this.cluster = patchInject(cluster, InjectTokens.ClusterReferenceCommandDefinition, this.constructor.name);
     this.consensus = patchInject(consensus, InjectTokens.ConsensusCommandDefinition, this.constructor.name);
+    this.debug = patchInject(debug, InjectTokens.DebugCommandDefinition, this.constructor.name);
     this.deployment = patchInject(deployment, InjectTokens.DeploymentCommandDefinition, this.constructor.name);
     this.explorer = patchInject(explorer, InjectTokens.ExplorerCommandDefinition, this.constructor.name);
     this.keys = patchInject(keys, InjectTokens.KeysCommandDefinition, this.constructor.name);
@@ -62,6 +65,7 @@ export class Commands {
       this.block.getCommandDefinition(),
       this.cluster.getCommandDefinition(),
       this.consensus.getCommandDefinition(),
+      this.debug.getCommandDefinition(),
       this.deployment.getCommandDefinition(),
       this.explorer.getCommandDefinition(),
       this.keys.getCommandDefinition(),
