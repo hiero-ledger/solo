@@ -191,6 +191,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               context_.createdAccounts = [];
 
+              // Pre-warm Helm chart repos so they're ready when needed
+              await this.chartManager.setup(constants.DEFAULT_CHART_REPO, true);
+
               this.logger.debug(`quiet: ${config.quiet}`);
 
               return;
