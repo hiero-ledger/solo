@@ -7,7 +7,7 @@ import {type NodeAlias} from '../../../../src/types/aliases.js';
 
 export class SeparateNodeDestroyTest extends BaseCommandTest {
   public static soloNodeDeletePrepareArgv(deployment: string, outputDirectory: string, nodeAlias: NodeAlias): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeDestroyTest;
+    const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -22,12 +22,11 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       nodeAlias,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloNodeDeleteSubmitArgv(deployment: string, inputDirectory: string, nodeAlias: NodeAlias): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeDestroyTest;
+    const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -42,12 +41,11 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       nodeAlias,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloNodeDeleteExecuteArgv(deployment: string, inputDirectory: string, nodeAlias: NodeAlias): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeDestroyTest;
+    const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -62,7 +60,6 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       nodeAlias,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 }

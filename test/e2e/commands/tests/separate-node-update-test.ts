@@ -19,7 +19,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       gossipPrivateKey: string;
     },
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeUpdateTest;
+    const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -46,12 +46,11 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       options.gossipPrivateKey,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloNodeUpdateSubmitArgv(deployment: string, inputDirectory: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeUpdateTest;
+    const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -64,12 +63,11 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       deployment,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloNodeUpdateExecuteArgv(deployment: string, inputDirectory: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeUpdateTest;
+    const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -82,7 +80,6 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       deployment,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 }

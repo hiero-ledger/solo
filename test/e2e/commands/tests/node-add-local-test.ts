@@ -25,7 +25,7 @@ export class NodeAddLocalTest extends BaseCommandTest {
   }
 
   public static soloFileCreateArgv(deployment: string, filePath: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeAddLocalTest;
+    const {newArgv, optionFromFlag} = NodeAddLocalTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -38,12 +38,11 @@ export class NodeAddLocalTest extends BaseCommandTest {
       deployment,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloFileUpdateArgv(deployment: string, fileId: string, filePath: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeAddLocalTest;
+    const {newArgv, optionFromFlag} = NodeAddLocalTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -58,7 +57,6 @@ export class NodeAddLocalTest extends BaseCommandTest {
       deployment,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 }

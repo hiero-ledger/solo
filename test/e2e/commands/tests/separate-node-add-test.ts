@@ -7,7 +7,7 @@ import {Flags} from '../../../../src/commands/flags.js';
 
 export class SeparateNodeAddTest extends BaseCommandTest {
   public static soloLedgerInitArgv(deployment: string, nodeAliases: string, clusterReference: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
+    const {newArgv, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -22,7 +22,6 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       clusterReference,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
@@ -35,7 +34,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       generateTlsKeys?: boolean;
     },
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
+    const {newArgv, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -60,12 +59,11 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.generateTlsKeys));
     }
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloNodeAddSubmitArgv(deployment: string, inputDirectory: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
+    const {newArgv, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -78,12 +76,11 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       inputDirectory,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
   public static soloNodeAddExecuteArgv(deployment: string, inputDirectory: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = SeparateNodeAddTest;
+    const {newArgv, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -96,7 +93,6 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       inputDirectory,
     );
 
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 }
