@@ -391,24 +391,31 @@ export class ClusterCommandTasks {
         const k8 = this.k8Factory.getK8(context_.config.context);
         k8.contexts().updateCurrent(context_.config.context);
 
-        // Always install pod-monitor-role ClusterRole first
-        const subtasks = [this.installPodMonitorRole(argv)];
+        // Pod-monitor-role first, then charts in parallel
+        const chartSubtasks = [];
 
         if (context_.config.deployMinio) {
-          subtasks.push(this.installMinioOperator(argv));
+          chartSubtasks.push(this.installMinioOperator(argv));
         }
 
         if (context_.config.deployPrometheusStack) {
-          subtasks.push(this.installPrometheusStack(argv));
+          chartSubtasks.push(this.installPrometheusStack(argv));
         }
 
         if (context_.config.deployGrafanaAgent) {
-          subtasks.push(this.installGrafanaAgent(argv));
+          chartSubtasks.push(this.installGrafanaAgent(argv));
         } else {
           console.log('Skipping Grafana Agent chart installation');
         }
 
-        const result = await task.newListr(subtasks, {concurrent: false});
+        const result = await task.newListr([
+          this.installPodMonitorRole(argv),
+          {
+            title: 'Install Helm charts',
+            task: (_, subTask) => subTask.newListr(chartSubtasks, {concurrent: true}),
+            skip: () => chartSubtasks.length === 0,
+          },
+        ], {concurrent: false});
 
         if (argv.dev) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
