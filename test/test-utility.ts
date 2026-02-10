@@ -344,9 +344,8 @@ export function endToEndTestSuite(
       });
 
       it('should cleanup previous deployment', async (): Promise<void> => {
-        const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+        const {newArgv} = BaseCommandTest;
         const initArguments: string[] = newArgv();
-        argvPushGlobalFlags(initArguments, namespace.name, true);
         initArguments.push(InitCommand.COMMAND_NAME);
         await main(initArguments);
 
