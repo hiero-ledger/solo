@@ -140,7 +140,11 @@ export function testSeparateNodeUpdate(
       );
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdateSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2, argv.getArg<string>(flags.cacheDir)),
+        SeparateNodeUpdateTest.soloNodeUpdateSubmitArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          argv.getArg<string>(flags.cacheDir),
+        ),
       );
 
       await main(
