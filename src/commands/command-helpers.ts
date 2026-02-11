@@ -38,16 +38,16 @@ export function argvPushGlobalFlags(argv: string[], cacheDirectory: string = '')
   const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
 
   const developmentMode: boolean = configManager.getFlag<boolean>(flags.devMode);
-  if (developmentMode) {
+  if (typeof developmentMode === 'boolean' && developmentMode) {
     argv.push(optionFromFlag(flags.devMode));
   }
 
   const quiet: boolean = configManager.getFlag<boolean>(flags.quiet);
-  if (quiet) {
+  if (typeof quiet === 'boolean' && quiet) {
     argv.push(optionFromFlag(flags.quiet));
   }
 
-  if (cacheDirectory) {
+  if (typeof cacheDirectory === 'string' && cacheDirectory.length > 0) {
     argv.push(optionFromFlag(flags.cacheDir), cacheDirectory);
   }
   return argv;
