@@ -408,14 +408,17 @@ export class ClusterCommandTasks {
           console.log('Skipping Grafana Agent chart installation');
         }
 
-        const result = await task.newListr([
-          this.installPodMonitorRole(argv),
-          {
-            title: 'Install Helm charts',
-            task: (_, subTask) => subTask.newListr(chartSubtasks, {concurrent: true}),
-            skip: () => chartSubtasks.length === 0,
-          },
-        ], {concurrent: false});
+        const result = await task.newListr(
+          [
+            this.installPodMonitorRole(argv),
+            {
+              title: 'Install Helm charts',
+              task: (_, subTask) => subTask.newListr(chartSubtasks, {concurrent: true}),
+              skip: () => chartSubtasks.length === 0,
+            },
+          ],
+          {concurrent: false},
+        );
 
         if (argv.dev) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
