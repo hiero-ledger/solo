@@ -69,6 +69,7 @@ new EndToEndTestSuiteBuilder()
       ClusterReferenceTest.connect(options);
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
+      DeploymentTest.listDeployments(options);
       NodeTest.keys(options);
 
       BlockNodeTest.add(options);
