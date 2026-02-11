@@ -128,18 +128,19 @@ export function testSeparateNodeUpdate(
           temporaryDirectory2,
           argv.getArg<string>(flags.cacheDir),
           {
-          nodeAlias: updateNodeId,
-          newAdminKey: argv.getArg<string>(flags.newAdminKey),
-          newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
-          tlsPublicKey: argv.getArg<string>(flags.tlsPublicKey),
-          tlsPrivateKey: argv.getArg<string>(flags.tlsPrivateKey),
-          gossipPublicKey: argv.getArg<string>(flags.gossipPublicKey),
-          gossipPrivateKey: argv.getArg<string>(flags.gossipPrivateKey),
-        }),
+            nodeAlias: updateNodeId,
+            newAdminKey: argv.getArg<string>(flags.newAdminKey),
+            newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
+            tlsPublicKey: argv.getArg<string>(flags.tlsPublicKey),
+            tlsPrivateKey: argv.getArg<string>(flags.tlsPrivateKey),
+            gossipPublicKey: argv.getArg<string>(flags.gossipPublicKey),
+            gossipPrivateKey: argv.getArg<string>(flags.gossipPrivateKey),
+          },
+        ),
       );
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdateSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2),
+        SeparateNodeUpdateTest.soloNodeUpdateSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2, argv.getArg<string>(flags.cacheDir)),
       );
 
       await main(

@@ -52,7 +52,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeUpdateSubmitArgv(deployment: string, inputDirectory: string): string[] {
+  public static soloNodeUpdateSubmitArgv(deployment: string, inputDirectory: string, cacheDirectory: string): string[] {
     const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
@@ -64,6 +64,8 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       inputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     return argv;
