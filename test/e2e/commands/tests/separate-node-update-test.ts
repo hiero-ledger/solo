@@ -9,6 +9,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
   public static soloNodeUpdatePrepareArgv(
     deployment: string,
     outputDirectory: string,
+    cacheDirectory: string,
     options: {
       nodeAlias: NodeAlias;
       newAdminKey: string;
@@ -44,6 +45,8 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       options.gossipPublicKey,
       optionFromFlag(Flags.gossipPrivateKey),
       options.gossipPrivateKey,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     return argv;
@@ -66,7 +69,11 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeUpdateExecuteArgv(deployment: string, inputDirectory: string): string[] {
+  public static soloNodeUpdateExecuteArgv(
+    deployment: string,
+    inputDirectory: string,
+    cacheDirectory: string,
+  ): string[] {
     const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
 
     const argv: string[] = newArgv();
@@ -78,6 +85,8 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       inputDirectory,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     return argv;

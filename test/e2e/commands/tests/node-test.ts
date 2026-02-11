@@ -123,8 +123,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static nodeSetupWithCacheDirArgv(deployment: DeploymentName, cacheDirectory: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  public static nodeSetup(deployment: DeploymentName, cacheDirectory: string): string[] {
+    const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -136,8 +136,6 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.cacheDir),
       cacheDirectory,
     );
-
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 
@@ -178,7 +176,12 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static networkDeployArgv(deployment: DeploymentName, nodeAliases: string, pvcsEnabled: boolean): string[] {
+  public static networkDeployArgv(
+    deployment: DeploymentName,
+    nodeAliases: string,
+    pvcsEnabled: boolean,
+    cacheDirectory: string,
+  ): string[] {
     const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -192,6 +195,8 @@ export class NodeTest extends BaseCommandTest {
       nodeAliases,
       optionFromFlag(Flags.persistentVolumeClaims),
       pvcsEnabled ? 'true' : 'false',
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     return argv;
@@ -456,12 +461,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static nodeStartWithCacheDirArgv(
-    deployment: DeploymentName,
-    nodeAliases: string,
-    cacheDirectory: string,
-  ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  public static nodeStart(deployment: DeploymentName, nodeAliases: string): string[] {
+    const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -472,11 +473,7 @@ export class NodeTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.nodeAliasesUnparsed),
       nodeAliases,
-      optionFromFlag(Flags.cacheDir),
-      cacheDirectory,
     );
-
-    argvPushGlobalFlags(argv, deployment, false, true);
     return argv;
   }
 

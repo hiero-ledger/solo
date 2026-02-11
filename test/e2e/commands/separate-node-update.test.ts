@@ -123,7 +123,11 @@ export function testSeparateNodeUpdate(
       const temporaryDirectory2: string = 'contextDir';
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdatePrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2, {
+        SeparateNodeUpdateTest.soloNodeUpdatePrepareArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          argv.getArg<string>(flags.cacheDir),
+          {
           nodeAlias: updateNodeId,
           newAdminKey: argv.getArg<string>(flags.newAdminKey),
           newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
@@ -139,7 +143,11 @@ export function testSeparateNodeUpdate(
       );
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdateExecuteArgv(argv.getArg<string>(flags.deployment), temporaryDirectory2),
+        SeparateNodeUpdateTest.soloNodeUpdateExecuteArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          argv.getArg<string>(flags.cacheDir),
+        ),
       );
 
       await accountManager.close();

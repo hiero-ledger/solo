@@ -44,7 +44,12 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeDeleteExecuteArgv(deployment: string, inputDirectory: string, nodeAlias: NodeAlias): string[] {
+  public static soloNodeDeleteExecuteArgv(
+    deployment: string,
+    inputDirectory: string,
+    nodeAlias: NodeAlias,
+    cacheDirectory: string,
+  ): string[] {
     const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
 
     const argv: string[] = newArgv();
@@ -58,6 +63,8 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.nodeAlias),
       nodeAlias,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     return argv;

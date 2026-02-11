@@ -28,6 +28,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
   public static soloNodeAddPrepareArgv(
     deployment: string,
     outputDirectory: string,
+    cacheDirectory: string,
     options: {
       persistentVolumeClaims?: boolean;
       generateGossipKeys?: boolean;
@@ -59,6 +60,8 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.generateTlsKeys));
     }
 
+    argv.push(optionFromFlag(Flags.cacheDir), cacheDirectory);
+
     return argv;
   }
 
@@ -79,7 +82,7 @@ export class SeparateNodeAddTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeAddExecuteArgv(deployment: string, inputDirectory: string): string[] {
+  public static soloNodeAddExecuteArgv(deployment: string, inputDirectory: string, cacheDirectory: string): string[] {
     const {newArgv, optionFromFlag} = SeparateNodeAddTest;
 
     const argv: string[] = newArgv();
@@ -91,6 +94,8 @@ export class SeparateNodeAddTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.inputDir),
       inputDirectory,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     return argv;

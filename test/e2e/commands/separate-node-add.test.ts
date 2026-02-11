@@ -83,16 +83,27 @@ export function testSeparateNodeAdd(
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
       await main(
-        SeparateNodeAddTest.soloNodeAddPrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, {
-          persistentVolumeClaims: true,
-          generateGossipKeys: true,
-          generateTlsKeys: true,
-        }),
+        SeparateNodeAddTest.soloNodeAddPrepareArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory,
+          argv.getArg<string>(flags.cacheDir),
+          {
+            persistentVolumeClaims: true,
+            generateGossipKeys: true,
+            generateTlsKeys: true,
+          },
+        ),
       );
 
       await main(SeparateNodeAddTest.soloNodeAddSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory));
 
-      await main(SeparateNodeAddTest.soloNodeAddExecuteArgv(argv.getArg<string>(flags.deployment), temporaryDirectory));
+      await main(
+        SeparateNodeAddTest.soloNodeAddExecuteArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory,
+          argv.getArg<string>(flags.cacheDir),
+        ),
+      );
 
       await accountManager.close();
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');

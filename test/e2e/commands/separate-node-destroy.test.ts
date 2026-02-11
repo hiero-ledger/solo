@@ -53,6 +53,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
           argv.getArg<string>(flags.deployment),
           temporaryDirectory,
           nodeAlias,
+          argv.getArg<string>(flags.cacheDir),
         ),
       );
 
