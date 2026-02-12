@@ -83,12 +83,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options, true);
 
-      NodeTest.PemStop(options);
-      NodeTest.PemKill(options);
-
       MirrorNodeTest.add(options);
 
       MirrorNodeTest.pullAddressBook(options);
+
+      NodeTest.PemStop(options);
+      NodeTest.PemKill(options);
 
       NodeTest.add(options);
       NodeTest.update(options);
