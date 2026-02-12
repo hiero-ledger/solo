@@ -41,7 +41,7 @@ export class K8ClientPod implements Pod {
     private readonly pods: Pods,
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
-    private readonly kubeExecutable: string,
+    private readonly kubectlExecutable: string,
     public readonly labels?: Record<string, string>,
     public readonly startupProbeCommand?: string[],
     public readonly containerName?: ContainerName,
@@ -216,8 +216,8 @@ export class K8ClientPod implements Pod {
       const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
 
       const cmd: string = persist
-        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${this.kubeExecutable} &`
-        : `${this.kubeExecutable} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${this.kubectlExecutable} &`
+        : `${this.kubectlExecutable} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
 
       await new ShellRunner().run(cmd, [], true, true);
 
@@ -335,7 +335,7 @@ export class K8ClientPod implements Pod {
     pods: Pods,
     coreV1Api: CoreV1Api,
     kubeConfig: KubeConfig,
-    kubeExecutable: string,
+    kubectlExecutable: string,
   ): Pod {
     if (!v1Pod) {
       return undefined;
@@ -346,7 +346,7 @@ export class K8ClientPod implements Pod {
       pods,
       coreV1Api,
       kubeConfig,
-      kubeExecutable,
+      kubectlExecutable,
       v1Pod.metadata.labels,
       v1Pod.spec.containers[0]?.startupProbe?.exec?.command,
       ContainerName.of(v1Pod.spec.containers[0]?.name),

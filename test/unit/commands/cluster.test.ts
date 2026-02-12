@@ -23,6 +23,7 @@ import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
+import {KUBECTL_EXECUTABLE} from '../../../src/core/constants.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {
@@ -69,7 +70,7 @@ describe('ClusterCommand unit tests', (): void => {
     });
 
     beforeEach((): void => {
-      const k8Client: K8Client = new K8Client(undefined, 'kubectl');
+      const k8Client: K8Client = new K8Client(undefined, KUBECTL_EXECUTABLE);
       const context: string = k8Client.contexts().readCurrent();
       options = getBaseCommandOptions(context);
       options.logger = container.resolve(InjectTokens.SoloLogger);

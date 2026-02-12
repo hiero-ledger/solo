@@ -8,6 +8,7 @@ import {type NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type CommandFlag} from '../../src/types/flag-types.js';
 import {type ArgvStruct, type NodeAliases} from '../../src/types/aliases.js';
 import {type CloneTrait} from '../../src/types/traits/clone-trait.js';
+import {KUBECTL_EXECUTABLE} from '../../src/core/constants.js';
 
 export class Argv implements CloneTrait<Argv> {
   private args: Record<string, any> = {};
@@ -83,7 +84,7 @@ export class Argv implements CloneTrait<Argv> {
     argv.setArg(flags.deployment, currentDeployment);
     argv.setArg(flags.clusterRef, getTestCluster());
     argv.setArg(flags.deploymentClusters, [getTestCluster()]);
-    argv.setArg(flags.context, new K8Client(undefined, 'kubectl').contexts().readCurrent());
+    argv.setArg(flags.context, new K8Client(undefined, KUBECTL_EXECUTABLE).contexts().readCurrent());
     argv.setArg(flags.chartDirectory, process.env.SOLO_CHARTS_DIR ?? undefined);
     argv.setArg(flags.quiet, true);
 

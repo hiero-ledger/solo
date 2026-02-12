@@ -37,14 +37,14 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   public constructor(
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
-    private readonly kubeExecutable: string,
+    private readonly kubectlExecutable: string,
   ) {
     super();
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
   public readByReference(podReference: PodReference | null): Pod {
-    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubeExecutable);
+    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
   }
 
   public async read(podReference: PodReference): Promise<Pod> {
@@ -70,7 +70,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       this,
       this.kubeClient,
       this.kubeConfig,
-      this.kubeExecutable,
+      this.kubectlExecutable,
     );
   }
 
@@ -101,7 +101,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       : [];
 
     return sortedItems.map(
-      (item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubeExecutable),
+      (item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable),
     );
   }
 
@@ -220,7 +220,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               this,
               this.kubeClient,
               this.kubeConfig,
-              this.kubeExecutable,
+              this.kubectlExecutable,
             );
             if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
               return resolve([pod]);
@@ -266,7 +266,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               this,
               this.kubeClient,
               this.kubeConfig,
-              this.kubeExecutable,
+              this.kubectlExecutable,
             ),
           );
         }
@@ -328,7 +328,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       podReference.name.toString(),
     );
     if (result?.body) {
-      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubeExecutable);
+      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
     } else {
       throw new SoloError('Error creating pod', result);
     }

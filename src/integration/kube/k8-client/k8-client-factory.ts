@@ -7,16 +7,17 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import path from 'node:path';
+import {KUBECTL_EXECUTABLE} from '../../../core/constants.js';
 
 @injectable()
 export class K8ClientFactory implements K8Factory {
   private readonly k8Clients: Map<string, K8> = new Map<string, K8>();
-  private readonly kubeExecutable: string;
+  private readonly kubectlExecutable: string;
 
   public constructor(@inject(InjectTokens.KubectlInstallationDir) installationDirectory: string) {
-    this.kubeExecutable = path.join(
+    this.kubectlExecutable = path.join(
       patchInject(installationDirectory, InjectTokens.KubectlInstallationDir, K8ClientFactory.name),
-      'kubectl',
+      KUBECTL_EXECUTABLE,
     );
   }
 
@@ -34,10 +35,10 @@ export class K8ClientFactory implements K8Factory {
    * @returns a new k8Factory client
    */
   private createK8Client(context: string): K8 {
-    return new K8Client(context, this.kubeExecutable);
+    return new K8Client(context, this.kubectlExecutable);
   }
 
   public default(): K8 {
-    return new K8Client(undefined, this.kubeExecutable);
+    return new K8Client(undefined, this.kubectlExecutable);
   }
 }
