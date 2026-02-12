@@ -21,7 +21,7 @@ import {
   type NodeKeyObject,
   type PrivateKeyAndCertificateObject,
 } from '../../../src/types/index.js';
-import {SeparateNodeUpdateTest} from './tests/separate-node-update-test.js';
+import {NodeUpdateTest} from './tests/node-update-test.js';
 import {main} from '../../../src/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
@@ -123,7 +123,7 @@ export function testSeparateNodeUpdate(
       const temporaryDirectory2: string = 'contextDir';
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdatePrepareArgv(
+        NodeUpdateTest.soloNodeUpdatePrepareArgv(
           argv.getArg<string>(flags.deployment),
           temporaryDirectory2,
           argv.getArg<string>(flags.cacheDir),
@@ -140,7 +140,7 @@ export function testSeparateNodeUpdate(
       );
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdateSubmitArgv(
+        NodeUpdateTest.soloNodeUpdateSubmitArgv(
           argv.getArg<string>(flags.deployment),
           temporaryDirectory2,
           argv.getArg<string>(flags.cacheDir),
@@ -148,7 +148,7 @@ export function testSeparateNodeUpdate(
       );
 
       await main(
-        SeparateNodeUpdateTest.soloNodeUpdateExecuteArgv(
+        NodeUpdateTest.soloNodeUpdateExecuteArgv(
           argv.getArg<string>(flags.deployment),
           temporaryDirectory2,
           argv.getArg<string>(flags.cacheDir),

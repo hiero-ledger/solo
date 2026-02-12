@@ -5,7 +5,7 @@ import {ConsensusCommandDefinition} from '../../../../src/commands/command-defin
 import {Flags} from '../../../../src/commands/flags.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 
-export class SeparateNodeUpdateTest extends BaseCommandTest {
+export class NodeUpdateTest extends BaseCommandTest {
   public static soloNodeUpdatePrepareArgv(
     deployment: string,
     outputDirectory: string,
@@ -20,7 +20,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
       gossipPrivateKey: string;
     },
   ): string[] {
-    const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
+    const {newArgv, optionFromFlag} = NodeUpdateTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -53,7 +53,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
   }
 
   public static soloNodeUpdateSubmitArgv(deployment: string, inputDirectory: string, cacheDirectory: string): string[] {
-    const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
+    const {newArgv, optionFromFlag} = NodeUpdateTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -76,7 +76,7 @@ export class SeparateNodeUpdateTest extends BaseCommandTest {
     inputDirectory: string,
     cacheDirectory: string,
   ): string[] {
-    const {newArgv, optionFromFlag} = SeparateNodeUpdateTest;
+    const {newArgv, optionFromFlag} = NodeUpdateTest;
 
     const argv: string[] = newArgv();
     argv.push(

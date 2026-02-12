@@ -10,7 +10,7 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {SeparateNodeDestroyTest} from './tests/separate-node-destroy-test.js';
+import {NodeDestroyTest} from './tests/node-destroy-test.js';
 import {main} from '../../../src/index.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
@@ -33,23 +33,15 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
   describe('Node delete via separated commands', async (): Promise<void> => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
       await main(
-        SeparateNodeDestroyTest.soloNodeDeletePrepareArgv(
-          argv.getArg<string>(flags.deployment),
-          temporaryDirectory,
-          nodeAlias,
-        ),
+        NodeDestroyTest.soloNodeDeletePrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, nodeAlias),
       );
 
       await main(
-        SeparateNodeDestroyTest.soloNodeDeleteSubmitArgv(
-          argv.getArg<string>(flags.deployment),
-          temporaryDirectory,
-          nodeAlias,
-        ),
+        NodeDestroyTest.soloNodeDeleteSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, nodeAlias),
       );
 
       await main(
-        SeparateNodeDestroyTest.soloNodeDeleteExecuteArgv(
+        NodeDestroyTest.soloNodeDeleteExecuteArgv(
           argv.getArg<string>(flags.deployment),
           temporaryDirectory,
           nodeAlias,

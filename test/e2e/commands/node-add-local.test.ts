@@ -12,7 +12,7 @@ import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
 import {testSeparateNodeUpgrade} from './separate-node-upgrade.test.js';
-import {NodeAddLocalTest} from './tests/node-add-local-test.js';
+import {ConsensusTest} from './tests/consensus-test.js';
 import {main} from '../../../src/index.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -53,7 +53,7 @@ describe('Node add with hedera local build', (): void => {
       await accountManager.close();
 
       if (destroyEnabled()) {
-        await main(NodeAddLocalTest.soloNetworkDestroyArgv(`${namespace.name}-deployment`));
+        await main(ConsensusTest.soloNetworkDestroyArgv(`${namespace.name}-deployment`));
 
         await k8Factory.default().namespaces().delete(namespace);
       }
@@ -70,14 +70,14 @@ describe('Node add with hedera local build', (): void => {
         await fs.writeFile(testFilePath, testContent, 'utf8');
 
         // Create file on Hiero
-        await main(NodeAddLocalTest.soloFileCreateArgv(`${namespace.name}-deployment`, testFilePath));
+        await main(ConsensusTest.soloLedgerFileCreateArgv(`${namespace.name}-deployment`, testFilePath));
 
         // Update the file with new content
         const updatedContent: string = 'Updated content ' + randomBytes(8).toString('hex');
         const updatedFilePath: string = path.join(testCacheDirectory, 'test-file-updated.txt');
         await fs.writeFile(updatedFilePath, updatedContent, 'utf8');
 
-        await main(NodeAddLocalTest.soloFileUpdateArgv(`${namespace.name}-deployment`, '0.0.1001', updatedFilePath));
+        await main(ConsensusTest.soloLedgerFileUpdateArgv(`${namespace.name}-deployment`, '0.0.1001', updatedFilePath));
 
         // Clean up test files
         try {

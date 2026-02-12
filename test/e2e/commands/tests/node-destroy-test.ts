@@ -5,9 +5,9 @@ import {ConsensusCommandDefinition} from '../../../../src/commands/command-defin
 import {Flags} from '../../../../src/commands/flags.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 
-export class SeparateNodeDestroyTest extends BaseCommandTest {
+export class NodeDestroyTest extends BaseCommandTest {
   public static soloNodeDeletePrepareArgv(deployment: string, outputDirectory: string, nodeAlias: NodeAlias): string[] {
-    const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
+    const {newArgv, optionFromFlag} = NodeDestroyTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -26,7 +26,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
   }
 
   public static soloNodeDeleteSubmitArgv(deployment: string, inputDirectory: string, nodeAlias: NodeAlias): string[] {
-    const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
+    const {newArgv, optionFromFlag} = NodeDestroyTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -50,7 +50,7 @@ export class SeparateNodeDestroyTest extends BaseCommandTest {
     nodeAlias: NodeAlias,
     cacheDirectory: string,
   ): string[] {
-    const {newArgv, optionFromFlag} = SeparateNodeDestroyTest;
+    const {newArgv, optionFromFlag} = NodeDestroyTest;
 
     const argv: string[] = newArgv();
     argv.push(

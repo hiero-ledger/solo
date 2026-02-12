@@ -123,7 +123,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static nodeSetup(deployment: DeploymentName, cacheDirectory: string): string[] {
+  public static solNodeSetup(deployment: DeploymentName, cacheDirectory: string): string[] {
     const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -176,7 +176,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static networkDeployArgv(
+  public static soloNetworkDeployArgv(
     deployment: DeploymentName,
     nodeAliases: string,
     pvcsEnabled: boolean,
@@ -461,7 +461,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static nodeStart(deployment: DeploymentName, nodeAliases: string): string[] {
+  public static soloNodeStart(deployment: DeploymentName, nodeAliases: string): string[] {
     const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
