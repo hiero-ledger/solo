@@ -43,6 +43,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -138,6 +139,13 @@ interface BlockNodeDeleteExternalConfigClass {
 
 interface BlockNodeDeleteExternalContext {
   config: BlockNodeDeleteExternalConfigClass;
+}
+
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
 }
 
 @injectable()
@@ -471,6 +479,16 @@ export class BlockNodeCommand extends BaseCommand {
               config.clusterRef,
               config.namespace,
             );
+
+            // TODO: remove once all components are created at REQUESTED deployment phase
+            config.newBlockNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
+            this.remoteConfig.configuration.components.addNewComponent(
+              config.newBlockNodeComponent,
+              ComponentTypes.BlockNode,
+            );
+
+            await this.remoteConfig.persist();
           },
         },
         {
@@ -491,6 +509,7 @@ export class BlockNodeCommand extends BaseCommand {
               clusterRef,
               imageTag,
               blockNodeChartDirectory,
+              newBlockNodeComponent,
             } = config;
 
             await this.chartManager.install(
@@ -502,6 +521,14 @@ export class BlockNodeCommand extends BaseCommand {
               valuesArg,
               context,
             );
+
+            this.remoteConfig.configuration.components.changeComponentPhase(
+              newBlockNodeComponent.metadata.id,
+              ComponentTypes.BlockNode,
+              DeploymentPhase.DEPLOYED,
+            );
+
+            await this.remoteConfig.persist();
 
             if (imageTag) {
               // update config map with new VERSION info since
@@ -519,6 +546,7 @@ export class BlockNodeCommand extends BaseCommand {
 
               task.title += ` with local built image (${imageTag})`;
             }
+
             showVersionBanner(this.logger, releaseName, chartVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
@@ -569,7 +597,6 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         this.checkBlockNodeReadiness(),
-        this.addBlockNodeComponent(),
         this.handleConsensusNodeUpdating(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -1009,22 +1036,6 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   /** Adds the block node component to remote config. */
-  private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
-    return {
-      title: 'Add block node component in remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config}): Promise<void> => {
-        this.remoteConfig.configuration.components.addNewComponent(
-          config.newBlockNodeComponent,
-          ComponentTypes.BlockNode,
-        );
-
-        await this.remoteConfig.persist();
-      },
-    };
-  }
-
-  /** Adds the block node component to remote config. */
   private addExternalBlockNodeComponent(): SoloListrTask<BlockNodeAddExternalContext> {
     return {
       title: 'Add external block node component in remote config',
@@ -1192,16 +1203,7 @@ export class BlockNodeCommand extends BaseCommand {
       : false;
   }
 
-  private async inferDestroyData(
-    id: ComponentId,
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferDestroyData(id: ComponentId, namespace: NamespaceName, context: Context): Promise<InferredData> {
     id = this.inferBlockNodeId(id);
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
 

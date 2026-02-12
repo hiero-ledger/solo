@@ -172,6 +172,14 @@ interface MirrorNodeDestroyContext {
   config: MirrorNodeDestroyConfigClass;
 }
 
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  isChartInstalled: boolean;
+  ingressReleaseName: string;
+  isLegacyChartInstalled: boolean;
+}
+
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
   public constructor(
@@ -1504,16 +1512,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
   }
 
-  private async inferDestroyData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    isChartInstalled: boolean;
-    ingressReleaseName: string;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferDestroyData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferMirrorNodeId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);

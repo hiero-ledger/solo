@@ -138,6 +138,14 @@ interface RelayUpgradeContext {
   config: RelayUpgradeConfigClass;
 }
 
+interface InferredData {
+  id: ComponentId;
+  nodeAliases: NodeAliases;
+  releaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
+}
+
 @injectable()
 export class RelayCommand extends BaseCommand {
   public constructor(
@@ -866,16 +874,7 @@ export class RelayCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
   }
 
-  private async inferRelayData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    nodeAliases: NodeAliases;
-    releaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferRelayData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferRelayId();
 
     const nodeAliases: NodeAliases = helpers.parseNodeAliases(

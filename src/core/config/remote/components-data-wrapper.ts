@@ -4,7 +4,7 @@ import {SoloError} from '../../errors/solo-error.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
-import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
@@ -50,6 +50,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.componentIds[type] += 1;
   }
 
+  // TODO: Remove once unified method is fully utilized
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
     if (!this.state.consensusNodes.some((component): boolean => +component.metadata.id === +componentId)) {
       throw new SoloError(`Consensus node ${componentId} doesn't exist`);
@@ -60,6 +61,32 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     );
 
     component.metadata.phase = phase;
+  }
+
+  public changeComponentPhase(componentId: ComponentId, type: ComponentTypes, phase: DeploymentPhase): void {
+    if (typeof componentId !== 'number') {
+      throw new SoloError(`Component id is required ${componentId}`);
+    }
+
+    if (!isValidEnum(type, ComponentTypes)) {
+      throw new SoloError(`Invalid component type ${type}`);
+    }
+
+    if (!isValidEnum(phase, DeploymentPhase)) {
+      throw new SoloError(`Invalid component phase ${phase}`);
+    }
+
+    const updateComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
+      const component: BaseStateSchema = components.find((component): boolean => component.metadata.id === componentId);
+
+      if (!component) {
+        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to update`);
+      }
+
+      component.metadata.phase = phase;
+    };
+
+    this.applyCallbackToComponentGroup(type, updateComponentCallback, componentId);
   }
 
   /** Used to remove specific component from their respective group. */
