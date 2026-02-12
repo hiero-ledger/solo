@@ -2655,19 +2655,19 @@ export class NodeCommandTasks {
 
             const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
             const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
+            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
             this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+            const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
-            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
+            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
           }
 
           if (config.newAccountNumber) {

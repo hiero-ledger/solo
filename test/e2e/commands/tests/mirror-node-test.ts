@@ -415,17 +415,16 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       expect(addressBook.nodes.length).to.be.greaterThan(0);
 
-      // Validate Node 1 data
-      expect(addressBook.nodes[0].grpc_proxy_endpoint.domain_name).to.equal(
-        NodeTest.firstNodeCustomGrpcWebEndpointAddress,
-      );
-      expect(addressBook.nodes[0].grpc_proxy_endpoint.port).to.equal(NodeTest.firstNodeCustomGrpcWebEndpointPort);
+      const node1: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 0);
 
+      // Validate Node 1 data
+      expect(node1.grpc_proxy_endpoint.domain_name).to.equal(NodeTest.firstNodeCustomGrpcWebEndpointAddress);
+      expect(node1.grpc_proxy_endpoint.port).to.equal(NodeTest.firstNodeCustomGrpcWebEndpointPort);
+
+      const node2: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 1);
       // Validate Node 2 data
-      expect(addressBook.nodes[1].grpc_proxy_endpoint.domain_name).to.equal(
-        NodeTest.secondNodeCustomGrpcWebEndpointAddress,
-      );
-      expect(addressBook.nodes[1].grpc_proxy_endpoint.port).to.equal(NodeTest.secondNodeCustomGrpcWebEndpointPort);
+      expect(node2.grpc_proxy_endpoint.domain_name).to.equal(NodeTest.secondNodeCustomGrpcWebEndpointAddress);
+      expect(node2.grpc_proxy_endpoint.port).to.equal(NodeTest.secondNodeCustomGrpcWebEndpointPort);
 
       await MirrorNodeTest.stopPortForward(options.contexts, srv);
     });

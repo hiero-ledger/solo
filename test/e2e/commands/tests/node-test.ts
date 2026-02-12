@@ -428,8 +428,8 @@ export class NodeTest extends BaseCommandTest {
       argv.push(
         optionFromFlag(flags.grpcWebEndpoints),
         [
-          `${NodeTest.firstNodeCustomGrpcWebEndpointAddress}:${NodeTest.firstNodeCustomGrpcWebEndpointPort}`,
-          `${NodeTest.secondNodeCustomGrpcWebEndpointAddress}:${NodeTest.secondNodeCustomGrpcWebEndpointPort}`,
+          `node1=${NodeTest.firstNodeCustomGrpcWebEndpointAddress}:${NodeTest.firstNodeCustomGrpcWebEndpointPort}`,
+          `node2=${NodeTest.secondNodeCustomGrpcWebEndpointAddress}:${NodeTest.secondNodeCustomGrpcWebEndpointPort}`,
         ].join(','),
       );
     }
