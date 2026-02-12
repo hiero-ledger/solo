@@ -24,9 +24,10 @@ import {
 } from '@hiero-ledger/sdk';
 import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {
   type ClusterReferenceName,
+  type Context,
   type DeploymentName,
   type Realm,
   type Shard,
@@ -52,6 +53,16 @@ import {
   predefinedEd25519Accounts,
   type SystemAccount,
 } from './one-shot/predefined-accounts.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {NetworkNodes} from '../core/network-nodes.js';
+import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
+import {container} from 'tsyringe-neo';
+import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
+import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import {type Secret} from '../integration/kube/resources/secret/secret.js';
+import {type K8} from '../integration/kube/k8.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -104,6 +115,11 @@ export class AccountCommand extends BaseCommand {
   }
 
   public static INIT_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.nodeAliasesUnparsed, flags.clusterRef],
+  };
+
+  public static RESET_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.nodeAliasesUnparsed, flags.clusterRef],
   };
@@ -486,6 +502,184 @@ export class AccountCommand extends BaseCommand {
       await this.create(argv);
     }
 
+    return true;
+  }
+
+  public async resetSystem(argv: ArgvStruct): Promise<boolean> {
+    interface Config {
+      deployment: DeploymentName;
+      namespace: NamespaceName;
+      nodeAliases: NodeAliases;
+    }
+
+    interface ResetContext {
+      config: Config;
+    }
+
+    const tasks: Listr<ResetContext, ListrRendererValue, ListrRendererValue> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            this.configManager.update(argv);
+
+            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
+            const nodeAliases: NodeAliases = helpers.parseNodeAliases(
+              this.configManager.getFlag(flags.nodeAliasesUnparsed),
+              this.remoteConfig.getConsensusNodes(),
+              this.configManager,
+            );
+
+            for (const [clusterReference, context] of this.remoteConfig.getClusterRefs()) {
+              await this.throwIfNamespaceIsMissing(context, namespace);
+              this.logger.debug(`Using cluster-ref ${clusterReference} with context ${context}`);
+            }
+
+            context_.config = {
+              deployment,
+              namespace,
+              nodeAliases,
+            };
+          },
+        },
+        {
+          title: 'Dump consensus node states',
+          task: async (context_): Promise<void> => {
+            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            const outputDirectory: string = PathEx.joinWithRealPath(constants.SOLO_LOGS_DIR, 'ledger-reset');
+
+            for (const nodeAlias of context_.config.nodeAliases) {
+              const resolvedContext: string =
+                this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
+                this.k8Factory.default().contexts().readCurrent();
+              await networkNodes.getStatesFromPod(
+                context_.config.namespace,
+                nodeAlias,
+                resolvedContext,
+                outputDirectory,
+              );
+            }
+          },
+        },
+        {
+          title: 'Delete ledger account secrets',
+          task: async (context_): Promise<void> => {
+            for (const [, context] of this.remoteConfig.getClusterRefs()) {
+              const secrets: Secret[] = await this.k8Factory
+                .getK8(context)
+                .secrets()
+                .list(context_.config.namespace, ['solo.hedera.com/account-id']);
+
+              for (const secret of secrets) {
+                await this.k8Factory.getK8(context).secrets().delete(context_.config.namespace, secret.name);
+              }
+            }
+          },
+        },
+        {
+          title: 'Clear consensus node saved state',
+          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
+            const subTasks: SoloListrTask<ResetContext>[] = [];
+
+            for (const nodeAlias of context_.config.nodeAliases) {
+              const resolvedContext: string =
+                this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
+                this.k8Factory.default().contexts().readCurrent();
+              const k8: K8 = this.k8Factory.getK8(resolvedContext);
+              const pods: Pod[] = await k8
+                .pods()
+                .list(context_.config.namespace, [
+                  `solo.hedera.com/node-name=${nodeAlias}`,
+                  'solo.hedera.com/type=network-node',
+                ]);
+
+              for (const pod of pods) {
+                const containerReference: ContainerReference = ContainerReference.of(
+                  pod.podReference,
+                  constants.ROOT_CONTAINER,
+                );
+                subTasks.push({
+                  title: `Node ${nodeAlias}: ${pod.podReference.name}`,
+                  task: async (): Promise<void> => {
+                    await k8
+                      .containers()
+                      .readByRef(containerReference)
+                      .execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+                  },
+                });
+              }
+            }
+
+            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+          },
+        },
+        {
+          title: 'Reset mirror node PVCs',
+          skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+              }
+              const releaseName: string = Templates.renderMirrorNodeName(mirrorNode.metadata.id);
+              const pvcs: string[] = await this.k8Factory
+                .getK8(context)
+                .pvcs()
+                .list(NamespaceName.of(mirrorNode.metadata.namespace), [`app.kubernetes.io/instance=${releaseName}`]);
+
+              for (const pvc of pvcs) {
+                await this.k8Factory
+                  .getK8(context)
+                  .pvcs()
+                  .delete(PvcReference.of(NamespaceName.of(mirrorNode.metadata.namespace), PvcName.of(pvc)));
+              }
+            }
+          },
+        },
+        {
+          title: 'Reset block node PVCs',
+          skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+              }
+              const releaseName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
+              const pvcs: string[] = await this.k8Factory
+                .getK8(context)
+                .pvcs()
+                .list(NamespaceName.of(blockNode.metadata.namespace), [`app.kubernetes.io/instance=${releaseName}`]);
+
+              for (const pvc of pvcs) {
+                await this.k8Factory
+                  .getK8(context)
+                  .pvcs()
+                  .delete(PvcReference.of(NamespaceName.of(blockNode.metadata.namespace), PvcName.of(pvc)));
+              }
+            }
+          },
+        },
+        {
+          title: 'Reset ledger phase to uninitialized',
+          task: async (): Promise<void> => {
+            this.remoteConfig.configuration.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
+            await this.remoteConfig.persist();
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    await tasks.run();
     return true;
   }
 

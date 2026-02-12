@@ -1,0 +1,172 @@
+version: "3"
+
+vars:
+  SOLO_CLUSTER_NAME: "{{default \"solo-ledger-reset\" .SOLO_CLUSTER_NAME}}"
+  SOLO_NAMESPACE: "{{default \"solo-ledger-reset\" .SOLO_NAMESPACE}}"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "{{default \"solo-setup\" .SOLO_CLUSTER_SETUP_NAMESPACE}}"
+  SOLO_DEPLOYMENT: "{{default \"solo-ledger-reset\" .SOLO_DEPLOYMENT}}"
+  NODE_ALIASES: "{{default \"node1\" .NODE_ALIASES}}"
+  EXPECTED_BALANCE_1: "{{default \"10000\" .EXPECTED_BALANCE_1}}"
+  EXPECTED_BALANCE_2: "{{default \"20000\" .EXPECTED_BALANCE_2}}"
+  MIRROR_QUERY_RETRIES: "{{default \"60\" .MIRROR_QUERY_RETRIES}}"
+  MIRROR_QUERY_SLEEP: "{{default \"5\" .MIRROR_QUERY_SLEEP}}"
+  SOLO_HOME: "{{default (printf \"%s/.solo\" .HOME) .SOLO_HOME}}"
+
+tasks:
+  default:
+    desc: "Run deploy, pre-reset test, reset, and post-reset test"
+    cmds:
+      - task: deploy
+      - task: pre-reset-test
+      - task: reset
+      - task: post-reset-test
+
+  deploy:
+    desc: "Create kind cluster and deploy consensus/mirror/explorer/block nodes"
+    cmds:
+      - |
+        set -euo pipefail
+        kind delete cluster -n "{{.SOLO_CLUSTER_NAME}}" || true
+        kind create cluster -n "{{.SOLO_CLUSTER_NAME}}"
+      - |
+        set -euo pipefail
+        rm -rf "{{.SOLO_HOME}}"
+        npm run solo-test -- cluster-ref config connect --cluster-ref "kind-{{.SOLO_CLUSTER_NAME}}" --context "kind-{{.SOLO_CLUSTER_NAME}}"
+        npm run solo-test -- deployment config create -n "{{.SOLO_NAMESPACE}}" --deployment "{{.SOLO_DEPLOYMENT}}"
+        npm run solo-test -- deployment cluster attach --deployment "{{.SOLO_DEPLOYMENT}}" --cluster-ref "kind-{{.SOLO_CLUSTER_NAME}}" --num-consensus-nodes 1
+        npm run solo-test -- cluster-ref config setup -s "{{.SOLO_CLUSTER_SETUP_NAMESPACE}}"
+      - |
+        set -euo pipefail
+        npm run solo-test -- block node add --deployment "{{.SOLO_DEPLOYMENT}}"
+        npm run solo-test -- keys consensus generate --gossip-keys --tls-keys --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}"
+        npm run solo-test -- consensus network deploy --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}" --pvcs
+        npm run solo-test -- consensus node setup --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}"
+        npm run solo-test -- consensus node start --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}"
+      - |
+        set -euo pipefail
+        npm run solo-test -- mirror node add --deployment "{{.SOLO_DEPLOYMENT}}"
+        npm run solo-test -- explorer node add --deployment "{{.SOLO_DEPLOYMENT}}" --dev
+
+  pre-reset-test:
+    desc: "Create an account (balance {{.EXPECTED_BALANCE_1}}) and verify via mirror REST"
+    cmds:
+      - |
+        set -euo pipefail
+        EXPLORER_POD="$(kubectl -n "{{.SOLO_NAMESPACE}}" get pod -o name | grep -E 'explorer|hiero-explorer' | head -n 1 || true)"
+        if [[ -z "${EXPLORER_POD}" ]]; then
+          echo "ERROR: Unable to find explorer pod in namespace {{.SOLO_NAMESPACE}}." >&2
+          exit 1
+        fi
+        ACCOUNT_OUTPUT="$(mktemp)"
+        npm run solo-test -- ledger account create --deployment "{{.SOLO_DEPLOYMENT}}" --hbar-amount "{{.EXPECTED_BALANCE_1}}" --create-amount 1 | tee "${ACCOUNT_OUTPUT}"
+        ACCOUNT_ID="$(python3 - <<'PY' "${ACCOUNT_OUTPUT}"
+import json
+import sys
+path = sys.argv[1]
+json_lines = []
+collect = False
+for line in open(path, "r", encoding="utf-8"):
+    stripped = line.strip()
+    if stripped == "{":
+        collect = True
+        json_lines = [stripped]
+        continue
+    if collect:
+        json_lines.append(stripped)
+        if stripped == "}":
+            break
+if not json_lines:
+    raise SystemExit("ERROR: JSON account output not found")
+data = json.loads("\n".join(json_lines))
+account_id = data.get("accountId")
+if not account_id:
+    raise SystemExit("ERROR: accountId not found in output")
+print(account_id)
+PY
+)"
+        echo "Created account: ${ACCOUNT_ID}"
+        for _ in $(seq 1 "{{.MIRROR_QUERY_RETRIES}}"); do
+          RESPONSE="$(kubectl -n "{{.SOLO_NAMESPACE}}" exec "${EXPLORER_POD}" -- curl -s "http://mirror-1-rest/api/v1/accounts/${ACCOUNT_ID}")"
+          if echo "${RESPONSE}" | grep -q '"accountId"'; then
+            python3 - <<'PY' "${RESPONSE}" "{{.EXPECTED_BALANCE_1}}"
+import json
+import sys
+data = json.loads(sys.argv[1])
+expected = int(sys.argv[2]) * 100_000_000
+balance = int(data.get("balance", {}).get("balance", 0))
+if balance != expected:
+    raise SystemExit(f"ERROR: Mirror balance {balance} != expected {expected}")
+print(f"Mirror balance OK: {balance}")
+PY
+            exit 0
+          fi
+          sleep "{{.MIRROR_QUERY_SLEEP}}"
+        done
+        echo "ERROR: Timed out waiting for mirror REST to return account ${ACCOUNT_ID}." >&2
+        exit 1
+
+  reset:
+    desc: "Reset ledger to genesis without restarting nodes"
+    cmds:
+      - |
+        set -euo pipefail
+        mkdir -p "{{.SOLO_HOME}}/logs/ledger-reset"
+        npm run solo-test -- ledger system reset --deployment "{{.SOLO_DEPLOYMENT}}" --node-aliases "{{.NODE_ALIASES}}"
+
+  post-reset-test:
+    desc: "Create an account (balance {{.EXPECTED_BALANCE_2}}) and verify via mirror REST"
+    cmds:
+      - |
+        set -euo pipefail
+        EXPLORER_POD="$(kubectl -n "{{.SOLO_NAMESPACE}}" get pod -o name | grep -E 'explorer|hiero-explorer' | head -n 1 || true)"
+        if [[ -z "${EXPLORER_POD}" ]]; then
+          echo "ERROR: Unable to find explorer pod in namespace {{.SOLO_NAMESPACE}}." >&2
+          exit 1
+        fi
+        ACCOUNT_OUTPUT="$(mktemp)"
+        npm run solo-test -- ledger account create --deployment "{{.SOLO_DEPLOYMENT}}" --hbar-amount "{{.EXPECTED_BALANCE_2}}" --create-amount 1 | tee "${ACCOUNT_OUTPUT}"
+        ACCOUNT_ID="$(python3 - <<'PY' "${ACCOUNT_OUTPUT}"
+import json
+import sys
+path = sys.argv[1]
+json_lines = []
+collect = False
+for line in open(path, "r", encoding="utf-8"):
+    stripped = line.strip()
+    if stripped == "{":
+        collect = True
+        json_lines = [stripped]
+        continue
+    if collect:
+        json_lines.append(stripped)
+        if stripped == "}":
+            break
+if not json_lines:
+    raise SystemExit("ERROR: JSON account output not found")
+data = json.loads("\n".join(json_lines))
+account_id = data.get("accountId")
+if not account_id:
+    raise SystemExit("ERROR: accountId not found in output")
+print(account_id)
+PY
+)"
+        echo "Created account: ${ACCOUNT_ID}"
+        for _ in $(seq 1 "{{.MIRROR_QUERY_RETRIES}}"); do
+          RESPONSE="$(kubectl -n "{{.SOLO_NAMESPACE}}" exec "${EXPLORER_POD}" -- curl -s "http://mirror-1-rest/api/v1/accounts/${ACCOUNT_ID}")"
+          if echo "${RESPONSE}" | grep -q '"accountId"'; then
+            python3 - <<'PY' "${RESPONSE}" "{{.EXPECTED_BALANCE_2}}"
+import json
+import sys
+data = json.loads(sys.argv[1])
+expected = int(sys.argv[2]) * 100_000_000
+balance = int(data.get("balance", {}).get("balance", 0))
+if balance != expected:
+    raise SystemExit(f"ERROR: Mirror balance {balance} != expected {expected}")
+print(f"Mirror balance OK: {balance}")
+PY
+            exit 0
+          fi
+          sleep "{{.MIRROR_QUERY_SLEEP}}"
+        done
+        echo "ERROR: Timed out waiting for mirror REST to return account ${ACCOUNT_ID}." >&2
+        exit 1
