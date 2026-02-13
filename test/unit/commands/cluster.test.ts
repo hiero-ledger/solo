@@ -35,7 +35,7 @@ const getBaseCommandOptions = (context: string) => {
     depManager: sandbox.createStubInstance(DependencyManager),
     localConfig: sandbox.createStubInstance(LocalConfigRuntimeState),
   };
-  options.k8Factory.default.returns(new K8Client(context, 'kubectl'));
+  options.k8Factory.default.returns(new K8Client(context, KUBECTL_EXECUTABLE));
   return options;
 };
 
