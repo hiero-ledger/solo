@@ -33,6 +33,7 @@ export class K8ClientContainer implements Container {
     private readonly kubeConfig: KubeConfig,
     private readonly containerReference: ContainerReference,
     private readonly pods: Pods,
+    private readonly kubectlExecutable: string,
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
@@ -50,9 +51,13 @@ export class K8ClientContainer implements Container {
     const fullArguments: string[] = ['--context', context, ...arguments_];
 
     return new Promise((resolve, reject): void => {
-      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn('kubectl', fullArguments, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
+        this.kubectlExecutable,
+        fullArguments,
+        {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
 
       let stdout: string = '';
       let stderr: string = '';

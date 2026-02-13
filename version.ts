@@ -15,7 +15,7 @@ import * as constants from './src/core/constants.js';
 //  right before it required, this adds better semver library compatibility
 export const HELM_VERSION: string = 'v3.14.2';
 export const KIND_VERSION: string = 'v0.29.0';
-export const PODMAN_VERSION: string = '5.6.0';
+export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
 export const KUBECTL_VERSION: string = 'v1.32.2';

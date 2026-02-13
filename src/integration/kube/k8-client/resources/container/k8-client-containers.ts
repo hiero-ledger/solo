@@ -11,9 +11,10 @@ export class K8ClientContainers implements Containers {
   public constructor(
     private readonly kubeConfig: KubeConfig,
     private readonly pods: Pods,
+    private readonly kubectlExecutable: string,
   ) {}
 
   public readByRef(containerReference: ContainerReference): Container {
-    return new K8ClientContainer(this.kubeConfig, containerReference, this.pods);
+    return new K8ClientContainer(this.kubeConfig, containerReference, this.pods, this.kubectlExecutable);
   }
 }
