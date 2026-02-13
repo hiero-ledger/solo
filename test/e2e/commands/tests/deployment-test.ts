@@ -125,13 +125,11 @@ export class DeploymentTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
     );
-
     return argv;
   }
 
   public static soloConfigCreateArgv(deployment: DeploymentName, namespace: NamespaceName): string[] {
     const {newArgv, optionFromFlag} = DeploymentTest;
-
     const argv: string[] = newArgv();
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
@@ -142,7 +140,6 @@ export class DeploymentTest extends BaseCommandTest {
       optionFromFlag(Flags.namespace),
       namespace.name,
     );
-
     return argv;
   }
 
@@ -167,5 +164,47 @@ export class DeploymentTest extends BaseCommandTest {
     );
 
     return argv;
+  }
+  
+  private static soloDeploymentConfigListArgv(testName: string, clusterReference?: ClusterReferenceName): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
+    const argv: string[] = newArgv();
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_LIST,
+    );
+
+    if (clusterReference) {
+      argv.push(optionFromFlag(Flags.clusterRef), clusterReference);
+    }
+
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  /**
+   * Lists all local deployment configurations or deployments in a specific cluster.
+   * Tests both scenarios:
+   * 1. Without cluster-ref: Lists all deployments from local configuration
+   * 2. With cluster-ref: Lists deployments from the specified Kubernetes cluster
+   */
+  public static listDeployments(options: BaseTestOptions): void {
+    const {testName, testLogger, clusterReferenceNameArray} = options;
+    const {soloDeploymentConfigListArgv} = DeploymentTest;
+
+    it(`${testName}: solo deployment config list (without cluster-ref)`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config list without cluster-ref`);
+      await main(soloDeploymentConfigListArgv(testName));
+      testLogger.info(`${testName}: finished solo deployment config list without cluster-ref`);
+    });
+
+    if (clusterReferenceNameArray && clusterReferenceNameArray.length > 0) {
+      it(`${testName}: solo deployment config list (with cluster-ref)`, async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning solo deployment config list with cluster-ref`);
+        await main(soloDeploymentConfigListArgv(testName, clusterReferenceNameArray[0]));
+        testLogger.info(`${testName}: finished solo deployment config list with cluster-ref`);
+      });
+    }
   }
 }

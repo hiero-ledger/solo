@@ -2832,6 +2832,39 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly deployMirrorNode: CommandFlag = {
+    constName: 'deployMirrorNode',
+    name: 'deploy-mirror-node',
+    definition: {
+      describe: 'Deploy mirror node as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployExplorer: CommandFlag = {
+    constName: 'deployExplorer',
+    name: 'deploy-explorer',
+    definition: {
+      describe: 'Deploy explorer as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployRelay: CommandFlag = {
+    constName: 'deployRelay',
+    name: 'deploy-relay',
+    definition: {
+      describe: 'Deploy relay as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -2990,6 +3023,9 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.deployMirrorNode,
+    Flags.deployExplorer,
+    Flags.deployRelay,
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
