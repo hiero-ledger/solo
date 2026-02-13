@@ -123,6 +123,37 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
+  public static solNodeSetup(
+    deployment: DeploymentName,
+    cacheDirectory: string,
+    localBuildPath?: string,
+    app?: string,
+    appConfig?: string,
+  ): string[] {
+    const {newArgv, optionFromFlag} = NodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SETUP,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
+    );
+    if (localBuildPath) {
+      argv.push(optionFromFlag(Flags.localBuildPath), localBuildPath);
+    }
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
+    if (appConfig) {
+      argv.push(optionFromFlag(Flags.appConfig), appConfig);
+    }
+    return argv;
+  }
+
   private static soloNodeAddArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName} = options;
@@ -157,6 +188,36 @@ export class NodeTest extends BaseCommandTest {
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
+    return argv;
+  }
+
+  public static soloNetworkDeployArgv(
+    deployment: DeploymentName,
+    nodeAliases: string,
+    pvcsEnabled: boolean,
+    cacheDirectory: string,
+    app?: string,
+  ): string[] {
+    const {newArgv, optionFromFlag} = NodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DEPLOY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliases,
+      optionFromFlag(Flags.persistentVolumeClaims),
+      pvcsEnabled ? 'true' : 'false',
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
+    );
+
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
     return argv;
   }
 
@@ -401,7 +462,7 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
+  private static soloNodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -412,7 +473,29 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
     );
+    if (nodeAliases) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliases);
+    }
     argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static soloNodeStart(deployment: DeploymentName, nodeAliases: string, app?: string): string[] {
+    const {newArgv, optionFromFlag} = NodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_START,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliases,
+    );
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
     return argv;
   }
 

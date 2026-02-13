@@ -10,7 +10,8 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {NodeDestroyTest} from './tests/node-destroy-test.js';
+import {main} from '../../../src/index.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   const nodeAlias: NodeAlias = 'node1';
@@ -26,35 +27,27 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
   argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
   const {
-    opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
-    cmd: {nodeCmd},
+    opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
   describe('Node delete via separated commands', async (): Promise<void> => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyPrepare(argv),
-      });
+      await main(
+        NodeDestroyTest.soloNodeDeletePrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, nodeAlias),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroySubmitTransactions(argv),
-      });
+      await main(
+        NodeDestroyTest.soloNodeDeleteSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, nodeAlias),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyExecute(argv),
-      });
+      await main(
+        NodeDestroyTest.soloNodeDeleteExecuteArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory,
+          nodeAlias,
+          argv.getArg<string>(flags.cacheDir),
+        ),
+      );
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
