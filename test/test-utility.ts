@@ -108,6 +108,7 @@ export function deployNetworkTest(argv: Argv): void {
         argv.getArg<string>(flags.nodeAliasesUnparsed),
         argv.getArg<boolean>(flags.persistentVolumeClaims),
         argv.getArg<string>(flags.cacheDir),
+        argv.getArg<string>(flags.app),
       ),
     );
   }).timeout(Duration.ofMinutes(5).toMillis());
@@ -118,13 +119,16 @@ export function startNodesTest(testName: string, argv: Argv): void {
     // cache this, because `solo consensus node setup.finalize()` will reset it to false
     const deployment: string = argv.getArg<string>(flags.deployment);
     const cacheDirectory: string = argv.getArg<string>(flags.cacheDir);
-    await main(NodeTest.solNodeSetup(deployment, cacheDirectory));
+    const localBuildPath: string = argv.getArg<string>(flags.localBuildPath);
+    const app = argv.getArg<string>(flags.app);
+    const appConfig = argv.getArg<string>(flags.appConfig);
+    await main(NodeTest.solNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should succeed with consensus node start command', async (): Promise<void> => {
     const deployment: string = argv.getArg<string>(flags.deployment);
     const nodeAliases: string = argv.getArg<string>(flags.nodeAliasesUnparsed);
-    await main(NodeTest.soloNodeStart(deployment, nodeAliases));
+    await main(NodeTest.soloNodeStart(deployment, nodeAliases, argv.getArg<string>(flags.app)));
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('deployment diagnostics logs command should work', async (): Promise<void> => {

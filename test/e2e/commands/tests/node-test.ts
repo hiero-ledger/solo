@@ -123,7 +123,13 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static solNodeSetup(deployment: DeploymentName, cacheDirectory: string): string[] {
+  public static solNodeSetup(
+    deployment: DeploymentName,
+    cacheDirectory: string,
+    localBuildPath?: string,
+    app?: string,
+    appConfig?: string,
+  ): string[] {
     const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -136,6 +142,15 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.cacheDir),
       cacheDirectory,
     );
+    if (localBuildPath) {
+      argv.push(optionFromFlag(Flags.localBuildPath), localBuildPath);
+    }
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
+    if (appConfig) {
+      argv.push(optionFromFlag(Flags.appConfig), appConfig);
+    }
     return argv;
   }
 
@@ -181,6 +196,7 @@ export class NodeTest extends BaseCommandTest {
     nodeAliases: string,
     pvcsEnabled: boolean,
     cacheDirectory: string,
+    app?: string,
   ): string[] {
     const {newArgv, optionFromFlag} = NodeTest;
 
@@ -199,6 +215,9 @@ export class NodeTest extends BaseCommandTest {
       cacheDirectory,
     );
 
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
     return argv;
   }
 
@@ -461,7 +480,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeStart(deployment: DeploymentName, nodeAliases: string): string[] {
+  public static soloNodeStart(deployment: DeploymentName, nodeAliases: string, app?: string): string[] {
     const {newArgv, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -474,6 +493,9 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.nodeAliasesUnparsed),
       nodeAliases,
     );
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
     return argv;
   }
 
