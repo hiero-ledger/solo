@@ -63,6 +63,9 @@ import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
+import * as CommandHelpers from './command-helpers.js';
+import {invokeSoloCommand} from './command-helpers.js';
+import {NodeCommandTasks} from './node/tasks.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -519,7 +522,30 @@ export class AccountCommand extends BaseCommand {
     const tasks: Listr<ResetContext, ListrRendererValue, ListrRendererValue> = new Listr(
       [
         {
-          title: 'Initialize',
+          title: 'Freeze consensus network',
+          task: async (context_, task) => {
+            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+
+            return invokeSoloCommand(
+              'Freeze consensus network',
+              'consensus network freeze',
+              (): string[] => {
+                const argv: string[] = CommandHelpers.newArgv();
+                argv.push(
+                  'consensus',
+                  'network',
+                  'freeze',
+                  CommandHelpers.optionFromFlag(flags.deployment),
+                  deployment,
+                );
+                return argv;
+              },
+              this.taskList,
+            ).task(context_, task);
+          },
+        },        
+        {
+          title: 'Idenitfy nodes',
           task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<void> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
@@ -536,19 +562,23 @@ export class AccountCommand extends BaseCommand {
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
             );
-
-            for (const [clusterReference, context] of this.remoteConfig.getClusterRefs()) {
-              await this.throwIfNamespaceIsMissing(context, namespace);
-              this.logger.debug(`Using cluster-ref ${clusterReference} with context ${context}`);
+            const nodeTasks: NodeCommandTasks = container.resolve<NodeCommandTasks>(NodeCommandTasks);
+            const resolvedNodeAliases: NodeAliases =
+              nodeAliases.length > 0
+                ? nodeAliases
+                : await nodeTasks.getExistingNodeAliases(namespace, deployment);
+            if (resolvedNodeAliases.length === 0) {
+              throw new SoloError('No consensus nodes found to reset; check your deployment or --node-aliases input.');
             }
 
             context_.config = {
               deployment,
               namespace,
-              nodeAliases,
+              nodeAliases: resolvedNodeAliases,
             };
+            console.log(`context_.config  = ${JSON.stringify(context_.config)}`);
           },
-        },
+        },     
         {
           title: 'Dump consensus node states',
           task: async (context_): Promise<void> => {
@@ -587,8 +617,13 @@ export class AccountCommand extends BaseCommand {
           title: 'Clear consensus node saved state',
           task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
             const subTasks: SoloListrTask<ResetContext>[] = [];
+            console.log(`context_.config  = ${JSON.stringify(context_.config)}`);
+            const nodeAliases: NodeAliases = context_.config.nodeAliases;
+            if (!nodeAliases || nodeAliases.length === 0) {
+              throw new SoloError('No consensus nodes found to reset; check your deployment or --node-aliases input.');
+            }
 
-            for (const nodeAlias of context_.config.nodeAliases) {
+            for (const nodeAlias of nodeAliases) {
               const resolvedContext: string =
                 this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
                 this.k8Factory.default().contexts().readCurrent();
@@ -673,6 +708,35 @@ export class AccountCommand extends BaseCommand {
           task: async (): Promise<void> => {
             this.remoteConfig.configuration.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
             await this.remoteConfig.persist();
+          },
+        },
+        {
+          title: 'Start consensus nodes',
+          task: async (context_, task) => {
+            const nodeAliases: NodeAliases = context_.config.nodeAliases;
+            if (!nodeAliases || nodeAliases.length === 0) {
+              throw new SoloError('No consensus nodes found to start; check your deployment or --node-aliases input.');
+            }
+                        
+            const nodeTasks: NodeCommandTasks = container.resolve<NodeCommandTasks>(NodeCommandTasks);
+            return invokeSoloCommand(
+              'Start consensus nodes',
+              'consensus node start',
+              (): string[] => {
+                const argv: string[] = CommandHelpers.newArgv();
+                argv.push(
+                  'consensus',
+                  'node',
+                  'start',
+                  CommandHelpers.optionFromFlag(flags.deployment),
+                  context_.config.deployment,
+                  CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                  nodeAliases.join(','),
+                );
+                return argv;
+              },
+              this.taskList,
+            ).task(context_, task);
           },
         },
       ],
