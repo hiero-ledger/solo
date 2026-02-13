@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import fs from 'node:fs';
+import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import util from 'node:util';
+import {format} from 'node:util';
 import {SoloError} from './errors/solo-error.js';
 import * as semver from 'semver';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
-import {type AnyObject, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {
+  type AnyObject,
+  type AnyYargs,
+  type AnyListrContext,
+  type NodeAlias,
+  type NodeAliases,
+} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type Duration} from './time/duration.js';
@@ -65,7 +71,7 @@ export function parseNodeAliases(
   return nodeAliases;
 }
 
-export function splitFlagInput(input: string, separator: string = ','): any[] | string[] {
+export function splitFlagInput(input: string, separator: string = ','): string[] {
   if (!input) {
     return [];
   } else if (typeof input !== 'string') {
@@ -95,7 +101,7 @@ export function createBackupDirectory(
   prefix: string = 'backup',
   currentDate: Date = new Date(),
 ): string {
-  const dateDirectory: string = util.format(
+  const dateDirectory: string = format(
     '%s%s%s_%s%s%s',
     currentDate.getFullYear(),
     currentDate.getMonth().toString().padStart(2, '0'),
@@ -178,14 +184,14 @@ export function isNumeric(string_: string): boolean {
 
 export function getEnvironmentValue(environmentVariableArray: string[], name: string): string {
   const kvPair: string = environmentVariableArray.find((v): boolean => v.startsWith(`${name}=`));
-  return kvPair ? kvPair.split('=')[1] : null;
+  return kvPair ? kvPair.split('=')[1] : undefined;
 }
 
 export function parseIpAddressToUint8Array(ipAddress: string): Uint8Array<ArrayBuffer> {
   const parts: string[] = ipAddress.split('.');
   const uint8Array: Uint8Array<ArrayBuffer> = new Uint8Array(4);
 
-  for (let index = 0; index < 4; index++) {
+  for (let index: number = 0; index < 4; index++) {
     uint8Array[index] = Number.parseInt(parts[index], 10);
   }
 
@@ -198,8 +204,8 @@ export function renameAndCopyFile(
   expectedBaseName: string,
   destinationDirectory: string,
   _logger: SoloLogger,
-) {
-  const sourceDirectory = path.dirname(sourceFilePath);
+): void {
+  const sourceDirectory: string = path.dirname(sourceFilePath);
   if (path.basename(sourceFilePath) !== expectedBaseName) {
     fs.renameSync(sourceFilePath, PathEx.join(sourceDirectory, expectedBaseName));
   }
@@ -260,7 +266,7 @@ export function addRootImageValues(
  * @param ctx
  * @returns file writable object
  */
-export function addSaveContextParser(context_: any): Record<string, string> {
+export function addSaveContextParser(context_: AnyListrContext): Record<string, string> {
   const exportedContext: Record<string, string> = {} as Record<string, string>;
 
   const config: NodeAddConfigClass = context_.config as NodeAddConfigClass;
@@ -268,13 +274,13 @@ export function addSaveContextParser(context_: any): Record<string, string> {
 
   exportedContext.signingCertDer = context_.signingCertDer.toString();
   exportedContext.gossipEndpoints = context_.gossipEndpoints.map(
-    (ep: any): `${any}:${any}` => `${ep.getDomainName}:${ep.getPort}`,
+    (ep: unknown): `${string}:${string}` => `${(ep as ServiceEndpoint)._domainName}:${(ep as ServiceEndpoint)._port}`,
   );
   exportedContext.grpcServiceEndpoints = context_.grpcServiceEndpoints.map(
-    (ep: any): `${any}:${any}` => `${ep.getDomainName}:${ep.getPort}`,
+    (ep: unknown): `${string}:${string}` => `${(ep as ServiceEndpoint)._domainName}:${(ep as ServiceEndpoint)._port}`,
   );
   exportedContext.adminKey = context_.adminKey.toString();
-  // @ts-ignore
+  // @ts-expect-error - existingNodeAliases may not be defined on config
   exportedContext.existingNodeAliases = config.existingNodeAliases;
 
   for (const property of exportedFields) {
@@ -316,7 +322,11 @@ export function addLoadContextParser(context_: any, contextData: any): void {
   }
 }
 
-export function prepareEndpoints(endpointType: string, endpoints: string[], defaultPort: number | string) {
+export function prepareEndpoints(
+  endpointType: string,
+  endpoints: string[],
+  defaultPort: number | string,
+): ServiceEndpoint[] {
   const returnValue: ServiceEndpoint[] = [];
   for (const endpoint of endpoints) {
     const parts: string[] = endpoint.split(':');
@@ -355,12 +365,12 @@ export function prepareEndpoints(endpointType: string, endpoints: string[], defa
 
 /** Adds all the types of flags as properties on the provided argv object */
 export function addFlagsToArgv(
-  argv: any,
+  argv: AnyYargs,
   flags: {
     required: CommandFlag[];
     optional: CommandFlag[];
   },
-): any {
+): AnyYargs {
   argv.required = flags.required;
   argv.optional = flags.optional;
 
@@ -370,7 +380,7 @@ export function addFlagsToArgv(
 export function resolveValidJsonFilePath(filePath: string, defaultPath?: string): string {
   if (!filePath) {
     if (defaultPath) {
-      return resolveValidJsonFilePath(defaultPath, null);
+      return resolveValidJsonFilePath(defaultPath);
     }
 
     return '';
@@ -380,16 +390,16 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
 
   if (!fs.existsSync(resolvedFilePath)) {
     if (defaultPath) {
-      return resolveValidJsonFilePath(defaultPath, null);
+      return resolveValidJsonFilePath(defaultPath);
     }
 
     throw new SoloError(`File does not exist: ${filePath}`);
   }
 
   // If the file is empty (or size cannot be determined) then fallback on the default values
-  const throttleInfo = fs.statSync(resolvedFilePath);
+  const throttleInfo: Stats = fs.statSync(resolvedFilePath);
   if (throttleInfo.size === 0 && defaultPath) {
-    return resolveValidJsonFilePath(defaultPath, null);
+    return resolveValidJsonFilePath(defaultPath);
   } else if (throttleInfo.size === 0) {
     throw new SoloError(`File is empty: ${filePath}`);
   }
@@ -401,7 +411,7 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
   } catch {
     // Fallback to the default values if an error occurs due to invalid JSON data or unable to read the file size
     if (defaultPath) {
-      return resolveValidJsonFilePath(defaultPath, null);
+      return resolveValidJsonFilePath(defaultPath);
     }
 
     throw new SoloError(`Invalid JSON data in file: ${filePath}`);
@@ -556,8 +566,8 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
     const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
     const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
     return output.trim() === fullImageName;
-  } catch (error: any) {
-    console.error(`Error checking Docker image ${fullImageName}:`, error.message);
+  } catch (error: unknown) {
+    console.error(`Error checking Docker image ${fullImageName}:`, (error as Error).message);
     return false;
   }
 }
