@@ -400,7 +400,8 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
 
-export const KUBECTL_EXECUTABLE: string = process.platform === OS_WINDOWS || process.platform === OS_WIN32 ? 'kubectl.exe' : 'kubectl';
+export const KUBECTL_EXECUTABLE: string =
+  process.platform === OS_WINDOWS || process.platform === OS_WIN32 ? 'kubectl.exe' : 'kubectl';
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
