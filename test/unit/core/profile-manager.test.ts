@@ -278,40 +278,6 @@ describe('ProfileManager', () => {
       ]);
       const destinationPath = PathEx.join(temporaryDirectory, 'staging');
       fs.mkdirSync(destinationPath, {recursive: true});
-      const renderedConfigFile = await profileManager.prepareConfigTxt(
-        nodeAccountMap,
-        consensusNodes,
-        destinationPath,
-        version.HEDERA_PLATFORM_VERSION,
-        {},
-      );
-    });
-
-    it('should fail when no nodeAliases', async () => {
-      const nodeAccountMap = new Map<NodeAlias, string>();
-      try {
-        await profileManager.prepareConfigTxt(nodeAccountMap, consensusNodes, '', version.HEDERA_PLATFORM_VERSION, {});
-      } catch (error) {
-        expect(error).to.be.instanceOf(MissingArgumentError);
-        expect(error.message).to.include('nodeAccountMap the map of node IDs to account IDs is required');
-      }
-    });
-
-    it('should fail when destPath does not exist', async () => {
-      const nodeAccountMap = new Map<NodeAlias, string>([['node1', entityId(shard, realm, 3)]]);
-      const destinationPath = PathEx.join(temporaryDirectory, 'missing-directory');
-      try {
-        await profileManager.prepareConfigTxt(
-          nodeAccountMap,
-          consensusNodes,
-          destinationPath,
-          version.HEDERA_PLATFORM_VERSION,
-          {},
-        );
-      } catch (error) {
-        expect(error.message).to.contain('config destPath does not exist');
-        expect(error.message).to.contain(destinationPath);
-      }
     });
   });
 });

@@ -548,9 +548,8 @@ export class ProfileManager {
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
-  public async prepareValuesForNodeTransaction(configTxtPath: string, applicationPropertiesPath: string) {
+  public async prepareValuesForNodeTransaction(applicationPropertiesPath: string) {
     const yamlRoot = {};
-    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 
@@ -654,89 +653,5 @@ export class ProfileManager {
   private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject) {
     const fileContents = fs.readFileSync(valueFilePath, 'utf8');
     this._setValue(itemPath, fileContents, yamlRoot);
-  }
-
-  /**
-   * Prepares config.txt file for the node
-   * @param nodeAccountMap - the map of node aliases to account IDs
-   * @param consensusNodes - the list of consensus nodes
-   * @param destPath - path to the destination directory to write the config.txt file
-   * @param releaseTagOverride - release tag override
-   * @param domainNamesMapping
-   * @param [appName] - the app name (default: HederaNode.jar)
-   * @param [chainId] - chain ID (298 for local network)
-   * @param [loadBalancerEnabled] - whether the load balancer is enabled (flag is not set by default)
-   * @returns the config.txt file path
-   */
-  async prepareConfigTxt(
-    nodeAccountMap: Map<NodeAlias, string>,
-    consensusNodes: ConsensusNode[],
-    destinationPath: string,
-    releaseTagOverride: string,
-    domainNamesMapping: Record<NodeAlias, string>,
-    appName = constants.HEDERA_APP_NAME,
-    chainId = constants.HEDERA_CHAIN_ID,
-    _loadBalancerEnabled: boolean = false,
-  ) {
-    let releaseTag = releaseTagOverride;
-    if (!nodeAccountMap || nodeAccountMap.size === 0) {
-      throw new MissingArgumentError('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!releaseTag) {
-      releaseTag = versions.HEDERA_PLATFORM_VERSION;
-    }
-
-    if (!fs.existsSync(destinationPath)) {
-      throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
-    }
-
-    // init variables
-    const internalPort = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
-    const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
-    const nodeStakeAmount = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
-
-    // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion = semver.parse(releaseTag, {includePrerelease: true}) as SemVer;
-
-    try {
-      const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
-
-      let nodeSeq = 0;
-      for (const consensusNode of consensusNodes) {
-        const internalIP: string = helpers.getInternalAddress(
-          releaseVersion,
-          NamespaceName.of(consensusNode.namespace),
-          consensusNode.name as NodeAlias,
-        );
-
-        const address: Address = await Address.getExternalAddress(
-          consensusNode,
-          this.k8Factory.getK8(consensusNode.context),
-          externalPort,
-        );
-
-        const account = nodeAccountMap.get(consensusNode.name as NodeAlias);
-
-        configLines.push(
-          `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${address.hostString()}, ${address.port}, ${account}`,
-        );
-
-        nodeSeq += 1;
-      }
-
-      // TODO: remove once we no longer need less than v0.56
-      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
-        configLines.push(`nextNodeId, ${nodeSeq}`);
-      }
-
-      fs.writeFileSync(configFilePath, configLines.join('\n'));
-      return configFilePath;
-    } catch (error: Error | unknown) {
-      throw new SoloError(
-        `failed to generate config.txt, ${error instanceof Error ? (error as Error).message : 'unknown error'}`,
-        error,
-      );
-    }
   }
 }
