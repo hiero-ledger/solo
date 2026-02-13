@@ -11,7 +11,7 @@ import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../src/core/constants.js';
 
 // Test data constants
-const PODMAN_VERSION: string = '4.6.1';
+const PODMAN_VERSION: string = version.PODMAN_VERSION.replace('v', '');
 const PODMAN_LOW_VERSION: string = '0.1.0';
 const MOCK_RELEASE_TAG: string = `v${PODMAN_VERSION}`;
 const MOCK_RELEASE_URL: string = `https://github.com/containers/podman/releases/tag/${MOCK_RELEASE_TAG}`;
@@ -25,7 +25,7 @@ const MOCK_DARWIN_ARM64_DOWNLOAD_URL: string = `${MOCK_DOWNLOAD_URL_BASE}/${MOCK
 const MOCK_CHECKSUM: string = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const MOCK_CHECKSUM_WITH_PREFIX: string = `sha256:${MOCK_CHECKSUM}`;
 
-// Mock GitHub API response for fetchLatestReleaseInfo
+// Mock GitHub API response for fetchReleaseInfo
 const MOCK_GITHUB_RELEASES_RESPONSE: {
   ok: boolean;
   json: () => Promise<any[]>;
@@ -197,7 +197,7 @@ describe('PodmanDependencyManager', (): void => {
 
       runStub = sinon.stub(podmanDependencyManager, 'run');
 
-      // Mock fetch for fetchLatestReleaseInfo
+      // Mock fetch for fetchReleaseInfo
       originalFetch = globalThis.fetch;
       globalThis.fetch = sinon.stub() as any;
       fetchStub = globalThis.fetch as SinonStub;
@@ -288,7 +288,7 @@ describe('PodmanDependencyManager', (): void => {
       expect(manager.getArch()).to.equal('arm64');
     });
 
-    it('fetchLatestReleaseInfo should parse GitHub API response correctly', async (): Promise<void> => {
+    it('fetchReleaseInfo should parse GitHub API response correctly', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_RELEASES_RESPONSE);
 
       podmanDependencyManager = new PodmanDependencyManager(
@@ -301,8 +301,8 @@ describe('PodmanDependencyManager', (): void => {
         undefined,
       );
 
-      // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-      const releaseInfo: ReleaseInfo = await podmanDependencyManager.fetchLatestReleaseInfo();
+      // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+      const releaseInfo: ReleaseInfo = await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.downloadUrl).to.equal(MOCK_DOWNLOAD_URL_BASE);
       expect(releaseInfo.assetName).to.equal(MOCK_LINUX_ASSET_NAME);
@@ -310,36 +310,36 @@ describe('PodmanDependencyManager', (): void => {
       expect(releaseInfo.version).to.equal(PODMAN_VERSION);
     });
 
-    it('fetchLatestReleaseInfo should handle API error', async (): Promise<void> => {
+    it('fetchReleaseInfo should handle API error', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_ERROR_RESPONSE);
 
       try {
-        // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-        await podmanDependencyManager.fetchLatestReleaseInfo();
+        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('GitHub API request failed with status 404');
       }
     });
 
-    it('fetchLatestReleaseInfo should handle empty releases array', async (): Promise<void> => {
+    it('fetchReleaseInfo should handle empty releases array', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_EMPTY_RELEASES);
 
       try {
-        // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-        await podmanDependencyManager.fetchLatestReleaseInfo();
+        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('No releases found');
       }
     });
 
-    it('fetchLatestReleaseInfo should handle no matching asset', async (): Promise<void> => {
+    it('fetchReleaseInfo should handle no matching asset', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_RELEASES_NO_MATCHING_ASSET);
 
       try {
-        // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-        await podmanDependencyManager.fetchLatestReleaseInfo();
+        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('No matching asset found for');
@@ -370,7 +370,7 @@ describe('PodmanDependencyManager', (): void => {
       podmanDependencyManager.uninstallLocal();
       runStub = sinon.stub(podmanDependencyManager, 'run');
 
-      // Mock fetch for fetchLatestReleaseInfo
+      // Mock fetch for fetchReleaseInfo
       originalFetch = globalThis.fetch;
       globalThis.fetch = sinon.stub() as any;
       fetchStub = globalThis.fetch as SinonStub;

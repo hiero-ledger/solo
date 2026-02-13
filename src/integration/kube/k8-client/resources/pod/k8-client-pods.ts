@@ -37,13 +37,14 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   public constructor(
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
+    private readonly kubectlExecutable: string,
   ) {
     super();
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
   public readByReference(podReference: PodReference | null): Pod {
-    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig);
+    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
   }
 
   public async read(podReference: PodReference): Promise<Pod> {
@@ -69,6 +70,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       this,
       this.kubeClient,
       this.kubeConfig,
+      this.kubectlExecutable,
     );
   }
 
@@ -98,7 +100,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         )
       : [];
 
-    return sortedItems.map((item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig));
+    return sortedItems.map(
+      (item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable),
+    );
   }
 
   public async waitForReadyStatus(
@@ -211,7 +215,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // Only check the newest pod
             const newestItem: V1Pod = sortedItems[0];
-            const pod: Pod = K8ClientPod.fromV1Pod(newestItem, this, this.kubeClient, this.kubeConfig);
+            const pod: Pod = K8ClientPod.fromV1Pod(
+              newestItem,
+              this,
+              this.kubeClient,
+              this.kubeConfig,
+              this.kubectlExecutable,
+            );
             if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
               return resolve([pod]);
             }
@@ -256,6 +266,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               this,
               this.kubeClient,
               this.kubeConfig,
+              this.kubectlExecutable,
             ),
           );
         }
@@ -317,7 +328,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       podReference.name.toString(),
     );
     if (result?.body) {
-      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig);
+      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
     } else {
       throw new SoloError('Error creating pod', result);
     }
