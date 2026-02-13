@@ -87,6 +87,8 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
+import {DebugCommand} from '../../commands/debug.js';
+import {DebugCommandDefinition} from '../../commands/command-definitions/debug-command-definition.js';
 import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
 import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
@@ -158,6 +160,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
+      new SingletonContainer(InjectTokens.DebugCommand, DebugCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
@@ -184,6 +187,7 @@ export class Container {
       new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
       new SingletonContainer(InjectTokens.ClusterReferenceCommandDefinition, ClusterReferenceCommandDefinition),
       new SingletonContainer(InjectTokens.ConsensusCommandDefinition, ConsensusCommandDefinition),
+      new SingletonContainer(InjectTokens.DebugCommandDefinition, DebugCommandDefinition),
       new SingletonContainer(InjectTokens.DeploymentCommandDefinition, DeploymentCommandDefinition),
       new SingletonContainer(InjectTokens.ExplorerCommandDefinition, ExplorerCommandDefinition),
       new SingletonContainer(InjectTokens.KeysCommandDefinition, KeysCommandDefinition),
