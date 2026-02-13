@@ -32,12 +32,12 @@ const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
 ).seconds;
 const clients: number = 5;
-const accounts: number = 50;
+const accounts: number = 1000;
 const tokens: number = 50;
 const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
-const maxTps: number = 20;
+const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
