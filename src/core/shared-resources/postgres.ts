@@ -21,7 +21,7 @@ import {SOLO_CACHE_DIR} from '../../core/constants.js';
 import {MIRROR_NODE_VERSION} from '../../../version.js';
 import {SemanticVersion} from '../../integration/helm/base/api/version/semantic-version.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
-import {pipeline} from 'node:stream';
+import {PassThrough, pipeline} from 'node:stream';
 import {promisify} from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import * as Base64 from 'js-base64';
@@ -161,6 +161,8 @@ export class PostgresSharedResource {
           mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
         );
 
+        const wrapperScriptNmae = 'run-init.sh';
+
         const wrapperLines: string[] = [
           '#!/usr/bin/env bash',
           'set -e',
@@ -185,7 +187,6 @@ export class PostgresSharedResource {
           'EOF',
           'chmod 600 /tmp/.pgpass',
           'export PGPASSFILE=/tmp/.pgpass',
-          'unset PGPASSWORD   # ensure libpq uses PGPASSFILE',
           '',
           '# Grant CREATEROLE to owner user',
           `psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "ALTER USER ${ownerUsername} WITH CREATEROLE;"`,
@@ -205,13 +206,24 @@ export class PostgresSharedResource {
 
         const wrapper = wrapperLines.join('\n');
 
-        const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, 'run-init.sh');
+        const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wrapperScriptName');
         fs.writeFileSync(temporaryLocal, wrapper);
         await k8Container.copyTo(temporaryLocal, '/tmp');
-        await k8Container.execContainer('chmod +x /tmp/run-init.sh');
-        await k8Container.execContainer('/bin/bash /tmp/run-init.sh');
+        await k8Container.execContainer('chmod +x /tmp/wrapperScriptName');
+
+        const outputStream: PassThrough = new PassThrough();
+        outputStream.on('data', (chunk: Buffer) => {
+          this.logger.info(`${wrapperScriptNmae}: ${chunk.toString()}`);
+        });
+
+        const errorStream: PassThrough = new PassThrough();
+        errorStream.on('data', (chunk: Buffer) => {
+          this.logger.info(`${wrapperScriptNmae}: ${chunk.toString()}`);
+        });
+
+        await k8Container.execContainer('/bin/bash /tmp/wrapperScriptName', outputStream, errorStream);
         // await k8Container.execContainer('rm /tmp/.pgpass');
-        // await k8Container.execContainer('rm /tmp/run-init.sh');
+        // await k8Container.execContainer('rm /tmp/wrapperScriptName');
         fs.rmSync(temporaryLocal);
         break;
       } catch (error) {
