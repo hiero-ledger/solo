@@ -10,6 +10,7 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
+import chalk from 'chalk';
 
 export class ArgumentProcessor {
   public static process(argv: string[]): any {
@@ -64,11 +65,11 @@ export class ArgumentProcessor {
           rootCmd.showHelp((output): void => {
             helpRenderer.render(rootCmd, output);
           });
-          // Set exit code but don't exit immediately - allows I/O buffers to flush
-          process.exitCode = 1;
-          // Throw error to propagate through async call chains if given unknown argument
 
+          // Throw error to propagate through async call chains if given unknown argument
           if (!rootCmd.parsed.argv.help) {
+            // Set exit code but don't exit immediately - allows I/O buffers to flush
+            process.exitCode = 1;
             throw new SoloError(message, error);
           }
         } else {
