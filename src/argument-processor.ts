@@ -10,7 +10,6 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
-import chalk from 'chalk';
 
 export class ArgumentProcessor {
   public static process(argv: string[]): any {
