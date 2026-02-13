@@ -165,7 +165,7 @@ export class DeploymentTest extends BaseCommandTest {
 
     return argv;
   }
-  
+
   private static soloDeploymentConfigListArgv(testName: string, clusterReference?: ClusterReferenceName): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
     const argv: string[] = newArgv();
