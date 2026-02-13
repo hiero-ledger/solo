@@ -11,7 +11,7 @@
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, CONTEXT, PORT_MAP] = process.argv;
+const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE] = process.argv;
 
 if (!NAMESPACE || !POD || !PORT_MAP) {
   console.error('Usage: persist-port-forward <namespace> <pod> <local> <remote> [context]');
@@ -36,7 +36,7 @@ function runKubectl(): Promise<number> {
 
     console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
-    child = spawn('kubectl', arguments_, {stdio: 'inherit'});
+    child = spawn(KUBECTL_EXECUTABLE, arguments_, {stdio: 'inherit'});
 
     child.on('error', (error): void => {
       console.error('Failed to start kubectl:', error);
