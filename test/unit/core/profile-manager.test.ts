@@ -285,24 +285,6 @@ describe('ProfileManager', () => {
         version.HEDERA_PLATFORM_VERSION,
         {},
       );
-
-      // expect that the config.txt file was created and exists
-      const configFile = PathEx.join(destinationPath, 'config.txt');
-      expect(renderedConfigFile).to.equal(configFile);
-      expect(fs.existsSync(configFile)).to.be.ok;
-
-      const configText = fs.readFileSync(configFile).toString();
-
-      // expect that the config.txt file contains the namespace
-      expect(configText).to.include(namespace);
-      // expect that the config.txt file contains the node account IDs
-      expect(configText).to.include(entityId(shard, realm, 3));
-      expect(configText).to.include(entityId(shard, realm, 4));
-      expect(configText).to.include(entityId(shard, realm, 5));
-      // expect the config.txt file to contain the node IDs
-      expect(configText).to.include('node1');
-      expect(configText).to.include('node2');
-      expect(configText).to.include('node3');
     });
 
     it('should fail when no nodeAliases', async () => {

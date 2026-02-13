@@ -231,17 +231,6 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const configTxtPath: string = await this.prepareConfigTxt(
-      accountMap,
-      consensusNodes,
-      stagingDirectory,
-      this.configManager.getFlag(flags.releaseTag),
-      domainNamesMapping,
-      this.configManager.getFlag(flags.app),
-      this.configManager.getFlag(flags.chainId),
-      this.configManager.getFlag(flags.loadBalancerEnabled),
-    );
-
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
       applicationPropertiesPath,
@@ -268,7 +257,6 @@ export class ProfileManager {
       fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
     }
 
-    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
     this._setFileContentsAsValue(
       'hedera.configMaps.log4j2Xml',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'log4j2.xml'),
@@ -701,11 +689,6 @@ export class ProfileManager {
 
     if (!fs.existsSync(destinationPath)) {
       throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
-    }
-
-    const configFilePath = PathEx.join(destinationPath, 'config.txt');
-    if (fs.existsSync(configFilePath)) {
-      fs.unlinkSync(configFilePath);
     }
 
     // init variables

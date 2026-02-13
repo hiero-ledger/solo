@@ -19,7 +19,7 @@ vars:
     sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
-  CN_VERSION: "v0.69.0"
+  CN_VERSION: "v0.71.0"
   TEMPORARY_DIR: "/tmp/solo-deployment"
   PREPARE_OUTPUT_DIR: "{{ .TEMPORARY_DIR }}/prepare-output"
   APPLICATION_PROPERTIES: "{{ .TEMPORARY_DIR }}/application.properties"
