@@ -5,22 +5,19 @@ import path from 'path';
 
 export function main() {
   const cwd = process.cwd();
-  const nycModulePath = path.join(cwd, 'node_modules', 'nyc', 'bin');
-  if (!fs.existsSync(nycModulePath)) {
-    fs.mkdirSync(nycModulePath, {recursive: true});
+  const nycModulePath = path.join(cwd, 'node_modules', 'nyc');
+  if (fs.existsSync(nycModulePath)) {
+    fs.rmdirSync(nycModulePath, {recursive: true});
   }
 
-  const c8SourcePath = path.join(cwd, 'node_modules', 'c8', 'bin', 'c8.js');
+  const c8SourcePath = path.join(cwd, 'node_modules', 'c8');
   if (!fs.existsSync(c8SourcePath)) {
     throw new Error('c8 is not installed, unable to bridge to nyc');
   }
 
-  const nycLinkPath = path.join(nycModulePath, 'nyc.js');
-  if (fs.existsSync(nycLinkPath)) {
-    fs.rmSync(nycLinkPath);
-  }
-
-  fs.symlinkSync(c8SourcePath, nycLinkPath, 'file');
+  // Create a symlink from node_modules/nyc to node_modules/c8
+  // Only use directory symlink to avoid issues with Windows
+  fs.symlinkSync(c8SourcePath, nycModulePath, 'dir');
 }
 
 main();
