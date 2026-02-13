@@ -349,7 +349,7 @@ export function endToEndTestSuite(
         if (
           !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME))
         ) {
-          await main(ClusterReferenceTest.soloConfigSetupArgv(namespace.name, constants.SOLO_SETUP_NAMESPACE.name));
+          await main(ClusterReferenceTest.soloConfigSetupArgv(testName, constants.SOLO_SETUP_NAMESPACE.name));
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
@@ -357,7 +357,7 @@ export function endToEndTestSuite(
         const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
         await localConfig.load();
         const connectArguments: string[] = ClusterReferenceTest.soloConfigConnectArgv(
-          namespace.name,
+          testName,
           argv.getArg<string>(flags.clusterRef),
           argv.getArg<string>(flags.clusterRef),
         );
