@@ -61,6 +61,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
   public async getVersion(executablePath: string): Promise<string> {
     try {
       const output: string[] = await this.run(`${executablePath} version --client`);
+      this.logger.info(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {
           if (line.trim().startsWith('Client Version')) {
@@ -76,7 +77,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
     } catch (error: any) {
       throw new SoloError('Failed to check kubectl version', error);
     }
-    throw new SoloError('Failed to check kubectl version');
+    throw new SoloError('Failed to get kubectl version');
   }
 
   protected getDownloadURL(): string {

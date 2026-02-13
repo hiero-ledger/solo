@@ -1145,6 +1145,21 @@ export class NodeCommandTasks {
     };
   }
 
+  public async getExistingNodeAliases(namespace: NamespaceName, deployment: DeploymentName): Promise<NodeAliases> {
+    const existingNodeAliases: NodeAliases = [];
+    const clusterReferences = this.remoteConfig.getClusterRefs();
+    const serviceMap = await this.accountManager.getNodeServiceMap(namespace, clusterReferences, deployment);
+
+    for (const networkNodeServices of serviceMap.values()) {
+      if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+        continue;
+      }
+      existingNodeAliases.push(networkNodeServices.nodeAlias);
+    }
+
+    return existingNodeAliases;
+  }
+
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
     return {
       title: 'Identify existing network nodes',
