@@ -667,8 +667,8 @@ export class NodeCommandHandlers extends CommandHandler {
 
     // Then create a zip file from the logs directory
     const outputDirectory: string = (argv.outputDir as string) || constants.SOLO_LOGS_DIR;
-    const deployment: string = this.localConfig.getDeploymentName();
-    const timestamp: string = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-').slice(0, 19);
+    const deployment: string = (argv.deployment as string) || '';
+    const timestamp: string = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-').slice(0, 19);
     const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
     const zipFilePath: string = path.join(outputDirectory, '..', zipFileName);
 
@@ -677,7 +677,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
     try {
       await this.zippy.zip(outputDirectory, zipFilePath);
-      this.logger.showUser(chalk.green(`✓ Debug information collected successfully!`));
+      this.logger.showUser(chalk.green('✓ Debug information collected successfully!'));
       this.logger.showUser(chalk.cyan(`  Archive: ${zipFilePath}`));
     } catch (error: Error | unknown) {
       throw new SoloError(`Failed to create debug archive: ${(error as Error).message}`, error as Error);
