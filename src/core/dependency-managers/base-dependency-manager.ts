@@ -136,13 +136,31 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   private async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
     const path: false | string = await this.getGlobalExecutablePath();
-    return path && (await this.installationMeetsRequirements(path));
+    try {
+      if (path && (await this.installationMeetsRequirements(path))) {
+        return true;
+      }
+    } catch (error) {
+      this.logger.debug(
+        `Global installation of ${this.executableName} does not meet version requirements: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+    return false;
   }
   /**
    * Check if the tool is installed locally and meets requirements
    */
   private async isInstalledLocallyAndMeetsRequirements(): Promise<boolean> {
-    return this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutablePath));
+    try {
+      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutablePath))) {
+        return true;
+      }
+    } catch (error) {
+      this.logger.debug(
+        `Local installation of ${this.executableName} does not meet version requirements: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+    return false;
   }
 
   /**
