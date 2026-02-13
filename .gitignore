@@ -498,3 +498,4 @@ deleteme.yaml
 /examples/running-solo-inside-cluster/.task-tmp
 /.codacy/cli.sh
 /.codacy/codacy.yaml
+.task/checksum/

@@ -11,11 +11,11 @@ vars:
 tasks:
   test-setup:
     cmds:
-      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   dual-cluster-setup:
     cmds:
-      - sh {{.TASKFILE_DIR}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   test:
     cmds:
