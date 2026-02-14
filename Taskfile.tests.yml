@@ -87,13 +87,6 @@ tasks:
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
-  test-e2e-node-local-ptt:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Local PTT Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-local-ptt'
-        {{ .mocha_bin }} 'test/e2e/commands/node-local-ptt.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-local-ptt.xml"
-
   test-e2e-node-add-local:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Add Local Tests\"
