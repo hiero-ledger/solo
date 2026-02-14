@@ -19,7 +19,7 @@ vars:
   CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
 
   # Previous versions (current minus one)
-  PREV_CN_VERSION: "v0.68.6"
+  PREV_CN_VERSION: "v0.70.0"
   PREV_MIRROR_VERSION: "v0.145.2"
   PREV_EXPLORER_VERSION: "25.1.1"
   PREV_RELAY_VERSION: "0.72.0"
