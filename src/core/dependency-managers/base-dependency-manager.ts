@@ -100,6 +100,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
     }
 
     // Fall back to local installation
+    this.logger.debug(`Using local installation of ${this.executableName} at ${this.localExecutablePath}`);
     return this.localExecutablePath;
   }
 
@@ -112,7 +113,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
         return this.globalExecutablePath;
       }
       const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
-      const path: string[] = await this.run(`${cmd} ${this.executableName}`);
+      const path: string[] = await this.run(`"${cmd}" ${this.executableName}`);
       if (path.length === 0) {
         return false;
       }
@@ -128,7 +129,13 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   public async installationMeetsRequirements(path: string): Promise<boolean> {
     const version: string = await this.getVersion(path);
-    return semver.gte(version, this.getRequiredVersion());
+    if (semver.gte(version, this.getRequiredVersion())) {
+      return true;
+    }
+    this.logger.info(
+      `Found version ${version} of ${this.executableName} at ${path}, which does not meet the required version ${this.getRequiredVersion()}`,
+    );
+    return false;
   }
 
   /**
