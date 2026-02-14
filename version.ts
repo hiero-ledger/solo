@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
-import semver, {SemVer} from 'semver';
+import {SemVer, lte} from 'semver';
 import * as constants from './src/core/constants.js';
 
 /**
@@ -50,7 +50,7 @@ export const POST_HIERO_MIGRATION_MIRROR_NODE_VERSION: string = '0.130.0';
 
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag = releaseTag || HEDERA_PLATFORM_VERSION;
-  return semver.lte(versionTag, LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
+  return lte(versionTag, LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
 }
 
 export function getSoloVersion(): Version {

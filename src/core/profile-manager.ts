@@ -7,6 +7,7 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
+import {parse, type SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -724,7 +725,7 @@ export class ProfileManager {
     const nodeStakeAmount = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
     // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion = semver.parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const releaseVersion = parse(releaseTag, {includePrerelease: true}) as SemVer;
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
