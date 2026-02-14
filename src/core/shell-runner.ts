@@ -20,14 +20,16 @@ export class ShellRunner {
     verbose: boolean = false,
     detached: boolean = false,
   ): Promise<string[]> {
-    const callStack: string = new Error('INFO').stack; // capture the callstack to be included in error
-    this.logger.info(`Executing command: '${cmd}'`);
+    const message: string = `Executing command${process.platform === 'win32' ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
+    const callStack: string = new Error(message).stack; // capture the callstack to be included in error
+    this.logger.info(message);
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,
+        windowsVerbatimArguments: process.platform === 'win32', // ensure arguments are passed verbatim on Windows
       });
 
       if (detached) {
@@ -83,12 +85,15 @@ export class ShellRunner {
           reject(error);
         }
 
-        this.logger.debug(`Finished executing: '${cmd}'`, {
-          commandExitCode: code,
-          commandExitSignal: signal,
-          commandOutput: output,
-          errOutput: errorOutput,
-        });
+        this.logger.debug(
+          `Finished executing: '${cmd}', ${JSON.stringify({
+            commandExitCode: code,
+            commandExitSignal: signal,
+            commandOutput: output,
+            errOutput: errorOutput,
+          })}`,
+        );
+
         resolve(output);
       });
     });

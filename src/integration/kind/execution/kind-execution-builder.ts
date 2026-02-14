@@ -55,10 +55,12 @@ export class KindExecutionBuilder {
    */
   public constructor() {
     const workingDirectoryString: string = process.env.PWD;
-    this._workingDirectory =
-      workingDirectoryString && workingDirectoryString.trim() !== ''
-        ? workingDirectoryString
-        : join(this.kindExecutable, '..');
+    if (this.kindExecutable) {
+      this._workingDirectory =
+        workingDirectoryString && workingDirectoryString.trim() !== ''
+          ? workingDirectoryString
+          : join(this.kindExecutable, '..');
+    }
   }
 
   public executable(kindExecutable: string): KindExecutionBuilder {
@@ -194,7 +196,7 @@ export class KindExecutionBuilder {
    * @returns the command array
    */
   private buildCommand(): string[] {
-    const command: string[] = [this.kindExecutable, ...this._subcommands, ...this._flags];
+    const command: string[] = [`"${this.kindExecutable}"`, ...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
       command.push(`--${key}`, value);

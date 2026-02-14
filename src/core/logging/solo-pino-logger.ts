@@ -291,6 +291,11 @@ export class SoloPinoLogger implements SoloLogger {
     }
   }
 
+  public flush(callback: (error?: Error) => void): void {
+    this.info('Flushing logs and exiting...');
+    this.pinoLogger.flush(callback);
+  }
+
   private toPino(level: 'info' | 'warn' | 'error' | 'debug', message: unknown, arguments_: unknown[]): void {
     // Build base object (traceId via mixin already present, but include explicitly for clarity in unit tests)
     let object: Record<string, unknown> = {};

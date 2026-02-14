@@ -49,8 +49,10 @@ export class K8ClientContainer implements Container {
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
+    this.logger.debug(`Executing kubectl [${this.kubectlExecutable}] with arguments: ${fullArguments.join(' ')}`);
 
     return new Promise((resolve, reject): void => {
+      const callMessage: string = `kubectl ${fullArguments.join(' ')}`;
       const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
         this.kubectlExecutable,
         fullArguments,
@@ -77,14 +79,14 @@ export class K8ClientContainer implements Container {
       });
 
       process.on('error', (error): void => {
-        reject(new SoloError(`container call failed to start: ${error?.message}`));
+        reject(new SoloError(`container call: ${callMessage}, failed to start: ${error?.message}`));
       });
 
       process.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
-          reject(new SoloError(`container call failed: ${stderr || stdout}`));
+          reject(new SoloError(`container call: ${callMessage}, failed with code ${code}: ${stderr || stdout}`));
         }
       });
     });
@@ -107,6 +109,9 @@ export class K8ClientContainer implements Container {
     expectedSize?: number,
   ): Promise<void> {
     const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
+    source = this.toKubectlSafePath(source);
+    destination = this.toKubectlSafePath(destination);
+
     const arguments_: string[] = ['cp', source, destination, '-c', containerName];
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
@@ -137,10 +142,25 @@ export class K8ClientContainer implements Container {
     }
   }
 
+  private toKubectlSafePath(path: string): string {
+    // kubectl cp does not handle windows path with drive letters because of the colon, so we need to convert
+    // C:\path\to\file\file.txt to the format \\localhost\c$\path\to\file\file.txt
+    if (process.platform === 'win32') {
+      const driveLetterMatch: RegExpMatchArray | null = path.match(/^([a-zA-Z]):\\/);
+      if (driveLetterMatch) {
+        const driveLetter: string = driveLetterMatch[1].toLowerCase();
+        path = `//localhost/${driveLetter}$${path.slice(2)}`;
+      }
+    }
+    return path;
+  }
+
   public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
     const namespace: NamespaceName = this.containerReference.parentReference.namespace;
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
+    sourcePath = this.toKubectlSafePath(sourcePath);
+    destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
     if (!(await this.pods.read(this.containerReference.parentReference))) {
       throw new IllegalArgumentError(`Invalid pod ${podName}`);
