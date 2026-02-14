@@ -60,9 +60,13 @@ export class KindDependencyManager extends BaseDependencyManager {
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`${executablePath} --version`);
+        const output: string[] = await this.run(`"${executablePath}" --version`);
+        this.logger.debug(`Attempt ${attempt}: Output from '${executablePath} --version': ${output.join('\n')}`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
+          this.logger.debug(
+            `Attempt ${attempt}: Extracted version from output: ${match ? match[1] : 'No match found'}`,
+          );
           if (match && match[1]) {
             return match[1];
           }
