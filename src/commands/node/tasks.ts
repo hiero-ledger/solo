@@ -972,6 +972,12 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
+        const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
+        if (await k8Container.hasFile(configSource)) {
+          // copy the config.txt file from the node1 upgrade directory if it exists
+          await k8Container.copyFrom(configSource, stagingDir);
+        }
+
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
 
@@ -2808,6 +2814,7 @@ export class NodeCommandTasks {
 
         // Add profile values files
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
+          PathEx.joinWithRealPath(config.stagingDir, 'config.txt'),
           PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
         );
 
