@@ -19,6 +19,7 @@ import {
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
@@ -880,7 +881,7 @@ export class NetworkCommand extends BaseCommand {
 
       this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
 
-      const temporaryFile: string = PathEx.join(path.sep, 'tmp', 'podlogs-crd.yaml');
+      const temporaryFile: string = PathEx.join(os.tmpdir(), 'podlogs-crd.yaml');
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
