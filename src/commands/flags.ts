@@ -17,6 +17,8 @@ import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/alia
 import {type ClusterReferenceName} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
+const {grey, blue, yellow, red} = chalk;
+
 import {PathEx} from '../business/utils/path-ex.js';
 import validator from 'validator';
 
@@ -764,11 +766,11 @@ export class Flags {
 
   public static renderBlockNodeMappingDescription(name: 'block-node' | 'external-block-node'): string {
     return (
-      chalk.grey(`Configure ${name} priority mapping`) +
-      chalk.blue(`\n\t(Default: all ${name} included, first's priority is 2)`) +
-      chalk.yellow('\n\t[Format: <id>=<priority>[,<id>=<priority>]]') +
-      chalk.yellow(`\n\t[Example: "--${name}-mapping 1=2,2=1"]`) +
-      chalk.red(`\n\t[Unlisted ${name} will not routed to the consensus node node]`)
+      grey(`Configure ${name} priority mapping`) +
+      blue(`\n(Default: all ${name} included, first's priority is 2)`) +
+      yellow('\n[Format: <id>=<priority>[,<id>=<priority>]]') +
+      yellow(`\n[Example: "--${name}-mapping 1=2,2=1"]`) +
+      red(`\n[Unlisted ${name} will not routed to the consensus node node]`)
     );
   }
 
@@ -818,6 +820,37 @@ export class Flags {
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
       return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', undefined, Flags.id.name);
     },
+  };
+
+  public static readonly grpcWebEndpoints: CommandFlag = {
+    constName: 'grpcWebEndpoints',
+    name: 'grpc-web-endpoints',
+    definition: {
+      describe:
+        grey('Configure gRPC Web endpoints mapping, comma separated') +
+        blue(`\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})`) +
+        blue('\n(Aliases can be provided explicitly, or inferred by node id order)') +
+        yellow('\n[Format: <alias>=<address>[:<port>][,<alias>=<address>[:<port>]]]') +
+        yellow('\nExamples:') +
+        yellow('\n\tnode1=127.0.0.1:8080,node2=127.0.0.1:8081') +
+        yellow('\n\tnode1=localhost,node2=localhost:8081') +
+        yellow('\n\tlocalhost,127.0.0.2:8081'),
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly grpcWebEndpoint: CommandFlag = {
+    constName: 'grpcWebEndpoint',
+    name: 'grpc-web-endpoint',
+    definition: {
+      describe:
+        grey('Configure gRPC Web endpoint') +
+        blue(`\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})`) +
+        yellow('\n[Format: <address>[:<port>]]'),
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly mirrorNodeId: CommandFlag = {
@@ -1189,11 +1222,11 @@ export class Flags {
     name: 'priority-mapping',
     definition: {
       describe:
-        chalk.grey('Configure block node priority mapping') +
-        chalk.blue('\n\t(Default: all consensus nodes included, first node priority is 2)') +
-        chalk.yellow('\n\t[Format: <node>=<priority>[,<node>=<priority>]]') +
-        chalk.yellow('\n\t[Example: "priority-mapping node1=2,node2=1"]') +
-        chalk.red('\n\t[Unlisted nodes will not be routed to a block node]'),
+        grey('Configure block node priority mapping') +
+        blue('\n(Default: all consensus nodes included, first node priority is 2)') +
+        yellow('\n[Format: <node>=<priority>[,<node>=<priority>]]') +
+        yellow('\n[Example: "priority-mapping node1=2,node2=1"]') +
+        red('\n[Unlisted nodes will not be routed to a block node]'),
       type: 'string',
     },
     prompt: undefined,
@@ -1204,10 +1237,10 @@ export class Flags {
     name: 'address',
     definition: {
       describe:
-        chalk.grey(`Provide external block node address ${chalk.grey('(IP or domain)')}, with optional port`) +
-        chalk.blue(`\n\t(Default port: ${constants.BLOCK_NODE_PORT})`) +
-        chalk.yellow('\n\t[Format: <address>[:<port>]]') +
-        chalk.yellow('\n\t[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
+        grey(`Provide external block node address ${grey('(IP or domain)')}, with optional port`) +
+        blue(`\n(Default port: ${constants.BLOCK_NODE_PORT})`) +
+        yellow('\n[Format: <address>[:<port>]]') +
+        yellow('\n[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
       type: 'string',
     },
     prompt: undefined,
@@ -2675,7 +2708,7 @@ export class Flags {
           task,
           input,
           Flags.numberOfConsensusNodes.definition.defaultValue,
-          `Enter number of consensus nodes to add to the provided cluster ${chalk.grey('(must be a positive number)')}:`,
+          `Enter number of consensus nodes to add to the provided cluster ${grey('(must be a positive number)')}:`,
           undefined,
           Flags.numberOfConsensusNodes.name,
         );
@@ -2729,7 +2762,7 @@ export class Flags {
     definition: {
       describe:
         'Custom domain names for consensus nodes mapping for the' +
-        `${chalk.gray('(e.g. node0=domain.name where key is node alias and value is domain name)')}` +
+        `${grey('(e.g. node0=domain.name where key is node alias and value is domain name)')}` +
         'with multiple nodes comma separated',
       type: 'string',
     },
@@ -3032,6 +3065,8 @@ export class Flags {
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
+    Flags.grpcWebEndpoints,
+    Flags.grpcWebEndpoint,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

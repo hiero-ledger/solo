@@ -155,6 +155,7 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.releaseTag,
   flags.blockNodeMapping,
   flags.externalBlockNodeMapping,
+  flags.grpcWebEndpoint,
 ];
 
 export const DESTROY_FLAGS: CommandFlags = {
@@ -255,6 +256,7 @@ export const START_FLAGS: CommandFlags = {
     flags.stateFile,
     flags.stakeAmounts,
     flags.forcePortForward,
+    flags.grpcWebEndpoints,
   ],
 };
 

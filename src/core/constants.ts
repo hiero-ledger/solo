@@ -405,6 +405,7 @@ export const KUBECTL_EXECUTABLE: string =
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
+export const GRPC_WEB_PORT: number = +getEnvironmentVariable('GRPC_WEB_PORT') || 8080;
 export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
 export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 8081;

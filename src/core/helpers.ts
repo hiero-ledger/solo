@@ -185,7 +185,7 @@ export function parseIpAddressToUint8Array(ipAddress: string): Uint8Array<ArrayB
   const parts: string[] = ipAddress.split('.');
   const uint8Array: Uint8Array<ArrayBuffer> = new Uint8Array(4);
 
-  for (let index = 0; index < 4; index++) {
+  for (let index: number = 0; index < 4; index++) {
     uint8Array[index] = Number.parseInt(parts[index], 10);
   }
 
@@ -197,9 +197,8 @@ export function renameAndCopyFile(
   sourceFilePath: string,
   expectedBaseName: string,
   destinationDirectory: string,
-  _logger: SoloLogger,
-) {
-  const sourceDirectory = path.dirname(sourceFilePath);
+): void {
+  const sourceDirectory: string = path.dirname(sourceFilePath);
   if (path.basename(sourceFilePath) !== expectedBaseName) {
     fs.renameSync(sourceFilePath, PathEx.join(sourceDirectory, expectedBaseName));
   }
