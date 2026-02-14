@@ -54,6 +54,9 @@ export class KindExecutionBuilder {
    * Creates a new KindExecutionBuilder instance.
    */
   public constructor() {
+    if (!this.kindExecutable) {
+      throw new Error('kindExecutable must not be null');
+    }
     const workingDirectoryString: string = process.env.PWD;
     this._workingDirectory =
       workingDirectoryString && workingDirectoryString.trim() !== ''
