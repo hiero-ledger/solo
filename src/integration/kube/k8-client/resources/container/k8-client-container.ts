@@ -49,8 +49,10 @@ export class K8ClientContainer implements Container {
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
+    this.logger.debug(`Executing kubectl [${this.kubectlExecutable}] with arguments: ${fullArguments.join(' ')}`);
 
     return new Promise((resolve, reject): void => {
+      const callMessage: string = `kubectl ${fullArguments.join(' ')}`;
       const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
         this.kubectlExecutable,
         fullArguments,
@@ -77,14 +79,14 @@ export class K8ClientContainer implements Container {
       });
 
       process.on('error', (error): void => {
-        reject(new SoloError(`container call failed to start: ${error?.message}`));
+        reject(new SoloError(`container call: ${callMessage}, failed to start: ${error?.message}`));
       });
 
       process.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
-          reject(new SoloError(`container call failed: ${stderr || stdout}`));
+          reject(new SoloError(`container call: ${callMessage}, failed with code ${code}: ${stderr || stdout}`));
         }
       });
     });
