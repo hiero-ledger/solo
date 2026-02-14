@@ -79,7 +79,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`${executablePath} --version`);
+        const output: string[] = await this.run(`"${executablePath}" --version`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];
@@ -179,7 +179,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
     // Determine if Docker is already installed
     try {
-      await this.run(`${constants.DOCKER} --version`);
+      await this.run(`"${constants.DOCKER}" --version`);
       return false;
     } catch {
       return true;
