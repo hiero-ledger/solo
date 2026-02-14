@@ -85,12 +85,15 @@ export class ShellRunner {
           reject(error);
         }
 
-        this.logger.debug(`Finished executing: '${cmd}'`, {
-          commandExitCode: code,
-          commandExitSignal: signal,
-          commandOutput: output,
-          errOutput: errorOutput,
-        });
+        this.logger.debug(
+          `Finished executing: '${cmd}', ${JSON.stringify({
+            commandExitCode: code,
+            commandExitSignal: signal,
+            commandOutput: output,
+            errOutput: errorOutput,
+          })}`,
+        );
+
         resolve(output);
       });
     });
