@@ -54,14 +54,13 @@ export class KindExecutionBuilder {
    * Creates a new KindExecutionBuilder instance.
    */
   public constructor() {
-    if (!this.kindExecutable) {
-      throw new Error('kindExecutable must not be null');
-    }
     const workingDirectoryString: string = process.env.PWD;
-    this._workingDirectory =
-      workingDirectoryString && workingDirectoryString.trim() !== ''
-        ? workingDirectoryString
-        : join(this.kindExecutable, '..');
+    if (this.kindExecutable) {
+      this._workingDirectory =
+        workingDirectoryString && workingDirectoryString.trim() !== ''
+          ? workingDirectoryString
+          : join(this.kindExecutable, '..');
+    }
   }
 
   public executable(kindExecutable: string): KindExecutionBuilder {
