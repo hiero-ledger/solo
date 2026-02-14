@@ -29,6 +29,8 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 
 @injectable()
