@@ -415,7 +415,9 @@ export class RelayCommand extends BaseCommand {
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
-        await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
+        if (config.isChartInstalled) {
+          await helpers.sleep(Duration.ofSeconds(5)); // short wait for old pod to terminate on upgrade only
+        }
       },
     };
   }

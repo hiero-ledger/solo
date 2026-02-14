@@ -8,7 +8,7 @@ import {Flags as flags, Flags} from '../flags.js';
 import {AnyObject, type ArgvStruct} from '../../types/aliases.js';
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
-import {injectable, inject} from 'tsyringe-neo';
+import {injectable, inject, container as diContainer} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -28,6 +28,7 @@ import {RelayCommandDefinition} from '../command-definitions/relay-command-defin
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type AccountManager} from '../../core/account-manager.js';
+import {type PlatformInstaller} from '../../core/platform-installer.js';
 import {
   CreatedPredefinedAccount,
   PREDEFINED_ACCOUNT_GROUPS,
@@ -203,9 +204,19 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               context_.createdAccounts = [];
 
+              // Pre-warm Helm chart repos so they're ready when needed
+              await this.chartManager.setup(constants.DEFAULT_CHART_REPO, true);
+
               this.logger.debug(`quiet: ${config.quiet}`);
 
               return;
+            },
+          },
+          {
+            title: 'Pre-download platform build to host cache',
+            task: async (): Promise<void> => {
+              const platformInstaller = diContainer.resolve<PlatformInstaller>(InjectTokens.PlatformInstaller);
+              await platformInstaller.preDownloadPlatformBuild(version.HEDERA_PLATFORM_VERSION);
             },
           },
           {
