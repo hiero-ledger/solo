@@ -49,6 +49,7 @@ tasks:
       - npm install
 
   check:
+    desc: "Run all checks (lint, circular dependencies, typedoc)"
     deps: [build]
     sources:
       - src/**/*.ts
@@ -67,6 +68,7 @@ tasks:
       - npx typedoc --emit none
 
   format:
+    desc: "Run all checks with auto-fix (lint, circular dependencies, typedoc)"
     deps: [build]
     sources:
       - src/**/*.ts
@@ -85,6 +87,17 @@ tasks:
         {{end}}
 
   build:
+    desc: "Build the project (compile and lint)"
+    deps: [npm:install]
+    sources:
+      - src/**/*.ts
+      - test/**/*.tss 
+    cmds:
+      - task: "build:compile"
+      - task: "build:lint"
+
+  build:compile:
+    desc: "Compile the TypeScript code and run post-build script"
     deps: [npm:install]
     sources:
       - src/**/*.ts
@@ -93,6 +106,14 @@ tasks:
       POST_BUILD_SCRIPT: "{{.TASKFILE_DIR | toSlash}}/resources/post-build-script.js"
     cmds:
       - rm -Rf dist
-      - npx eslint .
       - npx tsc
       - node {{.POST_BUILD_SCRIPT}}
+
+  build:lint:
+    desc: "Lint the TypeScript code"
+    deps: [npm:install]
+    sources:
+      - src/**/*.ts
+      - test/**/*.tss 
+    cmds:
+      - npx eslint .
