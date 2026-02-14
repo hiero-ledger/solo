@@ -106,7 +106,7 @@ export class HelmDependencyManager extends BaseDependencyManager {
 
   public async getVersion(executablePath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`${executablePath} version --short`);
+      const output: string[] = await this.run(`"${executablePath}" version --short`);
       const parts: string[] = output[0].split('+');
       const versionOnly: string = parts[0];
       this.logger.info(`Helm version: ${versionOnly}`);
