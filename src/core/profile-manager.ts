@@ -29,6 +29,7 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
+import * as versions from '../../version.js';
 
 @injectable()
 export class ProfileManager {
@@ -226,16 +227,21 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const configTxtPath: string = await this.prepareConfigTxt(
-      accountMap,
-      consensusNodes,
-      stagingDirectory,
-      this.configManager.getFlag(flags.releaseTag),
-      domainNamesMapping,
-      this.configManager.getFlag(flags.app),
-      this.configManager.getFlag(flags.chainId),
-      this.configManager.getFlag(flags.loadBalancerEnabled),
-    );
+    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
+    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(releaseTag);
+    let configTxtPath: Optional<string>;
+    if (needsConfigTxt) {
+      configTxtPath = await this.prepareConfigTxt(
+        accountMap,
+        consensusNodes,
+        stagingDirectory,
+        releaseTag,
+        domainNamesMapping,
+        this.configManager.getFlag(flags.app),
+        this.configManager.getFlag(flags.chainId),
+        this.configManager.getFlag(flags.loadBalancerEnabled),
+      );
+    }
 
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
@@ -263,7 +269,9 @@ export class ProfileManager {
       fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
     }
 
-    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    if (configTxtPath) {
+      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    }
     this._setFileContentsAsValue(
       'hedera.configMaps.log4j2Xml',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'log4j2.xml'),
@@ -555,9 +563,14 @@ export class ProfileManager {
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
-  public async prepareValuesForNodeTransaction(configTxtPath: string, applicationPropertiesPath: string) {
+  public async prepareValuesForNodeTransaction(
+    applicationPropertiesPath: string,
+    configTxtPath?: string,
+  ): Promise<string> {
     const yamlRoot = {};
-    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    if (configTxtPath) {
+      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    }
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 
