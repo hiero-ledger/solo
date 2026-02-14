@@ -109,20 +109,9 @@ export class K8ClientContainer implements Container {
     expectedSize?: number,
   ): Promise<void> {
     const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
-    // kubectl cp does not handle windows path with drive letters because of the colon, so we need to convert 
-    // C:\path\to\file\file.txt to the format \\localhost\c$\path\to\file\file.txt
-    if (process.platform === 'win32') {
-      const driveLetterMatch: RegExpMatchArray | null = source.match(/^([a-zA-Z]):\\/);
-      if (driveLetterMatch) {
-        const driveLetter: string = driveLetterMatch[1].toLowerCase();
-        source = `//localhost/${driveLetter}$${source.slice(2)}`;
-      }
-      const destinationDriveLetterMatch: RegExpMatchArray | null = destination.match(/^([a-zA-Z]):\\/);
-      if (destinationDriveLetterMatch) {
-        const driveLetter: string = destinationDriveLetterMatch[1].toLowerCase();
-        destination = `//localhost/${driveLetter}$${destination.slice(2)}`;
-      }
-    }
+    source = this.toKubectlSafePath(source);
+    destination = this.toKubectlSafePath(destination);
+
     const arguments_: string[] = ['cp', source, destination, '-c', containerName];
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
@@ -153,10 +142,25 @@ export class K8ClientContainer implements Container {
     }
   }
 
+  private toKubectlSafePath(path: string): string {
+    // kubectl cp does not handle windows path with drive letters because of the colon, so we need to convert
+    // C:\path\to\file\file.txt to the format \\localhost\c$\path\to\file\file.txt
+    if (process.platform === 'win32') {
+      const driveLetterMatch: RegExpMatchArray | null = path.match(/^([a-zA-Z]):\\/);
+      if (driveLetterMatch) {
+        const driveLetter: string = driveLetterMatch[1].toLowerCase();
+        path = `//localhost/${driveLetter}$${path.slice(2)}`;
+      }
+    }
+    return path;
+  }
+
   public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
     const namespace: NamespaceName = this.containerReference.parentReference.namespace;
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
+    sourcePath = this.toKubectlSafePath(sourcePath);
+    destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
     if (!(await this.pods.read(this.containerReference.parentReference))) {
       throw new IllegalArgumentError(`Invalid pod ${podName}`);
