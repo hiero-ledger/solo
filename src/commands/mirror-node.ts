@@ -873,7 +873,7 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            const remoteConfigLoaded: boolean = await this.loadRemoteConfigOrWarn(argv);
             lease = await this.leaseManager.create();
             this.configManager.update(argv);
 
@@ -1052,7 +1052,7 @@ export class MirrorNodeCommand extends BaseCommand {
         //   },
         // },
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
       'mirror node add',
     );
@@ -1334,12 +1334,14 @@ export class MirrorNodeCommand extends BaseCommand {
               ),
             };
 
-            await this.accountManager.loadNodeClient(
-              context_.config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              this.configManager.getFlag<DeploymentName>(flags.deployment),
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
+            if (remoteConfigLoaded) {
+              await this.accountManager.loadNodeClient(
+                context_.config.namespace,
+                this.remoteConfig.getClusterRefs(),
+                this.configManager.getFlag<DeploymentName>(flags.deployment),
+                this.configManager.getFlag<boolean>(flags.forcePortForward),
+              );
+            }
 
             return ListrLock.newAcquireLockTask(lease, task);
           },

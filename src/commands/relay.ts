@@ -511,7 +511,7 @@ export class RelayCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             lease = await this.leaseManager.create();
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -781,7 +781,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.disableRelayComponent(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
       'relay node destroy',
     );

@@ -305,10 +305,19 @@ type ListrOptionsType = {
 
 export const LISTR_DEFAULT_OPTIONS: {
   DEFAULT: ListrOptionsType;
+  DESTROY: ListrOptionsType;
   WITH_CONCURRENCY: ListrOptionsType;
 } = {
   DEFAULT: {
     concurrent: false,
+    rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
+    fallbackRendererOptions: {
+      timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+    },
+  },
+  DESTROY: {
+    concurrent: false,
+    exitOnError: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
       timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,

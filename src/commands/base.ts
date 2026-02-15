@@ -64,6 +64,20 @@ export abstract class BaseCommand extends ShellRunner {
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
+  protected async loadRemoteConfigOrWarn(
+    argv: {_: string[]} & Record<string, unknown>,
+    validate: boolean = true,
+    skipConsensusNodesValidation: boolean = true,
+  ): Promise<boolean> {
+    try {
+      await this.remoteConfig.loadAndValidate(argv, validate, skipConsensusNodesValidation);
+      return true;
+    } catch (error) {
+      this.logger.warn(`Failed to load remote config; continuing destroy: ${error instanceof Error ? error.message : error}`);
+      return false;
+    }
+  }
+
   /**
    * Prepare the values files map for each cluster
    *

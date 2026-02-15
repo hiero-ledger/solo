@@ -792,6 +792,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDestroyConfigClass;
+    let remoteConfigLoaded: boolean = false;
 
     const taskArray = [
       {
@@ -829,7 +830,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           }
 
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-          await this.remoteConfig.loadAndValidate(argv);
+          remoteConfigLoaded = await this.loadRemoteConfigOrWarn(argv);
         },
       },
       {
@@ -881,12 +882,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           // set up the sub-tasks
           return task.newListr(subTasks, {
             concurrent: false,
+            exitOnError: false,
             rendererOptions: {
               collapseSubtasks: false,
             },
           });
         },
         skip: (): boolean => {
+          if (!remoteConfigLoaded) {
+            return false;
+          }
           const hasExplorers: boolean = this.remoteConfig.configuration.components.state.explorers.length > 0;
           const hasRelays: boolean = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
           return !hasExplorers || !hasRelays;
@@ -910,7 +915,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
+        (): boolean => remoteConfigLoaded && this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
@@ -930,7 +935,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         this.taskList,
         (): boolean =>
           constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-          this.remoteConfig.configuration.components.state.blockNodes.length === 0,
+          (remoteConfigLoaded && this.remoteConfig.configuration.components.state.blockNodes.length === 0),
       ),
       invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
@@ -1006,7 +1011,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
-    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DESTROY);
 
     try {
       await tasks.run();

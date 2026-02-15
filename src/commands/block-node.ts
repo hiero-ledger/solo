@@ -391,7 +391,7 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
@@ -665,7 +665,7 @@ export class BlockNodeCommand extends BaseCommand {
         this.removeBlockNodeComponentFromRemoteConfig(),
         this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
       'block node destroy',
     );
