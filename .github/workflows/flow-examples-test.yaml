@@ -134,6 +134,9 @@ jobs:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
 
+      - name: Configure npm registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
       - name: Install Kubectl
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:

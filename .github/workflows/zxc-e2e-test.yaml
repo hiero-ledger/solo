@@ -210,6 +210,9 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
+      - name: Configure npm registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
       - name: Install wget
         run: |
           if ! command -v wget >/dev/null 2>&1; then
