@@ -17,7 +17,7 @@ import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-cl
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
-import {confirm as confirmPrompt} from '@inquirer/prompts';
+import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
@@ -817,17 +817,52 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
-          config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
-
-          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
-
           if (!config.deployment) {
-            if (this.localConfig.configuration.deployments.length === 0) {
+            const deployments = this.localConfig.configuration.deployments;
+            if (deployments.length === 0) {
               throw new SoloError('Deployments name is not found in local config');
             }
-            config.deployment = this.localConfig.configuration.deployments.get(0).name;
+
+            if (deployments.length > 1) {
+              const selectedDeployment = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: 'Select deployment to destroy',
+                choices: deployments.map(deployment => {
+                  const clusterNames = (deployment.clusters ?? [])
+                    .map(cluster => cluster?.toString())
+                    .filter(Boolean)
+                    .join(', ');
+                  return {
+                    name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames || 'unknown'})`,
+                    value: deployment.name,
+                  };
+                }),
+              })) as string;
+
+              if (!selectedDeployment) {
+                throw new SoloError('Deployment selection cannot be empty');
+              }
+
+              config.deployment = selectedDeployment;
+            } else {
+              config.deployment = deployments.get(0).name;
+            }
+
             this.configManager.setFlag(flags.deployment, config.deployment);
           }
+
+          const selectedDeployment = this.localConfig.configuration.deployments.find(
+            deployment => deployment.name === config.deployment,
+          );
+          if (selectedDeployment?.clusters?.length) {
+            const firstCluster = selectedDeployment.clusters.find(cluster => cluster);
+            if (firstCluster) {
+              config.clusterRef ??= firstCluster.toString();
+            }
+          }
+
+          config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
+
+          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
 
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
           remoteConfigLoaded = await this.loadRemoteConfigOrWarn(argv);

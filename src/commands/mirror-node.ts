@@ -1287,6 +1287,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
+    let remoteConfigLoaded: boolean = false;
 
     const tasks: SoloListr<MirrorNodeDestroyContext> = this.taskList.newTaskList<MirrorNodeDestroyContext>(
       [
@@ -1295,6 +1296,7 @@ export class MirrorNodeCommand extends BaseCommand {
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
+            remoteConfigLoaded = true;
             lease = await this.leaseManager.create();
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
