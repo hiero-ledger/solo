@@ -22,7 +22,7 @@ tasks:
       - cmd: |
           set -euo pipefail
 
-          jitter_max=${JITTER_SECONDS}
+          jitter_max={{.JITTER_SECONDS}}
 
           run_with_interrupt() {
             local base_secs="$1"
@@ -50,7 +50,7 @@ tasks:
             echo "Done for ${label}m"
           }
 
-          for base_secs in ${INTERRUPT_SECONDS}; do
+          for base_secs in {{.INTERRUPT_SECONDS}}; do
             label=$(awk -v s="${base_secs}" 'BEGIN {printf "%.1f", s/60}')
             run_with_interrupt "${base_secs}" "${label}"
           done
