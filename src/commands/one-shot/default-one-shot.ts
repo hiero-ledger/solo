@@ -854,7 +854,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             deployment => deployment.name === config.deployment,
           );
           if (selectedDeployment?.clusters?.length) {
-            const firstCluster = selectedDeployment.clusters.find(cluster => cluster);
+            const firstCluster = selectedDeployment.clusters.find(cluster => cluster !== null && cluster !== undefined);
             if (firstCluster) {
               config.clusterRef ??= firstCluster.toString();
             }

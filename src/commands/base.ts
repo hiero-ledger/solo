@@ -73,7 +73,9 @@ export abstract class BaseCommand extends ShellRunner {
       await this.remoteConfig.loadAndValidate(argv, validate, skipConsensusNodesValidation);
       return true;
     } catch (error) {
-      this.logger.warn(`Failed to load remote config; continuing destroy: ${error instanceof Error ? error.message : error}`);
+      this.logger.warn(
+        `Failed to load remote config; continuing destroy: ${error instanceof Error ? error.message : error}`,
+      );
       return false;
     }
   }

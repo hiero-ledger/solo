@@ -814,7 +814,10 @@ export class NetworkCommand extends BaseCommand {
 
     if (deleteSecrets) {
       task.title = `Deleting Secrets in namespace ${namespace}`;
-      await this.logDestroyResults('Delete secrets', await Promise.allSettled([this.deleteSecrets(namespace, contexts)]));
+      await this.logDestroyResults(
+        'Delete secrets',
+        await Promise.allSettled([this.deleteSecrets(namespace, contexts)]),
+      );
     }
 
     if (deleteSecrets && deletePvcs) {
@@ -829,10 +832,7 @@ export class NetworkCommand extends BaseCommand {
     }
   }
 
-  private async logDestroyResults(
-    title: string,
-    results: PromiseSettledResult<void>[],
-  ): Promise<void> {
+  private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
     if (failures.length === 0) {
       return;
@@ -1483,7 +1483,9 @@ export class NetworkCommand extends BaseCommand {
               force: this.configManager.getFlag(flags.force),
               contexts: remoteConfigLoaded
                 ? this.remoteConfig.getContexts()
-                : [...this.localConfig.configuration.clusterRefs.values()].map((context): Context => context.toString()),
+                : [...this.localConfig.configuration.clusterRefs.values()].map(
+                    (context): Context => context.toString(),
+                  ),
             };
 
             return ListrLock.newAcquireLockTask(lease, task);
