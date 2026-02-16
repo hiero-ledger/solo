@@ -35,10 +35,16 @@ tasks:
 
             echo "Starting one-shot deploy; interrupt after ${sleep_secs}s (base ${label}m, jitter ${jitter}s)"
 
-            set +e
-            ${SOLO_COMMAND} one-shot single deploy --deployment "${SOLO_DEPLOYMENT}" &
-            deploy_pid=$!
-            set -e
+          set +e
+          ${SOLO_COMMAND} one-shot single deploy --deployment "${SOLO_DEPLOYMENT}" &
+          set +u
+          deploy_pid=$!
+          set -u
+          set -e
+          if [ -z "${deploy_pid}" ]; then
+            echo "Deploy did not start; skipping interrupt."
+            return 1
+          fi
 
             sleep "${sleep_secs}"
             echo "Interrupting deploy (pid ${deploy_pid})"
