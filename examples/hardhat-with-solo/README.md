@@ -1,4 +1,4 @@
-# External Database Test Example
+g# External Database Test Example
 
 This example demonstrates how to deploy a Hiero Hashgraph Solo deployment via the `one-shot` command, configure a `hardhat` project to connect to it, and run tests against the local Solo deployment.
 

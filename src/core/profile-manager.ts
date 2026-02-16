@@ -34,6 +34,7 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Address} from '../business/address/address.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
+import {ListrLock} from './lock/listr-lock.js';
 
 @injectable()
 export class ProfileManager {
@@ -555,6 +556,12 @@ export class ProfileManager {
     }
     if (!shardUpdated) {
       lines.push(`hedera.shard=${shard}`);
+    }
+
+    const releaseVersion: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+
+    if (semver.gte(releaseVersion, '0.72.0')) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
