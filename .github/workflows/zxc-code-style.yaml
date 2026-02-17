@@ -77,7 +77,7 @@ jobs:
           max_attempts: 10
           timeout_minutes: 10
           command: |
-            npm ci
+            npm ci --legacy-peer-deps
 
       - name: Check Code Style
         run: |
@@ -102,7 +102,7 @@ jobs:
           # Fetch and check out the target branch from origin
           git fetch origin "$target_branch":"$target_branch"
           git checkout "$target_branch"
-          npm ci
+          npm ci --legacy-peer-deps
           task check
           branch_warnings=$(get_warnings eslint-branch.log)
           target_warnings=$(get_warnings eslint.log)
