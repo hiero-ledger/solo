@@ -296,8 +296,13 @@ jobs:
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
           
-          # Export environment variables for Taskfile
-          export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          # Export environment variables for Taskfile.
+          # Release ZIP examples are not executed from the Solo repo checkout, so they must use released Solo CLI.
+          if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
+            export USE_RELEASED_VERSION="true"
+          else
+            export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          fi
           echo "USE_RELEASED_VERSION: $USE_RELEASED_VERSION"
           
           # Check if Taskfile.yml exists
@@ -335,8 +340,12 @@ jobs:
         run: |
           echo "Cleaning up example source: ${{ steps.prepare_example.outputs.display_dir }}"
           
-          # Export environment variables for cleanup task
-          export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          # Keep cleanup mode aligned with execution mode.
+          if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
+            export USE_RELEASED_VERSION="true"
+          else
+            export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          fi
           
           # Check if Taskfile.yml exists and has destroy task
           if [ -f "Taskfile.yml" ] && grep -q "destroy:" Taskfile.yml; then
