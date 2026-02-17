@@ -11,7 +11,7 @@ env:
 
 vars:
   SOLO_DEPLOYMENT: "one-shot-interrupt"
-  INTERRUPT_SECONDS: "60 90 120 150 180 210 240 270 300 330 360 390 420"
+  INTERRUPT_SECONDS: '{{default "60 90 120 150 180 210 240 270 300 330 360 390 420" .INTERRUPT_SECONDS}}'
   JITTER_SECONDS: "10"
 
 tasks:
@@ -20,46 +20,34 @@ tasks:
     dir: ../..
     cmds:
       - cmd: |
-          set -euo pipefail
-
-          jitter_max={{.JITTER_SECONDS}}
-
-          run_with_interrupt() {
-            local base_secs="$1"
-            local label="$2"
-            local jitter=$((RANDOM % (jitter_max * 2 + 1) - jitter_max))
-            local sleep_secs=$((base_secs + jitter))
-            if [ "${sleep_secs}" -lt 1 ]; then
-              sleep_secs=1
-            fi
-
-            echo "Starting one-shot deploy; interrupt after ${sleep_secs}s (base ${label}m, jitter ${jitter}s)"
-
-          set +e
-          ${SOLO_COMMAND} one-shot single deploy --deployment "${SOLO_DEPLOYMENT}" &
-          set +u
-          deploy_pid=$!
-          set -u
-          set -e
-          if [ -z "${deploy_pid}" ]; then
-            echo "Deploy did not start; skipping interrupt."
-            return 1
-          fi
-
-            sleep "${sleep_secs}"
-            echo "Interrupting deploy (pid ${deploy_pid})"
-            kill -TERM "${deploy_pid}" 2>/dev/null || true
-            wait "${deploy_pid}" 2>/dev/null || true
-
-            echo "Running one-shot destroy"
-            ${SOLO_COMMAND} one-shot single destroy --deployment "${SOLO_DEPLOYMENT}" --force || true
-            echo "Done for ${label}m"
-          }
-
-          for base_secs in {{.INTERRUPT_SECONDS}}; do
-            label=$(awk -v s="${base_secs}" 'BEGIN {printf "%.1f", s/60}')
-            run_with_interrupt "${base_secs}" "${label}"
+          # delete all existin clusters to ensure a clean environment for this example
+          for cluster in $(kind get clusters); do
+            kind delete cluster -n $cluster
           done
+          rm -rf ~/.solo/*;
+          
+      - cmd: |
+          set -euo pipefail
+          SOLO_COMMAND="{{.SOLO_COMMAND}}" \
+          SOLO_DEPLOYMENT="{{.SOLO_DEPLOYMENT}}" \
+          INTERRUPT_SECONDS="{{.INTERRUPT_SECONDS}}" \
+          JITTER_SECONDS="{{.JITTER_SECONDS}}" \
+          ./examples/one-shot-interrupt-destroy/one-shot-interrupt-destroy.sh
+      - cmd: |
+          set -euo pipefail
+          timeout_cmd() {
+            local timeout_secs="$1"
+            shift
+            if command -v gtimeout >/dev/null 2>&1; then
+              gtimeout "${timeout_secs}" "$@"
+            elif command -v timeout >/dev/null 2>&1; then
+              timeout "${timeout_secs}" "$@"
+            else
+              perl -e 'my $t=shift; alarm $t; exec @ARGV' "${timeout_secs}" "$@"
+            fi
+          }
+          timeout_cmd 120 ${SOLO_COMMAND} one-shot single deploy --deployment "{{.SOLO_DEPLOYMENT}}" --quiet-mode || true
+          ${SOLO_COMMAND} one-shot single destroy --quiet-mode
 
   destroy:
     desc: Destroy the one-shot deployment created by this example.
@@ -67,4 +55,4 @@ tasks:
     cmds:
       - cmd: |
           set -euo pipefail
-          ${SOLO_COMMAND} one-shot single destroy --deployment "${SOLO_DEPLOYMENT}" --force
+          ${SOLO_COMMAND} one-shot single destroy --quiet-mode

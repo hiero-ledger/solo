@@ -1421,6 +1421,15 @@ export class MirrorNodeCommand extends BaseCommand {
             });
           },
         },
+        {
+          title: 'Cleanup mirror ingress controller ClusterRole',
+          task: async (context_): Promise<void> => {
+            const rbac = this.k8Factory.getK8(context_.config.clusterContext).rbac();
+            if (await rbac.clusterRoleExists(constants.MIRROR_INGRESS_CONTROLLER)) {
+              await rbac.deleteClusterRole(constants.MIRROR_INGRESS_CONTROLLER);
+            }
+          },
+        },
         this.disableMirrorNodeComponents(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
