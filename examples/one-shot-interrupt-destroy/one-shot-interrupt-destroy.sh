@@ -43,6 +43,13 @@ log() {
   printf '%s\n' "$*"
 }
 
+log_banner() {
+  local title="$1"
+  printf '\n============================================================\n'
+  printf '%s\n' "${title}"
+  printf '============================================================\n'
+}
+
 cleanup_running="false"
 last_command_output=""
 
@@ -120,6 +127,23 @@ run_destroy_with_retry() {
   return "${exit_code}"
 }
 
+reset_to_fresh_cluster() {
+  log "Resetting environment to a clean state"
+  if command -v kind >/dev/null 2>&1; then
+    local cluster=""
+    while IFS= read -r cluster; do
+      [ -z "${cluster}" ] && continue
+      log "Deleting kind cluster: ${cluster}"
+      kind delete cluster --name "${cluster}" >/dev/null 2>&1 || true
+    done < <(kind get clusters 2>/dev/null || true)
+  fi
+
+  if [ -d "${HOME}/.solo" ]; then
+    rm -rf "${HOME}/.solo"/* || true
+    log "Removed ${HOME}/.solo/*"
+  fi
+}
+
 run_with_interrupt() {
   local base_secs="$1"
   local label="$2"
@@ -131,8 +155,9 @@ run_with_interrupt() {
     sleep_secs=1
   fi
 
+  log_banner "Testing interrupt interval ${base_secs}s (${label}m)"
   log "Starting one-shot deploy; interrupt after ${sleep_secs}s (base ${label}m, jitter ${jitter}s)"
-  run_destroy_with_retry "pre-clean" || true
+  reset_to_fresh_cluster
 
   set +e
   run_command_with_timeout "Deploy" "${sleep_secs}" \
