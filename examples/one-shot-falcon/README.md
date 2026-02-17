@@ -14,6 +14,9 @@ This example demonstrates how to use the Solo **one-shot falcon** commands to qu
 
 ### Download Archive
 
+> **Note for unzipped release archive:** If you run tasks from an unzipped release directory (outside the Solo git repository), set `USE_RELEASED_VERSION` before running `task`:
+> `export USE_RELEASED_VERSION=true`
+
 You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
 
 ```
@@ -91,6 +94,7 @@ solo one-shot falcon deploy --values-file falcon-values.yaml --deploy-explorer=f
 ```
 
 This is useful for:
+
 * Testing specific components in isolation
 * Reducing resource usage during development
 * Customizing deployment for specific testing scenarios

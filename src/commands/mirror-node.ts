@@ -873,7 +873,7 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
-            const remoteConfigLoaded: boolean = await this.loadRemoteConfigOrWarn(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             lease = await this.leaseManager.create();
             this.configManager.update(argv);
 

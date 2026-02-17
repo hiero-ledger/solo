@@ -15,6 +15,9 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
 
 ### Download Archive
 
+> **Note for unzipped release archive:** If you run tasks from an unzipped release directory (outside the Solo git repository), set `USE_RELEASED_VERSION` before running `task`:
+> `export USE_RELEASED_VERSION=true`
+
 You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
 
 ```
