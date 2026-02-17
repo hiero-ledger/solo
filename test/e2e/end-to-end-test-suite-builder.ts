@@ -25,6 +25,7 @@ export class EndToEndTestSuiteBuilder {
   private bootstrapProperties: string;
   private logXml: string;
   private settingsTxt: string;
+  private javaFlightRecorderConfiguration: string;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -133,6 +134,11 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withJavaFlightRecorderConfiguration(jfc: string): this {
+    this.javaFlightRecorderConfiguration = jfc;
+    return this;
+  }
+
   public build(): EndToEndTestSuite {
     if (!this.testName || !this.testSuiteName || !this.testSuiteCallback) {
       throw new Error('Missing required properties to build EndToEndTestSuite');
@@ -158,6 +164,7 @@ export class EndToEndTestSuiteBuilder {
       this.bootstrapProperties,
       this.logXml,
       this.settingsTxt,
+      this.javaFlightRecorderConfiguration,
       this.testSuiteCallback,
     );
   }

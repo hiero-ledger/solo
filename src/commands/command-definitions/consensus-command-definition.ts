@@ -75,6 +75,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD = 'add';
   public static readonly NODE_UPDATE = 'update';
   public static readonly NODE_DESTROY = 'destroy';
+  public static readonly COLLECT_JFC = 'collect-jfc';
 
   public static readonly NETWORK_DEPLOY = 'deploy';
   public static readonly NETWORK_DESTROY = 'destroy';
@@ -229,6 +230,17 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.destroy,
                 NodeFlags.DESTROY_FLAGS,
                 [constants.HELM],
+              ),
+            )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.COLLECT_JFC,
+                'Collect Java Flight Recorder (JFC) files from a node for diagnostics and performance analysis. ' +
+                  'Requires the node to be running with Java Flight Recorder enabled.',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.collectJavaFlightRecorderLogs,
+                NodeFlags.COLLECT_JFR_FLAGS,
+                [constants.HELM, constants.KUBECTL],
               ),
             ),
         )

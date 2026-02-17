@@ -47,6 +47,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly bootstrapProperties: string = 'bootstrap.properties',
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
+    public readonly javaFlightRecorderConfiguration: string = '',
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -106,6 +107,7 @@ export class EndToEndTestSuite extends Suite {
       bootstrapProperties: this.bootstrapProperties,
       logXml: this.logXml,
       settingsTxt: this.settingsTxt,
+      javaFlightRecorderConfiguration: this.javaFlightRecorderConfiguration,
     } as BaseTestOptions;
   }
 
@@ -117,6 +119,10 @@ export class EndToEndTestSuite extends Suite {
       // Automatically setup diagnostic log collection if enabled
       if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
         BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
+      }
+
+      if (endToEndTestSuiteInstance.javaFlightRecorderConfiguration) {
+        BaseCommandTest.setupJavaFlightRecorderLogCollection(endToEndTestSuiteInstance.options);
       }
 
       endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options);
