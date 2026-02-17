@@ -8,6 +8,7 @@ env:
       else
         echo "npm run solo --"
       fi
+  ONE_SHOT_WITH_BLOCK_NODE: true
 
 vars:
   SOLO_DEPLOYMENT: "one-shot-interrupt"
@@ -33,21 +34,6 @@ tasks:
           INTERRUPT_SECONDS="{{.INTERRUPT_SECONDS}}" \
           JITTER_SECONDS="{{.JITTER_SECONDS}}" \
           ./examples/one-shot-interrupt-destroy/one-shot-interrupt-destroy.sh
-      - cmd: |
-          set -euo pipefail
-          timeout_cmd() {
-            local timeout_secs="$1"
-            shift
-            if command -v gtimeout >/dev/null 2>&1; then
-              gtimeout "${timeout_secs}" "$@"
-            elif command -v timeout >/dev/null 2>&1; then
-              timeout "${timeout_secs}" "$@"
-            else
-              perl -e 'my $t=shift; alarm $t; exec @ARGV' "${timeout_secs}" "$@"
-            fi
-          }
-          timeout_cmd 120 ${SOLO_COMMAND} one-shot single deploy --deployment "{{.SOLO_DEPLOYMENT}}" --quiet-mode || true
-          ${SOLO_COMMAND} one-shot single destroy --quiet-mode
 
   destroy:
     desc: Destroy the one-shot deployment created by this example.

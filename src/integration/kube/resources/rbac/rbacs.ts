@@ -32,4 +32,17 @@ export interface Rbacs {
    * @param name The name of the cluster role
    */
   deleteClusterRole(name: string): Promise<void>;
+
+  /**
+   * Check if a ClusterRoleBinding exists
+   * @param name The name of the cluster role binding
+   * @returns True if the cluster role binding exists, false otherwise
+   */
+  clusterRoleBindingExists(name: string): Promise<boolean>;
+
+  /**
+   * Delete a ClusterRoleBinding
+   * @param name The name of the cluster role binding
+   */
+  deleteClusterRoleBinding(name: string): Promise<void>;
 }

@@ -933,13 +933,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
       },
       {
-        title: 'Cleanup mirror ingress controller ClusterRole',
+        title: 'Cleanup mirror ingress controller RBAC',
         task: async (): Promise<void> => {
           if (!config.clusterRef && !config.context) {
             return;
           }
           const clusterContext: Context = config.context ?? this.getClusterContext(config.clusterRef);
           const rbac = this.k8Factory.getK8(clusterContext).rbac();
+          if (await rbac.clusterRoleBindingExists(constants.MIRROR_INGRESS_CONTROLLER)) {
+            await rbac.deleteClusterRoleBinding(constants.MIRROR_INGRESS_CONTROLLER);
+          }
           if (await rbac.clusterRoleExists(constants.MIRROR_INGRESS_CONTROLLER)) {
             await rbac.deleteClusterRole(constants.MIRROR_INGRESS_CONTROLLER);
           }

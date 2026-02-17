@@ -8,6 +8,7 @@ DEFAULT_JITTER_SECONDS="10"
 DEFAULT_MAX_DESTROY_ATTEMPTS="8"
 DEFAULT_DESTROY_SLEEP_SECS="20"
 DEFAULT_DESTROY_TIMEOUT_SECS="300"
+DEFAULT_CLEAN_DEPLOY_TIMEOUT_SECS="180"
 
 usage() {
   cat <<'EOF'
@@ -36,6 +37,7 @@ JITTER_SECONDS="${JITTER_SECONDS:-$DEFAULT_JITTER_SECONDS}"
 MAX_DESTROY_ATTEMPTS="${MAX_DESTROY_ATTEMPTS:-$DEFAULT_MAX_DESTROY_ATTEMPTS}"
 DESTROY_SLEEP_SECS="${DESTROY_SLEEP_SECS:-$DEFAULT_DESTROY_SLEEP_SECS}"
 DESTROY_TIMEOUT_SECS="${DESTROY_TIMEOUT_SECS:-$DEFAULT_DESTROY_TIMEOUT_SECS}"
+CLEAN_DEPLOY_TIMEOUT_SECS="${CLEAN_DEPLOY_TIMEOUT_SECS:-$DEFAULT_CLEAN_DEPLOY_TIMEOUT_SECS}"
 
 log() {
   printf '%s\n' "$*"
@@ -55,20 +57,6 @@ on_interrupt() {
 }
 
 trap on_interrupt INT TERM
-
-cleanup_mirror_ingress_clusterrole() {
-  if ! command -v kubectl >/dev/null 2>&1; then
-    return 0
-  fi
-  if kubectl get clusterrolebinding mirror-ingress-controller >/dev/null 2>&1; then
-    log "Removing stale ClusterRoleBinding mirror-ingress-controller"
-    kubectl delete clusterrolebinding mirror-ingress-controller >/dev/null 2>&1 || true
-  fi
-  if kubectl get clusterrole mirror-ingress-controller >/dev/null 2>&1; then
-    log "Removing stale ClusterRole mirror-ingress-controller"
-    kubectl delete clusterrole mirror-ingress-controller >/dev/null 2>&1 || true
-  fi
-}
 
 timeout_cmd() {
   local timeout_secs="$1"
@@ -144,7 +132,6 @@ run_with_interrupt() {
   fi
 
   log "Starting one-shot deploy; interrupt after ${sleep_secs}s (base ${label}m, jitter ${jitter}s)"
-  cleanup_mirror_ingress_clusterrole
   run_destroy_with_retry "pre-clean" || true
 
   set +e
@@ -157,6 +144,18 @@ run_with_interrupt() {
   fi
 
   run_destroy_with_retry "post-interrupt" || true
+
+  log "Running clean one-shot deploy (no interrupt) for ${label}m"
+  set +e
+  run_command_with_timeout "Clean deploy" "${CLEAN_DEPLOY_TIMEOUT_SECS}" \
+    "${SOLO_COMMAND} one-shot single deploy --deployment \"${SOLO_DEPLOYMENT}\" --quiet-mode"
+  deploy_exit=$?
+  set -e
+  if [ "${deploy_exit}" -ne 0 ]; then
+    log "Clean deploy exited with ${deploy_exit}."
+  fi
+  run_destroy_with_retry "post-clean" || true
+
   log "Done for ${label}m"
   return 0
 }
