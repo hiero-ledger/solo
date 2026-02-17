@@ -8,7 +8,7 @@ import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
 import * as semver from 'semver';
-import {type SemVer} from 'semver';
+import {SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -34,7 +34,6 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Address} from '../business/address/address.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
-import {ListrLock} from './lock/listr-lock.js';
 
 @injectable()
 export class ProfileManager {
@@ -445,7 +444,7 @@ export class ProfileManager {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
     }
-    const profile = this.getProfile(profileName);
+    const profile: AnyObject = this.getProfile(profileName);
 
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
@@ -455,7 +454,8 @@ export class ProfileManager {
         .map((node): NodeAlias => node.name);
 
       // generate the YAML
-      const yamlRoot = {};
+      const yamlRoot: AnyObject = {};
+
       await this.resourcesForConsensusPod(
         profile,
         consensusNodes,
@@ -469,7 +469,7 @@ export class ProfileManager {
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);
       this.resourcesForMinioTenantPod(profile, yamlRoot);
 
-      const cachedValuesFile = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
+      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
     }
 
@@ -558,10 +558,8 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    const releaseVersion: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
-
-    if (semver.gte(releaseVersion, '0.72.0')) {
-      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+    if (this.remoteConfig.configuration.state.wrapsEnabled) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.wrapsEnabled=true');
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');

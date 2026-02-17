@@ -153,6 +153,7 @@ import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
+import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 
 const {gray, cyan, red, green, yellow}: any = chalk;
 
@@ -876,7 +877,7 @@ export class NodeCommandTasks {
         const {upgradeZipHash}: any = context_;
         const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
         try {
-          const futureDate = new Date();
+          const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
@@ -885,11 +886,14 @@ export class NodeCommandTasks {
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
 
           // query the balance
-          const balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+          const balance: AccountBalance = await new AccountBalanceQuery()
+            .setAccountId(freezeAdminAccountId)
+            .execute(nodeClient);
+
           this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeUpgradeTx: any = await new FreezeTransaction()
+          const freezeUpgradeTx: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .setFileId(this.getFileUpgradeId(deployment))
@@ -897,7 +901,7 @@ export class NodeCommandTasks {
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
+          const freezeUpgradeReceipt: TransactionReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
           this.logger.debug(
             `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
             freezeUpgradeReceipt.status.toString(),
@@ -1014,12 +1018,12 @@ export class NodeCommandTasks {
     return {
       title: 'Download upgrade files from an existing node',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const {consensusNodes, namespace, stagingDir, nodeAliases}: NodeUpgradeConfigClass = context_.config;
 
-        const nodeAlias: any = context_.config.nodeAliases[0];
-        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
-        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+        const nodeAlias: NodeAlias = nodeAliases[0];
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+
+        const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
         // found all files under ${constants.HEDERA_HAPI_PATH}/data/upgrade/current/
         const upgradeDirectories: string[] = [
@@ -1027,19 +1031,13 @@ export class NodeCommandTasks {
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/apps`,
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/libs`,
         ];
-        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
         for (const upgradeDirectory of upgradeDirectories) {
           // check if directory upgradeDirectory exist in root container
-          if (
-            !(await this.k8Factory.getK8(context).containers().readByRef(containerReference).hasDir(upgradeDirectory))
-          ) {
+          if (!(await container.hasDir(upgradeDirectory))) {
             continue;
           }
-          const files = await this.k8Factory
-            .getK8(context)
-            .containers()
-            .readByRef(containerReference)
-            .listDir(upgradeDirectory);
+          const files: TDirectoryData[] = await container.listDir(upgradeDirectory);
           // iterate all files and copy them to the staging directory
           for (const file of files) {
             if (file.name.endsWith('.mf')) {
@@ -1049,11 +1047,7 @@ export class NodeCommandTasks {
               continue;
             }
             this.logger.debug(`Copying file: ${file.name}`);
-            await this.k8Factory
-              .getK8(context)
-              .containers()
-              .readByRef(containerReference)
-              .copyFrom(`${upgradeDirectory}/${file.name}`, `${config.stagingDir}`);
+            await container.copyFrom(`${upgradeDirectory}/${file.name}`, `${stagingDir}`);
           }
         }
       },

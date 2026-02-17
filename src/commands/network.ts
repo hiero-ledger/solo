@@ -23,7 +23,14 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {
+  type AnyListrContext,
+  type ArgvStruct,
+  type IP,
+  type NodeAlias,
+  type NodeAliases,
+  type NodeId,
+} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -68,6 +75,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import semver from 'semver/preload.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -130,6 +138,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
+  wrapsEnabled: boolean;
 }
 
 interface NetworkDeployContext {
@@ -226,6 +235,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.wrapsEnabled,
     ],
   };
 
@@ -437,7 +447,7 @@ export class NetworkCommand extends BaseCommand {
     // initialize the valueArgs
     for (const consensusNode of config.consensusNodes) {
       // add the cluster to the list of clusters
-      if (!clusterReferences[consensusNode.cluster]) {
+      if (!clusterReferences.includes(consensusNode.cluster)) {
         clusterReferences.push(consensusNode.cluster);
       }
 
@@ -455,15 +465,35 @@ export class NetworkCommand extends BaseCommand {
     }
 
     // add debug options to the debug node
-    config.consensusNodes.filter((consensusNode): void => {
+    for (const consensusNode of config.consensusNodes) {
       if (consensusNode.name === config.debugNodeAlias) {
         valuesArguments[consensusNode.cluster] = addDebugOptions(
           valuesArguments[consensusNode.cluster],
           config.debugNodeAlias,
           extraEnvironmentIndex,
         );
+
+        extraEnvironmentIndex++; //! increment index // TODO: Fix indexing related to consensus node logic
       }
-    });
+    }
+
+    // add option for WRAPS
+    if (config.wrapsEnabled) {
+      for (const consensusNode of config.consensusNodes) {
+        const cluster: ClusterReferenceName = consensusNode.cluster;
+        const index: number = extraEnvironmentIndex;
+        const nodeId: NodeId = consensusNode.nodeId;
+
+        valuesArguments[cluster] +=
+          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+
+        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'wraps-v0.2.0');
+
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
+      }
+
+      extraEnvironmentIndex++; //! increment index
+    }
 
     if (
       config.storageType === constants.StorageType.AWS_AND_GCS ||
@@ -973,6 +1003,33 @@ export class NetworkCommand extends BaseCommand {
             await this.remoteConfig.loadAndValidate(argv, true, true);
             lease = await this.leaseManager.create();
 
+            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+
+            if (
+              this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
+              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+            ) {
+              // if is possible block node deployed before consensus node, then use release tag as fallback
+              this.remoteConfig.configuration.versions.consensusNode = releaseTag;
+              await this.remoteConfig.persist();
+            }
+
+            const currentVersion: SemVer = new SemVer(
+              this.remoteConfig.configuration.versions.consensusNode.toString(),
+            );
+
+            const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
+            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+
+            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+              throw new SoloError(
+                `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
+              );
+            }
+
+            this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
+            await this.remoteConfig.persist();
+
             context_.config = await this.prepareConfig(task, argv);
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -1283,6 +1340,22 @@ export class NetworkCommand extends BaseCommand {
         },
         this.addNodesAndProxies(),
         {
+          title: 'copy over',
+          task: async ({config}): Promise<void> => {
+            for (const consensusNode of config.consensusNodes) {
+              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+                config.namespace,
+                consensusNode.name,
+              );
+
+              const sourcePath: string = PathEx.joinWithRealPath(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+              const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+
+              await rootContainer.copyTo(sourcePath, targetPath);
+            }
+          },
+        },
+        {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
           task: async ({config: {consensusNodes}}): Promise<void> => {
@@ -1309,6 +1382,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {

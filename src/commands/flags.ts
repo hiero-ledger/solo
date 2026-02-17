@@ -1213,6 +1213,20 @@ export class Flags {
     prompt: undefined,
   };
 
+  // TODO: Maybe add const to override the artifact path
+  public static readonly wrapsEnabled: CommandFlag = {
+    constName: 'wrapsEnabled',
+    name: 'wraps',
+    definition: {
+      describe:
+        'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72). ' +
+        'Requires TSS_LIB_WRAPS_ARTIFACTS_PATH to point to an unzipped WRAPs artifact.',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
   public static readonly applicationProperties: CommandFlag = {
     constName: 'applicationProperties',
     name: 'application-properties',
@@ -3032,6 +3046,7 @@ export class Flags {
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
+    Flags.wrapsEnabled,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
