@@ -38,6 +38,11 @@ on:
         type: string
         required: false
         default: ""
+      use-release-example-zip:
+        description: "Download example zip from latest release and run from extracted directory."
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       node-version:
@@ -55,6 +60,11 @@ on:
         type: string
         required: false
         default: ""
+      use-release-example-zip:
+        description: "Download example zip from latest release and run from extracted directory."
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
       - trunk-merge/**
@@ -210,11 +220,64 @@ jobs:
       - name: Build Application
         run: task build
 
+      - name: Prepare Example Directory - ${{ matrix.example.name }}
+        id: prepare_example
+        run: |
+          set -euo pipefail
+
+          example_name="${{ matrix.example.directory }}"
+
+          if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
+            echo "Using release example zip for: ${example_name}"
+            latest_tag="$(curl -fsSL "https://api.github.com/repos/hiero-ledger/solo/releases/latest" | jq -r '.tag_name')"
+            if [ -z "${latest_tag}" ] || [ "${latest_tag}" = "null" ]; then
+              echo "Failed to resolve latest release tag" >&2
+              exit 1
+            fi
+
+            release_dir="${RUNNER_TEMP}/release-examples/${example_name}"
+            unzip_dir="${release_dir}/unzipped"
+            zip_file="${release_dir}/${example_name}.zip"
+            zip_url="https://github.com/hiero-ledger/solo/releases/download/${latest_tag}/${example_name}.zip"
+
+            rm -rf "${release_dir}"
+            mkdir -p "${release_dir}" "${unzip_dir}"
+
+            echo "Downloading: ${zip_url}"
+            curl -fL --retry 3 --retry-delay 2 -o "${zip_file}" "${zip_url}"
+            unzip -q -o "${zip_file}" -d "${unzip_dir}"
+
+            if [ -f "${unzip_dir}/Taskfile.yml" ]; then
+              run_dir="${unzip_dir}"
+            else
+              taskfile_path="$(find "${unzip_dir}" -maxdepth 3 -type f -name Taskfile.yml | head -n 1)"
+              if [ -z "${taskfile_path}" ]; then
+                echo "Taskfile.yml not found in extracted zip for ${example_name}" >&2
+                exit 1
+              fi
+              run_dir="$(dirname "${taskfile_path}")"
+            fi
+
+            display_dir="release:${latest_tag}/${example_name}.zip -> ${run_dir}"
+          else
+            run_dir="${GITHUB_WORKSPACE}/examples/${example_name}"
+            display_dir="local:${run_dir}"
+          fi
+
+          if [ ! -d "${run_dir}" ]; then
+            echo "Resolved run directory does not exist: ${run_dir}" >&2
+            exit 1
+          fi
+
+          echo "run_dir=${run_dir}" >> "${GITHUB_OUTPUT}"
+          echo "display_dir=${display_dir}" >> "${GITHUB_OUTPUT}"
+
       - name: Run Example Test - ${{ matrix.example.name }}
         timeout-minutes: 45
-        working-directory: examples/${{ matrix.example.directory }}
+        working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
-          echo "Running example test in directory: ${{ matrix.example.directory }}"
+          echo "Running example: ${{ matrix.example.name }}"
+          echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
           
           # Export environment variables for Taskfile
@@ -242,7 +305,7 @@ jobs:
           SLACK_TITLE: Example Test Failed
           SLACK_MESSAGE: |
             *Example:* ${{ matrix.example.name }}
-            *Directory:* `examples/${{ matrix.example.directory }}`
+            *Directory:* `${{ steps.prepare_example.outputs.display_dir }}`
             *Branch:* `${{ github.ref_name }}`
             *Commit:* ${{ github.sha }}
             
@@ -252,9 +315,9 @@ jobs:
       - name: Cleanup Example - ${{ matrix.example.name }}
         if: success()
         timeout-minutes: 10
-        working-directory: examples/${{ matrix.example.directory }}
+        working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
-          echo "Cleaning up example in directory: ${{ matrix.example.directory }}"
+          echo "Cleaning up example source: ${{ steps.prepare_example.outputs.display_dir }}"
           
           # Export environment variables for cleanup task
           export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"

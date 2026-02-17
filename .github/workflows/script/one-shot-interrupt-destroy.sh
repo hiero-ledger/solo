@@ -24,9 +24,9 @@ Options:
   -h, --help               Show help
 
 Examples:
-  ./one-shot-interrupt-destroy.sh 60 120 180
-  ./one-shot-interrupt-destroy.sh -d my-deploy -j 15
-  SOLO_COMMAND="npx @hashgraph/solo" ./one-shot-interrupt-destroy.sh
+  .github/workflows/script/one-shot-interrupt-destroy.sh 60 120 180
+  .github/workflows/script/one-shot-interrupt-destroy.sh -d my-deploy -j 15
+  SOLO_COMMAND="npx @hashgraph/solo" .github/workflows/script/one-shot-interrupt-destroy.sh
 EOF
 }
 
@@ -86,8 +86,8 @@ run_command_with_timeout() {
 
   output_file="$(mktemp)"
   set +e
-  timeout_cmd "${timeout_secs}" bash -c "${cmd}" >"${output_file}" 2>&1
-  exit_code=$?
+  timeout_cmd "${timeout_secs}" bash -c "${cmd}" 2>&1 | tee "${output_file}"
+  exit_code=${PIPESTATUS[0]}
   set -e
 
   if [ "${exit_code}" -eq 124 ]; then

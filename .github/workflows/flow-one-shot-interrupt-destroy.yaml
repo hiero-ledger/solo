@@ -1,0 +1,140 @@
+##
+# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "One Shot Interrupt Destroy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
+      released-or-latest:
+        description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: false
+  workflow_call:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
+      released-or-latest:
+        description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-one-shot-interrupt-destroy:
+    name: Interrupt=${{ matrix.interrupt_seconds }}s
+    runs-on: hiero-solo-linux-large
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      matrix:
+        interrupt_seconds: [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420]
+      max-parallel: 2
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ inputs.node-version || '22' }}
+          cache: npm
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        with:
+          version: 'v1.27.3'
+        id: install
+
+      - name: Setup Kind
+        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: "v3.17.1"
+
+      - name: Install Dependencies
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Application
+        run: task build
+
+      - name: Run Interrupt Workflow Script
+        timeout-minutes: 60
+        env:
+          ONE_SHOT_WITH_BLOCK_NODE: true
+        run: |
+          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
+            export SOLO_COMMAND="npx @hashgraph/solo"
+          else
+            export SOLO_COMMAND="npm run solo --"
+          fi
+          export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
+          chmod +x .github/workflows/script/one-shot-interrupt-destroy.sh
+          .github/workflows/script/one-shot-interrupt-destroy.sh
+
+      - name: Cleanup Deployment
+        if: always()
+        timeout-minutes: 15
+        env:
+          ONE_SHOT_WITH_BLOCK_NODE: true
+        run: |
+          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
+            npx @hashgraph/solo one-shot single destroy --quiet-mode || true
+          else
+            npm run solo -- one-shot single destroy --quiet-mode || true
+          fi
