@@ -234,7 +234,7 @@ jobs:
             release_dir="${RUNNER_TEMP}/release-examples/${example_name}"
             unzip_dir="${release_dir}/unzipped"
             zip_file="${release_dir}/${example_name}.zip"
-            zip_url="https://github.com/hiero-ledger/solo/releases/download/${latest_tag}/${example_name}.zip"
+            zip_url="https://github.com/hiero-ledger/solo/releases/download/${latest_tag}/example-${example_name}.zip"
 
             rm -rf "${release_dir}"
             mkdir -p "${release_dir}" "${unzip_dir}"
