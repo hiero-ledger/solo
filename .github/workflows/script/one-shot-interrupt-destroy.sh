@@ -3,7 +3,7 @@ set -euo pipefail
 
 DEFAULT_SOLO_COMMAND="npm run solo --"
 DEFAULT_DEPLOYMENT="one-shot-interrupt"
-DEFAULT_INTERRUPT_SECONDS="60 90 120 150 180 210 240 270 300 330 360 390 420"
+DEFAULT_INTERRUPT_SECONDS="120"
 DEFAULT_JITTER_SECONDS="10"
 DEFAULT_MAX_DESTROY_ATTEMPTS="8"
 DEFAULT_DESTROY_SLEEP_SECS="20"
@@ -144,6 +144,18 @@ reset_to_fresh_cluster() {
   fi
 }
 
+cleanup_stale_kind_clusters() {
+  if ! command -v kind >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # one-shot default cluster name used by solo
+  if kind get clusters 2>/dev/null | grep -qx "solo-cluster"; then
+    log "Deleting stale kind cluster: solo-cluster"
+    kind delete cluster --name "solo-cluster" >/dev/null 2>&1 || true
+  fi
+}
+
 run_with_interrupt() {
   local base_secs="$1"
   local label="$2"
@@ -168,6 +180,7 @@ run_with_interrupt() {
     log "Deploy exited with ${deploy_exit} (expected when interrupted)."
   fi
 
+  cleanup_stale_kind_clusters
   run_destroy_with_retry "post-interrupt" || true
 
   log "Running clean one-shot deploy (no interrupt) for ${label}m"
@@ -178,6 +191,7 @@ run_with_interrupt() {
   set -e
   if [ "${deploy_exit}" -ne 0 ]; then
     log "Clean deploy exited with ${deploy_exit}."
+    cleanup_stale_kind_clusters
   fi
   run_destroy_with_retry "post-clean" || true
 
@@ -221,16 +235,21 @@ parse_args() {
   done
 
   if [ "${#args[@]}" -gt 0 ]; then
-    INTERRUPT_SECONDS="${args[*]}"
+    INTERRUPT_SECONDS="${args[0]}"
+  fi
+
+  # Normalize to a single integer in case a space-separated value is provided.
+  INTERRUPT_SECONDS="$(echo "${INTERRUPT_SECONDS}" | awk '{print $1}')"
+  if ! echo "${INTERRUPT_SECONDS}" | grep -Eq '^[0-9]+$'; then
+    echo "ERROR: INTERRUPT_SECONDS must be a single integer number of seconds." >&2
+    exit 1
   fi
 }
 
 main() {
   parse_args "$@"
-  for base_secs in ${INTERRUPT_SECONDS}; do
-    label=$(awk -v s="${base_secs}" 'BEGIN {printf "%.1f", s/60}')
-    run_with_interrupt "${base_secs}" "${label}" || true
-  done
+  label=$(awk -v s="${INTERRUPT_SECONDS}" 'BEGIN {printf "%.1f", s/60}')
+  run_with_interrupt "${INTERRUPT_SECONDS}" "${label}" || true
 }
 
 main "$@"

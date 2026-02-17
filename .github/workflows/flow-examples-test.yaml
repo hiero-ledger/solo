@@ -233,14 +233,30 @@ jobs:
 
             release_dir="${RUNNER_TEMP}/release-examples/${example_name}"
             unzip_dir="${release_dir}/unzipped"
-            zip_file="${release_dir}/${example_name}.zip"
-            zip_url="https://github.com/hiero-ledger/solo/releases/download/${latest_tag}/example-${example_name}.zip"
+            zip_file=""
+            zip_url=""
+            zip_name=""
 
             rm -rf "${release_dir}"
             mkdir -p "${release_dir}" "${unzip_dir}"
 
-            echo "Downloading: ${zip_url}"
-            curl -fL --retry 3 --retry-delay 2 -o "${zip_file}" "${zip_url}"
+            for candidate in "example-${example_name}.zip" "${example_name}.zip"; do
+              candidate_url="https://github.com/hiero-ledger/solo/releases/download/${latest_tag}/${candidate}"
+              candidate_file="${release_dir}/${candidate}"
+              echo "Trying download: ${candidate_url}"
+              if curl -fsSL --retry 3 --retry-delay 2 -o "${candidate_file}" "${candidate_url}"; then
+                zip_name="${candidate}"
+                zip_url="${candidate_url}"
+                zip_file="${candidate_file}"
+                break
+              fi
+            done
+
+            if [ -z "${zip_file}" ]; then
+              echo "Failed to download release zip for ${example_name} from tag ${latest_tag}" >&2
+              exit 1
+            fi
+
             unzip -q -o "${zip_file}" -d "${unzip_dir}"
 
             if [ -f "${unzip_dir}/Taskfile.yml" ]; then
@@ -254,7 +270,7 @@ jobs:
               run_dir="$(dirname "${taskfile_path}")"
             fi
 
-            display_dir="release:${latest_tag}/${example_name}.zip -> ${run_dir}"
+            display_dir="release:${latest_tag}/${zip_name} -> ${run_dir}"
           else
             run_dir="${GITHUB_WORKSPACE}/examples/${example_name}"
             display_dir="local:${run_dir}"
@@ -262,6 +278,10 @@ jobs:
 
           if [ ! -d "${run_dir}" ]; then
             echo "Resolved run directory does not exist: ${run_dir}" >&2
+            exit 1
+          fi
+          if [ ! -f "${run_dir}/Taskfile.yml" ]; then
+            echo "Resolved run directory does not contain Taskfile.yml: ${run_dir}" >&2
             exit 1
           fi
 
