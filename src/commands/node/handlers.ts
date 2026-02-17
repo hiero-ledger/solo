@@ -1027,7 +1027,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async collectJavaFlightRecorderLogs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.COLLECT_JFR_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
