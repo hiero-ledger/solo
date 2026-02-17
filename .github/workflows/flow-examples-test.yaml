@@ -229,11 +229,7 @@ jobs:
 
           if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
             echo "Using release example zip for: ${example_name}"
-            latest_tag="$(curl -fsSL "https://api.github.com/repos/hiero-ledger/solo/releases/latest" | jq -r '.tag_name')"
-            if [ -z "${latest_tag}" ] || [ "${latest_tag}" = "null" ]; then
-              echo "Failed to resolve latest release tag" >&2
-              exit 1
-            fi
+            latest_tag="v0.55.0"
 
             release_dir="${RUNNER_TEMP}/release-examples/${example_name}"
             unzip_dir="${release_dir}/unzipped"
