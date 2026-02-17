@@ -26,6 +26,7 @@ import {type Deployment} from '../../../src/business/runtime-state/config/local/
 import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
 
 const testName: string = 'performance-tests';
+const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
 
 const duration: number = Duration.ofMinutes(
@@ -46,12 +47,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName(`${testTitle} Suite`)
   .withNamespace(testName)
-  .withDeployment(`${testName}-deployment`)
+  .withDeployment(deploymentName)
   .withClusterCount(1)
   .withJavaFlightRecorderConfiguration('test/data/java-flight-recorder/LowMem.jfc')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts} = options;
+      const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
@@ -75,7 +76,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: starting ${testName} e2e test`);
 
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName));
+        await main(soloOneShotDeploy(testName, deploymentName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
 
         startTime = new Date();
@@ -234,8 +235,8 @@ export async function logMetrics(startTime: Date): Promise<void> {
   flushEvents();
 }
 
-export function soloOneShotDeploy(testName: string): string[] {
-  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+export function soloOneShotDeploy(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(
@@ -244,6 +245,7 @@ export function soloOneShotDeploy(testName: string): string[] {
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
+  argv.push(optionFromFlag(Flags.deployment), deployment);
   return argv;
 }
 
