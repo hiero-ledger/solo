@@ -3674,11 +3674,7 @@ export class NodeCommandTasks {
         }
 
         try {
-          const localJfrLogsDirectory: string = PathEx.join(
-            constants.SOLO_HOME_DIR,
-            config.deployment,
-            'jfr-logs',
-          );
+          const localJfrLogsDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, config.deployment, 'jfr-logs');
           fs.mkdirSync(localJfrLogsDirectory, {recursive: true});
           await k8Container.copyFrom(recordingFilePath, localJfrLogsDirectory);
           const targetPath: string = PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr');

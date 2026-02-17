@@ -1307,7 +1307,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
-          title: `Copy JFR file to nodes`,
+          title: 'Copy JFR file to nodes',
           skip: ({config: {javaFlightRecorderConfiguration}}): boolean => javaFlightRecorderConfiguration.length === 0,
           task: async (
             {config: {consensusNodes, javaFlightRecorderConfiguration}},
