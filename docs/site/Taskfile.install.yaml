@@ -73,7 +73,7 @@ tasks:
   install:typedoc:
     desc: "Install TypeDoc"
     cmds:
-      - npx typedoc --version
+      - npx --yes -p typedoc -p typescript typedoc --version
 
   install:solo:
     desc: "Install the Solo CLI dependencies from the package.json"
