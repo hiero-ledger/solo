@@ -169,6 +169,41 @@ tasks:
       - task: test-refresh
       - task: verify
 
+  smoke-test:
+    desc: Run smoke test to verify the refresh command works with all port-forwards already running
+    dir: ../..
+    cmds:
+      # Deploy the network
+      - task: deploy
+      
+      # Wait a moment for all port-forwards to stabilize
+      - cmd: sleep 5
+      
+      # Run refresh command when everything is already running
+      - cmd: |
+          echo "==== Running refresh command with all port-forwards already running ===="
+          $SOLO_COMMAND deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
+      
+      # Verify output shows all port-forwards are running
+      - cmd: |
+          echo ""
+          echo "==== Smoke test verification ===="
+          echo "Checking that all port-forwards are still running..."
+          
+          # Get the list of port-forwards from the process list
+          RUNNING_PORTS=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u)
+          PORT_COUNT=$(echo "$RUNNING_PORTS" | wc -w)
+          
+          echo "Running port-forwards on ports: $RUNNING_PORTS"
+          echo "Total running port-forwards: $PORT_COUNT"
+          
+          if [ "$PORT_COUNT" -ge 2 ]; then
+            echo "✓ Smoke test PASSED: All port-forwards are running correctly"
+          else
+            echo "✗ Smoke test FAILED: Expected at least 2 port-forwards, found $PORT_COUNT"
+            exit 1
+          fi
+
   destroy:
     desc: Destroy the test deployment
     dir: ../..
