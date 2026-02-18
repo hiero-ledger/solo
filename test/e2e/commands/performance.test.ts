@@ -29,9 +29,10 @@ const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
 
-const duration: number = Duration.ofMinutes(
-  Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
-).seconds;
+// const duration: number = Duration.ofMinutes(
+//   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
+// ).seconds;
+const duration: number = Duration.ofMinutes(1).seconds;
 const clients: number = 5;
 const accounts: number = 1000;
 const tokens: number = 50;
@@ -151,7 +152,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             maxTps,
           ),
         );
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
 
       it('TokenTransferLoadTest', async (): Promise<void> => {
         logEvent('Starting TokenTransferLoadTest');
@@ -163,26 +164,26 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             maxTps,
           ),
         );
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
 
       it('CryptoTransferLoadTest', async (): Promise<void> => {
         logEvent('Starting CryptoTransferLoadTest');
         await main(
           soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
         );
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
 
       it('HCSLoadTest', async (): Promise<void> => {
         logEvent('Starting HCSLoadTest');
         await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
 
       it('SmartContractLoadTest', async (): Promise<void> => {
         logEvent('Starting SmartContractLoadTest');
         await main(
           soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
         );
-      }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
 
       it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
         logEvent('Completed all performance tests');
