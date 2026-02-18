@@ -26,6 +26,7 @@ import {type Deployment} from '../../../src/business/runtime-state/config/local/
 import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
 
 const testName: string = 'performance-tests';
+const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
 
 const duration: number = Duration.ofMinutes(
@@ -46,6 +47,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName(`${testTitle} Suite`)
   .withNamespace(testName)
+  .withDeployment(deploymentName)
   .withClusterCount(1)
   .withJavaFlightRecorderConfiguration('test/data/java-flight-recorder/LowMem.jfc')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
@@ -134,9 +136,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
         );
 
-        testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        await main(soloOneShotDestroy(testName));
-        testLogger.info(`${testName}: finished ${testName}: destroy`);
+        // testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        // await main(soloOneShotDestroy(testName));
+        // testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('NftTransferLoadTest', async (): Promise<void> => {
