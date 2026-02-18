@@ -61,6 +61,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
   public async getVersion(executablePath: string): Promise<string> {
     try {
       const output: string[] = await this.run(`${executablePath} version --client`);
+      this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {
           if (line.trim().startsWith('Client Version')) {
