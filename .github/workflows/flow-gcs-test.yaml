@@ -131,7 +131,7 @@ jobs:
         if: steps.check.outputs.run == 'true'
         id: npm-deps
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm install -g @hashgraph/solo
 
       - name: Install Kubectl
