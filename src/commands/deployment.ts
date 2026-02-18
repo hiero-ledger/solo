@@ -35,6 +35,8 @@ import {type ConfigMap} from '../integration/kube/resources/config-map/config-ma
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
 import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
 import {MessageLevel} from '../core/logging/message-level.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -722,7 +724,7 @@ export class DeploymentCommand extends BaseCommand {
               throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
             }
 
-            context_.namespace = deployment.namespace;
+            context_.namespace = NamespaceName.of(deployment.namespace);
           },
         },
         {
@@ -787,16 +789,17 @@ export class DeploymentCommand extends BaseCommand {
 
                     try {
                       // Find the pod reference for this component
+                      const namespaceName = NamespaceName.of(namespace);
                       const podName = await this.getPodNameForComponent(
                         component,
                         type,
                         k8Client,
-                        new NamespaceName(namespace),
+                        namespaceName,
                       );
 
                       if (podName) {
                         // Re-enable port forward
-                        const podReference = k8Client.pods().createPodReference(new NamespaceName(namespace), podName);
+                        const podReference = PodReference.of(namespaceName, podName);
 
                         await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, false);
 
@@ -858,7 +861,7 @@ export class DeploymentCommand extends BaseCommand {
     componentType: string,
     k8Client: any,
     namespace: NamespaceName,
-  ): Promise<string | null> {
+  ): Promise<PodName | null> {
     try {
       // Build label selector based on component type
       let labelSelector = '';
