@@ -55,12 +55,60 @@ jobs:
           node-version: 22
           cache: npm
 
-  one-shot-interrupt-destroy:
-    name: Run One Shot Interrupt Destroy
-    needs:
-      - test-migration-process
-    uses: ./.github/workflows/flow-one-shot-interrupt-destroy.yaml
-    with:
-      node-version: "22"
-      released-or-latest: false
-    secrets: inherit
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: "v3.12.3" # helm version
+
+      - name: Setup Kind
+        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        with:
+          version: 'v1.27.3'
+        id: install
+
+      - name: Get Latest Version
+        id: get-version
+        run: |
+          LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+          echo "Latest Version: ${LATEST_VERSION}"
+          echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Launch Network with Prior Release ${{ steps.get-version.outputs.version }}
+        timeout-minutes: 60
+        run: |
+          echo "Configure APT to use main Ubuntu archive (disable mirror rotation)..."
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
+          
+          echo "Install yq..."
+          YQ_VERSION="v4.44.1"
+          YQ_BINARY="yq_linux_amd64"
+          wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}" -O /tmp/yq
+          sudo chmod +x /tmp/yq
+          sudo mv /tmp/yq /usr/local/bin/yq
+          yq --version
+          
+          npm install
+          task build
+          .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} || RC=$? || true
+          if [[ "$RC" != "0" ]]; then
+            echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
+            exit $RC
+          fi
+
+      - name: Upload Logs to GitHub
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: solo-logs
+          path: ~/.solo/logs/*
+          if-no-files-found: error

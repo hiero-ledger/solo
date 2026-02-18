@@ -216,7 +216,12 @@ export const DEFAULT_GENESIS_KEY: string =
 export const GENESIS_KEY: string = getEnvironmentVariable('GENESIS_KEY') || DEFAULT_GENESIS_KEY;
 export const GENESIS_PUBLIC_KEY: ReturnType<typeof PrivateKey.fromStringED25519>['publicKey'] =
   PrivateKey.fromStringED25519(GENESIS_KEY).publicKey;
-export const SYSTEM_ACCOUNTS: number[][] = [[3, 10]]; // do account 0.0.2 last and outside the loop
+export const SYSTEM_ACCOUNTS: number[][] = [
+  [3, 100],
+  [200, 349],
+  [400, 750],
+  [900, 1000],
+]; // do account 0.0.2 last and outside the loop
 export const SHORTER_SYSTEM_ACCOUNTS: number[][] = [[3, 60]];
 export const TREASURY_ACCOUNT: number = 2;
 export const LOCAL_NODE_START_PORT: number = +getEnvironmentVariable('LOCAL_NODE_START_PORT') || 30_212;
