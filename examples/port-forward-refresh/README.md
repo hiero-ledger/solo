@@ -52,6 +52,18 @@ This will:
 2. Run the refresh command with all port-forwards already running
 3. Verify the command correctly reports everything is working
 
+Run the full Solo smoke test suite:
+
+```bash
+cd examples/port-forward-refresh
+task solo-smoke-test
+```
+
+This will:
+1. Deploy a test network with all required components (consensus, mirror, relay, explorer, block nodes)
+2. Execute the comprehensive Solo smoke test from `.github/workflows/script/solo_smoke_test.sh`
+3. Verify smart contracts, JavaScript SDK, and mirror node functionality
+
 To clean up:
 
 ```bash

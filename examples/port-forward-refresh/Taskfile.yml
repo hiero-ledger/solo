@@ -204,6 +204,26 @@ tasks:
             exit 1
           fi
 
+  solo-smoke-test:
+    desc: Run Solo smoke test script from .github/workflows/script/solo_smoke_test.sh
+    dir: ../..
+    cmds:
+      # Deploy the network with required components for smoke test
+      - task: deploy
+      
+      # Run solo smoke test
+      - cmd: |
+          export SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}"
+          # Get the namespace from the deployment configuration
+          NAMESPACE=$(npm run solo-test -- deployment config list --deployment {{ .DEPLOYMENT }} 2>&1 | grep -oP 'solo-\w+' | head -1)
+          if [ -z "$NAMESPACE" ]; then
+            # Fallback: try to get it from kubectl
+            NAMESPACE=$(kubectl get deployments -A -l app=network-node --no-headers | awk '{print $1}' | head -1)
+          fi
+          export SOLO_NAMESPACE="${NAMESPACE:-solo-ns}"
+          echo "Using namespace: $SOLO_NAMESPACE"
+          ./.github/workflows/script/solo_smoke_test.sh
+
   destroy:
     desc: Destroy the test deployment
     dir: ../..
