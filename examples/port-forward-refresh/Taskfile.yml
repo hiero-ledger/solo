@@ -57,20 +57,38 @@ tasks:
       # Show current port-forwards
       - cmd: |
           echo "==== Current port-forward processes ===="
-          ps -ef | grep "port-forward" | grep -v grep || echo "No port-forwards found"
+          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
           echo ""
 
-      # Get one of the port-forward PIDs (for consensus node or block node)
+      # Get one of the port-forward PIDs and kill it
       - cmd: |
           echo "==== Killing a random port-forward process ===="
-          PID=$(ps -ef | grep "kubectl port-forward" | grep -v grep | head -1 | awk '{print $2}')
+          # Use bracket notation to avoid matching the grep process itself
+          PID=$(ps -ef | grep '[k]ubectl port-forward' | head -1 | awk '{print $2}')
           if [ -n "$PID" ]; then
             echo "Killing port-forward process PID: $PID"
-            PORT=$(ps -ef | grep "kubectl port-forward" | grep -v grep | head -1 | awk '{print $NF}' | cut -d':' -f1)
+            # Extract and validate the port number being killed
+            PORT=$(ps -ef | grep '[k]ubectl port-forward' | head -1 | awk '{print $NF}' | cut -d':' -f1)
             echo "Port being killed: $PORT"
+            
+            # Validate PORT is a number
+            if ! echo "$PORT" | grep -qE '^[0-9]+$'; then
+              echo "Error: Could not extract valid port number"
+              exit 1
+            fi
+            
             kill -9 $PID
             sleep 2
-            echo "Process killed"
+            
+            # Verify the process was actually killed
+            if ps -p $PID > /dev/null 2>&1; then
+              echo "Error: Process $PID still running"
+              exit 1
+            fi
+            
+            echo "Process killed successfully"
+            # Store the killed port for later verification
+            echo "$PORT" > /tmp/killed_port.txt
           else
             echo "No port-forward processes found to kill"
             exit 1
@@ -80,7 +98,7 @@ tasks:
       - cmd: |
           echo ""
           echo "==== Port-forward processes after killing one ===="
-          ps -ef | grep "port-forward" | grep -v grep || echo "No port-forwards found"
+          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
           echo ""
 
       # Run refresh command
@@ -92,7 +110,7 @@ tasks:
       - cmd: |
           echo ""
           echo "==== Port-forward processes after refresh ===="
-          ps -ef | grep "port-forward" | grep -v grep || echo "No port-forwards found"
+          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
           echo ""
 
   verify:
@@ -103,8 +121,8 @@ tasks:
           echo "==== Verifying port-forwards ===="
           echo "Checking that all port-forwards from remote config are running..."
           
-          # Get the list of port-forwards from the process list
-          RUNNING_PORTS=$(ps -ef | grep "kubectl port-forward" | grep -v grep | awk '{print $NF}' | cut -d':' -f1 | sort -u)
+          # Get the list of port-forwards from the process list using bracket notation
+          RUNNING_PORTS=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u)
           
           echo "Running port-forwards on ports: $RUNNING_PORTS"
           
@@ -115,6 +133,18 @@ tasks:
           # We expect at least 2 port-forwards (consensus node and block node)
           if [ "$PORT_COUNT" -ge 2 ]; then
             echo "✓ Verification PASSED: Found expected number of port-forwards"
+            
+            # Check if the killed port was restored
+            if [ -f /tmp/killed_port.txt ]; then
+              KILLED_PORT=$(cat /tmp/killed_port.txt)
+              if echo "$RUNNING_PORTS" | grep -q "^${KILLED_PORT}$"; then
+                echo "✓ Verification PASSED: Killed port $KILLED_PORT was successfully restored"
+              else
+                echo "✗ Verification FAILED: Killed port $KILLED_PORT was NOT restored"
+                exit 1
+              fi
+              rm -f /tmp/killed_port.txt
+            fi
           else
             echo "✗ Verification FAILED: Expected at least 2 port-forwards, found $PORT_COUNT"
             exit 1
