@@ -813,7 +813,11 @@ export class DeploymentCommand extends BaseCommand {
                         // Re-enable port forward
                         const podReference = PodReference.of(namespaceName, podName);
 
-                        // Re-enable port forward with reuse=true (to use the configured port) and persist=false (for temporary port-forward)
+                        // portForward parameters:
+                        // - localPort: the port to forward to on localhost
+                        // - podPort: the port on the pod to forward from
+                        // - reuse: true = reuse the configured port number
+                        // - persist: false = temporary port-forward (will not restart on failure)
                         await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, false);
 
                         this.logger.showUser(
@@ -857,12 +861,12 @@ export class DeploymentCommand extends BaseCommand {
    * Check if a port-forward process is running on the specified port
    */
   private async isPortForwardRunning(port: number): Promise<boolean> {
-    try {
-      // Validate port is a positive integer
-      if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-        throw new SoloError(`Invalid port number: ${port}`);
-      }
+    // Validate port is a positive integer before using it in shell command
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      throw new SoloError(`Invalid port number: ${port}`);
+    }
 
+    try {
       const shellCommand = `ps -ef | grep "port-forward" | grep "${port}:" | grep -v grep`;
       const result = await this.run(shellCommand, [], true, false);
       return result && result.length > 0;
