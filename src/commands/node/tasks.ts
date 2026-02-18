@@ -770,7 +770,7 @@ export class NodeCommandTasks {
     return {
       title: 'Load node admin key',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
           try {
             const context: string = helpers.extractContextFromConsensusNodes(
@@ -804,16 +804,14 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Check existing nodes staked amount',
-      task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-
+      task: async ({config}): Promise<void> => {
         // Transfer some hbar to the node for staking purpose
-        const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.existingNodeAliases,
           deploymentName,
         );
-        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
           const accountId: string = accountMap.get(nodeAlias)!;
           await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
@@ -1143,9 +1141,9 @@ export class NodeCommandTasks {
     return {
       title: 'Identify existing network nodes',
       task: async (context_, task): Promise<any> => {
-        const config: any = context_.config;
+        const config: CheckedNodesConfigClass = context_.config;
         config.existingNodeAliases = [];
-        const clusterReferences = this.remoteConfig.getClusterRefs();
+        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
         config.serviceMap = await this.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
@@ -1714,49 +1712,45 @@ export class NodeCommandTasks {
   } {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
-      task: async (context_): Promise<void> => {
-        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || context_.config.consensusNodes[0].name;
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      task: async ({config}): Promise<void> => {
+        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
-        if (context_.config.debugNodeAlias) {
-          const podReference: PodReference = PodReference.of(
-            context_.config.namespace,
-            PodName.of(`network-${nodeAlias}-0`),
-          );
+        if (config.debugNodeAlias) {
+          const pod: Pod = await new K8Helper(context).getConsensusNodePod(config.namespace, nodeAlias);
+
           this.logger.showUser('Enable port forwarding for JVM debugger');
-          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
-          await this.k8Factory
-            .getK8(context)
-            .pods()
-            .readByReference(podReference)
-            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
+          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
+
+          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
         }
-        if (context_.config.forcePortForward && enablePortForwardHaProxy) {
+
+        if (config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
             .getK8(context)
             .pods()
-            .list(context_.config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+            .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+
           if (pods.length === 0) {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
-          const podReference: PodReference = pods[0].podReference;
-          const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
+
           await this.remoteConfig.configuration.components.managePortForward(
             undefined,
-            podReference,
+            pods[0].podReference,
             constants.GRPC_PORT, // Pod port
             constants.GRPC_PORT, // Local port
-            this.k8Factory.getK8(context_.config.clusterContext),
+            this.k8Factory.getK8(config.clusterContext),
             this.logger,
             ComponentTypes.ConsensusNode,
             'Consensus Node gRPC',
-            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
-            nodeId,
+            config.isChartInstalled, // Reuse existing port if chart is already installed
+            Templates.nodeIdFromNodeAlias(nodeAlias),
           );
           await this.remoteConfig.persist();
         }
       },
-      skip: (context_): boolean => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
+      skip: ({config}): boolean => !config.debugNodeAlias && !config.forcePortForward,
     };
   }
 
