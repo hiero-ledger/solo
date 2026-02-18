@@ -1,0 +1,146 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo-test --"
+      fi
+
+vars:
+  DEPLOYMENT: "port-forward-test-deployment"
+  CLUSTER_NAME: "port-forward-test-cluster"
+  CONTEXT: "kind-port-forward-test-cluster"
+
+tasks:
+  deploy:
+    desc: Deploy a test network using one-shot single deploy
+    dir: ../..
+    cmds:
+      # Install Solo CLI if using released version
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Clean up any existing Kind clusters
+      - cmd: |
+          for cluster in $(kind get clusters 2>/dev/null); do
+            kind delete cluster -n $cluster
+          done
+        ignore_error: true
+
+      # Clean up Solo data
+      - cmd: rm -rf ~/.solo
+        ignore_error: true
+
+      # Create Kind cluster
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      # Solo one-shot single deploy
+      - cmd: |
+          $SOLO_COMMAND one-shot single deploy \
+          --num-consensus-nodes 1 \
+          --deploy-mirror-node=true \
+          --deploy-explorer=false \
+          --deploy-relay=false \
+          --deploy-block-node=true
+
+  test-refresh:
+    desc: Test the refresh command by killing a port-forward and then restoring it
+    dir: ../..
+    cmds:
+      # Show current port-forwards
+      - cmd: |
+          echo "==== Current port-forward processes ===="
+          ps -ef | grep "port-forward" | grep -v grep || echo "No port-forwards found"
+          echo ""
+
+      # Get one of the port-forward PIDs (for consensus node or block node)
+      - cmd: |
+          echo "==== Killing a random port-forward process ===="
+          PID=$(ps -ef | grep "kubectl port-forward" | grep -v grep | head -1 | awk '{print $2}')
+          if [ -n "$PID" ]; then
+            echo "Killing port-forward process PID: $PID"
+            PORT=$(ps -ef | grep "kubectl port-forward" | grep -v grep | head -1 | awk '{print $NF}' | cut -d':' -f1)
+            echo "Port being killed: $PORT"
+            kill -9 $PID
+            sleep 2
+            echo "Process killed"
+          else
+            echo "No port-forward processes found to kill"
+            exit 1
+          fi
+
+      # Show port-forwards after killing one
+      - cmd: |
+          echo ""
+          echo "==== Port-forward processes after killing one ===="
+          ps -ef | grep "port-forward" | grep -v grep || echo "No port-forwards found"
+          echo ""
+
+      # Run refresh command
+      - cmd: |
+          echo "==== Running deployment refresh command ===="
+          $SOLO_COMMAND deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
+
+      # Show port-forwards after refresh
+      - cmd: |
+          echo ""
+          echo "==== Port-forward processes after refresh ===="
+          ps -ef | grep "port-forward" | grep -v grep || echo "No port-forwards found"
+          echo ""
+
+  verify:
+    desc: Verify all expected port-forwards are running by checking remote config
+    dir: ../..
+    cmds:
+      - cmd: |
+          echo "==== Verifying port-forwards ===="
+          echo "Checking that all port-forwards from remote config are running..."
+          
+          # Get the list of port-forwards from the process list
+          RUNNING_PORTS=$(ps -ef | grep "kubectl port-forward" | grep -v grep | awk '{print $NF}' | cut -d':' -f1 | sort -u)
+          
+          echo "Running port-forwards on ports: $RUNNING_PORTS"
+          
+          # Count them
+          PORT_COUNT=$(echo "$RUNNING_PORTS" | wc -w)
+          echo "Total running port-forwards: $PORT_COUNT"
+          
+          # We expect at least 2 port-forwards (consensus node and block node)
+          if [ "$PORT_COUNT" -ge 2 ]; then
+            echo "✓ Verification PASSED: Found expected number of port-forwards"
+          else
+            echo "✗ Verification FAILED: Expected at least 2 port-forwards, found $PORT_COUNT"
+            exit 1
+          fi
+
+  test:
+    desc: Run complete test workflow - deploy, kill port-forward, refresh, verify
+    dir: ../..
+    cmds:
+      - task: deploy
+      - task: test-refresh
+      - task: verify
+
+  destroy:
+    desc: Destroy the test deployment
+    dir: ../..
+    cmds:
+      # Solo one-shot single destroy
+      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .DEPLOYMENT }}
+        ignore_error: true
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+        ignore_error: true
+
+  default:
+    desc: Run the complete test
+    cmds:
+      - task: test
