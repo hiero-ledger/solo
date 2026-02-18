@@ -42,9 +42,9 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, PodmanDependencyManager.name);
     osArch = patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
     podmanVersion = patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
-    zippy = patchInject(zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
-    helpersDirectory = patchInject(
+    const _downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
+    const _zippy = patchInject(zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
+    const _helpersDirectory = patchInject(
       helpersDirectory,
       InjectTokens.PodmanDependenciesInstallationDir,
       PodmanDependencyManager.name,
@@ -52,7 +52,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
     // Call the base constructor with the podman-specific parameters
     super(
-      downloader,
+      _downloader,
       installationDirectory,
       osPlatform,
       osArch,

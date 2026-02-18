@@ -30,7 +30,7 @@ export class HelmMetricsServer {
         k8Factory.default().contexts().readCurrent(),
       );
     } catch (error) {
-      throw new Error(`${testName}: failed to install metrics-server: ${(error as Error).message}`);
+      throw new Error(`${testName}: failed to install metrics-server: ${(error as Error).message}`, {cause: error});
     }
   }
 }

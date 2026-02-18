@@ -5,4 +5,10 @@
  *
  * @packageDocumentation
  */
+/**
+ * The data package defines the Data Layer API for Solo as defined in the Solo Architecture design.
+ *
+ * @packageDocumentation
+ */
+
 // eslint-disable-next-line unicorn/no-empty-file
