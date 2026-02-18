@@ -456,24 +456,12 @@ export class NetworkCommand extends BaseCommand {
         // make sure each cluster has an empty string for the valuesArg
         valuesArguments[consensusNode.cluster] = '';
       } else {
-        extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
         valuesArguments[consensusNode.cluster] = valuesArgument;
-      }
-    }
 
-    // add debug options to the debug node
-    for (const consensusNode of config.consensusNodes) {
-      if (consensusNode.name === config.debugNodeAlias) {
-        valuesArguments[consensusNode.cluster] = addDebugOptions(
-          valuesArguments[consensusNode.cluster],
-          config.debugNodeAlias,
-          extraEnvironmentIndex,
-        );
-
-        extraEnvironmentIndex++; //! increment index // TODO: Fix indexing related to consensus node logic
+        extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
       }
     }
 
@@ -493,6 +481,19 @@ export class NetworkCommand extends BaseCommand {
       }
 
       extraEnvironmentIndex++; //! increment index
+    }
+
+    // add debug options to the debug node
+    for (const consensusNode of config.consensusNodes) {
+      if (consensusNode.name !== config.debugNodeAlias) {
+        continue;
+      }
+
+      valuesArguments[consensusNode.cluster] = addDebugOptions(
+        valuesArguments[consensusNode.cluster],
+        config.debugNodeAlias,
+        extraEnvironmentIndex,
+      );
     }
 
     if (
@@ -1382,7 +1383,6 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {

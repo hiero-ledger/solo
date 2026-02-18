@@ -1682,21 +1682,21 @@ export class NodeCommandTasks {
         const subTasks: any[] = [];
 
         for (const nodeAlias of nodeAliases) {
-          const podReference: any = config.podRefs[nodeAlias];
-          const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const k8: K8 = this.k8Factory.getK8(context);
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer([
-                  'bash',
-                  '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
-                ]);
+
+              const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+                config.namespace,
+                nodeAlias,
+              );
+
+              await container.execContainer([
+                'bash',
+                '-c',
+                'systemctl stop network-node || true && systemctl enable --now network-node',
+              ]);
             },
           });
         }
@@ -1715,7 +1715,7 @@ export class NodeCommandTasks {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async (context_): Promise<void> => {
-        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
+        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || context_.config.consensusNodes[0].name;
         const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
         if (context_.config.debugNodeAlias) {
