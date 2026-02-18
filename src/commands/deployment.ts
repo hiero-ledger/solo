@@ -774,6 +774,10 @@ export class DeploymentCommand extends BaseCommand {
 
             let restoredCount = 0;
             let totalChecked = 0;
+            let alreadyRunningCount = 0;
+            const portForwardDetails: string[] = [];
+
+            this.logger.showUser(chalk.cyan('\n=== Port-Forward Status Check ===\n'));
 
             for (const {type, components} of componentsToCheck) {
               for (const component of components) {
@@ -788,16 +792,20 @@ export class DeploymentCommand extends BaseCommand {
                 for (const portForwardConfig of component.metadata.portForwardConfigs) {
                   totalChecked++;
                   const {localPort, podPort} = portForwardConfig;
+                  const componentLabel = `${type} ${component.metadata.id}`;
 
                   // Check if port-forward is running
                   const isRunning = await this.isPortForwardRunning(localPort);
 
-                  if (!isRunning) {
-                    this.logger.showUser(
-                      chalk.yellow(
-                        `Port forward not running for ${type} ${component.metadata.id}: localhost:${localPort} -> pod:${podPort}`,
-                      ),
-                    );
+                  if (isRunning) {
+                    alreadyRunningCount++;
+                    const detail = `✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`;
+                    portForwardDetails.push(detail);
+                    this.logger.showUser(chalk.green(detail));
+                  } else {
+                    const missingDetail = `⚠ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Missing]`;
+                    portForwardDetails.push(missingDetail);
+                    this.logger.showUser(chalk.yellow(missingDetail));
 
                     try {
                       // Find the pod reference for this component
@@ -820,25 +828,32 @@ export class DeploymentCommand extends BaseCommand {
                         // - persist: false = temporary port-forward (will not restart on failure)
                         await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, false);
 
-                        this.logger.showUser(
-                          chalk.green(`✓ Restored port forward for ${type} ${component.metadata.id}`),
-                        );
+                        const restoredDetail = `  ↳ Restored port forward for ${componentLabel}`;
+                        this.logger.showUser(chalk.green(restoredDetail));
                         restoredCount++;
                       } else {
-                        this.logger.showUser(
-                          chalk.red(`✗ Could not find pod for ${type} ${component.metadata.id}`),
-                        );
+                        const errorDetail = `  ↳ Could not find pod for ${componentLabel}`;
+                        this.logger.showUser(chalk.red(errorDetail));
                       }
                     } catch (error) {
-                      this.logger.showUser(
-                        chalk.red(
-                          `✗ Failed to restore port forward for ${type} ${component.metadata.id}: ${error.message}`,
-                        ),
-                      );
+                      const errorDetail = `  ↳ Failed to restore: ${error.message}`;
+                      this.logger.showUser(chalk.red(errorDetail));
                     }
                   }
                 }
               }
+            }
+
+            this.logger.showUser(chalk.cyan('\n=== Summary ==='));
+            this.logger.showUser(`Total port-forwards configured: ${totalChecked}`);
+            this.logger.showUser(chalk.green(`Already running: ${alreadyRunningCount}`));
+            if (restoredCount > 0) {
+              this.logger.showUser(chalk.green(`Successfully restored: ${restoredCount}`));
+            }
+            if (totalChecked === 0) {
+              this.logger.showUser(chalk.yellow('No port-forwards configured in this deployment'));
+            } else if (alreadyRunningCount === totalChecked) {
+              this.logger.showUser(chalk.green('✓ All port-forwards are running correctly'));
             }
 
             task.title = `Checked ${totalChecked} port-forward(s), restored ${restoredCount}`;
