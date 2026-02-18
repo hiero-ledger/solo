@@ -9,6 +9,10 @@ The refresh command:
 2. Checks the `portForwardConfigs` metadata for each component (Consensus Nodes, Block Nodes, Mirror Nodes, Relay Nodes, Explorers)
 3. Verifies if the port-forward processes are actually running
 4. Re-enables any port-forward processes that are not running
+5. Provides clear output showing:
+   - Which port-forwards are already running
+   - Which port-forwards are missing and being restored
+   - Summary of total configured, running, and restored port-forwards
 
 ## Use Case
 
@@ -35,6 +39,18 @@ This will:
 2. Kill one random port-forward process
 3. Run the refresh command
 4. Verify all port-forwards are restored
+
+Run the smoke test (verifies refresh works when all port-forwards are already running):
+
+```bash
+cd examples/port-forward-refresh
+task smoke-test
+```
+
+This will:
+1. Deploy a test network
+2. Run the refresh command with all port-forwards already running
+3. Verify the command correctly reports everything is working
 
 To clean up:
 
@@ -76,16 +92,33 @@ task destroy
 
 ## Expected Output
 
-The refresh command should:
-- Detect missing port-forward processes
-- Show which port-forwards are being restored
-- Report the number of port-forwards checked and restored
+The refresh command provides detailed output showing:
 
-Example output:
+### When port-forwards need to be restored:
 ```
-✔ Initialize
-✔ Load remote configuration
-✔ Checked 3 port-forward(s), restored 1
+=== Port-Forward Status Check ===
+
+✓ ConsensusNode 0: localhost:50211 -> pod:50211 [Running]
+⚠ BlockNode 1: localhost:8080 -> pod:8080 [Missing]
+  ↳ Restored port forward for BlockNode 1
+
+=== Summary ===
+Total port-forwards configured: 2
+Already running: 1
+Successfully restored: 1
+```
+
+### When all port-forwards are already running:
+```
+=== Port-Forward Status Check ===
+
+✓ ConsensusNode 0: localhost:50211 -> pod:50211 [Running]
+✓ BlockNode 1: localhost:8080 -> pod:8080 [Running]
+
+=== Summary ===
+Total port-forwards configured: 2
+Already running: 2
+✓ All port-forwards are running correctly
 ```
 
 ## Components Checked
