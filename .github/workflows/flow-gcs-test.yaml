@@ -155,6 +155,7 @@ jobs:
           BACKUP_BUCKET_NAME: ${{ env.BACKUP_BUCKET_NAME }}/${{ steps.jobs.outputs.job_id }}
           STORAGE_TYPE: ${{ matrix.storageType }}
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
+          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
