@@ -261,9 +261,9 @@ jobs:
             rm /tmp/metrics-plotter.pid
           fi
 
-      - name: Move JVM Memory Usage Data to Metrics Directory
-        run: |
-          mv ~/.solo/performance-tests-deployment/jfr-logs/* ~/.solo/metrics/
+#      - name: Move JVM Memory Usage Data to Metrics Directory
+#        run: |
+#          mv ~/.solo/performance-tests-deployment/jfr-logs/* ~/.solo/metrics/
 
       - name: Upload Metrics Data and Chart to GitHub
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

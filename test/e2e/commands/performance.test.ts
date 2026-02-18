@@ -26,7 +26,6 @@ import {type Deployment} from '../../../src/business/runtime-state/config/local/
 import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
 
 const testName: string = 'performance-tests';
-const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
 
 const duration: number = Duration.ofMinutes(
@@ -47,7 +46,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName(`${testTitle} Suite`)
   .withNamespace(testName)
-  .withDeployment(deploymentName)
   .withClusterCount(1)
   .withJavaFlightRecorderConfiguration('test/data/java-flight-recorder/LowMem.jfc')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
@@ -76,7 +74,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: starting ${testName} e2e test`);
 
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, deploymentName));
+        await main(soloOneShotDeploy(testName, deployment));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
 
         startTime = new Date();
