@@ -745,15 +745,15 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             // Use the first cluster's context
-            const clusterRefFacade = clusters.get(0);
-            if (!clusterRefFacade) {
+            const clusterReferenceFacade = clusters.get(0);
+            if (!clusterReferenceFacade) {
               throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
             }
 
-            const clusterRef = clusterRefFacade.toString();
-            const contextValue = this.localConfig.configuration.clusterRefs.get(clusterRef);
+            const clusterReference = clusterReferenceFacade.toString();
+            const contextValue = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {
-              throw new SoloError(`Context not found for cluster reference ${clusterRef}`);
+              throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
             }
 
             const context = contextValue.toString();
@@ -810,12 +810,7 @@ export class DeploymentCommand extends BaseCommand {
                     try {
                       // Find the pod reference for this component
                       const namespaceName = NamespaceName.of(namespace);
-                      const podName = await this.getPodNameForComponent(
-                        component,
-                        type,
-                        k8Client,
-                        namespaceName,
-                      );
+                      const podName = await this.getPodNameForComponent(component, type, k8Client, namespaceName);
 
                       if (podName) {
                         // Re-enable port forward
@@ -826,7 +821,10 @@ export class DeploymentCommand extends BaseCommand {
                         // - podPort: the port on the pod to forward from
                         // - reuse: true = reuse the configured port number
                         // - persist: false = temporary port-forward (will not restart on failure)
-                        await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, false);
+                        await k8Client
+                          .pods()
+                          .readByReference(podReference)
+                          .portForward(localPort, podPort, true, false);
 
                         const restoredDetail = `  ↳ Restored port forward for ${componentLabel}`;
                         this.logger.showUser(chalk.green(restoredDetail));
@@ -877,7 +875,7 @@ export class DeploymentCommand extends BaseCommand {
    */
   private async isPortForwardRunning(port: number): Promise<boolean> {
     // Validate port is a positive integer before using it in shell command
-    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
       throw new SoloError(`Invalid port number: ${port}`);
     }
 
@@ -900,45 +898,74 @@ export class DeploymentCommand extends BaseCommand {
     namespace: NamespaceName,
   ): Promise<PodName | null> {
     try {
-      // Build label selector based on component type
-      let labelSelector = '';
+      const labelSelectors: string[][] = this.getLabelSelectorsForComponent(component, componentType);
 
-      switch (componentType) {
-        case 'ConsensusNode': {
-          labelSelector = `app=network-node,fullstack.hedera.com/node-name=network-${component.metadata.id}`;
-          break;
+      for (const labels of labelSelectors) {
+        const pods = await k8Client.pods().list(namespace, labels);
+        if (pods?.length > 0) {
+          return pods[0].podReference.name;
         }
-        case 'BlockNode': {
-          labelSelector = 'app.kubernetes.io/name=hedera-block-node';
-          break;
-        }
-        case 'MirrorNode': {
-          labelSelector = 'app.kubernetes.io/name=hedera-mirror-node,app.kubernetes.io/component=grpc';
-          break;
-        }
-        case 'RelayNode': {
-          labelSelector = 'app.kubernetes.io/name=hedera-json-rpc-relay';
-          break;
-        }
-        case 'Explorer': {
-          labelSelector = 'app.kubernetes.io/name=hedera-explorer';
-          break;
-        }
-        default: {
-          return null;
-        }
-      }
-
-      const pods = await k8Client.pods().list(namespace, [labelSelector]);
-
-      if (pods && pods.length > 0) {
-        return pods[0].podReference.name;
       }
 
       return null;
     } catch (error) {
       this.logger.warn(`Error finding pod for ${componentType}: ${error.message}`);
       return null;
+    }
+  }
+
+  /**
+   * Build ordered label selector candidates for each component type.
+   * Selectors are tried in order until a matching pod is found.
+   */
+  private getLabelSelectorsForComponent(component: BaseStateSchema, componentType: string): string[][] {
+    switch (componentType) {
+      case 'ConsensusNode': {
+        const id = component.metadata.id;
+        const nodeAlias = Templates.renderNodeAliasFromNumber(id);
+        return [
+          Templates.renderNodeLabelsFromNodeAlias(nodeAlias),
+          Templates.renderConsensusNodeLabels(id),
+          ['app=network-node', `fullstack.hedera.com/node-name=network-${id}`],
+        ];
+      }
+      case 'BlockNode': {
+        const id = component.metadata.id;
+        return [
+          Templates.renderBlockNodeLabels(id),
+          [`app.kubernetes.io/name=hedera-block-node-${id}`],
+          ['app.kubernetes.io/name=hedera-block-node'],
+        ];
+      }
+      case 'MirrorNode': {
+        const id = component.metadata.id;
+        return [
+          Templates.renderMirrorNodeLabels(id),
+          ['app.kubernetes.io/name=importer', 'app.kubernetes.io/component=importer'],
+          ['app.kubernetes.io/name=hedera-mirror-node', 'app.kubernetes.io/component=grpc'],
+        ];
+      }
+      case 'RelayNode': {
+        const id = component.metadata.id;
+        return [
+          Templates.renderRelayLabels(id),
+          ['app.kubernetes.io/name=relay'],
+          ['app.kubernetes.io/name=hedera-json-rpc-relay'],
+        ];
+      }
+      case 'Explorer': {
+        const id = component.metadata.id;
+        return [
+          Templates.renderExplorerLabels(id),
+          [constants.SOLO_EXPLORER_LABEL],
+          [constants.OLD_SOLO_EXPLORER_LABEL],
+          ['app.kubernetes.io/name=hiero-explorer'],
+          ['app.kubernetes.io/name=hedera-explorer'],
+        ];
+      }
+      default: {
+        return [];
+      }
     }
   }
 }
