@@ -46,8 +46,8 @@ tasks:
           $SOLO_COMMAND one-shot single deploy \
           --num-consensus-nodes 1 \
           --deploy-mirror-node=true \
-          --deploy-explorer=false \
-          --deploy-relay=false \
+          --deploy-explorer=true \
+          --deploy-relay=true \
           --deploy-block-node=true
 
   test-refresh:
