@@ -37,6 +37,8 @@ import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
 import {MessageLevel} from '../core/logging/message-level.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type K8} from '../integration/kube/k8.js';
+import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -743,8 +745,18 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             // Use the first cluster's context
-            const clusterRef = clusters.get(0)?.toString();
-            const context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
+            const clusterRefFacade = clusters.get(0);
+            if (!clusterRefFacade) {
+              throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
+            }
+
+            const clusterRef = clusterRefFacade.toString();
+            const contextValue = this.localConfig.configuration.clusterRefs.get(clusterRef);
+            if (!contextValue) {
+              throw new SoloError(`Context not found for cluster reference ${clusterRef}`);
+            }
+
+            const context = contextValue.toString();
 
             await this.remoteConfig.load(context_.namespace, context);
           },
@@ -801,6 +813,7 @@ export class DeploymentCommand extends BaseCommand {
                         // Re-enable port forward
                         const podReference = PodReference.of(namespaceName, podName);
 
+                        // Re-enable port forward with reuse=true (to use the configured port) and persist=false (for temporary port-forward)
                         await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, false);
 
                         this.logger.showUser(
@@ -845,6 +858,11 @@ export class DeploymentCommand extends BaseCommand {
    */
   private async isPortForwardRunning(port: number): Promise<boolean> {
     try {
+      // Validate port is a positive integer
+      if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+        throw new SoloError(`Invalid port number: ${port}`);
+      }
+
       const shellCommand = `ps -ef | grep "port-forward" | grep "${port}:" | grep -v grep`;
       const result = await this.run(shellCommand, [], true, false);
       return result && result.length > 0;
@@ -857,9 +875,9 @@ export class DeploymentCommand extends BaseCommand {
    * Get the pod name for a component based on its type
    */
   private async getPodNameForComponent(
-    component: any,
+    component: BaseStateSchema,
     componentType: string,
-    k8Client: any,
+    k8Client: K8,
     namespace: NamespaceName,
   ): Promise<PodName | null> {
     try {
@@ -892,7 +910,7 @@ export class DeploymentCommand extends BaseCommand {
         }
       }
 
-      const pods = await k8Client.pods().list(namespace, labelSelector);
+      const pods = await k8Client.pods().list(namespace, [labelSelector]);
 
       if (pods && pods.length > 0) {
         return pods[0].podReference.name;
