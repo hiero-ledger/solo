@@ -103,6 +103,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Configure npm registry
+        if: steps.check.outputs.run == 'true'
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
       - name: Install Task
         if: steps.check.outputs.run == 'true'
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
