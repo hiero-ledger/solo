@@ -136,7 +136,7 @@ export class BaseCommandTest {
 
       const promises: Promise<void>[] = [];
       for (let index: number = 0; index < options.consensusNodesCount; index++) {
-        const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index);
+        const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
         promises.push(BaseCommandTest.collectJavaFlightRecorderLogs(testName, testLogger, deployment, nodeAlias));
       }
 
