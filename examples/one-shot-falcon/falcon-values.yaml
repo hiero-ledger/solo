@@ -54,7 +54,7 @@ network:
 # Setup configuration for consensus nodes
 setup:
   --cache-dir: ""
-  --release-tag: "v0.65.0"
+  --release-tag: "v0.71.0"
   --app: ""
   --app-config: ""
   --quiet-mode: false

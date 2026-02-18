@@ -38,7 +38,7 @@ tasks:
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+          --deploy-mirror-node=true --deploy-explorer=false --deploy-relay=false
 
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
@@ -64,6 +64,9 @@ tasks:
       - cmd: |
           echo "==== Current port-forward processes ===="
           ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
+          INITIAL_PORT_COUNT=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u | wc -w)
+          echo "Initial unique port-forward count: ${INITIAL_PORT_COUNT}"
+          echo "${INITIAL_PORT_COUNT}" > /tmp/expected_port_count.txt
           echo ""
 
       - cmd: |
@@ -85,15 +88,25 @@ tasks:
             fi
 
             echo "Port being killed: $PORT"
-            kill -9 "$PID"
-            sleep 2
-
-            if ps -p "$PID" > /dev/null 2>&1; then
-              echo "Error: Process $PID still running"
+            TARGET_PIDS=$(ps -ef | awk -v p="$PORT" '/[k]ubectl port-forward/ {if ($NF ~ ("^" p ":")) print $2}')
+            if [ -z "$TARGET_PIDS" ]; then
+              echo "Error: No matching kubectl port-forward process found for local port $PORT"
               exit 1
             fi
 
-            echo "Process killed successfully"
+            echo "Killing all matching port-forward PIDs: $TARGET_PIDS"
+            for target_pid in $TARGET_PIDS; do
+              kill -9 "$target_pid" 2>/dev/null || true
+            done
+            sleep 2
+
+            REMAINING_PIDS=$(ps -ef | awk -v p="$PORT" '/[k]ubectl port-forward/ {if ($NF ~ ("^" p ":")) print $2}')
+            if [ -n "$REMAINING_PIDS" ]; then
+              echo "Error: Matching port-forward process(es) still running for port $PORT: $REMAINING_PIDS"
+              exit 1
+            fi
+
+            echo "Process(es) killed successfully"
             echo "$PORT" > /tmp/killed_port.txt
           else
             echo "No port-forward processes found to kill"
@@ -140,9 +153,13 @@ tasks:
           echo "Running port-forwards on ports: $RUNNING_PORTS"
           PORT_COUNT=$(echo "$RUNNING_PORTS" | wc -w)
           echo "Total running port-forwards: $PORT_COUNT"
+          EXPECTED_COUNT="1"
+          if [ -f /tmp/expected_port_count.txt ]; then
+            EXPECTED_COUNT=$(cat /tmp/expected_port_count.txt)
+          fi
 
-          if [ "$PORT_COUNT" -lt 2 ]; then
-            echo "✗ Verification FAILED: Expected at least 2 port-forwards, found $PORT_COUNT"
+          if [ "$PORT_COUNT" -lt "$EXPECTED_COUNT" ]; then
+            echo "✗ Verification FAILED: Expected at least $EXPECTED_COUNT port-forward(s), found $PORT_COUNT"
             exit 1
           fi
           echo "✓ Verification PASSED: Found expected number of port-forwards"
@@ -158,6 +175,7 @@ tasks:
             fi
             rm -f /tmp/killed_port.txt
           fi
+          rm -f /tmp/expected_port_count.txt
 
   test:
     desc: Run deploy + refresh-recovery verification
