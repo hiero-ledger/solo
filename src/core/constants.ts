@@ -21,7 +21,8 @@ export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURL
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR: string =
-  getEnvironmentVariable('SOLO_HOME') || PathEx.join(process.env.HOME as string, '.solo');
+  getEnvironmentVariable('SOLO_HOME') ||
+  PathEx.join((process.env.HOME as string) || (process.env.USERPROFILE as string), '.solo');
 export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
