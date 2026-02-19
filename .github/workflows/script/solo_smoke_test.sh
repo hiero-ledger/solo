@@ -92,36 +92,17 @@ function start_sdk_test ()
 {
   realm_num="${1:-0}"
   shard_num="${2:-0}"
-  local sdk_test_retries="${SDK_TEST_RETRIES:-3}"
-  local sdk_test_retry_sleep="${SDK_TEST_RETRY_SLEEP_SECONDS:-20}"
-  local attempt=1
   cd solo
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  result=0
   grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
     log_and_exit $result
   fi
-
-  result=1
-  while [[ "${attempt}" -le "${sdk_test_retries}" ]]; do
-    echo "Running JavaScript SDK smoke test attempt ${attempt}/${sdk_test_retries}"
-    node scripts/create-topic.js && result=0 || result=$?
-    if [[ $result -eq 0 ]]; then
-      break
-    fi
-
-    echo "JavaScript SDK test attempt ${attempt} failed with exit code ${result}"
-    if [[ "${attempt}" -lt "${sdk_test_retries}" ]]; then
-      echo "Retrying JavaScript SDK test in ${sdk_test_retry_sleep}s..."
-      sleep "${sdk_test_retry_sleep}"
-    fi
-    attempt=$((attempt + 1))
-  done
-
+  result=0
+  node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
