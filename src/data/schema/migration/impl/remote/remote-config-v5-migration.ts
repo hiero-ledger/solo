@@ -8,6 +8,7 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
 
+// Unused currently, enable with wraps
 export class RemoteConfigV5Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(4);

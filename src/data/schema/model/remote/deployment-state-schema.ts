@@ -20,8 +20,8 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   @Transform(Transformations.LedgerPhase)
   public ledgerPhase: LedgerPhase;
 
-  @Expose()
-  public wrapsEnabled: boolean;
+  // @Expose()
+  // public wrapsEnabled: boolean; TODO: Enable with wraps
 
   @Expose()
   @Type((): typeof ComponentIdsSchema => ComponentIdsSchema)
@@ -70,7 +70,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     envoyProxies?: EnvoyProxyStateSchema[],
     explorers?: ExplorerStateSchema[],
     externalBlockNodes?: ExternalBlockNodeStateSchema[],
-    wrapsEnabled?: boolean,
+    // wrapsEnabled?: boolean,
   ) {
     this.ledgerPhase = ledgerPhase;
     this.componentIds = componentIds || new ComponentIdsSchema();
@@ -82,6 +82,6 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     this.envoyProxies = envoyProxies || [];
     this.explorers = explorers || [];
     this.externalBlockNodes = externalBlockNodes || [];
-    this.wrapsEnabled = wrapsEnabled;
+    // this.wrapsEnabled = wrapsEnabled;
   }
 }

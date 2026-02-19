@@ -20,5 +20,5 @@ export interface DeploymentStateStructure {
   haProxies: HaProxyStateSchema[];
   envoyProxies: EnvoyProxyStateSchema[];
   explorers: ExplorerStateSchema[];
-  wrapsEnabled: boolean;
+  // wrapsEnabled: boolean; TODO: Enable with wraps
 }

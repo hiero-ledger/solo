@@ -138,7 +138,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
-  wrapsEnabled: boolean;
+  // wrapsEnabled: boolean; TODO: Enable with wraps
 }
 
 interface NetworkDeployContext {
@@ -235,7 +235,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
-      flags.wrapsEnabled,
+      // flags.wrapsEnabled, TODO: Enable with wraps
     ],
   };
 
@@ -465,23 +465,23 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    // add option for WRAPS
-    if (config.wrapsEnabled) {
-      for (const consensusNode of config.consensusNodes) {
-        const cluster: ClusterReferenceName = consensusNode.cluster;
-        const index: number = extraEnvironmentIndex;
-        const nodeId: NodeId = consensusNode.nodeId;
-
-        valuesArguments[cluster] +=
-          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'wraps-v0.2.0');
-
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
-      }
-
-      extraEnvironmentIndex++; //! increment index
-    }
+    // TODO: Enable with wraps
+    // if (config.wrapsEnabled) {
+    //   for (const consensusNode of config.consensusNodes) {
+    //     const cluster: ClusterReferenceName = consensusNode.cluster;
+    //     const index: number = extraEnvironmentIndex;
+    //     const nodeId: NodeId = consensusNode.nodeId;
+    //
+    //     valuesArguments[cluster] +=
+    //       ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+    //
+    //     const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'wraps-v0.2.0');
+    //
+    //     valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
+    //   }
+    //
+    //   extraEnvironmentIndex++; //! increment index
+    // }
 
     // add debug options to the debug node
     for (const consensusNode of config.consensusNodes) {
@@ -1004,32 +1004,33 @@ export class NetworkCommand extends BaseCommand {
             await this.remoteConfig.loadAndValidate(argv, true, true);
             lease = await this.leaseManager.create();
 
-            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
-
-            if (
-              this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
-              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
-            ) {
-              // if is possible block node deployed before consensus node, then use release tag as fallback
-              this.remoteConfig.configuration.versions.consensusNode = releaseTag;
-              await this.remoteConfig.persist();
-            }
-
-            const currentVersion: SemVer = new SemVer(
-              this.remoteConfig.configuration.versions.consensusNode.toString(),
-            );
-
-            const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
-            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
-
-            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
-              throw new SoloError(
-                `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
-              );
-            }
-
-            this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
-            await this.remoteConfig.persist();
+            // TODO: Enable with wraps
+            // const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+            //
+            // if (
+            //   this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
+            //   semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+            // ) {
+            //   // if is possible block node deployed before consensus node, then use release tag as fallback
+            //   this.remoteConfig.configuration.versions.consensusNode = releaseTag;
+            //   await this.remoteConfig.persist();
+            // }
+            //
+            // const currentVersion: SemVer = new SemVer(
+            //   this.remoteConfig.configuration.versions.consensusNode.toString(),
+            // );
+            //
+            // const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
+            // const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+            //
+            // if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+            //   throw new SoloError(
+            //     `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
+            //   );
+            // }
+            //
+            // this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
+            // await this.remoteConfig.persist();
 
             context_.config = await this.prepareConfig(task, argv);
             return ListrLock.newAcquireLockTask(lease, task);
@@ -1340,22 +1341,23 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.addNodesAndProxies(),
-        {
-          title: 'copy over',
-          task: async ({config}): Promise<void> => {
-            for (const consensusNode of config.consensusNodes) {
-              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
-                config.namespace,
-                consensusNode.name,
-              );
-
-              const sourcePath: string = PathEx.joinWithRealPath(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
-              const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-
-              await rootContainer.copyTo(sourcePath, targetPath);
-            }
-          },
-        },
+        // TODO: Enable with wraps, and add logic for downloading the artifact
+        // {
+        //   title: 'copy over',
+        //   task: async ({config}): Promise<void> => {
+        //     for (const consensusNode of config.consensusNodes) {
+        //       const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+        //         config.namespace,
+        //         consensusNode.name,
+        //       );
+        //
+        //       const sourcePath: string = PathEx.joinWithRealPath(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+        //       const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+        //
+        //       await rootContainer.copyTo(sourcePath, targetPath);
+        //     }
+        //   },
+        // },
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,

@@ -558,9 +558,10 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.wrapsEnabled=true');
-    }
+    // TODO: Enable with wraps
+    // if (this.remoteConfig.configuration.state.wrapsEnabled) {
+    //   lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.wrapsEnabled=true');
+    // }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
