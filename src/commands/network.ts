@@ -68,6 +68,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import {getEnvironmentVariable} from '../core/constants.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -755,6 +756,9 @@ export class NetworkCommand extends BaseCommand {
 
     config.blockNodeComponents = this.getBlockNodes();
     config.javaFlightRecorderConfiguration = this.configManager.getFlag(flags.javaFlightRecorderConfiguration);
+    if (config.javaFlightRecorderConfiguration === '') {
+      config.javaFlightRecorderConfiguration = getEnvironmentVariable('JAVA_FLIGHT_RECORDER_CONFIGURATION') || '';
+    }
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;

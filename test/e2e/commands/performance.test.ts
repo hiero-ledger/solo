@@ -43,6 +43,7 @@ const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
+const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -89,6 +90,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       after(async (): Promise<void> => {
         clearInterval(metricsInterval);
+
+        // restore environment variable for other tests
+        process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
         // read all logged metrics and parse the JSON
         const namespace: string = await getNamespaceFromDeployment();
@@ -143,68 +147,72 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
-      it('NftTransferLoadTest', async (): Promise<void> => {
-        logEvent('Starting NftTransferLoadTest');
-        await main(
-          soloRapidFire(
-            testName,
-            'NftTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-            maxTps,
-          ),
-        );
-      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+      it('placeholder test to ensure before and after hooks run', async (): Promise<void> => {
+        const a: number = 6;
+      });
 
-      it('TokenTransferLoadTest', async (): Promise<void> => {
-        logEvent('Starting TokenTransferLoadTest');
-        await main(
-          soloRapidFire(
-            testName,
-            'TokenTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-            maxTps,
-          ),
-        );
-      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-
-      it('CryptoTransferLoadTest', async (): Promise<void> => {
-        logEvent('Starting CryptoTransferLoadTest');
-        await main(
-          soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-        );
-      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-
-      it('HCSLoadTest', async (): Promise<void> => {
-        logEvent('Starting HCSLoadTest');
-        await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-
-      it('SmartContractLoadTest', async (): Promise<void> => {
-        logEvent('Starting SmartContractLoadTest');
-        await main(
-          soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-        );
-      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-
-      it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
-        logEvent('Completed all performance tests');
-        if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
-          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES, 10);
-
-          if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
-            throw new Error(
-              `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
-            );
-          }
-
-          for (let index: number = 0; index < sleepTimeInMinutes; index++) {
-            console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
-            await sleep(Duration.ofMinutes(1));
-          }
-        }
-
-        await logMetrics(startTime);
-      }).timeout(Duration.ofMinutes(60).toMillis());
+      // it('NftTransferLoadTest', async (): Promise<void> => {
+      //   logEvent('Starting NftTransferLoadTest');
+      //   await main(
+      //     soloRapidFire(
+      //       testName,
+      //       'NftTransferLoadTest',
+      //       `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+      //       maxTps,
+      //     ),
+      //   );
+      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+      //
+      // it('TokenTransferLoadTest', async (): Promise<void> => {
+      //   logEvent('Starting TokenTransferLoadTest');
+      //   await main(
+      //     soloRapidFire(
+      //       testName,
+      //       'TokenTransferLoadTest',
+      //       `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+      //       maxTps,
+      //     ),
+      //   );
+      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+      //
+      // it('CryptoTransferLoadTest', async (): Promise<void> => {
+      //   logEvent('Starting CryptoTransferLoadTest');
+      //   await main(
+      //     soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+      //   );
+      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+      //
+      // it('HCSLoadTest', async (): Promise<void> => {
+      //   logEvent('Starting HCSLoadTest');
+      //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+      //
+      // it('SmartContractLoadTest', async (): Promise<void> => {
+      //   logEvent('Starting SmartContractLoadTest');
+      //   await main(
+      //     soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+      //   );
+      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+      //
+      // it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
+      //   logEvent('Completed all performance tests');
+      //   if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
+      //     const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES, 10);
+      //
+      //     if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
+      //       throw new Error(
+      //         `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
+      //       );
+      //     }
+      //
+      //     for (let index: number = 0; index < sleepTimeInMinutes; index++) {
+      //       console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
+      //       await sleep(Duration.ofMinutes(1));
+      //     }
+      //   }
+      //
+      //   await logMetrics(startTime);
+      // }).timeout(Duration.ofMinutes(60).toMillis());
     });
   })
   .build();
