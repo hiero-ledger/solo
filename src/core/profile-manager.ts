@@ -359,8 +359,13 @@ export class ProfileManager {
       applicationPropertiesPath,
     );
 
-    if (jfrFile !== '' && profile.consensus) {
-      if (profile.consensus.root && profile.consensus.root.extraEnv && Array.isArray(profile.consensus.root.extraEnv)) {
+    if (profile.consensus) {
+      if (
+        jfrFile !== '' &&
+        profile.consensus.root &&
+        profile.consensus.root.extraEnv &&
+        Array.isArray(profile.consensus.root.extraEnv)
+      ) {
         const javaOption: AnyObject = profile.consensus.root.extraEnv.find(
           (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
         );

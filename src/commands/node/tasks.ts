@@ -3643,6 +3643,7 @@ export class NodeCommandTasks {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
       task: async (context_: NodeCollectJFRLogsContext): Promise<void> => {
+        this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
         const config: NodeCollectJFRLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
@@ -3668,7 +3669,10 @@ export class NodeCommandTasks {
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
         try {
-          await k8Container.execContainer(`jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`);
+          const result: string = await k8Container.execContainer(
+            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
+          );
+          this.logger.info(`JFR dump command output: ${result}`);
         } catch (error) {
           throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
         }
