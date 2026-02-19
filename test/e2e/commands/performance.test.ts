@@ -77,6 +77,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: starting ${testName} e2e test`);
 
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
+        process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = options.javaFlightRecorderConfiguration;
         await main(soloOneShotDeploy(testName, deployment));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
 

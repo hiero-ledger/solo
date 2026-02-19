@@ -675,12 +675,14 @@ export class Flags {
     },
   };
 
+  // The dynamic default value provides a way for one-shot to access this configuration without explicitly adding
+  // the flag to the command, preserving the simple interface
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
     constName: 'jfcFile',
     name: 'jfc',
     definition: {
       describe: 'Java Flight Recorder configuration file path',
-      defaultValue: '',
+      defaultValue: constants.JAVA_FLIGHT_RECORDER_CONFIGURATION,
       type: 'string',
     },
     prompt: undefined,

@@ -444,3 +444,6 @@ export const CERT_MANAGER_CRDS: string[] = [
   'clusterissuers.cert-manager.io',
   'issuers.cert-manager.io',
 ];
+
+export const JAVA_FLIGHT_RECORDER_CONFIGURATION: string =
+  getEnvironmentVariable('JAVA_FLIGHT_RECORDER_CONFIGURATION') || '';
