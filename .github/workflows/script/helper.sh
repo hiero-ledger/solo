@@ -80,7 +80,7 @@ function log_and_exit()
 
   printf "\r::group::Mirror Monitor log dump\n"
   echo "------- BEGIN LOG DUMP -------"
-  kubectl get pods -n "${namespace}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > monitor.log || true
+  kubectl get pods -n "${namespace}"  --output=name | grep monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > monitor.log || true
   echo "------- END LOG DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
