@@ -7,7 +7,7 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import {parse, type SemVer} from 'semver';
+import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -450,7 +450,7 @@ export class ProfileManager {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
     }
-    const profile = this.getProfile(profileName);
+    const profile: AnyObject = this.getProfile(profileName);
 
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
@@ -460,7 +460,8 @@ export class ProfileManager {
         .map((node): NodeAlias => node.name);
 
       // generate the YAML
-      const yamlRoot = {};
+      const yamlRoot: AnyObject = {};
+
       await this.resourcesForConsensusPod(
         profile,
         consensusNodes,
@@ -474,7 +475,7 @@ export class ProfileManager {
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);
       this.resourcesForMinioTenantPod(profile, yamlRoot);
 
-      const cachedValuesFile = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
+      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
     }
 
@@ -562,6 +563,13 @@ export class ProfileManager {
     if (!shardUpdated) {
       lines.push(`hedera.shard=${shard}`);
     }
+
+    // TODO: Enable with wraps
+    // if (this.remoteConfig.configuration.state.wrapsEnabled) {
+    //   lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.wrapsEnabled=true');
+    // }
+
+    lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
