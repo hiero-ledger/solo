@@ -47,11 +47,11 @@ tasks:
       - package-lock.json
     cmds:
       - |
-        {{if .CI}}
+        {{-if .CI}}
         npm ci
-        {{else}}
+        {{-else}}
         npm install
-        {{end}}
+        {{-end}}
 
   check:
     desc: "Run all checks (lint, circular dependencies, typedoc)"
@@ -93,9 +93,9 @@ tasks:
 
   build:
     desc: "Build the project (compile and lint)"
-    {{if not .CI}}
+    {{-if not .CI}}
     deps: [npm:install]
-    {{end}}
+    {{-end}}
     sources:
       - src/**/*.ts
       - test/**/*.tss 
@@ -105,9 +105,9 @@ tasks:
 
   build:compile:
     desc: "Compile the TypeScript code and run post-build script"
-    {{if not .CI}}
+    {{-if not .CI}}
     deps: [npm:install]
-    {{end}}
+    {{-end}}
     sources:
       - src/**/*.ts
       - test/**/*.tss 
@@ -120,9 +120,9 @@ tasks:
 
   build:lint:
     desc: "Lint the TypeScript code"
-    {{if not .CI}}
+    {{-if not .CI}}
     deps: [npm:install]
-    {{end}}
+    {{-end}}
     sources:
       - src/**/*.ts
       - test/**/*.tss 
