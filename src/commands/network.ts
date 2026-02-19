@@ -23,14 +23,7 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {
-  type AnyListrContext,
-  type ArgvStruct,
-  type IP,
-  type NodeAlias,
-  type NodeAliases,
-  type NodeId,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -75,7 +68,6 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import semver from 'semver/preload.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;

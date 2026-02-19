@@ -28,7 +28,8 @@ export class RemoteConfigV5Migration implements SchemaMigration {
     const clone: RemoteConfigStructure = structuredClone(source) as any as RemoteConfigStructure;
     const state: DeploymentStateStructure = clone.state;
 
-    state.wrapsEnabled = false;
+    // TODO: enable with wraps
+    // state.wrapsEnabled = false;
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;

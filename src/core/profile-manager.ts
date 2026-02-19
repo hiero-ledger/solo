@@ -7,7 +7,6 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import * as semver from 'semver';
 import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
@@ -569,6 +568,8 @@ export class ProfileManager {
     // if (this.remoteConfig.configuration.state.wrapsEnabled) {
     //   lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.wrapsEnabled=true');
     // }
+
+    lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
