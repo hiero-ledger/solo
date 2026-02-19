@@ -61,19 +61,19 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTIC_LOGS: string = 'logs';
   public static readonly DIAGNOSTIC_CONNECTIONS: string = 'connections';
 
-  public static readonly CREATE_COMMAND =
+  public static readonly CREATE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
 
-  public static readonly ATTACH_COMMAND =
+  public static readonly ATTACH_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}` as const;
 
-  public static readonly DELETE_COMMAND =
+  public static readonly DELETE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
 
-  public static readonly REFRESH_COMMAND =
+  public static readonly REFRESH_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} port-forwards` as const;
 
-  public static readonly CONNECTIONS_COMMAND =
+  public static readonly CONNECTIONS_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
 
   public getCommandDefinition(): CommandDefinition {

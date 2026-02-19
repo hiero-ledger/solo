@@ -415,6 +415,32 @@ export class Templates {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
   }
 
+  /**
+   * Build label selectors for deployment refresh by component type.
+   */
+  public static renderComponentLabelSelectors(componentType: string, id: ComponentId): string[] {
+    switch (componentType) {
+      case 'ConsensusNode': {
+        return Templates.renderConsensusNodeLabels(id);
+      }
+      case 'BlockNode': {
+        return Templates.renderBlockNodeLabels(id);
+      }
+      case 'MirrorNode': {
+        return Templates.renderMirrorNodeLabels(id);
+      }
+      case 'RelayNode': {
+        return Templates.renderRelayLabels(id);
+      }
+      case 'Explorer': {
+        return Templates.renderExplorerLabels(id);
+      }
+      default: {
+        return [];
+      }
+    }
+  }
+
   public static parseExternalBlockAddress(raw: string): [string, number] {
     const [address, port] = raw.includes(':') ? raw.split(':') : [raw, constants.BLOCK_NODE_PORT];
     return [address, +port];
