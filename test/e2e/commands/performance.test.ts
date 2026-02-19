@@ -147,22 +147,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
-      it('placeholder test to ensure before and after hooks run', async (): Promise<void> => {
-        const a: number = 6;
-      });
+      it('NftTransferLoadTest', async (): Promise<void> => {
+        logEvent('Starting NftTransferLoadTest');
+        await main(
+          soloRapidFire(
+            testName,
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+            maxTps,
+          ),
+        );
+      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
 
-      // it('NftTransferLoadTest', async (): Promise<void> => {
-      //   logEvent('Starting NftTransferLoadTest');
-      //   await main(
-      //     soloRapidFire(
-      //       testName,
-      //       'NftTransferLoadTest',
-      //       `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-      //       maxTps,
-      //     ),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-      //
       // it('TokenTransferLoadTest', async (): Promise<void> => {
       //   logEvent('Starting TokenTransferLoadTest');
       //   await main(
