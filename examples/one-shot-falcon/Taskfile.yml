@@ -176,6 +176,18 @@ tasks:
           fi
           rm -f /tmp/expected_port_count.txt
 
+          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
+          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+          export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
+
+          if git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
+
   test:
     desc: Run deploy + refresh-recovery verification
     cmds:
