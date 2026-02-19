@@ -252,8 +252,18 @@ jobs:
           timeout_minutes: 10
           command: |
             npm ci
-            ls -al node_modules | grep c8
-            ls -al node_modules | grep nyc
+            pwd
+            ls -al
+            echo "***** Node Modules Directory:"
+            ls -al node_modules
+            echo "***** C8 Module Directory:"
+            ls -al node_modules/c8
+            echo "***** NYC Module Directory:"
+            ls -al node_modules/nyc
+            echo "***** C8 Bin Directory:"
+            ls -al node_modules/c8/bin
+            echo "***** NYC Bin Directory:"
+            ls -al node_modules/nyc/bin
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
