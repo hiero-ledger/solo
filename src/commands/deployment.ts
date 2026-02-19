@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {select as selectPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -703,6 +705,8 @@ export class DeploymentCommand extends BaseCommand {
     interface RefreshContext {
       config: Config;
       namespace?: NamespaceName;
+      clusterReference?: string;
+      context?: string;
     }
 
     const tasks: Listr<RefreshContext, 'default', 'default'> = new Listr(
@@ -730,12 +734,12 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Load remote configuration',
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             if (!context_.namespace) {
               throw new SoloError('Namespace not set');
             }
 
-            // Load remote config from the first cluster in the deployment
+            // Load remote config from a selected cluster in the deployment
             const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
             const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
 
@@ -743,19 +747,37 @@ export class DeploymentCommand extends BaseCommand {
               throw new SoloError(`No clusters found for deployment ${context_.config.deployment}`);
             }
 
-            // Use the first cluster's context
-            const clusterReferenceFacade: StringFacade = clusters.get(0);
-            if (!clusterReferenceFacade) {
+            const clusterReferences: string[] = [];
+            for (let index = 0; index < clusters.length; index++) {
+              const clusterReferenceFacade: StringFacade = clusters.get(index);
+              if (clusterReferenceFacade) {
+                clusterReferences.push(clusterReferenceFacade.toString());
+              }
+            }
+
+            if (clusterReferences.length === 0) {
               throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
             }
 
-            const clusterReference: string = clusterReferenceFacade.toString();
+            let clusterReference: string = clusterReferences[0];
+            if (clusterReferences.length > 1) {
+              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
+                choices: clusterReferences.map((reference): {name: string; value: string} => ({
+                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
+                  value: reference,
+                })),
+              })) as string;
+            }
+
             const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {
               throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
             }
 
             const context: string = contextValue.toString();
+            context_.clusterReference = clusterReference;
+            context_.context = context;
 
             await this.remoteConfig.load(context_.namespace, context);
           },
