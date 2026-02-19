@@ -177,8 +177,11 @@ tasks:
           rm -f /tmp/expected_port_count.txt
 
           RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
+          RESOLVED_NAMESPACE="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}" namespace)"
           echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+          echo "Using namespace: ${RESOLVED_NAMESPACE}"
           export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
+          export SOLO_NAMESPACE="$RESOLVED_NAMESPACE"
 
           if git rev-parse --show-toplevel >/dev/null 2>&1; then
             REPO_ROOT="$(git rev-parse --show-toplevel)"
