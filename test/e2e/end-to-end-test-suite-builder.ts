@@ -27,7 +27,10 @@ export class EndToEndTestSuiteBuilder {
   private settingsTxt: string;
   private javaFlightRecorderConfiguration: string;
 
-  private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
+  private testSuiteCallback: (
+    endToEndTestSuite: EndToEndTestSuite,
+    preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => void,
+  ) => void;
 
   public withTestName(testName: string): this {
     this.testName = testName;
@@ -94,7 +97,12 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
-  public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
+  public withTestSuiteCallback(
+    testSuiteCallback: (
+      endToEndTestSuite: EndToEndTestSuite,
+      preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => void,
+    ) => void,
+  ): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
   }

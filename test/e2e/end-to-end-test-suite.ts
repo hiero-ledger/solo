@@ -48,7 +48,10 @@ export class EndToEndTestSuite extends Suite {
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
     public readonly javaFlightRecorderConfiguration: string = '',
-    public readonly testSuiteCallback: (options: BaseTestOptions) => void,
+    public readonly testSuiteCallback: (
+      options: BaseTestOptions,
+      preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => void,
+    ) => void,
   ) {
     super(testName);
     const soloTestClusterName: string = getTestCluster();
@@ -116,16 +119,18 @@ export class EndToEndTestSuite extends Suite {
     describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
       this.bail(true);
 
-      // Automatically setup diagnostic log collection if enabled
-      if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
-        BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
-      }
-
-      if (endToEndTestSuiteInstance.javaFlightRecorderConfiguration) {
-        BaseCommandTest.setupJavaFlightRecorderLogCollection(endToEndTestSuiteInstance.options);
-      }
-
-      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options);
+      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options, EndToEndTestSuite.preDestroy);
     });
+  }
+
+  public static preDestroy(endToEndTestSuiteInstance: EndToEndTestSuite): void {
+    // Automatically setup diagnostic log collection if enabled
+    if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
+      BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
+    }
+
+    if (endToEndTestSuiteInstance.javaFlightRecorderConfiguration) {
+      BaseCommandTest.setupJavaFlightRecorderLogCollection(endToEndTestSuiteInstance.options);
+    }
   }
 }

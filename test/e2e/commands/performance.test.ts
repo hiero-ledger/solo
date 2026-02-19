@@ -52,165 +52,169 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withDeployment(deploymentName)
   .withClusterCount(1)
   .withJavaFlightRecorderConfiguration('test/data/java-flight-recorder/LowMem.jfc')
-  .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe(testTitle, (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
+  .withTestSuiteCallback(
+    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => void): void => {
+      describe(testTitle, (): void => {
+        const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
-      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
-      before(async (): Promise<void> => {
-        fs.rmSync(testCacheDirectory, {recursive: true, force: true});
-        try {
-          fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
-            force: true,
-          });
-        } catch {
-          // allowed to fail if the file doesn't exist
-        }
-        if (!fs.existsSync(testCacheDirectory)) {
-          fs.mkdirSync(testCacheDirectory, {recursive: true});
-        }
-        resetForTest(namespace.name, testCacheDirectory, false);
-        for (const item of contexts) {
-          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          await k8Client.namespaces().delete(namespace);
-        }
-
-        testLogger.info(`${testName}: starting ${testName} e2e test`);
-
-        testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = options.javaFlightRecorderConfiguration;
-        await main(soloOneShotDeploy(testName, deployment));
-        testLogger.info(`${testName}: finished ${testName}: deploy`);
-
-        startTime = new Date();
-        metricsInterval = setInterval(async (): Promise<void> => {
-          logMetrics(startTime);
-        }, Duration.ofSeconds(5).toMillis());
-      }).timeout(Duration.ofMinutes(25).toMillis());
-
-      after(async (): Promise<void> => {
-        clearInterval(metricsInterval);
-
-        // restore environment variable for other tests
-        process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
-
-        // read all logged metrics and parse the JSON
-        const namespace: string = await getNamespaceFromDeployment();
-        const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-        const files: string[] = fs.readdirSync(tartgetDirectory);
-        const allMetrics: Record<string, AggregatedMetrics> = {};
-        for (const file of files) {
-          const filePath: string = PathEx.join(tartgetDirectory, file);
-          const fileContents: string = fs.readFileSync(filePath, 'utf8');
-          const fileName: string = file.split('.')[0];
-          allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
-        }
-
-        // save the aggregated metrics to a single file
-        const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-        const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
-        fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
-
-        let maxCpuMetrics: number = 0;
-        let maxCpuFile: string = '';
-        for (const [fileName, metrics] of Object.entries(allMetrics)) {
-          if (metrics.cpuInMillicores > maxCpuMetrics) {
-            maxCpuMetrics = metrics.cpuInMillicores;
-            maxCpuFile = fileName;
+        // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
+        before(async (): Promise<void> => {
+          fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+          try {
+            fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+              force: true,
+            });
+          } catch {
+            // allowed to fail if the file doesn't exist
           }
-        }
-
-        // save the file with the max CPU metrics
-        const maxCpuFileName: string = `${maxCpuFile}.json`;
-        fs.copyFileSync(
-          PathEx.join(tartgetDirectory, maxCpuFileName),
-          PathEx.join(tartgetDirectory, `${namespace}.json`),
-        );
-
-        // remove all files except the aggregated and max CPU files
-        const filesToKeep: Set<string> = new Set([maxCpuFileName, aggregatedMetricsFileName]);
-        for (const file of files) {
-          const fileName: string = file.split('.')[0];
-          if (!filesToKeep.has(fileName)) {
-            fs.rmSync(PathEx.join(tartgetDirectory, file));
+          if (!fs.existsSync(testCacheDirectory)) {
+            fs.mkdirSync(testCacheDirectory, {recursive: true});
           }
-        }
+          resetForTest(namespace.name, testCacheDirectory, false);
+          for (const item of contexts) {
+            const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
+            await k8Client.namespaces().delete(namespace);
+          }
 
-        // copy the maxCpuFile to the main solo logs directory to be accessible by existing scripts
-        fs.copyFileSync(
-          PathEx.join(tartgetDirectory, `${namespace}.json`),
-          PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
-        );
+          testLogger.info(`${testName}: starting ${testName} e2e test`);
 
-        // testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        // await main(soloOneShotDestroy(testName));
-        // testLogger.info(`${testName}: finished ${testName}: destroy`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
+          testLogger.info(`${testName}: beginning ${testName}: deploy`);
+          process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = options.javaFlightRecorderConfiguration;
+          await main(soloOneShotDeploy(testName, deployment));
+          testLogger.info(`${testName}: finished ${testName}: deploy`);
 
-      it('NftTransferLoadTest', async (): Promise<void> => {
-        logEvent('Starting NftTransferLoadTest');
-        await main(
-          soloRapidFire(
-            testName,
-            'NftTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-            maxTps,
-          ),
-        );
-      }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+          startTime = new Date();
+          metricsInterval = setInterval(async (): Promise<void> => {
+            logMetrics(startTime);
+          }, Duration.ofSeconds(5).toMillis());
+        }).timeout(Duration.ofMinutes(25).toMillis());
 
-      // it('TokenTransferLoadTest', async (): Promise<void> => {
-      //   logEvent('Starting TokenTransferLoadTest');
-      //   await main(
-      //     soloRapidFire(
-      //       testName,
-      //       'TokenTransferLoadTest',
-      //       `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-      //       maxTps,
-      //     ),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-      //
-      // it('CryptoTransferLoadTest', async (): Promise<void> => {
-      //   logEvent('Starting CryptoTransferLoadTest');
-      //   await main(
-      //     soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-      //
-      // it('HCSLoadTest', async (): Promise<void> => {
-      //   logEvent('Starting HCSLoadTest');
-      //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-      //
-      // it('SmartContractLoadTest', async (): Promise<void> => {
-      //   logEvent('Starting SmartContractLoadTest');
-      //   await main(
-      //     soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-      //   );
-      // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-      //
-      // it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
-      //   logEvent('Completed all performance tests');
-      //   if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
-      //     const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES, 10);
-      //
-      //     if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
-      //       throw new Error(
-      //         `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
-      //       );
-      //     }
-      //
-      //     for (let index: number = 0; index < sleepTimeInMinutes; index++) {
-      //       console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
-      //       await sleep(Duration.ofMinutes(1));
-      //     }
-      //   }
-      //
-      //   await logMetrics(startTime);
-      // }).timeout(Duration.ofMinutes(60).toMillis());
-    });
-  })
+        after(async (): Promise<void> => {
+          clearInterval(metricsInterval);
+
+          // restore environment variable for other tests
+          process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
+
+          // read all logged metrics and parse the JSON
+          const namespace: string = await getNamespaceFromDeployment();
+          const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+          const files: string[] = fs.readdirSync(tartgetDirectory);
+          const allMetrics: Record<string, AggregatedMetrics> = {};
+          for (const file of files) {
+            const filePath: string = PathEx.join(tartgetDirectory, file);
+            const fileContents: string = fs.readFileSync(filePath, 'utf8');
+            const fileName: string = file.split('.')[0];
+            allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
+          }
+
+          // save the aggregated metrics to a single file
+          const aggregatedMetricsFileName: string = 'timeline-metrics.json';
+          const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
+          fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
+
+          let maxCpuMetrics: number = 0;
+          let maxCpuFile: string = '';
+          for (const [fileName, metrics] of Object.entries(allMetrics)) {
+            if (metrics.cpuInMillicores > maxCpuMetrics) {
+              maxCpuMetrics = metrics.cpuInMillicores;
+              maxCpuFile = fileName;
+            }
+          }
+
+          // save the file with the max CPU metrics
+          const maxCpuFileName: string = `${maxCpuFile}.json`;
+          fs.copyFileSync(
+            PathEx.join(tartgetDirectory, maxCpuFileName),
+            PathEx.join(tartgetDirectory, `${namespace}.json`),
+          );
+
+          // remove all files except the aggregated and max CPU files
+          const filesToKeep: Set<string> = new Set([maxCpuFileName, aggregatedMetricsFileName]);
+          for (const file of files) {
+            const fileName: string = file.split('.')[0];
+            if (!filesToKeep.has(fileName)) {
+              fs.rmSync(PathEx.join(tartgetDirectory, file));
+            }
+          }
+
+          // copy the maxCpuFile to the main solo logs directory to be accessible by existing scripts
+          fs.copyFileSync(
+            PathEx.join(tartgetDirectory, `${namespace}.json`),
+            PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
+          );
+
+          preDestroy(this);
+
+          testLogger.info(`${testName}: beginning ${testName}: destroy`);
+          await main(soloOneShotDestroy(testName));
+          testLogger.info(`${testName}: finished ${testName}: destroy`);
+        }).timeout(Duration.ofMinutes(5).toMillis());
+
+        it('NftTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting NftTransferLoadTest');
+          await main(
+            soloRapidFire(
+              testName,
+              'NftTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+              maxTps,
+            ),
+          );
+        }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+
+        // it('TokenTransferLoadTest', async (): Promise<void> => {
+        //   logEvent('Starting TokenTransferLoadTest');
+        //   await main(
+        //     soloRapidFire(
+        //       testName,
+        //       'TokenTransferLoadTest',
+        //       `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+        //       maxTps,
+        //     ),
+        //   );
+        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+        //
+        // it('CryptoTransferLoadTest', async (): Promise<void> => {
+        //   logEvent('Starting CryptoTransferLoadTest');
+        //   await main(
+        //     soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+        //   );
+        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+        //
+        // it('HCSLoadTest', async (): Promise<void> => {
+        //   logEvent('Starting HCSLoadTest');
+        //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+        //
+        // it('SmartContractLoadTest', async (): Promise<void> => {
+        //   logEvent('Starting SmartContractLoadTest');
+        //   await main(
+        //     soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+        //   );
+        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+        //
+        // it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
+        //   logEvent('Completed all performance tests');
+        //   if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
+        //     const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES, 10);
+        //
+        //     if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
+        //       throw new Error(
+        //         `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
+        //       );
+        //     }
+        //
+        //     for (let index: number = 0; index < sleepTimeInMinutes; index++) {
+        //       console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
+        //       await sleep(Duration.ofMinutes(1));
+        //     }
+        //   }
+        //
+        //   await logMetrics(startTime);
+        // }).timeout(Duration.ofMinutes(60).toMillis());
+      });
+    },
+  )
   .build();
 endToEndTestSuite.runTestSuite();
 
