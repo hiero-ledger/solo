@@ -37,6 +37,7 @@ import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
 import {MessageLevel} from '../core/logging/message-level.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
@@ -114,7 +115,7 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    interface _Context {
+    interface Context {
       config: Config;
     }
 
@@ -335,9 +336,6 @@ export class DeploymentCommand extends BaseCommand {
             this.configManager.update(argv);
             // Note: cluster-ref is now optional. If not provided, we list local deployments.
             // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
-            const clusterName: ClusterReferenceName | undefined = this.configManager.getFlag<ClusterReferenceName>(
-              flags.clusterRef,
-            );
             context_.config = {
               clusterName: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
@@ -481,7 +479,8 @@ export class DeploymentCommand extends BaseCommand {
       task: async (context_, task): Promise<void> => {
         const {deployment, numberOfConsensusNodes, quiet, namespace} = context_.config;
 
-        const existingClusterReferences = this.localConfig.configuration.deploymentByName(deployment).clusters;
+        const existingClusterReferences: FacadeArray<StringFacade, string> =
+          this.localConfig.configuration.deploymentByName(deployment).clusters;
 
         // if there is no remote config don't validate deployment ledger phase
         if (existingClusterReferences.length === 0) {
@@ -737,26 +736,26 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             // Load remote config from the first cluster in the deployment
-            const deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
-            const clusters = deployment.clusters;
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
 
             if (clusters.length === 0) {
               throw new SoloError(`No clusters found for deployment ${context_.config.deployment}`);
             }
 
             // Use the first cluster's context
-            const clusterReferenceFacade = clusters.get(0);
+            const clusterReferenceFacade: StringFacade = clusters.get(0);
             if (!clusterReferenceFacade) {
               throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
             }
 
-            const clusterReference = clusterReferenceFacade.toString();
-            const contextValue = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            const clusterReference: string = clusterReferenceFacade.toString();
+            const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {
               throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
             }
 
-            const context = contextValue.toString();
+            const context: string = contextValue.toString();
 
             await this.remoteConfig.load(context_.namespace, context);
           },
@@ -772,9 +771,9 @@ export class DeploymentCommand extends BaseCommand {
               {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
             ];
 
-            let restoredCount = 0;
-            let totalChecked = 0;
-            let alreadyRunningCount = 0;
+            let restoredCount: number = 0;
+            let totalChecked: number = 0;
+            let alreadyRunningCount: number = 0;
             const portForwardDetails: string[] = [];
 
             this.logger.showUser(chalk.cyan('\n=== Port-Forward Status Check ===\n'));
@@ -786,35 +785,42 @@ export class DeploymentCommand extends BaseCommand {
                 }
 
                 const {cluster: clusterReference, namespace} = component.metadata;
-                const context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
-                const k8Client = this.k8Factory.getK8(context);
+                const context: string | undefined = this.localConfig.configuration.clusterRefs
+                  .get(clusterReference)
+                  ?.toString();
+                const k8Client: K8 = this.k8Factory.getK8(context);
 
                 for (const portForwardConfig of component.metadata.portForwardConfigs) {
                   totalChecked++;
                   const {localPort, podPort} = portForwardConfig;
-                  const componentLabel = `${type} ${component.metadata.id}`;
+                  const componentLabel: string = `${type} ${component.metadata.id}`;
 
                   // Check if port-forward is running
-                  const isRunning = await this.isPortForwardRunning(localPort);
+                  const isRunning: boolean = await this.isPortForwardRunning(localPort);
 
                   if (isRunning) {
                     alreadyRunningCount++;
-                    const detail = `✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`;
+                    const detail: string = `✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`;
                     portForwardDetails.push(detail);
                     this.logger.showUser(chalk.green(detail));
                   } else {
-                    const missingDetail = `⚠ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Missing]`;
+                    const missingDetail: string = `⚠ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Missing]`;
                     portForwardDetails.push(missingDetail);
                     this.logger.showUser(chalk.yellow(missingDetail));
 
                     try {
                       // Find the pod reference for this component
-                      const namespaceName = NamespaceName.of(namespace);
-                      const podName = await this.getPodNameForComponent(component, type, k8Client, namespaceName);
+                      const namespaceName: NamespaceName = NamespaceName.of(namespace);
+                      const podName: PodName | null = await this.getPodNameForComponent(
+                        component,
+                        type,
+                        k8Client,
+                        namespaceName,
+                      );
 
                       if (podName) {
                         // Re-enable port forward
-                        const podReference = PodReference.of(namespaceName, podName);
+                        const podReference: PodReference = PodReference.of(namespaceName, podName);
 
                         // portForward parameters:
                         // - localPort: the port to forward to on localhost
@@ -826,15 +832,15 @@ export class DeploymentCommand extends BaseCommand {
                           .readByReference(podReference)
                           .portForward(localPort, podPort, true, false);
 
-                        const restoredDetail = `  ↳ Restored port forward for ${componentLabel}`;
+                        const restoredDetail: string = `  ↳ Restored port forward for ${componentLabel}`;
                         this.logger.showUser(chalk.green(restoredDetail));
                         restoredCount++;
                       } else {
-                        const errorDetail = `  ↳ Could not find pod for ${componentLabel}`;
+                        const errorDetail: string = `  ↳ Could not find pod for ${componentLabel}`;
                         this.logger.showUser(chalk.red(errorDetail));
                       }
                     } catch (error) {
-                      const errorDetail = `  ↳ Failed to restore: ${error.message}`;
+                      const errorDetail: string = `  ↳ Failed to restore: ${error.message}`;
                       this.logger.showUser(chalk.red(errorDetail));
                     }
                   }
@@ -880,8 +886,8 @@ export class DeploymentCommand extends BaseCommand {
     }
 
     try {
-      const shellCommand = `ps -ef | grep "port-forward" | grep "${port}:" | grep -v grep`;
-      const result = await this.run(shellCommand, [], true, false);
+      const shellCommand: string = `ps -ef | grep "port-forward" | grep "${port}:" | grep -v grep`;
+      const result: string[] = await this.run(shellCommand, [], true, false);
       return result && result.length > 0;
     } catch {
       return false;
@@ -898,74 +904,20 @@ export class DeploymentCommand extends BaseCommand {
     namespace: NamespaceName,
   ): Promise<PodName | null> {
     try {
-      const labelSelectors: string[][] = this.getLabelSelectorsForComponent(component, componentType);
-
-      for (const labels of labelSelectors) {
-        const pods = await k8Client.pods().list(namespace, labels);
-        if (pods?.length > 0) {
-          return pods[0].podReference.name;
-        }
+      const labels: string[] = Templates.renderComponentLabelSelectors(componentType, component.metadata.id);
+      if (labels.length === 0) {
+        return undefined;
       }
 
-      return null;
+      const pods: Pod[] = await k8Client.pods().list(namespace, labels);
+      if (pods?.length > 0) {
+        return pods[0].podReference.name;
+      }
+
+      return undefined;
     } catch (error) {
       this.logger.warn(`Error finding pod for ${componentType}: ${error.message}`);
-      return null;
-    }
-  }
-
-  /**
-   * Build ordered label selector candidates for each component type.
-   * Selectors are tried in order until a matching pod is found.
-   */
-  private getLabelSelectorsForComponent(component: BaseStateSchema, componentType: string): string[][] {
-    switch (componentType) {
-      case 'ConsensusNode': {
-        const id = component.metadata.id;
-        const nodeAlias = Templates.renderNodeAliasFromNumber(id);
-        return [
-          Templates.renderNodeLabelsFromNodeAlias(nodeAlias),
-          Templates.renderConsensusNodeLabels(id),
-          ['app=network-node', `fullstack.hedera.com/node-name=network-${id}`],
-        ];
-      }
-      case 'BlockNode': {
-        const id = component.metadata.id;
-        return [
-          Templates.renderBlockNodeLabels(id),
-          [`app.kubernetes.io/name=hedera-block-node-${id}`],
-          ['app.kubernetes.io/name=hedera-block-node'],
-        ];
-      }
-      case 'MirrorNode': {
-        const id = component.metadata.id;
-        return [
-          Templates.renderMirrorNodeLabels(id),
-          ['app.kubernetes.io/name=importer', 'app.kubernetes.io/component=importer'],
-          ['app.kubernetes.io/name=hedera-mirror-node', 'app.kubernetes.io/component=grpc'],
-        ];
-      }
-      case 'RelayNode': {
-        const id = component.metadata.id;
-        return [
-          Templates.renderRelayLabels(id),
-          ['app.kubernetes.io/name=relay'],
-          ['app.kubernetes.io/name=hedera-json-rpc-relay'],
-        ];
-      }
-      case 'Explorer': {
-        const id = component.metadata.id;
-        return [
-          Templates.renderExplorerLabels(id),
-          [constants.SOLO_EXPLORER_LABEL],
-          [constants.OLD_SOLO_EXPLORER_LABEL],
-          ['app.kubernetes.io/name=hiero-explorer'],
-          ['app.kubernetes.io/name=hedera-explorer'],
-        ];
-      }
-      default: {
-        return [];
-      }
+      return undefined;
     }
   }
 }

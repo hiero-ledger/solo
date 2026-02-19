@@ -9,6 +9,7 @@ if [ ! -f "${CONFIG_FILE}" ]; then
   exit 1
 fi
 
+# Extract deployment names from the local config YAML
 extract_deployments() {
   awk '
     /^[[:space:]]*deployments:[[:space:]]*$/ {in_deployments=1; next}

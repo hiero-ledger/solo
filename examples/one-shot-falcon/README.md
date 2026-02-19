@@ -43,7 +43,18 @@ Browse the source code and configuration files for this example in the [GitHub r
      * Set the kubectl context
      * Deploy the complete network using `solo one-shot falcon deploy`
 
-4. **Destroy the network:**
+4. **Run port-forward refresh recovery test (consolidated):**
+   * Run:
+     ```sh
+     task test
+     ```
+   * This will:
+     * Deploy the network
+     * Kill one running `kubectl port-forward` process
+     * Run `solo deployment refresh port-forwards`
+     * Verify the killed port-forward was restored
+
+5. **Destroy the network:**
    * Run:
      ```sh
      task destroy
@@ -54,8 +65,9 @@ Browse the source code and configuration files for this example in the [GitHub r
 
 ## Files
 
-* `Taskfile.yml` — Automation tasks for deploy and destroy operations
+* `Taskfile.yml` — Automation tasks for deploy/destroy and refresh-recovery test flow
 * `falcon-values.yaml` — Configuration file with network and component settings
+* `resolve-deployment.sh` — Resolves active deployment name from local config
 
 ## Notes
 
@@ -91,6 +103,7 @@ solo one-shot falcon deploy --values-file falcon-values.yaml --deploy-explorer=f
 ```
 
 This is useful for:
+
 * Testing specific components in isolation
 * Reducing resource usage during development
 * Customizing deployment for specific testing scenarios
