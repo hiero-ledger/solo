@@ -143,7 +143,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
 
-          preDestroy(this);
+          preDestroy(endToEndTestSuite);
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));
