@@ -19,7 +19,7 @@ import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
-import {sleep} from '../../../src/core/helpers.js';
+// import {sleep} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
