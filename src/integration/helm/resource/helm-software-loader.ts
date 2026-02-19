@@ -2,6 +2,7 @@
 
 import {HelmConfigurationException} from '../helm-configuration-exception.js';
 import {ShellRunner} from '../../../core/shell-runner.js';
+import {OS_WIN32} from '../../../core/constants.js';
 
 /**
  * Get helm executable path
@@ -17,7 +18,7 @@ export class HelmSoftwareLoader {
       if (platform === 'linux' || platform === 'darwin') {
         // eslint-disable-next-line unicorn/no-await-expression-member
         helmPath = (await shellRunner.run('which helm')).join('').trim();
-      } else if (platform === 'win32') {
+      } else if (platform === OS_WIN32) {
         // eslint-disable-next-line unicorn/no-await-expression-member
         helmPath = (await shellRunner.run('where helm')).join('').trim();
       } else {

@@ -6,6 +6,7 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
+import {OS_WIN32} from './constants.js';
 
 @injectable()
 export class ShellRunner {
@@ -20,7 +21,7 @@ export class ShellRunner {
     verbose: boolean = false,
     detached: boolean = false,
   ): Promise<string[]> {
-    const message: string = `Executing command${process.platform === 'win32' ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
+    const message: string = `Executing command${process.platform === OS_WIN32 ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
     this.logger.info(message);
 
@@ -29,7 +30,7 @@ export class ShellRunner {
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,
-        windowsVerbatimArguments: process.platform === 'win32', // ensure arguments are passed verbatim on Windows
+        windowsVerbatimArguments: process.platform === OS_WIN32, // ensure arguments are passed verbatim on Windows
       });
 
       if (detached) {

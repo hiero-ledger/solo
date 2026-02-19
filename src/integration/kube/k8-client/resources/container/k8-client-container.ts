@@ -25,6 +25,7 @@ import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
 import type * as stream from 'node:stream';
+import {OS_WIN32} from '../../../../../core/constants.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -145,7 +146,7 @@ export class K8ClientContainer implements Container {
   private toKubectlSafePath(path: string): string {
     // kubectl cp does not handle windows path with drive letters because of the colon, so we need to convert
     // C:\path\to\file\file.txt to the format \\localhost\c$\path\to\file\file.txt
-    if (process.platform === 'win32') {
+    if (process.platform === OS_WIN32) {
       const driveLetterMatch: RegExpMatchArray | null = path.match(/^([a-zA-Z]):\\/);
       if (driveLetterMatch) {
         const driveLetter: string = driveLetterMatch[1].toLowerCase();
