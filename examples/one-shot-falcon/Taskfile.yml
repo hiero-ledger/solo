@@ -39,21 +39,6 @@ tasks:
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2
 
-          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
-          RESOLVED_NAMESPACE="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}" namespace)"
-          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
-          echo "Using namespace: ${RESOLVED_NAMESPACE}"
-          export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
-          export SOLO_NAMESPACE="$RESOLVED_NAMESPACE"
-
-          if git rev-parse --show-toplevel >/dev/null 2>&1; then
-            REPO_ROOT="$(git rev-parse --show-toplevel)"
-            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
-            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
-          else
-            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
-          fi
-
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
     cmds:
@@ -75,6 +60,22 @@ tasks:
   test-refresh:
     desc: Kill one port-forward, then run deployment refresh port-forwards
     cmds:
+      - cmd: |
+          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
+          RESOLVED_NAMESPACE="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}" namespace)"
+          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+          echo "Using namespace: ${RESOLVED_NAMESPACE}"
+          export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
+          export SOLO_NAMESPACE="$RESOLVED_NAMESPACE"
+
+          if git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
+      
       - cmd: |
           echo "==== Current port-forward processes ===="
           ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
