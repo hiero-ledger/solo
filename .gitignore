@@ -28,13 +28,8 @@
 hs_err_pid*
 replay_pid*
 
-### VisualStudioCode template
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
+### VisualStudioCode/VSCode template
+.vscode
 *.code-workspace
 
 
