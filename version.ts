@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
-import {SemVer} from 'semver';
+import {SemVer, lte} from 'semver';
 import * as constants from './src/core/constants.js';
 
 /**
@@ -49,8 +49,13 @@ export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS: string = 'v0
 // pre-release specified to allow all other pre-releases
 // export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.72.0-0';
 export const MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE: string = '0.69.0';
-
+export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const POST_HIERO_MIGRATION_MIRROR_NODE_VERSION: string = '0.130.0';
+
+export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
+  const versionTag = releaseTag || HEDERA_PLATFORM_VERSION;
+  return lte(versionTag, LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
+}
 
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {
