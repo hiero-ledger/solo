@@ -61,6 +61,23 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('consensus network');
       expect(output).to.include('consensus node');
     });
+
+    it('should exit cleanly and show subcommands/options for consensus', async () => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: any) {
+        expect(error.constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('consensus');
+      expect(output).to.include('Commands:');
+      expect(output).to.include('Options:');
+      expect(process.exitCode).to.not.equal(1);
+    });
   });
 
   describe('Missing Subcommands - Level 2 (Command Subgroups)', () => {
@@ -80,6 +97,23 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('destroy');
       expect(output).to.include('freeze');
       expect(output).to.include('upgrade');
+    });
+
+    it('should exit cleanly and show subgroup commands/options for consensus network', async () => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: any) {
+        expect(error.constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('consensus network');
+      expect(output).to.include('Commands:');
+      expect(output).to.include('Options:');
+      expect(process.exitCode).to.not.equal(1);
     });
   });
 
@@ -142,6 +176,23 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('Missing required argument');
       expect(output).to.include('deployment');
     });
+
+    it('should fail for destroy without deployment and include exact message', async () => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+        expect.fail('Expected SoloError to be thrown');
+      } catch (error: any) {
+        expect(error.constructor.name).to.equal('SoloError');
+        expect(error.message).to.include('Missing required argument: deployment');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('Missing required argument: deployment');
+      expect(process.exitCode).to.equal(1);
+    });
   });
 
   describe('Unknown Arguments', () => {
@@ -183,6 +234,58 @@ describe('ArgumentProcessor', () => {
       const output: string = consoleOutput.join('\n');
       expect(output).to.include('consensus');
       expect(output).to.include('Commands:');
+    });
+
+    it('should show clean help for trailing help shorthand on action command', async () => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy', 'help'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: any) {
+        expect(error.constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('consensus network destroy');
+      expect(output).to.not.include('Missing required argument');
+      expect(process.exitCode).to.not.equal(1);
+    });
+
+    it('should exit cleanly and show subgroup commands/options for consensus network help', async () => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'help'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: any) {
+        expect(error.constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('consensus network');
+      expect(output).to.include('Commands:');
+      expect(output).to.include('Options:');
+      expect(output).to.not.include('Missing required argument');
+      expect(process.exitCode).to.not.equal(1);
+    });
+
+    it('should exit cleanly and show subcommands/options for consensus help', async () => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'help'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: any) {
+        expect(error.constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('consensus');
+      expect(output).to.include('Commands:');
+      expect(output).to.include('Options:');
+      expect(output).to.not.include('Missing required argument');
+      expect(process.exitCode).to.not.equal(1);
     });
   });
 
