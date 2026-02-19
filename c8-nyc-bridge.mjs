@@ -27,6 +27,7 @@ export function main() {
   const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
   try {
     fs.symlinkSync(c8SourcePath, nycModulePath, symlinkType);
+    fs.copyFileSync(path.join(c8SourcePath, 'bin', 'c8.js'), path.join(c8SourcePath, 'bin', 'nyc.js'));
   } catch (err) {
     console.error(`Failed to create symlink from ${c8SourcePath} to ${nycModulePath} in ${symlinkType} mode: ${err}`);
     throw err;
