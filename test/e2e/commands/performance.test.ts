@@ -53,7 +53,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withClusterCount(1)
   .withJavaFlightRecorderConfiguration('test/data/java-flight-recorder/LowMem.jfc')
   .withTestSuiteCallback(
-    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => void): void => {
+    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
       describe(testTitle, (): void => {
         const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
@@ -143,7 +143,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
 
-          preDestroy(endToEndTestSuite);
+          await preDestroy(endToEndTestSuite);
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));

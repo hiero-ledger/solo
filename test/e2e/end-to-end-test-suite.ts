@@ -50,7 +50,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly javaFlightRecorderConfiguration: string = '',
     public readonly testSuiteCallback: (
       options: BaseTestOptions,
-      preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => void,
+      preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
     ) => void,
   ) {
     super(testName);
@@ -123,14 +123,14 @@ export class EndToEndTestSuite extends Suite {
     });
   }
 
-  public static preDestroy(endToEndTestSuiteInstance: EndToEndTestSuite): void {
+  public static async preDestroy(endToEndTestSuiteInstance: EndToEndTestSuite): Promise<void> {
     // Automatically setup diagnostic log collection if enabled
     if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
-      BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
+      await BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
     }
 
     if (endToEndTestSuiteInstance.javaFlightRecorderConfiguration) {
-      BaseCommandTest.setupJavaFlightRecorderLogCollection(endToEndTestSuiteInstance.options);
+      await BaseCommandTest.setupJavaFlightRecorderLogCollection(endToEndTestSuiteInstance.options);
     }
   }
 }

@@ -12,7 +12,6 @@ import {Argv} from '../../../helpers/argv-wrapper.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {getEnvironmentVariable} from '../../../../src/core/constants.js';
-import {Duration} from '../../../../src/core/time/duration.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
@@ -114,33 +113,23 @@ export class BaseCommandTest {
    * Sets up an after() hook for diagnostic log collection in E2E tests.
    * Call this within your test suite describe block.
    */
-  public static setupDiagnosticLogCollection(options: BaseTestOptions): void {
+  public static async setupDiagnosticLogCollection(options: BaseTestOptions): Promise<void> {
     const {testName, testLogger, deployment} = options;
-
-    after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-
-      await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
-    });
+    await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
   }
 
   /**
    * Sets up an after() hook for diagnostic log collection in E2E tests.
    * Call this within your test suite describe block.
    */
-  public static setupJavaFlightRecorderLogCollection(options: BaseTestOptions): void {
+  public static setupJavaFlightRecorderLogCollection(options: BaseTestOptions): Promise<void[]> {
     const {testName, testLogger, deployment} = options;
+    const promises: Promise<void>[] = [];
+    for (let index: number = 0; index < options.consensusNodesCount; index++) {
+      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
+      promises.push(BaseCommandTest.collectJavaFlightRecorderLogs(testName, testLogger, deployment, nodeAlias));
+    }
 
-    after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-
-      const promises: Promise<void>[] = [];
-      for (let index: number = 0; index < options.consensusNodesCount; index++) {
-        const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
-        promises.push(BaseCommandTest.collectJavaFlightRecorderLogs(testName, testLogger, deployment, nodeAlias));
-      }
-
-      await Promise.all(promises);
-    });
+    return Promise.all(promises);
   }
 }

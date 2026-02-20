@@ -29,7 +29,7 @@ export class EndToEndTestSuiteBuilder {
 
   private testSuiteCallback: (
     endToEndTestSuite: EndToEndTestSuite,
-    preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => void,
+    preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
   ) => void;
 
   public withTestName(testName: string): this {
@@ -100,7 +100,7 @@ export class EndToEndTestSuiteBuilder {
   public withTestSuiteCallback(
     testSuiteCallback: (
       endToEndTestSuite: EndToEndTestSuite,
-      preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => void,
+      preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
     ) => void,
   ): this {
     this.testSuiteCallback = testSuiteCallback;
