@@ -47,11 +47,11 @@ tasks:
       - package-lock.json
     cmds:
       - |
-        {{-if .CI}}
+        {{if .CI}}
         npm ci
-        {{-else}}
+        {{else}}
         npm install
-        {{-end}}
+        {{end}}
 
   check:
     desc: "Run all checks (lint, circular dependencies, typedoc)"
