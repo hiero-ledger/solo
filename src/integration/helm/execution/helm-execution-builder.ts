@@ -8,7 +8,6 @@ import {patchInject} from '../../../core/dependency-injection/container-helper.j
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {Templates} from '../../../core/templates.js';
 import * as constants from '../../../core/constants.js';
-import {OperatingSystem} from '../../../business/utils/operating-system.js';
 
 @injectable()
 /**
@@ -65,7 +64,7 @@ export class HelmExecutionBuilder {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
 
     try {
-      this.helmExecutable = Templates.installationPath(constants.HELM, OperatingSystem.getPlatform());
+      this.helmExecutable = Templates.installationPath(constants.HELM);
     } catch (error) {
       this.logger?.error('Failed to find helm executable:', error);
       throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');
