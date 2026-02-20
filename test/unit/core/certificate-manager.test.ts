@@ -15,11 +15,12 @@ import {K8ClientSecrets} from '../../../src/integration/kube/k8-client/resources
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {KUBECTL_EXECUTABLE} from '../../../src/core/constants.js';
 
 describe('Certificate Manager', () => {
   const argv = Argv.initializeEmpty();
 
-  const k8InitSpy = new K8Client(undefined);
+  const k8InitSpy = new K8Client(undefined, KUBECTL_EXECUTABLE);
 
   let certificateManager: CertificateManager;
 

@@ -38,6 +38,7 @@ export const KUBECTL: string = 'kubectl';
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
+export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
@@ -403,6 +404,9 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
+
+export const KUBECTL_EXECUTABLE: string =
+  process.platform === OS_WINDOWS || process.platform === OS_WIN32 ? 'kubectl.exe' : 'kubectl';
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;

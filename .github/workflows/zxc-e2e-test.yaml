@@ -221,6 +221,9 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
+      - name: Configure npm registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
       - name: Install wget
         run: |
           if ! command -v wget >/dev/null 2>&1; then
@@ -237,7 +240,7 @@ jobs:
 
       - name: Setup Kind
         if: ${{ inputs.install-dependencies == true }}
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30

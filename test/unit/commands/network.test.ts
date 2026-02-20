@@ -8,7 +8,7 @@ import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
-import {ROOT_DIR} from '../../../src/core/constants.js';
+import {KUBECTL_EXECUTABLE, ROOT_DIR} from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
@@ -125,7 +125,7 @@ describe('NetworkCommand unit tests', (): void => {
         has: sinon.stub().returns(true),
       });
       options.k8Factory.default().contexts = sinon.stub().returns({
-        readCurrent: sinon.stub().returns(new K8Client(undefined).contexts().readCurrent()),
+        readCurrent: sinon.stub().returns(new K8Client(undefined, KUBECTL_EXECUTABLE).contexts().readCurrent()),
       });
       options.k8Factory.default().configMaps = sinon.stub() as unknown as K8ClientConfigMaps;
       options.k8Factory.default().configMaps.read = sinon.stub();
