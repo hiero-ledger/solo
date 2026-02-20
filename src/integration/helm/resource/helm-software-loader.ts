@@ -2,7 +2,7 @@
 
 import {HelmConfigurationException} from '../helm-configuration-exception.js';
 import {ShellRunner} from '../../../core/shell-runner.js';
-import {OS_WIN32} from '../../../core/constants.js';
+import {OperatingSystem} from '../../../business/utils/operating-system.js';
 
 /**
  * Get helm executable path
@@ -11,18 +11,17 @@ export class HelmSoftwareLoader {
   public static async getHelmExecutablePath(): Promise<string> {
     try {
       const shellRunner: ShellRunner = new ShellRunner();
-      const platform: NodeJS.Platform = process.platform;
 
       let helmPath: string;
       // Use the appropriate command based on the platform
-      if (platform === 'linux' || platform === 'darwin') {
+      if (OperatingSystem.isLinux() || OperatingSystem.isDarwin()) {
         // eslint-disable-next-line unicorn/no-await-expression-member
         helmPath = (await shellRunner.run('which helm')).join('').trim();
-      } else if (platform === OS_WIN32) {
+      } else if (OperatingSystem.isWin32()) {
         // eslint-disable-next-line unicorn/no-await-expression-member
         helmPath = (await shellRunner.run('where helm')).join('').trim();
       } else {
-        throw new HelmConfigurationException(`Unsupported operating system: ${platform}`);
+        throw new HelmConfigurationException(`Unsupported operating system: ${OperatingSystem.getPlatform()}`);
       }
 
       if (!helmPath) {

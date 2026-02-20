@@ -11,7 +11,7 @@ import {ChildProcess} from 'node:child_process';
 import {Readable} from 'node:stream';
 import {Duration} from '../../../src/core/time/duration.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
-import {OS_WIN32} from '../../../src/core/constants.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
 
 describe('ShellRunner', (): void => {
   let shellRunner: ShellRunner,
@@ -33,7 +33,7 @@ describe('ShellRunner', (): void => {
   afterEach((): void => sinon.restore());
 
   it('should run command', async (): Promise<void> => {
-    const commandToRun: string = process.platform === OS_WIN32 ? 'dir' : 'ls -l';
+    const commandToRun: string = OperatingSystem.isWin32() ? 'dir' : 'ls -l';
     await shellRunner.run(commandToRun);
 
     loggerInfoStub.withArgs(`Executing command: '${commandToRun}'`).onFirstCall();

@@ -7,7 +7,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import path from 'node:path';
-import {KUBECTL_EXECUTABLE} from '../../../core/constants.js';
+import {platform} from 'node:process';
 
 @injectable()
 export class K8ClientFactory implements K8Factory {
@@ -17,7 +17,7 @@ export class K8ClientFactory implements K8Factory {
   public constructor(@inject(InjectTokens.KubectlInstallationDir) installationDirectory: string) {
     this.kubectlExecutable = path.join(
       patchInject(installationDirectory, InjectTokens.KubectlInstallationDir, K8ClientFactory.name),
-      KUBECTL_EXECUTABLE,
+      platform === 'win32' ? 'kubectl.exe' : 'kubectl',
     );
   }
 

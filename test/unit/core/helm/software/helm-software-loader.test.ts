@@ -8,7 +8,7 @@ import {execSync} from 'node:child_process';
 import {gte} from 'semver';
 import {SemanticVersion} from '../../../../../src/integration/helm/base/api/version/semantic-version.js';
 import {HelmSoftwareLoader} from '../../../../../src/integration/helm/resource/helm-software-loader.js';
-import {OS_WIN32} from '../../../../../src/core/constants.js';
+import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
 
 describe('Helm Software Loader Test', (): void => {
   const currentPlatform: NodeJS.Platform = platform();
@@ -33,7 +33,7 @@ describe('Helm Software Loader Test', (): void => {
     }
 
     // Check filename
-    const expectedFilename: string = currentPlatform === OS_WIN32 ? 'helm.exe' : 'helm';
+    const expectedFilename: string = OperatingSystem.isWin32() ? 'helm.exe' : 'helm';
     expect(helmPath.endsWith(expectedFilename)).to.be.true;
 
     // Check version
