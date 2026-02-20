@@ -19,7 +19,7 @@ import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
-// import {sleep} from '../../../src/core/helpers.js';
+import {sleep} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
@@ -29,10 +29,9 @@ const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
 
-// const duration: number = Duration.ofMinutes(
-//   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
-// ).seconds;
-const duration: number = Duration.ofMinutes(1).seconds;
+const duration: number = Duration.ofMinutes(
+  Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
+).seconds;
 const clients: number = 5;
 const accounts: number = 1000;
 const tokens: number = 50;
@@ -160,58 +159,63 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
               maxTps,
             ),
           );
-        }).timeout(Duration.ofSeconds(duration * 200).toMillis());
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
-        // it('TokenTransferLoadTest', async (): Promise<void> => {
-        //   logEvent('Starting TokenTransferLoadTest');
-        //   await main(
-        //     soloRapidFire(
-        //       testName,
-        //       'TokenTransferLoadTest',
-        //       `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-        //       maxTps,
-        //     ),
-        //   );
-        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-        //
-        // it('CryptoTransferLoadTest', async (): Promise<void> => {
-        //   logEvent('Starting CryptoTransferLoadTest');
-        //   await main(
-        //     soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-        //   );
-        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-        //
-        // it('HCSLoadTest', async (): Promise<void> => {
-        //   logEvent('Starting HCSLoadTest');
-        //   await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-        //
-        // it('SmartContractLoadTest', async (): Promise<void> => {
-        //   logEvent('Starting SmartContractLoadTest');
-        //   await main(
-        //     soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-        //   );
-        // }).timeout(Duration.ofSeconds(duration * 200).toMillis());
-        //
-        // it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
-        //   logEvent('Completed all performance tests');
-        //   if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
-        //     const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES, 10);
-        //
-        //     if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
-        //       throw new Error(
-        //         `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
-        //       );
-        //     }
-        //
-        //     for (let index: number = 0; index < sleepTimeInMinutes; index++) {
-        //       console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
-        //       await sleep(Duration.ofMinutes(1));
-        //     }
-        //   }
-        //
-        //   await logMetrics(startTime);
-        // }).timeout(Duration.ofMinutes(60).toMillis());
+        it('TokenTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting TokenTransferLoadTest');
+          await main(
+            soloRapidFire(
+              testName,
+              'TokenTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+              maxTps,
+            ),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('CryptoTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting CryptoTransferLoadTest');
+          await main(
+            soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('HCSLoadTest', async (): Promise<void> => {
+          logEvent('Starting HCSLoadTest');
+          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('SmartContractLoadTest', async (): Promise<void> => {
+          logEvent('Starting SmartContractLoadTest');
+          await main(
+            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
+          logEvent('Completed all performance tests');
+          if (process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) {
+            const sleepTimeInMinutes: number = Number.parseInt(
+              process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES,
+              10,
+            );
+
+            if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
+              throw new Error(
+                `${testName}: invalid ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES value: ${process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES}`,
+              );
+            }
+
+            for (let index: number = 0; index < sleepTimeInMinutes; index++) {
+              console.log(
+                `${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`,
+              );
+              await sleep(Duration.ofMinutes(1));
+            }
+          }
+
+          await logMetrics(startTime);
+        }).timeout(Duration.ofMinutes(60).toMillis());
       });
     },
   )
