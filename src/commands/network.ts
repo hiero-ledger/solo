@@ -1108,9 +1108,7 @@ export class NetworkCommand extends BaseCommand {
                     svc = await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, [
-                        `solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`,
-                      ]);
+                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
 
                     if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
                       let shouldContinue: boolean = false;

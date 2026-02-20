@@ -401,7 +401,17 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
+  public static firstNodeCustomGrpcWebEndpointAddress: string = 'localhost';
+  public static firstNodeCustomGrpcWebEndpointPort: number = 4444;
+
+  public static secondNodeCustomGrpcWebEndpointAddress: string = 'remote.cluster.address';
+  public static secondNodeCustomGrpcWebEndpointPort: number = 4445;
+
+  private static soloNodeStartArgv(
+    testName: string,
+    deployment: DeploymentName,
+    setCustomGrpcWebAddress: boolean,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
@@ -413,6 +423,17 @@ export class NodeTest extends BaseCommandTest {
       deployment,
     );
     argvPushGlobalFlags(argv, testName);
+
+    if (setCustomGrpcWebAddress) {
+      argv.push(
+        optionFromFlag(flags.grpcWebEndpoints),
+        [
+          `node1=${NodeTest.firstNodeCustomGrpcWebEndpointAddress}:${NodeTest.firstNodeCustomGrpcWebEndpointPort}`,
+          `node2=${NodeTest.secondNodeCustomGrpcWebEndpointAddress}:${NodeTest.secondNodeCustomGrpcWebEndpointPort}`,
+        ].join(','),
+      );
+    }
+
     return argv;
   }
 
@@ -456,13 +477,13 @@ export class NodeTest extends BaseCommandTest {
     }
   }
 
-  public static start(options: BaseTestOptions): void {
+  public static start(options: BaseTestOptions, setCustomGrpcWebAddress: boolean = false): void {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences, consensusNodesCount} =
       options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
 
     it(`${testName}: consensus node start`, async (): Promise<void> => {
-      await main(soloNodeStartArgv(testName, deployment));
+      await main(soloNodeStartArgv(testName, deployment, setCustomGrpcWebAddress));
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -756,7 +777,7 @@ export class NodeTest extends BaseCommandTest {
 
       await checkNetwork(testName, namespace, testLogger);
 
-      await main(soloNodeStartArgv(testName, deployment));
+      await main(soloNodeStartArgv(testName, deployment, false));
 
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));

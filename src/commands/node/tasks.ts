@@ -91,9 +91,10 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
-  PrivateKeyAndCertificateObject,
+  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -1479,7 +1480,10 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(
+    nodeAliasesProperty: string,
+    subcommandType: NodeSubcommandType,
+  ): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
@@ -1493,12 +1497,17 @@ export class NodeCommandTasks {
         return lt(currentVersion, versionRequirement);
       },
       task: async ({config}): Promise<void> => {
-        const {namespace, deployment, adminKey}: any = config;
+        const {namespace, deployment, adminKey} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
           namespace,
           this.remoteConfig.getClusterRefs(),
           deployment,
+        );
+
+        const grpcWebEndpoints: NodeAliasToAddressMapping = Templates.parseNodeAliasToAddressAndPortMapping(
+          config.grpcWebEndpoints,
+          this.remoteConfig.getConsensusNodes(),
         );
 
         for (const nodeAlias of config[nodeAliasesProperty]) {
@@ -1516,27 +1525,49 @@ export class NodeCommandTasks {
             deployment,
           );
 
-          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint().setPort(grpcProxyPort);
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint();
 
-          if (networkNodeService.envoyProxyLoadBalancerIp) {
+          let endpoint: {address: string; port: number};
+
+          if (subcommandType === NodeSubcommandType.ADD && (config as any).grpcWebEndpoint) {
+            const grpcWebEndpoint: string = (config as any).grpcWebEndpoint;
+
+            const [address, port] = grpcWebEndpoint.includes(':')
+              ? grpcWebEndpoint.split(':')
+              : [grpcWebEndpoint, constants.GRPC_WEB_PORT];
+
+            endpoint = {address, port: +port};
+          } else if (subcommandType === NodeSubcommandType.START) {
+            endpoint = grpcWebEndpoints[nodeAlias];
+          }
+
+          if (endpoint) {
+            grpcWebProxyEndpoint.setDomainName(endpoint.address).setPort(endpoint.port);
+          } else if (networkNodeService.envoyProxyLoadBalancerIp) {
             const svc: Service[] = await this.k8Factory
               .getK8(networkNodeService.context)
               .services()
-              .list(config.namespace, [
-                `solo.hedera.com/node-id=${networkNodeService.nodeId},solo.hedera.com/type=network-node-svc`,
-              ]);
+              .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(networkNodeService.nodeId));
 
-            grpcWebProxyEndpoint.setDomainName(
-              Templates.renderSvcFullyQualifiedDomainName(svc[0].metadata.name, namespace.name, cluster.dnsBaseDomain),
-            );
+            grpcWebProxyEndpoint
+              .setDomainName(
+                Templates.renderSvcFullyQualifiedDomainName(
+                  svc[0].metadata.name,
+                  namespace.name,
+                  cluster.dnsBaseDomain,
+                ),
+              )
+              .setPort(grpcProxyPort);
           } else {
-            grpcWebProxyEndpoint.setDomainName(
-              Templates.renderSvcFullyQualifiedDomainName(
-                networkNodeService.envoyProxyName,
-                namespace.name,
-                cluster.dnsBaseDomain,
-              ),
-            );
+            grpcWebProxyEndpoint
+              .setDomainName(
+                Templates.renderSvcFullyQualifiedDomainName(
+                  networkNodeService.envoyProxyName,
+                  namespace.name,
+                  cluster.dnsBaseDomain,
+                ),
+              )
+              .setPort(grpcProxyPort);
           }
 
           let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
@@ -1730,15 +1761,14 @@ export class NodeCommandTasks {
   } {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
-      task: async (context_): Promise<void> => {
-        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      task: async ({
+        config: {debugNodeAlias, consensusNodes, namespace, forcePortForward, clusterContext, isChartInstalled},
+      }): Promise<void> => {
+        const nodeAlias: NodeAlias = debugNodeAlias || 'node1';
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
 
-        if (context_.config.debugNodeAlias) {
-          const podReference: PodReference = PodReference.of(
-            context_.config.namespace,
-            PodName.of(`network-${nodeAlias}-0`),
-          );
+        if (debugNodeAlias) {
+          const podReference: PodReference = PodReference.of(namespace, PodName.of(`network-${nodeAlias}-0`));
           this.logger.showUser('Enable port forwarding for JVM debugger');
           this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
           await this.k8Factory
@@ -1747,11 +1777,11 @@ export class NodeCommandTasks {
             .readByReference(podReference)
             .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
         }
-        if (context_.config.forcePortForward && enablePortForwardHaProxy) {
+        if (forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
             .getK8(context)
             .pods()
-            .list(context_.config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+            .list(namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
           if (pods.length === 0) {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
@@ -1762,17 +1792,17 @@ export class NodeCommandTasks {
             podReference,
             constants.GRPC_PORT, // Pod port
             constants.GRPC_PORT, // Local port
-            this.k8Factory.getK8(context_.config.clusterContext),
+            this.k8Factory.getK8(clusterContext),
             this.logger,
             ComponentTypes.ConsensusNode,
             'Consensus Node gRPC',
-            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
+            isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
           );
           await this.remoteConfig.persist();
         }
       },
-      skip: (context_): boolean => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
+      skip: ({config: {debugNodeAlias, forcePortForward}}): boolean => !debugNodeAlias && !forcePortForward,
     };
   }
 
@@ -2635,19 +2665,19 @@ export class NodeCommandTasks {
 
             const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
             const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
+            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
             this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+            const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
-            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
+            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
           }
 
           if (config.newAccountNumber) {

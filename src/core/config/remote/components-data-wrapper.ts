@@ -271,9 +271,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     );
 
     if (component !== undefined) {
-      if (component.metadata.portForwardConfigs === undefined) {
-        component.metadata.portForwardConfigs = [];
-      }
+      component.metadata.portForwardConfigs ||= [];
 
       // Check if this exact podPort and localPort pair already exists
       const existingConfig: PortForwardConfig | undefined = component.metadata.portForwardConfigs.find(
