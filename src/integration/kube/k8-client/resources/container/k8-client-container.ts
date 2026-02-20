@@ -195,7 +195,7 @@ export class K8ClientContainer implements Container {
 
     const resolvedRemotePath: string = sourceFileDesc.name;
     const sourceFileName: string = path.basename(resolvedRemotePath);
-    const destinationPath: string = path.join(destinationDirectory, sourceFileName);
+    const destinationPath: string = PathEx.join(destinationDirectory, sourceFileName);
 
     this.logger.info(
       `copyFrom: beginning copy [container: ${containerName} ${namespace.name}/${podName}:${resolvedRemotePath} ${destinationPath}]`,
@@ -240,15 +240,15 @@ export class K8ClientContainer implements Container {
         const sourceFileName: string = path.basename(sourcePath);
         const sourceDirectory: string = path.dirname(sourcePath);
 
-        temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
-        temporaryTar = path.join(temporaryDirectory, `${sourceFileName}-${uuid4()}.tar`);
+        temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
+        temporaryTar = PathEx.join(temporaryDirectory, `${sourceFileName}-${uuid4()}.tar`);
 
         // Create a filtered tarball
         await tar.c({file: temporaryTar, cwd: sourceDirectory, filter}, [sourceFileName]);
         // Extract the filtered content into the temporaryDirectory.
         await tar.x({file: temporaryTar, cwd: temporaryDirectory});
 
-        localPathToCopy = path.join(temporaryDirectory, sourceFileName);
+        localPathToCopy = PathEx.join(temporaryDirectory, sourceFileName);
 
         if (!fs.existsSync(localPathToCopy)) {
           throw new SoloError(`filtered source path does not exist: ${localPathToCopy}`);

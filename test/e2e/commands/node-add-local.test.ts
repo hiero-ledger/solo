@@ -66,7 +66,7 @@ describe('Node add with hedera local build', (): void => {
       try {
         // Create a test file
         const testContent: string = 'Hello, Hiero! ' + randomBytes(8).toString('hex');
-        const testFilePath: string = path.join(testCacheDirectory, 'test-file.txt');
+        const testFilePath: string = PathEx.join(testCacheDirectory, 'test-file.txt');
         await fs.mkdir(path.dirname(testFilePath), {recursive: true});
         await fs.writeFile(testFilePath, testContent, 'utf8');
 
@@ -75,7 +75,7 @@ describe('Node add with hedera local build', (): void => {
 
         // Update the file with new content
         const updatedContent: string = 'Updated content ' + randomBytes(8).toString('hex');
-        const updatedFilePath: string = path.join(testCacheDirectory, 'test-file-updated.txt');
+        const updatedFilePath: string = PathEx.join(testCacheDirectory, 'test-file-updated.txt');
         await fs.writeFile(updatedFilePath, updatedContent, 'utf8');
 
         await main(LedgerTest.soloLedgerFileUpdateArgv(`${namespace.name}-deployment`, '0.0.1001', updatedFilePath));

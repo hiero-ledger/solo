@@ -9,9 +9,9 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
-import path from 'node:path';
 import fs from 'node:fs';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 const KIND_RELEASE_BASE_URL: string = 'https://kind.sigs.k8s.io/dl';
 const KIND_ARTIFACT_TEMPLATE: string = '%s/kind-%s-%s';
@@ -94,8 +94,7 @@ export class KindDependencyManager extends BaseDependencyManager {
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Default implementation - just return the downloaded file path
     // Child classes can override for extraction or other processing
-    const fileExtension: string = OperatingSystem.isWin32() ? '.exe' : '';
-    const kindExecutablePath: string = path.join(temporaryDirectory, `${constants.KIND}${fileExtension}`);
+    const kindExecutablePath: string = PathEx.join(temporaryDirectory, this.executableName);
     fs.renameSync(packageFilePath, kindExecutablePath);
     return [kindExecutablePath];
   }

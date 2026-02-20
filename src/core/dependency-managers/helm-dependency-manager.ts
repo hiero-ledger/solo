@@ -10,7 +10,6 @@ import {Zippy} from '../zippy.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
-import path from 'node:path';
 import fs from 'node:fs';
 import {SoloError} from '../errors/solo-error.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
@@ -79,18 +78,15 @@ export class HelmDependencyManager extends BaseDependencyManager {
     }
 
     // Find the Helm executable inside the extracted directory
-    const helmExecutablePath: string = path.join(
+    const helmExecutablePath: string = PathEx.join(
       temporaryDirectory,
       `${OperatingSystem.getFormattedPlatform()}-${this.osArch}`,
-      OperatingSystem.isWin32() ? `${constants.HELM}.exe` : constants.HELM,
+      this.executableName,
     );
 
     // Ensure the extracted file exists
     if (!fs.existsSync(helmExecutablePath)) {
-      const executablePath: string = PathEx.join(
-        temporaryDirectory,
-        OperatingSystem.isWin32() ? `${constants.HELM}.exe` : constants.HELM,
-      );
+      const executablePath: string = PathEx.join(temporaryDirectory, this.executableName);
 
       if (!fs.existsSync(executablePath)) {
         throw new Error(`Helm executable not found in extracted archive: ${executablePath}`);

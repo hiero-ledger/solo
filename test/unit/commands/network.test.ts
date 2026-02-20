@@ -34,7 +34,6 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type CertificateManager} from '../../../src/core/certificate-manager.js';
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
-import path from 'node:path';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
@@ -65,7 +64,7 @@ if (SemVersionLessThan(new SemVer(version.HEDERA_PLATFORM_VERSION), new SemVer('
 describe('NetworkCommand unit tests', (): void => {
   before(async (): Promise<void> => {
     const sourceDirectory: string = PathEx.joinWithRealPath('test', 'data');
-    const destinationDirectory: string = path.join(sourceDirectory, 'tmp', 'templates');
+    const destinationDirectory: string = PathEx.join(sourceDirectory, 'tmp', 'templates');
 
     if (!fs.existsSync(destinationDirectory)) {
       fs.mkdirSync(destinationDirectory, {recursive: true});
@@ -73,7 +72,7 @@ describe('NetworkCommand unit tests', (): void => {
 
     fs.copyFileSync(
       PathEx.joinWithRealPath(sourceDirectory, 'application.properties'),
-      path.join(destinationDirectory, 'application.properties'),
+      PathEx.join(destinationDirectory, 'application.properties'),
     );
   });
 

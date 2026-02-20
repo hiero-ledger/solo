@@ -9,7 +9,6 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
-import path from 'node:path';
 import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
 import {GitHubRelease, ReleaseInfo, PodmanMode} from '../../types/index.js';
@@ -202,18 +201,18 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
     let binDirectory: string;
     if (OperatingSystem.isLinux()) {
-      binDirectory = path.join(temporaryDirectory, 'bin');
+      binDirectory = PathEx.join(temporaryDirectory, 'bin');
       const arch: string = this.getArch();
       fs.renameSync(
-        path.join(binDirectory, `podman-remote-static-linux_${arch}`),
-        path.join(binDirectory, constants.PODMAN),
+        PathEx.join(binDirectory, `podman-remote-static-linux_${arch}`),
+        PathEx.join(binDirectory, constants.PODMAN),
       );
     } else {
       // Find the Podman executable inside the extracted directory
-      binDirectory = path.join(temporaryDirectory, `${constants.PODMAN}-${this.artifactVersion}`, 'usr', 'bin');
+      binDirectory = PathEx.join(temporaryDirectory, `${constants.PODMAN}-${this.artifactVersion}`, 'usr', 'bin');
     }
 
-    return fs.readdirSync(binDirectory).map((file: string): string => path.join(binDirectory, file));
+    return fs.readdirSync(binDirectory).map((file: string): string => PathEx.join(binDirectory, file));
   }
 
   protected getChecksumURL(): string {
@@ -226,14 +225,14 @@ export class PodmanDependencyManager extends BaseDependencyManager {
    */
   public override async setupConfig(): Promise<void> {
     // Create the containers.conf file from the template
-    const configDirectory = path.join(constants.SOLO_HOME_DIR, 'config');
+    const configDirectory = PathEx.join(constants.SOLO_HOME_DIR, 'config');
     if (!fs.existsSync(configDirectory)) {
       fs.mkdirSync(configDirectory, {recursive: true});
     }
 
     const templatesDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'cache', 'templates');
-    const templatePath: string = path.join(templatesDirectory, 'podman', 'containers.conf');
-    const destinationPath: string = path.join(configDirectory, 'containers.conf');
+    const templatePath: string = PathEx.join(templatesDirectory, 'podman', 'containers.conf');
+    const destinationPath: string = PathEx.join(configDirectory, 'containers.conf');
 
     let configContent: string = fs.readFileSync(templatePath, 'utf8');
     configContent = configContent.replace('$HELPER_BINARIES_DIR', this.helpersDirectory.replaceAll('\\', '/'));

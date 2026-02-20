@@ -9,7 +9,6 @@ import {KindCluster} from '../../../../../src/integration/kind/model/kind-cluste
 import {KindDependencyManager} from '../../../../../src/core/dependency-managers/index.js';
 import {container} from 'tsyringe-neo';
 import fs from 'node:fs';
-import path from 'node:path';
 import * as os from 'node:os';
 import {type GetKubeConfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
 import {type GetNodesResponse} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-response.js';
@@ -31,7 +30,7 @@ describe('KindClient Integration Tests', function () {
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
-  const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-test-'));
+  const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kind-test-'));
   let originalKubeConfigContext: string | null = null;
 
   before(async () => {

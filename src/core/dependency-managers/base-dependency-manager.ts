@@ -10,6 +10,7 @@ import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
+import path from 'node:path';
 
 /**
  * Base class for dependency managers that download and manage CLI tools
@@ -22,13 +23,14 @@ export abstract class BaseDependencyManager extends ShellRunner {
   protected readonly artifactName: string;
   protected readonly downloadURL: string;
   protected readonly checksumURL: string;
+  protected readonly executableName: string;
 
   protected constructor(
     protected readonly downloader: PackageDownloader,
     protected readonly installationDirectory: string,
     osArch: string,
     protected readonly requiredVersion: string,
-    protected readonly executableName: string,
+    dependencyName: string,
     protected readonly downloadBaseUrl: string,
   ) {
     super();
@@ -41,7 +43,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
     this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
 
     // Set the path to the local installation
-    this.localExecutablePath = Templates.installationPath(executableName, installationDirectory);
+    this.localExecutablePath = Templates.installationPath(dependencyName, installationDirectory);
+    this.executableName = OperatingSystem.isWin32() ? `${dependencyName}.exe` : dependencyName;
 
     // Set artifact name and URLs - these will be overridden by child classes
     this.artifactName = this.getArtifactName();
@@ -247,7 +250,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
 
     try {
       for (const processedFile of processedFiles) {
-        const fileName: string = processedFile.split(/[\\/]/).pop();
+        const fileName: string = path.basename(processedFile);
         const localExecutable: string = PathEx.join(this.installationDirectory, fileName);
         fs.cpSync(processedFile, localExecutable);
         fs.chmodSync(localExecutable, 0o755);

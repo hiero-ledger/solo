@@ -10,9 +10,9 @@ import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
-import path from 'node:path';
 import fs from 'node:fs';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 const GVPROXY_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/gvisor-tap-vsock/releases';
 
@@ -180,7 +180,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Determine the target filename based on the platform
     const targetFileName: string = OperatingSystem.isWin32() ? 'gvproxy.exe' : 'gvproxy';
-    const targetPath: string = path.join(temporaryDirectory, targetFileName);
+    const targetPath: string = PathEx.join(temporaryDirectory, targetFileName);
 
     // Rename the downloaded file
     fs.renameSync(packageFilePath, targetPath);
