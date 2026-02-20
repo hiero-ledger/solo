@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {join} from 'node:path';
+import path from 'node:path';
 import {KindExecution} from './kind-execution.js';
 
 /**
@@ -59,7 +59,7 @@ export class KindExecutionBuilder {
       this._workingDirectory =
         workingDirectoryString && workingDirectoryString.trim() !== ''
           ? workingDirectoryString
-          : join(this.kindExecutable, '..');
+          : path.dirname(this.kindExecutable);
     }
   }
 
@@ -69,7 +69,7 @@ export class KindExecutionBuilder {
     }
     this.kindExecutable = kindExecutable;
     if (!this._workingDirectory) {
-      this._workingDirectory = join(this.kindExecutable, '..');
+      this._workingDirectory = path.dirname(this.kindExecutable);
     }
     return this;
   }

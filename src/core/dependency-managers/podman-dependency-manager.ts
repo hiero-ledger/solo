@@ -56,7 +56,12 @@ export class PodmanDependencyManager extends BaseDependencyManager {
    * Get the Podman artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(this.artifactFileName, this.getRequiredVersion(), this.osArch);
+    return util.format(
+      this.artifactFileName,
+      this.getRequiredVersion(),
+      OperatingSystem.getFormattedPlatform(),
+      this.osArch,
+    );
   }
 
   public get mode(): PodmanMode {
