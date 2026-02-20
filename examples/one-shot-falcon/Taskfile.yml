@@ -70,14 +70,15 @@ tasks:
 
       - cmd: |
           echo "==== Killing a random port-forward process ===="
-          PID=$(ps -ef | grep '[k]ubectl port-forward' | head -1 | awk '{print $2}')
-          if [ -n "$PID" ]; then
-            echo "Killing port-forward process PID: $PID"
-            FULL_PORT_SPEC=$(ps -ef | grep '[k]ubectl port-forward' | head -1 | awk '{print $NF}')
-            PORT=$(echo "$FULL_PORT_SPEC" | cut -d':' -f1)
+          AVAILABLE_PORTS=$(ps -ef | awk '/[k]ubectl port-forward/ {split($NF, a, ":"); print a[1]}' | grep -E '^[0-9]+$' | sort -u)
+          PORT_COUNT=$(echo "$AVAILABLE_PORTS" | sed '/^$/d' | wc -l | tr -d ' ')
+          if [ "${PORT_COUNT}" -gt 0 ]; then
+            RANDOM_INDEX=$(( (RANDOM % PORT_COUNT) + 1 ))
+            PORT=$(echo "$AVAILABLE_PORTS" | sed -n "${RANDOM_INDEX}p")
+            echo "Selected random port ${PORT} (index ${RANDOM_INDEX}/${PORT_COUNT})"
 
             if ! echo "$PORT" | grep -qE '^[0-9]+$'; then
-              echo "Error: Could not extract valid port number from: $FULL_PORT_SPEC"
+              echo "Error: Could not extract valid port number from selected value: $PORT"
               exit 1
             fi
 
