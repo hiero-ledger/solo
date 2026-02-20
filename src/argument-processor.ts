@@ -17,10 +17,10 @@ export class ArgumentProcessor {
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
     const commands: any = container.resolve(InjectTokens.Commands);
-    const rawArgs: string[] = hideBin(argv);
+    const rawArguments: string[] = hideBin(argv);
 
     logger.debug('Initializing commands');
-    const rootCmd: any = yargs(rawArgs)
+    const rootCmd: any = yargs(rawArguments)
       .scriptName('')
       .usage('Usage:\n  solo <command> [options]')
       .alias('h', 'help')
@@ -47,7 +47,7 @@ export class ArgumentProcessor {
     rootCmd.fail((message, error): void => {
       if (message) {
         const usedHelpShorthand: boolean =
-          rawArgs.includes('help') && !rawArgs.includes('--help') && !rawArgs.includes('-h');
+          rawArguments.includes('help') && !rawArguments.includes('--help') && !rawArguments.includes('-h');
 
         if (usedHelpShorthand) {
           rootCmd.showHelp((output): void => {
