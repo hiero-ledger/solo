@@ -46,6 +46,7 @@ import {StringFacade} from '../../../src/business/runtime-state/facade/string-fa
 const testName: string = 'network-cmd-unit';
 const namespace: NamespaceName = NamespaceName.of(testName);
 const argv: Argv = Argv.getDefaultArgv(namespace);
+const realK8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
 
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1');
@@ -124,7 +125,6 @@ describe('NetworkCommand unit tests', (): void => {
       options.k8Factory.default().namespaces = sinon.stub().returns({
         has: sinon.stub().returns(true),
       });
-      const realK8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
       options.k8Factory.default().contexts = sinon.stub().returns({
         readCurrent: sinon
           .stub()
