@@ -370,6 +370,10 @@ export class Templates {
     ];
   }
 
+  public static renderMirrorIngressControllerLabels(): string[] {
+    return [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL];
+  }
+
   public static renderEnvoyProxyLabels(id: ComponentId): string[] {
     const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
@@ -421,13 +425,16 @@ export class Templates {
   public static renderComponentLabelSelectors(componentType: string, id: ComponentId): string[] {
     switch (componentType) {
       case 'ConsensusNode': {
-        return Templates.renderConsensusNodeLabels(id);
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'HaProxy': {
+        return Templates.renderHaProxyLabels(id);
       }
       case 'BlockNode': {
         return Templates.renderBlockNodeLabels(id);
       }
       case 'MirrorNode': {
-        return Templates.renderMirrorNodeLabels(id);
+        return Templates.renderMirrorIngressControllerLabels();
       }
       case 'RelayNode': {
         return Templates.renderRelayLabels(id);

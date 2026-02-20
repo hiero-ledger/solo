@@ -787,6 +787,7 @@ export class DeploymentCommand extends BaseCommand {
           task: async (_context_, task): Promise<void> => {
             const componentsToCheck = [
               {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
+              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
               {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
               {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
               {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
@@ -933,6 +934,22 @@ export class DeploymentCommand extends BaseCommand {
 
       const pods: Pod[] = await k8Client.pods().list(namespace, labels);
       if (pods?.length > 0) {
+        if (componentType === 'ConsensusNode') {
+          const haProxyPod: Pod | undefined = pods.find((pod): boolean =>
+            pod.podReference?.name?.toString()?.startsWith('haproxy-node'),
+          );
+          if (haProxyPod) {
+            return haProxyPod.podReference.name;
+          }
+        }
+        if (componentType === 'MirrorNode') {
+          const mirrorIngressPod: Pod | undefined = pods.find((pod): boolean =>
+            pod.podReference?.name?.toString()?.startsWith(constants.MIRROR_INGRESS_CONTROLLER),
+          );
+          if (mirrorIngressPod) {
+            return mirrorIngressPod.podReference.name;
+          }
+        }
         return pods[0].podReference.name;
       }
 
