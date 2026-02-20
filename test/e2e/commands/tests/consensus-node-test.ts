@@ -856,4 +856,73 @@ export class ConsensusNodeTest extends BaseCommandTest {
       await main(soloDeploymentDiagnosticsConnectionsArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
+
+  public static soloConsensusNetworkDestroyArgv(deployment: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.deletePvcs),
+      optionFromFlag(Flags.deleteSecrets),
+      optionFromFlag(Flags.force),
+    );
+
+    return argv;
+  }
+
+  public static soloConsensusNetworkFreezeArgv(deployment: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_FREEZE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+
+    return argv;
+  }
+
+  public static soloConsensusStateDownloadArgv(deployment: string, nodeAliasesUnparsed: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.STATE_DOWNLOAD,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliasesUnparsed,
+    );
+
+    return argv;
+  }
+
+  public static soloConsensusNodeRestartArgv(deployment: string, nodeAliasesUnparsed?: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_RESTART,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+
+    if (nodeAliasesUnparsed) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliasesUnparsed);
+    }
+
+    return argv;
+  }
 }

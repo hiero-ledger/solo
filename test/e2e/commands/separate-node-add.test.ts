@@ -30,7 +30,7 @@ import {
 import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
-import {ConsensusTest} from './tests/consensus-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {LedgerTest} from './tests/ledger-test.js';
 import {ConsensusNodeAddTest} from './tests/consensus-node-add-test.js';
 import {main} from '../../../src/index.js';
@@ -168,16 +168,16 @@ export function testSeparateNodeAdd(
 
       await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
 
-      await main(ConsensusTest.soloConsensusNetworkFreezeArgv(argv.getArg<string>(flags.deployment)));
+      await main(ConsensusNodeTest.soloConsensusNetworkFreezeArgv(argv.getArg<string>(flags.deployment)));
 
       await main(
-        ConsensusTest.soloConsensusStateDownloadArgv(
+        ConsensusNodeTest.soloConsensusStateDownloadArgv(
           argv.getArg<string>(flags.deployment),
           argv.getArg<string>(flags.nodeAliasesUnparsed),
         ),
       );
 
-      await main(ConsensusTest.soloConsensusNodeRestartArgv(argv.getArg<string>(flags.deployment)));
+      await main(ConsensusNodeTest.soloConsensusNodeRestartArgv(argv.getArg<string>(flags.deployment)));
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 

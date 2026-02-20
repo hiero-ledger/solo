@@ -12,7 +12,7 @@ import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
 import {testSeparateNodeUpgrade} from './separate-node-upgrade.test.js';
-import {ConsensusTest} from './tests/consensus-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {LedgerTest} from './tests/ledger-test.js';
 import {main} from '../../../src/index.js';
 import path from 'node:path';
@@ -54,7 +54,7 @@ describe('Node add with hedera local build', (): void => {
       await accountManager.close();
 
       if (destroyEnabled()) {
-        await main(ConsensusTest.soloConsensusNetworkDestroyArgv(`${namespace.name}-deployment`));
+        await main(ConsensusNodeTest.soloConsensusNetworkDestroyArgv(`${namespace.name}-deployment`));
 
         await k8Factory.default().namespaces().delete(namespace);
       }
