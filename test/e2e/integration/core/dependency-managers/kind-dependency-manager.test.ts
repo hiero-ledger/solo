@@ -10,9 +10,11 @@ import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-uti
 import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import sinon, {type SinonStub} from 'sinon';
+import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
 
 describe('KindDependencyManager', (): void => {
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
+  const originalPlatform: NodeJS.Platform = process.platform;
 
   before((): void => {
     fs.mkdirSync(temporaryDirectory);
@@ -22,13 +24,14 @@ describe('KindDependencyManager', (): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
+    // @ts-expect-error TS2341: to modify read-only property
+    process.platform = originalPlatform;
   });
 
   it('should return kind version', (): void => {
     const kindDependencyManager: KindDependencyManager = new KindDependencyManager(
       undefined,
       temporaryDirectory,
-      undefined,
       undefined,
       undefined,
     );
@@ -41,19 +44,12 @@ describe('KindDependencyManager', (): void => {
       temporaryDirectory,
       undefined,
       undefined,
-      undefined,
     );
     expect(kindDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
   it('should be able to check when kind is installed', async () => {
-    const kindDependencyManager = new KindDependencyManager(
-      undefined,
-      temporaryDirectory,
-      undefined,
-      undefined,
-      undefined,
-    );
+    const kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, undefined, undefined);
     // Create the local executable file for testing
     const localPath = PathEx.join(temporaryDirectory, 'kind');
     fs.writeFileSync(localPath, '');
@@ -70,13 +66,7 @@ describe('KindDependencyManager', (): void => {
     let rmSyncStub: SinonStub;
 
     beforeEach((): void => {
-      kindDependencyManager = new KindDependencyManager(
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-        undefined,
-      );
+      kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kindDependencyManager.uninstallLocal();
       runStub = sinon.stub(kindDependencyManager, 'run');
 
@@ -133,16 +123,18 @@ describe('KindDependencyManager', (): void => {
 
   describe('Kind Installation Tests', (): void => {
     each([
-      ['linux', 'x64'],
-      ['linux', 'amd64'],
-      ['windows', 'amd64'],
+      [OperatingSystem.OS_LINUX, 'x64'],
+      [OperatingSystem.OS_LINUX, 'amd64'],
+      [OperatingSystem.OS_WIN32, 'amd64'],
     ]).it(
       'should be able to install kind base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
+        // @ts-expect-error TS2341: to modify read-only property
+        process.platform = osPlatform;
+
         const kindDependencyManager: KindDependencyManager = new KindDependencyManager(
           undefined,
           temporaryDirectory,
-          osPlatform,
           osArch,
           undefined,
         );
@@ -167,13 +159,7 @@ describe('KindDependencyManager', (): void => {
     let runStub: SinonStub;
 
     beforeEach((): void => {
-      kindDependencyManager = new KindDependencyManager(
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-        undefined,
-      );
+      kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
 
       runStub = sinon.stub(kindDependencyManager, 'run');
     });

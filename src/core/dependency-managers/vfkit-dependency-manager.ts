@@ -10,6 +10,7 @@ import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const VFKIT_RELEASES_LIST_URL: string = 'https://api.github.com/repos/crc-org/vfkit/releases';
 
@@ -23,7 +24,6 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
   ) {
@@ -33,21 +33,12 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       InjectTokens.PodmanDependenciesInstallationDir,
       VfkitDependencyManager.name,
     );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, VfkitDependencyManager.name);
     osArch = patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
     vfkitVersion = patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name);
 
     // Call the base constructor with the vfkit-specific parameters
-    super(
-      downloader,
-      installationDirectory,
-      osPlatform,
-      osArch,
-      vfkitVersion || version.VFKIT_VERSION,
-      constants.VFKIT,
-      '',
-    );
+    super(downloader, installationDirectory, osArch, vfkitVersion || version.VFKIT_VERSION, constants.VFKIT, '');
   }
 
   public override getVerifyChecksum(): boolean {
@@ -58,7 +49,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
    * Get the Vfkit artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(this.artifactFileName, this.getRequiredVersion(), this.osPlatform, this.osArch);
+    return util.format(this.artifactFileName, this.getRequiredVersion(), this.osArch);
   }
 
   public async getVersion(executablePath: string): Promise<string> {
@@ -110,14 +101,13 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       const version: string = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
       // Normalize platform/arch for asset matching
-      const platform: string = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
       const arch: string = this.getArch();
 
       const assetName: string = 'vfkit';
       const matchingAsset: GitHubReleaseAsset = release.assets.find(asset => asset.name.includes(assetName));
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found for ${platform}-${arch}`);
+        throw new SoloError(`No matching asset found for ${OperatingSystem.getFormattedPlatform()}-${arch}`);
       }
 
       const checksum: string =

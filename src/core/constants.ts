@@ -327,11 +327,6 @@ export const LISTR_DEFAULT_OPTIONS: {
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
-export const OS_WINDOWS: string = 'windows';
-export const OS_WIN32: string = 'win32';
-export const OS_DARWIN: string = 'darwin';
-export const OS_LINUX: string = 'linux';
-
 export const LOCAL_HOST: string = '127.0.0.1';
 
 export const PROFILE_LARGE: string = 'large';
@@ -400,9 +395,6 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
-
-export const KUBECTL_EXECUTABLE: string =
-  process.platform === OS_WINDOWS || process.platform === OS_WIN32 ? 'kubectl.exe' : 'kubectl';
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;

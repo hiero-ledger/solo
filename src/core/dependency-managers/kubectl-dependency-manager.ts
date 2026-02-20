@@ -9,6 +9,7 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const KUBECTL_RELEASE_BASE_URL: string = 'https://dl.k8s.io/release';
 const KUBECTL_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl';
@@ -19,7 +20,6 @@ export class KubectlDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.KubectlInstallationDir) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.KubectlVersion) protected readonly kubectlVersion: string,
   ) {
@@ -29,7 +29,6 @@ export class KubectlDependencyManager extends BaseDependencyManager {
       InjectTokens.KubectlInstallationDir,
       KubectlDependencyManager.name,
     );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, KubectlDependencyManager.name);
     osArch = patchInject(osArch, InjectTokens.OsArch, KubectlDependencyManager.name);
     kubectlVersion = patchInject(kubectlVersion, InjectTokens.KubectlVersion, KubectlDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, KubectlDependencyManager.name);
@@ -38,7 +37,6 @@ export class KubectlDependencyManager extends BaseDependencyManager {
     super(
       downloader,
       installationDirectory,
-      osPlatform,
       osArch,
       kubectlVersion || version.KUBECTL_VERSION,
       constants.KUBECTL,
@@ -51,9 +49,9 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    */
   protected getArtifactName(): string {
     return util.format(
-      this.osPlatform === constants.OS_WINDOWS ? KUBECTL_WINDOWS_ARTIFACT_TEMPLATE : KUBECTL_ARTIFACT_TEMPLATE,
+      OperatingSystem.isWin32() ? KUBECTL_WINDOWS_ARTIFACT_TEMPLATE : KUBECTL_ARTIFACT_TEMPLATE,
       this.getRequiredVersion(),
-      this.osPlatform,
+      OperatingSystem.getFormattedPlatform(),
       this.osArch,
     );
   }

@@ -2,22 +2,20 @@
 
 import fs from 'node:fs';
 import * as helpers from '../helpers.js';
-import * as constants from '../constants.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
 import * as semver from 'semver';
-import {OS_WIN32, OS_WINDOWS} from '../constants.js';
 import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 /**
  * Base class for dependency managers that download and manage CLI tools
  * Common functionality for downloading, checking versions, and managing executables
  */
 export abstract class BaseDependencyManager extends ShellRunner {
-  protected readonly osPlatform: string;
   protected readonly osArch: string;
   protected localExecutablePath: string;
   protected globalExecutablePath: string = '';
@@ -28,7 +26,6 @@ export abstract class BaseDependencyManager extends ShellRunner {
   protected constructor(
     protected readonly downloader: PackageDownloader,
     protected readonly installationDirectory: string,
-    osPlatform: NodeJS.Platform,
     osArch: string,
     protected readonly requiredVersion: string,
     protected readonly executableName: string,
@@ -40,14 +37,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
       throw new MissingArgumentError('installation directory is required');
     }
 
-    // Node.js uses 'win32' for windows but many tools use 'windows'
-    this.osPlatform = osPlatform === OS_WIN32 ? OS_WINDOWS : (osPlatform as string);
-
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'
     this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
 
     // Set the path to the local installation
-    this.localExecutablePath = Templates.installationPath(executableName, this.osPlatform, installationDirectory);
+    this.localExecutablePath = Templates.installationPath(executableName, installationDirectory);
 
     // Set artifact name and URLs - these will be overridden by child classes
     this.artifactName = this.getArtifactName();
@@ -112,8 +106,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
       if (this.globalExecutablePath) {
         return this.globalExecutablePath;
       }
-      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
-      const path: string[] = await this.run(`"${cmd}" ${this.executableName}`);
+      const cmd: string = OperatingSystem.isWin32() ? 'where' : 'which';
+      const path: string[] = await this.run(`${cmd} ${this.executableName}`);
       if (path.length === 0) {
         return false;
       }

@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
 import {GitHubRelease, ReleaseInfo, PodmanMode} from '../../types/index.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const PODMAN_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/podman/releases';
 
@@ -27,7 +28,6 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.PodmanInstallationDir) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.PodmanVersion) protected readonly podmanVersion: string,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
@@ -39,7 +39,6 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       InjectTokens.PodmanInstallationDir,
       PodmanDependencyManager.name,
     );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, PodmanDependencyManager.name);
     osArch = patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
     podmanVersion = patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
@@ -51,26 +50,18 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     );
 
     // Call the base constructor with the podman-specific parameters
-    super(
-      downloader,
-      installationDirectory,
-      osPlatform,
-      osArch,
-      podmanVersion || version.PODMAN_VERSION,
-      constants.PODMAN,
-      '',
-    );
+    super(downloader, installationDirectory, osArch, podmanVersion || version.PODMAN_VERSION, constants.PODMAN, '');
   }
 
   /**
    * Get the Podman artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(this.artifactFileName, this.getRequiredVersion(), this.osPlatform, this.osArch);
+    return util.format(this.artifactFileName, this.getRequiredVersion(), this.osArch);
   }
 
   public get mode(): PodmanMode {
-    return this.osPlatform === constants.OS_LINUX ? PodmanMode.ROOTFUL : PodmanMode.VIRTUAL_MACHINE;
+    return OperatingSystem.isLinux() ? PodmanMode.ROOTFUL : PodmanMode.VIRTUAL_MACHINE;
   }
 
   public async getVersion(executablePath: string): Promise<string> {
@@ -122,15 +113,14 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       const version: string = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
       // Normalize platform/arch for asset matching
-      const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
       const arch: string = this.getArch();
 
       // Construct asset pattern based on platform
       let assetPattern: RegExp;
-      if (platform === constants.OS_WINDOWS) {
+      if (OperatingSystem.isWin32()) {
         // Windows
         assetPattern = new RegExp(String.raw`podman-remote-release-windows_${arch}\.zip$`);
-      } else if (platform === 'darwin') {
+      } else if (OperatingSystem.isDarwin()) {
         // macOS
         assetPattern = new RegExp(String.raw`podman-remote-release-darwin_${arch}\.zip$`);
       } else {
@@ -142,7 +132,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       const matchingAsset = release.assets.find(asset => assetPattern.test(asset.browser_download_url));
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found for ${platform}-${arch}`);
+        throw new SoloError(`No matching asset found for ${OperatingSystem.getPlatform()}-${arch}`);
       }
 
       // Get the digest from the shasums file
@@ -211,7 +201,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     }
 
     let binDirectory: string;
-    if (this.osPlatform === constants.OS_LINUX) {
+    if (OperatingSystem.isLinux()) {
       binDirectory = path.join(temporaryDirectory, 'bin');
       const arch: string = this.getArch();
       fs.renameSync(

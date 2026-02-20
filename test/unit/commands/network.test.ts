@@ -8,7 +8,7 @@ import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
-import {KUBECTL_EXECUTABLE, ROOT_DIR} from '../../../src/core/constants.js';
+import {ROOT_DIR} from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
@@ -117,15 +117,20 @@ describe('NetworkCommand unit tests', (): void => {
 
       options.configManager.update(argv.build());
 
-      options.k8Factory = k8SFactoryStub;
+      options.k8Factory = k8SFactoryStub as K8Factory;
       const k8Stub: SinonStub = sinon.stub();
 
       options.k8Factory.default = sinon.stub().returns(k8Stub);
       options.k8Factory.default().namespaces = sinon.stub().returns({
         has: sinon.stub().returns(true),
       });
+      const realK8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
       options.k8Factory.default().contexts = sinon.stub().returns({
-        readCurrent: sinon.stub().returns(new K8Client(undefined, KUBECTL_EXECUTABLE).contexts().readCurrent()),
+        readCurrent: sinon
+          .stub()
+          .returns(
+            new K8Client(undefined, realK8Factory.default().getKubectlExecutablePath()).contexts().readCurrent(),
+          ),
       });
       options.k8Factory.default().configMaps = sinon.stub() as unknown as K8ClientConfigMaps;
       options.k8Factory.default().configMaps.read = sinon.stub();

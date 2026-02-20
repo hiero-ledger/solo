@@ -11,6 +11,7 @@ import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const KIND_RELEASE_BASE_URL: string = 'https://kind.sigs.k8s.io/dl';
 const KIND_ARTIFACT_TEMPLATE: string = '%s/kind-%s-%s';
@@ -20,7 +21,6 @@ export class KindDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.KindInstallationDir) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.KindVersion) protected readonly kindVersion: string,
   ) {
@@ -30,7 +30,6 @@ export class KindDependencyManager extends BaseDependencyManager {
       InjectTokens.KindInstallationDir,
       KindDependencyManager.name,
     );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, KindDependencyManager.name);
     osArch = patchInject(osArch, InjectTokens.OsArch, KindDependencyManager.name);
     kindVersion = patchInject(kindVersion, InjectTokens.KindVersion, KindDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, KindDependencyManager.name);
@@ -39,7 +38,6 @@ export class KindDependencyManager extends BaseDependencyManager {
     super(
       downloader,
       installationDirectory,
-      osPlatform,
       osArch,
       kindVersion || version.KIND_VERSION,
       constants.KIND,
@@ -51,7 +49,12 @@ export class KindDependencyManager extends BaseDependencyManager {
    * Get the Kind artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(KIND_ARTIFACT_TEMPLATE, this.getRequiredVersion(), this.osPlatform, this.osArch);
+    return util.format(
+      KIND_ARTIFACT_TEMPLATE,
+      this.getRequiredVersion(),
+      OperatingSystem.getFormattedPlatform(),
+      this.osArch,
+    );
   }
 
   public async getVersion(executablePath: string): Promise<string> {
@@ -91,7 +94,7 @@ export class KindDependencyManager extends BaseDependencyManager {
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Default implementation - just return the downloaded file path
     // Child classes can override for extraction or other processing
-    const fileExtension: string = this.osPlatform === constants.OS_WINDOWS ? '.exe' : '';
+    const fileExtension: string = OperatingSystem.isWin32() ? '.exe' : '';
     const kindExecutablePath: string = path.join(temporaryDirectory, `${constants.KIND}${fileExtension}`);
     fs.renameSync(packageFilePath, kindExecutablePath);
     return [kindExecutablePath];

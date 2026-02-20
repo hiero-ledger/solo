@@ -146,7 +146,6 @@ describe('PodmanDependencyManager', (): void => {
       undefined,
       undefined,
       undefined,
-      undefined,
     );
     expect(podmanDependencyManager.getRequiredVersion()).to.equal(version.PODMAN_VERSION);
   });
@@ -159,7 +158,6 @@ describe('PodmanDependencyManager', (): void => {
       undefined,
       undefined,
       undefined,
-      undefined,
     );
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -168,7 +166,6 @@ describe('PodmanDependencyManager', (): void => {
     const podmanDependencyManager: PodmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -188,7 +185,6 @@ describe('PodmanDependencyManager', (): void => {
       podmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        process.platform,
         process.arch,
         undefined,
         undefined,
@@ -252,7 +248,6 @@ describe('PodmanDependencyManager', (): void => {
       let manager: PodmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        'linux',
         'x64',
         undefined,
         undefined,
@@ -262,28 +257,12 @@ describe('PodmanDependencyManager', (): void => {
       expect(manager.getArch()).to.equal('amd64');
 
       // Test arm64 conversion
-      manager = new PodmanDependencyManager(
-        undefined,
-        temporaryDirectory,
-        'linux',
-        'arm64',
-        undefined,
-        undefined,
-        undefined,
-      );
+      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'arm64', undefined, undefined, undefined);
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
 
       // Test aarch64 to arm64 conversion
-      manager = new PodmanDependencyManager(
-        undefined,
-        temporaryDirectory,
-        'linux',
-        'aarch64',
-        undefined,
-        undefined,
-        undefined,
-      );
+      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'aarch64', undefined, undefined, undefined);
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
     });
@@ -294,7 +273,6 @@ describe('PodmanDependencyManager', (): void => {
       podmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        'linux',
         'x64',
         undefined,
         undefined,
@@ -361,7 +339,6 @@ describe('PodmanDependencyManager', (): void => {
       podmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        process.platform,
         process.arch,
         undefined,
         undefined,

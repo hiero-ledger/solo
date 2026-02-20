@@ -11,6 +11,7 @@ import {HelmDependencyManager} from '../../../../../src/core/dependency-managers
 import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-utility.js';
 import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
+import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
 
 describe('HelmDependencyManager', (): void => {
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
@@ -55,9 +56,9 @@ describe('HelmDependencyManager', (): void => {
 
   describe('Helm Installation Tests', (): void => {
     each([
-      ['linux', 'x64'],
-      ['linux', 'amd64'],
-      ['windows', 'amd64'],
+      [OperatingSystem.OS_LINUX, 'x64'],
+      [OperatingSystem.OS_LINUX, 'amd64'],
+      [OperatingSystem.OS_WIN32, 'amd64'],
     ]).it(
       'should be able to install helm base on %s and %s',
       async (osPlatform: any, osArch: string): Promise<void> => {
