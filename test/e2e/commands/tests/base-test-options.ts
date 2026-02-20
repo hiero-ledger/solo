@@ -31,4 +31,5 @@ export interface BaseTestOptions {
   readonly bootstrapProperties: string;
   readonly logXml: string;
   readonly settingsTxt: string;
+  readonly javaFlightRecorderConfiguration: string;
 }

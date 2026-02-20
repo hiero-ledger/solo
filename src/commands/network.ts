@@ -68,6 +68,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import {getEnvironmentVariable} from '../core/constants.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -130,6 +131,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
+  javaFlightRecorderConfiguration: string;
 }
 
 interface NetworkDeployContext {
@@ -226,6 +228,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.javaFlightRecorderConfiguration,
     ],
   };
 
@@ -400,12 +403,16 @@ export class NetworkCommand extends BaseCommand {
       'application.properties',
     );
 
+    const jfrFilePath: string = config.javaFlightRecorderConfiguration;
+    const jfrFile: string =
+      jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
       profileName,
       config.consensusNodes,
       config.domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
+      jfrFile,
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
@@ -748,6 +755,10 @@ export class NetworkCommand extends BaseCommand {
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
     config.blockNodeComponents = this.getBlockNodes();
+    config.javaFlightRecorderConfiguration = this.configManager.getFlag(flags.javaFlightRecorderConfiguration);
+    if (config.javaFlightRecorderConfiguration === '') {
+      config.javaFlightRecorderConfiguration = getEnvironmentVariable('JAVA_FLIGHT_RECORDER_CONFIGURATION') || '';
+    }
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
@@ -1297,6 +1308,41 @@ export class NetworkCommand extends BaseCommand {
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
             }
+          },
+        },
+        {
+          title: 'Copy JFR file to nodes',
+          skip: ({config: {javaFlightRecorderConfiguration}}): boolean => javaFlightRecorderConfiguration.length === 0,
+          task: async (
+            {config: {consensusNodes, javaFlightRecorderConfiguration}},
+            task,
+          ): Promise<SoloListr<NetworkDeployContext>> => {
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+            for (const consensusNode of consensusNodes) {
+              subTasks.push({
+                title: `Copy JFR file to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.context)}`,
+                task: async () => {
+                  try {
+                    const container: Container = await new K8Helper(
+                      consensusNode.context,
+                    ).getConsensusNodeRootContainer(NamespaceName.of(consensusNode.namespace), consensusNode.name);
+                    await container.copyTo(
+                      javaFlightRecorderConfiguration,
+                      `${constants.HEDERA_HAPI_PATH}/data/config`,
+                    );
+                  } catch (error) {
+                    throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
+                  }
+                },
+              });
+            }
+
+            return task.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
           },
         },
       ],

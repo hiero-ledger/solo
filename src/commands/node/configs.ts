@@ -54,6 +54,8 @@ import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
+import {NodeCollectJFRLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
+import {NodeCollectJFRLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME = 'addConfigs';
@@ -603,6 +605,24 @@ export class NodeCommandConfigs {
       consensusNodes: this.remoteConfig.getConsensusNodes(),
       contexts: this.remoteConfig.getContexts(),
     } as NodeRestartConfigClass;
+
+    await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
+
+    return context_.config;
+  }
+
+  public async collectJFRConfigBuilder(
+    _argv: ArgvStruct,
+    context_: NodeCollectJFRLogsContext,
+    task: SoloListrTaskWrapper<NodeCollectJFRLogsContext>,
+  ): Promise<NodeCollectJFRLogsConfigClass> {
+    context_.config = {
+      namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
+      deployment: this.configManager.getFlag(flags.deployment),
+      consensusNodes: this.remoteConfig.getConsensusNodes(),
+      contexts: this.remoteConfig.getContexts(),
+      nodeAlias: this.configManager.getFlag(flags.nodeAlias),
+    } as NodeCollectJFRLogsConfigClass;
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
