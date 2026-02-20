@@ -180,6 +180,7 @@ jobs:
 
       - name: Move JVM Memory Usage Data to Metrics Directory
         run: |
+          mkdir -p ~/.solo/metrics
           mv ~/.solo/logs/performance-tests-deployment/* ~/.solo/metrics/
           rm -rf ~/.solo/logs/performance-tests-deployment
 
