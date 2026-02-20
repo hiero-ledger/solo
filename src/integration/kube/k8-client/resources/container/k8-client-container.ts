@@ -26,6 +26,7 @@ import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
 import type * as stream from 'node:stream';
 import {platform} from 'node:process';
+import {PathEx} from '../../../../../business/utils/path-ex.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;

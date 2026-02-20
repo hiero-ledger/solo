@@ -18,6 +18,7 @@ import {main} from '../../../src/index.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {randomBytes} from 'node:crypto';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [

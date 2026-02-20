@@ -21,6 +21,7 @@ import {resetForTest} from '../../../../test-container.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
+import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 
 const execAsync = promisify(exec);
 

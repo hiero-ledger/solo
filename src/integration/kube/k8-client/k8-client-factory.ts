@@ -7,6 +7,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {platform} from 'node:process';
+import {PathEx} from '../../../business/utils/path-ex.js';
 
 @injectable()
 export class K8ClientFactory implements K8Factory {
