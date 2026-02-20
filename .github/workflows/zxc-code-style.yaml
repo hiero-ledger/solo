@@ -70,6 +70,9 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
+      - name: Configure npm registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
       - name: Install Dependencies
         id: npm-deps
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
