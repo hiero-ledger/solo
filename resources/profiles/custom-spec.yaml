@@ -8,7 +8,23 @@ local: # 3 nodes, ~850 TPS (Docker Desktop 8 cores, 16 GB RAM)
           value: 6g
         - name: JAVA_OPTS
           value: "-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
-  haproxy: # use chart defaults
+  haproxy:
+    timeouts:
+      connect: 30s
+      client: 5m
+      server: 5m
+      httpKeepAlive: 5m
+      tunnel: 1h
+    tcpKeepAlive: true
+    probes:
+      timeoutSeconds: 5
+    resources:
+      requests:
+        cpu: 0
+        memory: 0
+      limits:
+        cpu: 1000m
+        memory: 1000Mi
   envoyProxy: # use chart defaults
   rpcRelay:
     resources:
