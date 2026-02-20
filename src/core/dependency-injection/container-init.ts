@@ -205,6 +205,7 @@ export class Container {
       new ValueContainer(InjectTokens.LogLevel, logLevel),
       new ValueContainer(InjectTokens.DevelopmentMode, developmentMode),
       new ValueContainer(InjectTokens.HomeDirectory, homeDirectory),
+      new ValueContainer(InjectTokens.OsPlatform, os.platform()),
       new ValueContainer(InjectTokens.OsArch, os.arch()),
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),

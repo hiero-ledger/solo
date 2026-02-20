@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {platform} from 'node:process';
+import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
 
 /**
  * Utility class for determining the operating system platform.
@@ -15,21 +16,21 @@ export class OperatingSystem {
    * Returns true if the Node.js `process.platform` is win32, false otherwise.
    */
   public static isWin32(): boolean {
-    return platform === OperatingSystem.OS_WIN32;
+    return OperatingSystem.getPlatform() === OperatingSystem.OS_WIN32;
   }
 
   /**
    * Returns true if the Node.js `process.platform` is linux, false otherwise.
    */
   public static isLinux(): boolean {
-    return platform === OperatingSystem.OS_LINUX;
+    return OperatingSystem.getPlatform() === OperatingSystem.OS_LINUX;
   }
 
   /**
    * Returns true if the Node.js `process.platform` is darwin, false otherwise.
    */
   public static isDarwin(): boolean {
-    return platform === OperatingSystem.OS_DARWIN;
+    return OperatingSystem.getPlatform() === OperatingSystem.OS_DARWIN;
   }
 
   /**
@@ -37,7 +38,7 @@ export class OperatingSystem {
    * This should only be used for logging or error messages to indicate the detected platform.
    */
   public static getPlatform(): string {
-    return platform;
+    return container.resolve<string>(InjectTokens.OsPlatform);
   }
 
   /**
@@ -46,6 +47,6 @@ export class OperatingSystem {
    * For other platforms, it returns the original `process.platform` value.
    */
   public static getFormattedPlatform(): string {
-    return this.isWin32() ? 'windows' : platform;
+    return this.isWin32() ? 'windows' : OperatingSystem.getPlatform();
   }
 }

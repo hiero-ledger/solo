@@ -12,8 +12,12 @@ import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-uti
 import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
+import {platform} from 'node:process';
 
 describe('HelmDependencyManager', (): void => {
+  const originalPlatform: NodeJS.Platform = platform;
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
 
   before((): void => fs.mkdirSync(temporaryDirectory));
@@ -22,6 +26,10 @@ describe('HelmDependencyManager', (): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
+  });
+
+  afterEach((): void => {
+    container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
   });
 
   it('should return helm version', (): void => {
@@ -55,6 +63,10 @@ describe('HelmDependencyManager', (): void => {
   });
 
   describe('Helm Installation Tests', (): void => {
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    });
+
     each([
       [OperatingSystem.OS_LINUX, 'x64'],
       [OperatingSystem.OS_LINUX, 'amd64'],
@@ -62,11 +74,12 @@ describe('HelmDependencyManager', (): void => {
     ]).it(
       'should be able to install helm base on %s and %s',
       async (osPlatform: any, osArch: string): Promise<void> => {
+        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+
         const helmDependencyManager: HelmDependencyManager = new HelmDependencyManager(
           undefined,
           undefined,
           temporaryDirectory,
-          osPlatform,
           osArch,
         );
 
@@ -90,13 +103,7 @@ describe('HelmDependencyManager', (): void => {
     let runStub: SinonStub;
 
     beforeEach((): void => {
-      helmDependencyManager = new HelmDependencyManager(
-        undefined,
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-      );
+      helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory, process.arch);
       helmDependencyManager.uninstallLocal();
       runStub = sinon.stub(helmDependencyManager, 'run');
     });
@@ -113,7 +120,7 @@ describe('HelmDependencyManager', (): void => {
       fs.writeFileSync(globalHelmPath, '');
 
       runStub.withArgs('which helm').resolves([globalHelmPath]);
-      runStub.withArgs(`${globalHelmPath} version --short`).resolves([`${version.HELM_VERSION}+gabcdef`]);
+      runStub.withArgs(`"${globalHelmPath}" version --short`).resolves([`${version.HELM_VERSION}+gabcdef`]);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
@@ -131,8 +138,8 @@ describe('HelmDependencyManager', (): void => {
 
     it('should install helm locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which helm').resolves(['/usr/local/bin/helm']);
-      runStub.withArgs('/usr/local/bin/helm version --short').resolves(['v0.1.0+gabcdef']);
-      runStub.withArgs(`${PathEx.join(temporaryDirectory, 'helm')} version --short`).resolves(['v0.1.0+gabcdef']);
+      runStub.withArgs('"/usr/local/bin/helm" version --short').resolves(['v0.1.0+gabcdef']);
+      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'helm')}" version --short`).resolves(['v0.1.0+gabcdef']);
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.false;

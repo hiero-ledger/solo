@@ -11,10 +11,13 @@ import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import sinon, {type SinonStub} from 'sinon';
 import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
+import {platform} from 'node:process';
 
 describe('KindDependencyManager', (): void => {
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
-  const originalPlatform: NodeJS.Platform = process.platform;
+  const originalPlatform: NodeJS.Platform = platform;
 
   before((): void => {
     fs.mkdirSync(temporaryDirectory);
@@ -24,8 +27,10 @@ describe('KindDependencyManager', (): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
-    // @ts-expect-error TS2341: to modify read-only property
-    process.platform = originalPlatform;
+  });
+
+  afterEach((): void => {
+    container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
   });
 
   it('should return kind version', (): void => {
@@ -89,8 +94,8 @@ describe('KindDependencyManager', (): void => {
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
-      runStub.withArgs('/usr/local/bin/kind --version').resolves([`kind version ${version.KIND_VERSION}`]);
-      runStub.withArgs(`${temporaryDirectory}/kind --version`).resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs('"/usr/local/bin/kind" --version').resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs(`"${temporaryDirectory}/kind" --version`).resolves([`kind version ${version.KIND_VERSION}`]);
       existsSyncStub.withArgs(`${temporaryDirectory}/kind`).returns(false);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -107,8 +112,8 @@ describe('KindDependencyManager', (): void => {
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
-      runStub.withArgs('/usr/local/bin/kind --version').resolves(['kind version 0.1.0']);
-      runStub.withArgs(`${PathEx.join(temporaryDirectory, 'kind')} --version`).resolves(['kind version 0.1.0']);
+      runStub.withArgs('"/usr/local/bin/kind" --version').resolves(['kind version 0.1.0']);
+      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'kind')}" --version`).resolves(['kind version 0.1.0']);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'kind')).returns(true);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -122,6 +127,10 @@ describe('KindDependencyManager', (): void => {
   });
 
   describe('Kind Installation Tests', (): void => {
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    });
+
     each([
       [OperatingSystem.OS_LINUX, 'x64'],
       [OperatingSystem.OS_LINUX, 'amd64'],
@@ -129,8 +138,7 @@ describe('KindDependencyManager', (): void => {
     ]).it(
       'should be able to install kind base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
-        // @ts-expect-error TS2341: to modify read-only property
-        process.platform = osPlatform;
+        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
 
         const kindDependencyManager: KindDependencyManager = new KindDependencyManager(
           undefined,

@@ -12,6 +12,8 @@ import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import sinon, {type SinonStub} from 'sinon';
 import {platform} from 'node:process';
 import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 
 const mockVersionOutputValid = 'Client Version: v1.33.3\nKustomize Version: v5.6.0';
 const mockVersionOutputLow = 'Client Version: v1.10.0\nKustomize Version: v5.6.0';
@@ -31,8 +33,10 @@ describe('KubectlDependencyManager', (): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
-    // @ts-expect-error TS2341: to modify read-only property
-    process.platform = originalPlatform;
+  });
+
+  afterEach((): void => {
+    container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
   });
 
   it('should return kubectl version', (): void => {
@@ -92,13 +96,14 @@ describe('KubectlDependencyManager', (): void => {
       chmodSyncStub.restore();
       existsSyncStub.restore();
       rmSyncStub.restore();
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
       runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
-      runStub.withArgs('/usr/local/bin/kubectl version --client').resolves(mockVersionOutputValid.split('\n'));
+      runStub.withArgs('"/usr/local/bin/kubectl" version --client').resolves(mockVersionOutputValid.split('\n'));
       runStub
-        .withArgs(`${localInstallationDirectory}/kubectl version --client`)
+        .withArgs(`"${localInstallationDirectory}/kubectl" version --client`)
         .resolves(mockVersionOutputValid.split('\n'));
       existsSyncStub.withArgs(`${localInstallationDirectory}/kubectl`).returns(false);
 
@@ -114,9 +119,9 @@ describe('KubectlDependencyManager', (): void => {
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
-      runStub.withArgs('/usr/local/bin/kubectl version --client').resolves(mockVersionOutputLow.split('\n'));
+      runStub.withArgs('"/usr/local/bin/kubectl" version --client').resolves(mockVersionOutputLow.split('\n'));
       runStub
-        .withArgs(`${PathEx.join(localInstallationDirectory, 'kubectl')} version --client`)
+        .withArgs(`"${PathEx.join(localInstallationDirectory, 'kubectl')}" version --client`)
         .resolves(mockVersionOutputLow.split('\n'));
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -132,6 +137,10 @@ describe('KubectlDependencyManager', (): void => {
   });
 
   describe('Kubectl Installation Tests', (): void => {
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    });
+
     each([
       [OperatingSystem.OS_LINUX, 'x64'],
       [OperatingSystem.OS_LINUX, 'amd64'],
@@ -139,8 +148,7 @@ describe('KubectlDependencyManager', (): void => {
     ]).it(
       'should be able to install kubectl base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
-        // @ts-expect-error TS2341: to modify read-only property
-        process.platform = osPlatform;
+        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
         const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
           undefined,
           localInstallationDirectory,
@@ -167,14 +175,16 @@ describe('KubectlDependencyManager', (): void => {
     let kubectlDependencyManager: KubectlDependencyManager;
 
     beforeEach((): void => {
-      // @ts-expect-error TS2341: to modify read-only property
-      process.platform = originalPlatform;
       kubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,
         process.arch,
         undefined,
       );
+    });
+
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
     });
 
     it('getGlobalExecutablePath returns false if not found', async (): Promise<void> => {
@@ -237,8 +247,7 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('processDownloadedPackage should handle platform-specific executable names', async (): Promise<void> => {
-      // @ts-expect-error TS2341: to modify read-only property
-      process.platform = OperatingSystem.OS_LINUX;
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_LINUX});
       // First test with non-Windows platform
       let kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
         undefined,
@@ -252,8 +261,7 @@ describe('KubectlDependencyManager', (): void => {
       expect(linuxResult).to.contain('/tmp/kubectl');
 
       // Now test with Windows platform
-      // @ts-expect-error TS2341: to modify read-only property
-      process.platform = OperatingSystem.OS_WIN32;
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_WIN32});
       kubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,
@@ -267,8 +275,7 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getArtifactName should generate correct URL format based on platform/arch', (): void => {
-      // @ts-expect-error TS2341: to modify read-only property
-      process.platform = OperatingSystem.OS_LINUX;
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_LINUX});
       const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,

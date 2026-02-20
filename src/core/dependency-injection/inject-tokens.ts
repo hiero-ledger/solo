@@ -8,6 +8,7 @@ export class InjectTokens {
   public static RemoteConfigValidator: symbol = Symbol.for('RemoteConfigValidator');
   public static LogLevel: symbol = Symbol.for('LogLevel');
   public static DevelopmentMode: symbol = Symbol.for('DevelopmentMode');
+  public static OsPlatform: symbol = Symbol.for('OsPlatform');
   public static OsArch: symbol = Symbol.for('OsArch');
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
