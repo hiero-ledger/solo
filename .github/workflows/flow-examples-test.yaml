@@ -140,23 +140,23 @@ jobs:
       - name: Install Kubectl
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
-          version: 'v1.27.3'
+          version: 'v1.34.0'
         id: install
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
+          node_image: kindest/node:v1.33.7@sha256:d26ef333bdb2cbe9862a0f7c3803ecc7b4303d8cea8e814b481b09949d353040
+          version: v0.31.0
+          kubectl_version: v1.34.0
           verbosity: 3
           wait: 120s
 
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
-          version: "v3.17.1" # helm version
+          version: "v4.0.4" # helm version
 
       - name: Install Dependencies
         id: npm-deps
