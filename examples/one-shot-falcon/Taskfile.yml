@@ -70,47 +70,10 @@ tasks:
 
       - cmd: |
           echo "==== Killing a random port-forward process ===="
-          AVAILABLE_PORTS=$(ps -ef | awk '/[k]ubectl port-forward/ {split($NF, a, ":"); print a[1]}' | grep -E '^[0-9]+$' | sort -u)
-          PORT_COUNT=$(echo "$AVAILABLE_PORTS" | sed '/^$/d' | wc -l | tr -d ' ')
-          if [ "${PORT_COUNT}" -gt 0 ]; then
-            RANDOM_INDEX=$(( (RANDOM % PORT_COUNT) + 1 ))
-            PORT=$(echo "$AVAILABLE_PORTS" | sed -n "${RANDOM_INDEX}p")
-            echo "Selected random port ${PORT} (index ${RANDOM_INDEX}/${PORT_COUNT})"
-
-            if ! echo "$PORT" | grep -qE '^[0-9]+$'; then
-              echo "Error: Could not extract valid port number from selected value: $PORT"
-              exit 1
-            fi
-
-            if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
-              echo "Error: Port number $PORT is out of valid range (1-65535)"
-              exit 1
-            fi
-
-            echo "Port being killed: $PORT"
-            TARGET_PIDS=$(ps -ef | awk -v p="$PORT" '/[k]ubectl port-forward/ {if ($NF ~ ("^" p ":")) print $2}')
-            if [ -z "$TARGET_PIDS" ]; then
-              echo "Error: No matching kubectl port-forward process found for local port $PORT"
-              exit 1
-            fi
-
-            echo "Killing all matching port-forward PIDs: $TARGET_PIDS"
-            for target_pid in $TARGET_PIDS; do
-              kill -9 "$target_pid" 2>/dev/null || true
-            done
-            sleep 2
-
-            REMAINING_PIDS=$(ps -ef | awk -v p="$PORT" '/[k]ubectl port-forward/ {if ($NF ~ ("^" p ":")) print $2}')
-            if [ -n "$REMAINING_PIDS" ]; then
-              echo "Error: Matching port-forward process(es) still running for port $PORT: $REMAINING_PIDS"
-              exit 1
-            fi
-
-            echo "Process(es) killed successfully"
-            echo "$PORT" > /tmp/killed_port.txt
-          else
-            echo "No port-forward processes found to kill"
-          fi
+          bash {{ .USER_WORKING_DIR }}/select-random-port-forward.sh \
+            --kill \
+            --log-file /tmp/port-forward-random.log \
+            --killed-port-file /tmp/killed_port.txt
 
       - cmd: |
           echo ""
