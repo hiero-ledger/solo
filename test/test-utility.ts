@@ -68,7 +68,7 @@ import {main} from '../src/index.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
 import {KeysTest} from './e2e/commands/tests/keys-test.js';
 import {ClusterReferenceTest} from './e2e/commands/tests/cluster-reference-test.js';
-import {NodeTest} from './e2e/commands/tests/node-test.js';
+import {ConsensusNodeTest} from './e2e/commands/tests/consensus-node-test.js';
 import {DeploymentTest} from './e2e/commands/tests/deployment-test.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 
@@ -103,7 +103,7 @@ export function getTemporaryDirectory(): string {
 export function deployNetworkTest(argv: Argv): void {
   it('should succeed with consensus network deploy', async (): Promise<void> => {
     await main(
-      NodeTest.soloNetworkDeployArgv(
+      ConsensusNodeTest.soloConsensusNetworkDeployArgv(
         argv.getArg<string>(flags.deployment),
         argv.getArg<string>(flags.nodeAliasesUnparsed),
         argv.getArg<boolean>(flags.persistentVolumeClaims),
@@ -122,17 +122,17 @@ export function startNodesTest(testName: string, argv: Argv): void {
     const localBuildPath: string = argv.getArg<string>(flags.localBuildPath);
     const app = argv.getArg<string>(flags.app);
     const appConfig = argv.getArg<string>(flags.appConfig);
-    await main(NodeTest.solNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
+    await main(ConsensusNodeTest.soloConsensusNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should succeed with consensus node start command', async (): Promise<void> => {
     const deployment: string = argv.getArg<string>(flags.deployment);
     const nodeAliases: string = argv.getArg<string>(flags.nodeAliasesUnparsed);
-    await main(NodeTest.soloNodeStart(deployment, nodeAliases, argv.getArg<string>(flags.app)));
+    await main(ConsensusNodeTest.soloNodeStart(deployment, nodeAliases, argv.getArg<string>(flags.app)));
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('deployment diagnostics logs command should work', async (): Promise<void> => {
-    await main(DeploymentTest.soloDiagnosticsLogsArgv(argv.getArg<string>(flags.deployment)));
+    await main(DeploymentTest.soloDeploymentDiagnosticsLogsArgv(argv.getArg<string>(flags.deployment)));
 
     const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
     const soloLog: string = fs.readFileSync(soloLogPath, 'utf8');
@@ -369,7 +369,7 @@ export function endToEndTestSuite(
       });
 
       it('should succeed with deployment config create', async (): Promise<void> => {
-        const createArguments: string[] = DeploymentTest.soloConfigCreateArgv(
+        const createArguments: string[] = DeploymentTest.soloDeploymentConfigCreateArgv(
           argv.getArg<string>(flags.deployment),
           namespace,
         );
@@ -377,7 +377,7 @@ export function endToEndTestSuite(
       });
 
       it("should succeed with 'deployment cluster attach'", async (): Promise<void> => {
-        const attachArguments: string[] = DeploymentTest.soloClusterAttachArgv(
+        const attachArguments: string[] = DeploymentTest.soloDeploymentClusterAttachArgv(
           argv.getArg<string>(flags.deployment),
           argv.getArg<string>(flags.clusterRef),
           argv.getArg<number>(flags.numberOfConsensusNodes),
@@ -386,7 +386,7 @@ export function endToEndTestSuite(
       });
 
       it('generate key files', async (): Promise<void> => {
-        const generateArguments: string[] = KeysTest.soloConsensusGenerate(
+        const generateArguments: string[] = KeysTest.soloKeysConsensusGenerate(
           argv.getArg<string>(flags.deployment),
           argv.getArg<string>(flags.nodeAliasesUnparsed),
           argv.getArg<string>(flags.cacheDir),

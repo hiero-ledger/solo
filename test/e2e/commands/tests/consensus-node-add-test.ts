@@ -4,8 +4,8 @@ import {BaseCommandTest} from './base-command-test.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {Flags} from '../../../../src/commands/flags.js';
 
-export class NodeAddTest extends BaseCommandTest {
-  public static soloNodeAddPrepareArgv(
+export class ConsensusNodeAddTest extends BaseCommandTest {
+  public static soloConsensusNodeAddPrepareArgv(
     deployment: string,
     outputDirectory: string,
     cacheDirectory: string,
@@ -15,7 +15,7 @@ export class NodeAddTest extends BaseCommandTest {
       generateTlsKeys?: boolean;
     },
   ): string[] {
-    const {newArgv, optionFromFlag} = NodeAddTest;
+    const {newArgv, optionFromFlag} = ConsensusNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -45,8 +45,8 @@ export class NodeAddTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeAddSubmitArgv(deployment: string, inputDirectory: string): string[] {
-    const {newArgv, optionFromFlag} = NodeAddTest;
+  public static soloConsensusNodeAddSubmitArgv(deployment: string, inputDirectory: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -62,8 +62,12 @@ export class NodeAddTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeAddExecuteArgv(deployment: string, inputDirectory: string, cacheDirectory: string): string[] {
-    const {newArgv, optionFromFlag} = NodeAddTest;
+  public static soloConsensusNodeAddExecuteArgv(
+    deployment: string,
+    inputDirectory: string,
+    cacheDirectory: string,
+  ): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeAddTest;
 
     const argv: string[] = newArgv();
     argv.push(

@@ -114,7 +114,7 @@ export class DeploymentTest extends BaseCommandTest {
     });
   }
 
-  public static soloDiagnosticsLogsArgv(deployment: DeploymentName): string[] {
+  public static soloDeploymentDiagnosticsLogsArgv(deployment: DeploymentName): string[] {
     const {newArgv, optionFromFlag} = DeploymentTest;
 
     const argv: string[] = newArgv();
@@ -128,7 +128,7 @@ export class DeploymentTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloConfigCreateArgv(deployment: DeploymentName, namespace: NamespaceName): string[] {
+  public static soloDeploymentConfigCreateArgv(deployment: DeploymentName, namespace: NamespaceName): string[] {
     const {newArgv, optionFromFlag} = DeploymentTest;
     const argv: string[] = newArgv();
     argv.push(
@@ -143,7 +143,7 @@ export class DeploymentTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloClusterAttachArgv(
+  public static soloDeploymentClusterAttachArgv(
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
     consensusNodesCount: number,

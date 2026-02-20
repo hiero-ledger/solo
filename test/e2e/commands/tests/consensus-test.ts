@@ -2,11 +2,10 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
-import {LedgerCommandDefinition} from '../../../../src/commands/command-definitions/ledger-command-definition.js';
 import {Flags} from '../../../../src/commands/flags.js';
 
 export class ConsensusTest extends BaseCommandTest {
-  public static soloNetworkDestroyArgv(deployment: string): string[] {
+  public static soloConsensusNetworkDestroyArgv(deployment: string): string[] {
     const {newArgv, optionFromFlag} = ConsensusTest;
 
     const argv: string[] = newArgv();
@@ -24,7 +23,7 @@ export class ConsensusTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNetworkFreezeArgv(deployment: string): string[] {
+  public static soloConsensusNetworkFreezeArgv(deployment: string): string[] {
     const {newArgv, optionFromFlag} = ConsensusTest;
 
     const argv: string[] = newArgv();
@@ -39,7 +38,7 @@ export class ConsensusTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloStateDownloadArgv(deployment: string, nodeAliasesUnparsed: string): string[] {
+  public static soloConsensusStateDownloadArgv(deployment: string, nodeAliasesUnparsed: string): string[] {
     const {newArgv, optionFromFlag} = ConsensusTest;
 
     const argv: string[] = newArgv();
@@ -56,7 +55,7 @@ export class ConsensusTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloNodeRestartArgv(deployment: string, nodeAliasesUnparsed?: string): string[] {
+  public static soloConsensusNodeRestartArgv(deployment: string, nodeAliasesUnparsed?: string): string[] {
     const {newArgv, optionFromFlag} = ConsensusTest;
 
     const argv: string[] = newArgv();
@@ -71,42 +70,6 @@ export class ConsensusTest extends BaseCommandTest {
     if (nodeAliasesUnparsed) {
       argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliasesUnparsed);
     }
-
-    return argv;
-  }
-
-  public static soloLedgerFileCreateArgv(deployment: string, filePath: string): string[] {
-    const {newArgv, optionFromFlag} = ConsensusTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      LedgerCommandDefinition.COMMAND_NAME,
-      LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
-      LedgerCommandDefinition.FILE_CREATE,
-      optionFromFlag(Flags.filePath),
-      filePath,
-      optionFromFlag(Flags.deployment),
-      deployment,
-    );
-
-    return argv;
-  }
-
-  public static soloLedgerFileUpdateArgv(deployment: string, fileId: string, filePath: string): string[] {
-    const {newArgv, optionFromFlag} = ConsensusTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      LedgerCommandDefinition.COMMAND_NAME,
-      LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
-      LedgerCommandDefinition.FILE_UPDATE,
-      optionFromFlag(Flags.fileId),
-      fileId,
-      optionFromFlag(Flags.filePath),
-      filePath,
-      optionFromFlag(Flags.deployment),
-      deployment,
-    );
 
     return argv;
   }

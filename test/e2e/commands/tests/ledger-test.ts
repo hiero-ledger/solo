@@ -5,7 +5,7 @@ import {LedgerCommandDefinition} from '../../../../src/commands/command-definiti
 import {Flags} from '../../../../src/commands/flags.js';
 
 export class LedgerTest extends BaseCommandTest {
-  public static soloLedgerInitArgv(deployment: string, nodeAliases: string, clusterReference: string): string[] {
+  public static soloLedgerSystemInitArgv(deployment: string, nodeAliases: string, clusterReference: string): string[] {
     const {newArgv, optionFromFlag} = LedgerTest;
 
     const argv: string[] = newArgv();
@@ -24,7 +24,7 @@ export class LedgerTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloAccountCreateArgv(deployment: string): string[] {
+  public static soloLedgerAccountCreateArgv(deployment: string): string[] {
     const {newArgv, optionFromFlag} = LedgerTest;
 
     const argv: string[] = newArgv();
@@ -32,7 +32,43 @@ export class LedgerTest extends BaseCommandTest {
       LedgerCommandDefinition.COMMAND_NAME,
       LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
       LedgerCommandDefinition.ACCOUNT_CREATE,
-      '--deployment',
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+
+    return argv;
+  }
+
+  public static soloLedgerFileCreateArgv(deployment: string, filePath: string): string[] {
+    const {newArgv, optionFromFlag} = LedgerTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      LedgerCommandDefinition.COMMAND_NAME,
+      LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+      LedgerCommandDefinition.FILE_CREATE,
+      optionFromFlag(Flags.filePath),
+      filePath,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+
+    return argv;
+  }
+
+  public static soloLedgerFileUpdateArgv(deployment: string, fileId: string, filePath: string): string[] {
+    const {newArgv, optionFromFlag} = LedgerTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      LedgerCommandDefinition.COMMAND_NAME,
+      LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+      LedgerCommandDefinition.FILE_UPDATE,
+      optionFromFlag(Flags.fileId),
+      fileId,
+      optionFromFlag(Flags.filePath),
+      filePath,
+      optionFromFlag(Flags.deployment),
       deployment,
     );
 

@@ -32,7 +32,7 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {ConsensusTest} from './tests/consensus-test.js';
 import {LedgerTest} from './tests/ledger-test.js';
-import {NodeAddTest} from './tests/node-add-test.js';
+import {ConsensusNodeAddTest} from './tests/consensus-node-add-test.js';
 import {main} from '../../../src/index.js';
 
 export function testSeparateNodeAdd(
@@ -72,7 +72,7 @@ export function testSeparateNodeAdd(
 
     it('should succeed with init command', async (): Promise<void> => {
       await main(
-        LedgerTest.soloLedgerInitArgv(
+        LedgerTest.soloLedgerSystemInitArgv(
           argv.getArg<string>(flags.deployment),
           argv.getArg<string>(flags.nodeAliasesUnparsed),
           argv.getArg<string>(flags.clusterRef),
@@ -82,7 +82,7 @@ export function testSeparateNodeAdd(
 
     it('should add a new node to the network successfully', async (): Promise<void> => {
       await main(
-        NodeAddTest.soloNodeAddPrepareArgv(
+        ConsensusNodeAddTest.soloConsensusNodeAddPrepareArgv(
           argv.getArg<string>(flags.deployment),
           temporaryDirectory,
           argv.getArg<string>(flags.cacheDir),
@@ -94,10 +94,12 @@ export function testSeparateNodeAdd(
         ),
       );
 
-      await main(NodeAddTest.soloNodeAddSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory));
+      await main(
+        ConsensusNodeAddTest.soloConsensusNodeAddSubmitArgv(argv.getArg<string>(flags.deployment), temporaryDirectory),
+      );
 
       await main(
-        NodeAddTest.soloNodeAddExecuteArgv(
+        ConsensusNodeAddTest.soloConsensusNodeAddExecuteArgv(
           argv.getArg<string>(flags.deployment),
           temporaryDirectory,
           argv.getArg<string>(flags.cacheDir),
@@ -109,7 +111,7 @@ export function testSeparateNodeAdd(
     }).timeout(Duration.ofMinutes(12).toMillis());
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
-      await main(LedgerTest.soloAccountCreateArgv(argv.getArg<string>(flags.deployment)));
+      await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
     });
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
@@ -160,22 +162,22 @@ export function testSeparateNodeAdd(
       };
 
       // create more transactions to save more round of states
-      await main(LedgerTest.soloAccountCreateArgv(argv.getArg<string>(flags.deployment)));
+      await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
 
       await sleep(Duration.ofSeconds(1));
 
-      await main(LedgerTest.soloAccountCreateArgv(argv.getArg<string>(flags.deployment)));
+      await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
 
-      await main(ConsensusTest.soloNetworkFreezeArgv(argv.getArg<string>(flags.deployment)));
+      await main(ConsensusTest.soloConsensusNetworkFreezeArgv(argv.getArg<string>(flags.deployment)));
 
       await main(
-        ConsensusTest.soloStateDownloadArgv(
+        ConsensusTest.soloConsensusStateDownloadArgv(
           argv.getArg<string>(flags.deployment),
           argv.getArg<string>(flags.nodeAliasesUnparsed),
         ),
       );
 
-      await main(ConsensusTest.soloNodeRestartArgv(argv.getArg<string>(flags.deployment)));
+      await main(ConsensusTest.soloConsensusNodeRestartArgv(argv.getArg<string>(flags.deployment)));
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 
