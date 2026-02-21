@@ -114,9 +114,60 @@ export class DeploymentTest extends BaseCommandTest {
     });
   }
 
+  public static soloDeploymentDiagnosticsLogsArgv(deployment: DeploymentName): string[] {
+    const {newArgv, optionFromFlag} = DeploymentTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+    return argv;
+  }
+
+  public static soloDeploymentConfigCreateArgv(deployment: DeploymentName, namespace: NamespaceName): string[] {
+    const {newArgv, optionFromFlag} = DeploymentTest;
+    const argv: string[] = newArgv();
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_CREATE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.namespace),
+      namespace.name,
+    );
+    return argv;
+  }
+
+  public static soloDeploymentClusterAttachArgv(
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+    consensusNodesCount: number,
+  ): string[] {
+    const {newArgv, optionFromFlag} = DeploymentTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CLUSTER_ATTACH,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.numberOfConsensusNodes),
+      consensusNodesCount.toString(),
+    );
+
+    return argv;
+  }
+
   private static soloDeploymentConfigListArgv(testName: string, clusterReference?: ClusterReferenceName): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
-
     const argv: string[] = newArgv();
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,

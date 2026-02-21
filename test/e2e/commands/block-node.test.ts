@@ -16,7 +16,7 @@ import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-c
 import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {DeploymentTest} from './tests/deployment-test.js';
-import {NodeTest} from './tests/node-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -70,13 +70,13 @@ new EndToEndTestSuiteBuilder()
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
       DeploymentTest.listDeployments(options);
-      NodeTest.keys(options);
+      ConsensusNodeTest.keys(options);
 
       BlockNodeTest.add(options);
 
       NetworkTest.deploy(options);
-      NodeTest.setup(options);
-      NodeTest.start(options);
+      ConsensusNodeTest.setup(options);
+      ConsensusNodeTest.start(options);
 
       BlockNodeTest.testBlockNode(options, 1);
 

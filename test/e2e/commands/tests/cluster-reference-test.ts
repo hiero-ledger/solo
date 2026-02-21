@@ -54,6 +54,14 @@ export class ClusterReferenceTest extends BaseCommandTest {
     });
   }
 
+  public static soloConfigConnectArgv(
+    testName: string,
+    clusterReference: ClusterReferenceName,
+    context: string,
+  ): string[] {
+    return ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReference, context);
+  }
+
   public static soloClusterReferenceSetup(
     testName: string,
     clusterReference: ClusterReferenceName,
@@ -90,6 +98,22 @@ export class ClusterReferenceTest extends BaseCommandTest {
       // TODO add some verification that the setup was successful
       testLogger.info(`${testName}: finishing solo cluster-ref config setup`);
     });
+  }
+
+  public static soloConfigSetupArgv(testName: string, clusterSetupNamespace: string): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ClusterReferenceCommandDefinition.COMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SETUP,
+      optionFromFlag(Flags.clusterSetupNamespace),
+      clusterSetupNamespace,
+    );
+
+    argvPushGlobalFlags(argv, testName, true);
+    return argv;
   }
 
   public static soloClusterReferenceReset(

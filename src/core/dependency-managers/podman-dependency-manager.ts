@@ -247,7 +247,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
     let configContent: string = fs.readFileSync(templatePath, 'utf8');
     configContent = configContent.replace('$HELPER_BINARIES_DIR', this.helpersDirectory.replaceAll('\\', '/'));
-    fs.writeFileSync(destinationPath, configContent, 'utf-8');
+    fs.writeFileSync(destinationPath, configContent, 'utf8');
     process.env.CONTAINERS_CONF = destinationPath;
   }
 }
