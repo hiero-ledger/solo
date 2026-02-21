@@ -833,7 +833,9 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
-    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    const failures: PromiseRejectedResult[] = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
     if (failures.length === 0) {
       return;
     }
