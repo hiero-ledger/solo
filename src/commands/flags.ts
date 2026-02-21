@@ -149,17 +149,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly s6: CommandFlag = {
-    constName: 's6',
-    name: 's6',
-    definition: {
-      describe: 'Enable S6 telemetry extensions (Prometheus scrape config and root image override)',
-      defaultValue: process.env.ENABLE_S6_IMAGE === undefined ? false : process.env.ENABLE_S6_IMAGE === 'true',
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
   public static readonly predefinedAccounts: CommandFlag = {
     constName: 'predefinedAccounts',
     name: 'predefined-accounts',
@@ -3025,7 +3014,6 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
-    Flags.s6,
     Flags.id,
     Flags.mirrorNodeId,
     Flags.serviceMonitor,

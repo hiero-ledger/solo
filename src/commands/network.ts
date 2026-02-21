@@ -131,7 +131,6 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
-  s6: boolean;
 }
 
 interface NetworkDeployContext {
@@ -228,7 +227,6 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
-      flags.s6,
     ],
   };
 
@@ -544,7 +542,7 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    if (this.configManager.getFlag(flags.s6)) {
+    if (constants.ENABLE_S6_IMAGE) {
       const nodeIndexByClusterAndName: Map<string, number> = new Map();
       const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
       for (const consensusNode of config.consensusNodes) {

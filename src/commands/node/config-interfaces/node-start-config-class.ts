@@ -12,5 +12,4 @@ export interface NodeStartConfigClass extends NodeCommonConfigWithNodeAliases, C
   debugNodeAlias: NodeAlias;
   stagingDir: string;
   forcePortForward: Optional<boolean>;
-  s6: boolean;
 }

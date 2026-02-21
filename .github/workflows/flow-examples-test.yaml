@@ -37,7 +37,7 @@ on:
         description: "Enable S6 image"
         type: boolean
         required: false
-        default: false
+        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -59,7 +59,7 @@ on:
         description: "Enable S6 image"
         type: boolean
         required: false
-        default: false
+        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
