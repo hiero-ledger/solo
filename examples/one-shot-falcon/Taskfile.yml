@@ -37,8 +37,7 @@ tasks:
       # Solo one-shot falcon deploy
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2
 
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
@@ -58,6 +57,111 @@ tasks:
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
           --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
 
+  test-refresh:
+    desc: Kill one port-forward, then run deployment refresh port-forwards
+    cmds:    
+      - cmd: |
+          echo "==== Current port-forward processes ===="
+          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
+          INITIAL_PORT_COUNT=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u | wc -w)
+          echo "Initial unique port-forward count: ${INITIAL_PORT_COUNT}"
+          echo "${INITIAL_PORT_COUNT}" > /tmp/expected_port_count.txt
+          echo ""
+
+      - cmd: |
+          echo "==== Killing a random port-forward process ===="
+          bash {{ .USER_WORKING_DIR }}/select-random-port-forward.sh \
+            --kill \
+            --log-file /tmp/port-forward-random.log \
+            --killed-port-file /tmp/killed_port.txt
+
+      - cmd: |
+          echo ""
+          echo "==== Port-forward processes after killing one ===="
+          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
+          echo ""
+
+      - cmd: |
+          echo "==== Running deployment refresh command ===="
+          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
+          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+
+          if ! $SOLO_COMMAND deployment refresh port-forwards --help >/dev/null 2>&1; then
+            if [ "${USE_RELEASED_VERSION}" != "true" ]; then
+              echo "Refresh command not found in current local Solo build. Running task build and retrying..."
+              task build
+            fi
+          fi
+
+          if ! $SOLO_COMMAND deployment refresh port-forwards --help >/dev/null 2>&1; then
+            echo "ERROR: 'deployment refresh port-forwards' is not supported by the current Solo CLI." >&2
+            echo "Use a newer Solo version (or rebuild local Solo) and retry." >&2
+            exit 1
+          fi
+
+          $SOLO_COMMAND deployment refresh port-forwards --deployment "${RESOLVED_DEPLOYMENT}" --dev
+
+      - cmd: |
+          echo ""
+          echo "==== Port-forward processes after refresh ===="
+          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
+          echo ""
+
+  verify:
+    desc: Verify killed port-forward was restored
+    cmds:
+      - cmd: |
+          echo "==== Verifying port-forwards ===="
+          RUNNING_PORTS=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u)
+          echo "Running port-forwards on ports: $RUNNING_PORTS"
+          PORT_COUNT=$(echo "$RUNNING_PORTS" | wc -w)
+          echo "Total running port-forwards: $PORT_COUNT"
+          EXPECTED_COUNT="1"
+          if [ -f /tmp/expected_port_count.txt ]; then
+            EXPECTED_COUNT=$(cat /tmp/expected_port_count.txt)
+          fi
+
+          if [ "$PORT_COUNT" -lt "$EXPECTED_COUNT" ]; then
+            echo "✗ Verification FAILED: Expected at least $EXPECTED_COUNT port-forward(s), found $PORT_COUNT"
+            exit 1
+          fi
+          echo "✓ Verification PASSED: Found expected number of port-forwards"
+
+          if [ -f /tmp/killed_port.txt ]; then
+            KILLED_PORT=$(cat /tmp/killed_port.txt)
+            if echo "$RUNNING_PORTS" | grep -Fxq "$KILLED_PORT"; then
+              echo "✓ Verification PASSED: Killed port $KILLED_PORT was successfully restored"
+            else
+              echo "✗ Verification FAILED: Killed port $KILLED_PORT was NOT restored"
+              echo "Running ports: $RUNNING_PORTS"
+              exit 1
+            fi
+            rm -f /tmp/killed_port.txt
+          fi
+          rm -f /tmp/expected_port_count.txt
+
+          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
+          RESOLVED_NAMESPACE="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}" namespace)"
+          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+          echo "Using namespace: ${RESOLVED_NAMESPACE}"
+          export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
+          export SOLO_NAMESPACE="$RESOLVED_NAMESPACE"
+
+          if git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
+
+  test:
+    desc: Run deploy + refresh-recovery verification
+    cmds:
+      - task: deploy
+      - task: test-refresh
+      - task: verify
+
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
     cmds:
@@ -68,6 +172,6 @@ tasks:
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
   default:
-    desc: Run the default deploy task and test deploy-minimal
+    desc: Run deploy + refresh-recovery verification
     cmds:
-      - task: deploy
+      - task: test
