@@ -8,13 +8,13 @@ import {container} from 'tsyringe-neo';
 import * as constants from '../../../src/core/constants.js';
 import {ArgumentProcessor} from '../../../src/argument-processor.js';
 
-describe('ArgumentProcessor', () => {
+describe('ArgumentProcessor', (): void => {
   let originalExit: (code?: string | number | null | undefined) => never;
   let originalExitCode: number | string | undefined;
   let consoleOutput: string[];
-  let originalConsoleLog: (...data: any[]) => void;
+  let originalConsoleLog: (...data: unknown[]) => void;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Initialize container
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
     void container.resolve(InjectTokens.SoloLogger);
@@ -22,7 +22,7 @@ describe('ArgumentProcessor', () => {
     // Capture console output
     consoleOutput = [];
     originalConsoleLog = console.log;
-    console.log = (...arguments_: any[]): void => {
+    console.log = (...arguments_: unknown[]): void => {
       consoleOutput.push(arguments_.map(String).join(' '));
     };
 
@@ -31,11 +31,11 @@ describe('ArgumentProcessor', () => {
     originalExitCode = process.exitCode;
     process.exit = ((): never => {
       throw new Error('process.exit called');
-    }) as any;
+    }) as typeof process.exit;
     process.exitCode = undefined;
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     // Restore original functions
     console.log = originalConsoleLog;
     process.exit = originalExit;
@@ -43,15 +43,15 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Missing Subcommands - Level 1 (Command Groups)', () => {
-    it('should show help when running command without subcommand', async () => {
+    it('should show help when running command without subcommand', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Should throw SilentBreak
-        expect(error.constructor.name).to.equal('SilentBreak');
-        expect(error.message).to.include('No subcommand provided');
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+        expect((error as Error).message).to.include('No subcommand provided');
       }
 
       // Verify help was shown
@@ -62,14 +62,14 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('consensus node');
     });
 
-    it('should exit cleanly and show subcommands/options for consensus', async () => {
+    it('should exit cleanly and show subcommands/options for consensus', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -81,13 +81,13 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Missing Subcommands - Level 2 (Command Subgroups)', () => {
-    it('should show help when running subgroup without action', async () => {
+    it('should show help when running subgroup without action', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -99,14 +99,14 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('upgrade');
     });
 
-    it('should exit cleanly and show subgroup commands/options for consensus network', async () => {
+    it('should exit cleanly and show subgroup commands/options for consensus network', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -118,42 +118,42 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Invalid Commands', () => {
-    it('should show error and help for unknown top-level command', async () => {
+    it('should show error and help for unknown top-level command', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'invalid-command'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('Unknown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('Unknown');
       }
 
       const output: string = consoleOutput.join('\n');
       expect(output).to.include('Unknown');
     });
 
-    it('should show error for unknown second-level command', async () => {
+    it('should show error for unknown second-level command', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'invalid-subcommand'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('Unknown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('Unknown');
       }
 
       const output: string = consoleOutput.join('\n');
       expect(output).to.include('Unknown');
     });
 
-    it('should show error for unknown third-level command', async () => {
+    it('should show error for unknown third-level command', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'invalid-action'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('Unknown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('Unknown');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -162,14 +162,14 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Missing Required Arguments - Level 3 (Actions)', () => {
-    it('should show error when missing required argument', async () => {
+    it('should show error when missing required argument', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('deployment');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('deployment');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -177,16 +177,16 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('deployment');
     });
 
-    it('should fail for destroy without deployment and include exact message', async () => {
+    it('should fail for destroy without deployment and include exact message', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
         expect.fail('Expected SoloError to be thrown');
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('Missing required argument: deployment');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('Missing required argument: deployment');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -196,7 +196,7 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Unknown Arguments', () => {
-    it('should show error for unknown flag at action level', async () => {
+    it('should show error for unknown flag at action level', async (): Promise<void> => {
       const argv: string[] = [
         'node',
         'solo.ts',
@@ -210,9 +210,9 @@ describe('ArgumentProcessor', () => {
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('Unknown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('Unknown');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -221,7 +221,7 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Help Flag Behavior', () => {
-    it('should show help when --help flag is used', async () => {
+    it('should show help when --help flag is used', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', '--help'];
 
       try {
@@ -236,14 +236,14 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('Commands:');
     });
 
-    it('should show clean help for trailing help shorthand on action command', async () => {
+    it('should show clean help for trailing help shorthand on action command', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy', 'help'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -252,14 +252,14 @@ describe('ArgumentProcessor', () => {
       expect(process.exitCode).to.not.equal(1);
     });
 
-    it('should exit cleanly and show subgroup commands/options for consensus network help', async () => {
+    it('should exit cleanly and show subgroup commands/options for consensus network help', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'help'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -270,14 +270,14 @@ describe('ArgumentProcessor', () => {
       expect(process.exitCode).to.not.equal(1);
     });
 
-    it('should exit cleanly and show subcommands/options for consensus help', async () => {
+    it('should exit cleanly and show subcommands/options for consensus help', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'help'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -290,13 +290,13 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('No Command Provided', () => {
-    it('should show help when no command is provided', async () => {
+    it('should show help when no command is provided', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -307,14 +307,14 @@ describe('ArgumentProcessor', () => {
   });
 
   describe('Error Message Quality', () => {
-    it('should provide clear error message for missing required argument', async () => {
+    it('should provide clear error message for missing required argument', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.message).to.include('Missing required argument');
-        expect(error.message).to.include('deployment');
+      } catch (error: unknown) {
+        expect((error as Error).message).to.include('Missing required argument');
+        expect((error as Error).message).to.include('deployment');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -323,13 +323,13 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('--deployment');
     });
 
-    it('should provide clear error message for unknown command', async () => {
+    it('should provide clear error message for unknown command', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'invalid-command'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.message).to.include('Unknown');
+      } catch (error: unknown) {
+        expect((error as Error).message).to.include('Unknown');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -337,13 +337,13 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('Commands:');
     });
 
-    it('should not show ERROR banner when displaying help for missing subcommand', async () => {
+    it('should not show ERROR banner when displaying help for missing subcommand', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus'];
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       const output: string = consoleOutput.join('\n');
@@ -353,51 +353,51 @@ describe('ArgumentProcessor', () => {
       expect(output).to.include('Commands:');
     });
 
-    it('should throw SoloError for actual errors', async () => {
+    it('should throw SoloError for actual errors', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
 
       try {
         await ArgumentProcessor.process(argv);
         // Should not reach here
         expect.fail('Expected error to be thrown');
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Should throw SoloError for missing required arguments
-        expect(error.constructor.name).to.equal('SoloError');
-        expect(error.message).to.include('Missing required argument');
+        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect((error as Error).message).to.include('Missing required argument');
       }
     });
   });
 
   describe('Exit Code Behavior', () => {
-    it('should not set error exit code when showing help for missing subcommand', async () => {
+    it('should not set error exit code when showing help for missing subcommand', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SilentBreak');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
       // Exit code should not be set to error (1) for help display
       expect(process.exitCode).not.to.equal(1);
     });
 
-    it('should set error exit code for missing required arguments', async () => {
+    it('should set error exit code for missing required arguments', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
       process.exitCode = undefined;
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
       }
 
       // Exit code should be set to error (1) for actual errors
       expect(process.exitCode).to.equal(1);
     });
 
-    it('should set error exit code for unknown arguments', async () => {
+    it('should set error exit code for unknown arguments', async (): Promise<void> => {
       const argv: string[] = [
         'node',
         'solo.ts',
@@ -412,8 +412,8 @@ describe('ArgumentProcessor', () => {
 
       try {
         await ArgumentProcessor.process(argv);
-      } catch (error: any) {
-        expect(error.constructor.name).to.equal('SoloError');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SoloError');
       }
 
       // Exit code should be set to error (1) for unknown arguments
