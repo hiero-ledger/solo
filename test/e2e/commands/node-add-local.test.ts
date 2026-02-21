@@ -9,16 +9,15 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {destroyEnabled, endToEndTestSuite, getTestCluster} from '../../test-utility.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
-import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
 import {testSeparateNodeUpgrade} from './separate-node-upgrade.test.js';
-import {BaseCommandTest} from './tests/base-command-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
+import {LedgerTest} from './tests/ledger-test.js';
 import {main} from '../../../src/index.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {randomBytes} from 'node:crypto';
-import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [
@@ -46,8 +45,7 @@ describe('Node add with hedera local build', (): void => {
 
   endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp): void => {
     const {
-      opts: {k8Factory, commandInvoker, accountManager},
-      cmd: {networkCmd},
+      opts: {k8Factory, accountManager},
     } = bootstrapResp;
 
     after(async function (): Promise<void> {
@@ -56,20 +54,13 @@ describe('Node add with hedera local build', (): void => {
       await accountManager.close();
 
       if (destroyEnabled()) {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: ConsensusCommandDefinition.COMMAND_NAME,
-          subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-          action: ConsensusCommandDefinition.NETWORK_DESTROY,
-          callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
-        });
+        await main(ConsensusNodeTest.soloConsensusNetworkDestroyArgv(`${namespace.name}-deployment`));
 
         await k8Factory.default().namespaces().delete(namespace);
       }
     });
 
     it('Should create and update a file', async (): Promise<void> => {
-      const {newArgv} = BaseCommandTest;
       const testCacheDirectory: string = `./test-cache/${namespace.name}`;
 
       try {
@@ -80,38 +71,14 @@ describe('Node add with hedera local build', (): void => {
         await fs.writeFile(testFilePath, testContent, 'utf8');
 
         // Create file on Hiero
-        const createArguments: string[] = newArgv();
-        createArguments.push(
-          LedgerCommandDefinition.COMMAND_NAME,
-          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.FILE_CREATE,
-          '--file-path',
-          testFilePath,
-          '--deployment',
-          `${namespace.name}-deployment`,
-        );
-
-        await main(createArguments);
+        await main(LedgerTest.soloLedgerFileCreateArgv(`${namespace.name}-deployment`, testFilePath));
 
         // Update the file with new content
         const updatedContent: string = 'Updated content ' + randomBytes(8).toString('hex');
         const updatedFilePath: string = path.join(testCacheDirectory, 'test-file-updated.txt');
         await fs.writeFile(updatedFilePath, updatedContent, 'utf8');
 
-        const updateArguments: string[] = newArgv();
-        updateArguments.push(
-          LedgerCommandDefinition.COMMAND_NAME,
-          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.FILE_UPDATE,
-          '--file-id',
-          '0.0.1001',
-          '--file-path',
-          updatedFilePath,
-          '--deployment',
-          `${namespace.name}-deployment`,
-        );
-
-        await main(updateArguments);
+        await main(LedgerTest.soloLedgerFileUpdateArgv(`${namespace.name}-deployment`, '0.0.1001', updatedFilePath));
 
         // Clean up test files
         try {
