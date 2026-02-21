@@ -83,6 +83,7 @@ export class InjectTokens {
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
+  public static DebugCommand: symbol = Symbol.for('DebugCommand');
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
@@ -94,6 +95,7 @@ export class InjectTokens {
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
   public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
   public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
+  public static DebugCommandDefinition: symbol = Symbol.for('DebugCommandDefinition');
   public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');
   public static ExplorerCommandDefinition: symbol = Symbol.for('ExplorerCommandDefinition');
   public static KeysCommandDefinition: symbol = Symbol.for('KeysCommandDefinition');
