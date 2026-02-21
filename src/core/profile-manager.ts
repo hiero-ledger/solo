@@ -503,7 +503,7 @@ export class ProfileManager {
       return;
     }
 
-    const lines: string[] = await readFile(applicationPropertiesPath, 'utf-8').then((fileText): string[] =>
+    const lines: string[] = await readFile(applicationPropertiesPath, 'utf8').then((fileText): string[] =>
       fileText.split('\n'),
     );
 

@@ -10,7 +10,7 @@ import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {DeploymentTest} from './tests/deployment-test.js';
-import {NodeTest} from './tests/node-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import {AccountTest} from './tests/account-test.js';
@@ -72,16 +72,16 @@ new EndToEndTestSuiteBuilder()
       ClusterReferenceTest.connect(options);
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
-      NodeTest.keys(options);
+      ConsensusNodeTest.keys(options);
 
       NetworkTest.deploy(options);
-      NodeTest.setup(options);
-      NodeTest.start(options);
+      ConsensusNodeTest.setup(options);
+      ConsensusNodeTest.start(options);
 
       AccountTest.accountCreationShouldSucceed(options);
       AccountTest.predefinedAccountCreationShouldSucceed(options);
 
-      NodeTest.upgrade(options);
+      ConsensusNodeTest.upgrade(options);
 
       describe('Write log metrics', async (): Promise<void> => {
         it('Should write log metrics', async (): Promise<void> => {
