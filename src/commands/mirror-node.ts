@@ -505,8 +505,9 @@ export class MirrorNodeCommand extends BaseCommand {
         .ingressClasses()
         .list();
       for (const ingressClass of existingIngressClasses) {
-        if (ingressClass.name === 'mirror-ingress-class') {
-          this.logger.showUser('mirror-ingress-class already found, skipping');
+        this.logger.debug(`Found existing IngressClass [${ingressClass.name}]`);
+        if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
+          this.logger.showUser(`${constants.MIRROR_INGRESS_CLASS_NAME} already found, skipping`);
           return;
         }
       }

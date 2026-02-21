@@ -2,36 +2,35 @@
 
 import fs from 'node:fs';
 import * as helpers from '../helpers.js';
-import * as constants from '../constants.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
 import * as semver from 'semver';
-import {OS_WIN32, OS_WINDOWS} from '../constants.js';
 import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
+import path from 'node:path';
 
 /**
  * Base class for dependency managers that download and manage CLI tools
  * Common functionality for downloading, checking versions, and managing executables
  */
 export abstract class BaseDependencyManager extends ShellRunner {
-  protected readonly osPlatform: string;
   protected readonly osArch: string;
   protected localExecutablePath: string;
   protected globalExecutablePath: string = '';
   protected readonly artifactName: string;
   protected readonly downloadURL: string;
   protected readonly checksumURL: string;
+  protected readonly executableName: string;
 
   protected constructor(
     protected readonly downloader: PackageDownloader,
     protected readonly installationDirectory: string,
-    osPlatform: NodeJS.Platform,
     osArch: string,
     protected readonly requiredVersion: string,
-    protected readonly executableName: string,
+    dependencyName: string,
     protected readonly downloadBaseUrl: string,
   ) {
     super();
@@ -40,14 +39,12 @@ export abstract class BaseDependencyManager extends ShellRunner {
       throw new MissingArgumentError('installation directory is required');
     }
 
-    // Node.js uses 'win32' for windows but many tools use 'windows'
-    this.osPlatform = osPlatform === OS_WIN32 ? OS_WINDOWS : (osPlatform as string);
-
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'
     this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
 
     // Set the path to the local installation
-    this.localExecutablePath = Templates.installationPath(executableName, this.osPlatform, installationDirectory);
+    this.localExecutablePath = Templates.installationPath(dependencyName, installationDirectory);
+    this.executableName = OperatingSystem.isWin32() ? `${dependencyName}.exe` : dependencyName;
 
     // Set artifact name and URLs - these will be overridden by child classes
     this.artifactName = this.getArtifactName();
@@ -100,6 +97,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
     }
 
     // Fall back to local installation
+    this.logger.debug(`Using local installation of ${this.executableName} at ${this.localExecutablePath}`);
     return this.localExecutablePath;
   }
 
@@ -111,7 +109,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       if (this.globalExecutablePath) {
         return this.globalExecutablePath;
       }
-      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
+      const cmd: string = OperatingSystem.isWin32() ? 'where' : 'which';
       const path: string[] = await this.run(`${cmd} ${this.executableName}`);
       if (path.length === 0) {
         return false;
@@ -128,7 +126,13 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   public async installationMeetsRequirements(path: string): Promise<boolean> {
     const version: string = await this.getVersion(path);
-    return semver.gte(version, this.getRequiredVersion());
+    if (semver.gte(version, this.getRequiredVersion())) {
+      return true;
+    }
+    this.logger.info(
+      `Found version ${version} of ${this.executableName} at ${path}, which does not meet the required version ${this.getRequiredVersion()}`,
+    );
+    return false;
   }
 
   /**
@@ -246,7 +250,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
 
     try {
       for (const processedFile of processedFiles) {
-        const fileName: string = processedFile.split(/[\\/]/).pop();
+        const fileName: string = path.basename(processedFile);
         const localExecutable: string = PathEx.join(this.installationDirectory, fileName);
         fs.cpSync(processedFile, localExecutable);
         fs.chmodSync(localExecutable, 0o755);

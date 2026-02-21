@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {join} from 'node:path';
+import path from 'node:path';
 import {KindExecution} from './kind-execution.js';
 
 /**
@@ -55,10 +55,12 @@ export class KindExecutionBuilder {
    */
   public constructor() {
     const workingDirectoryString: string = process.env.PWD;
-    this._workingDirectory =
-      workingDirectoryString && workingDirectoryString.trim() !== ''
-        ? workingDirectoryString
-        : join(this.kindExecutable, '..');
+    if (this.kindExecutable) {
+      this._workingDirectory =
+        workingDirectoryString && workingDirectoryString.trim() !== ''
+          ? workingDirectoryString
+          : path.dirname(this.kindExecutable);
+    }
   }
 
   public executable(kindExecutable: string): KindExecutionBuilder {
@@ -67,7 +69,7 @@ export class KindExecutionBuilder {
     }
     this.kindExecutable = kindExecutable;
     if (!this._workingDirectory) {
-      this._workingDirectory = join(this.kindExecutable, '..');
+      this._workingDirectory = path.dirname(this.kindExecutable);
     }
     return this;
   }
@@ -194,7 +196,7 @@ export class KindExecutionBuilder {
    * @returns the command array
    */
   private buildCommand(): string[] {
-    const command: string[] = [this.kindExecutable, ...this._subcommands, ...this._flags];
+    const command: string[] = [`"${this.kindExecutable}"`, ...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
       command.push(`--${key}`, value);
