@@ -50,7 +50,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
 
 export const UPGRADE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeVersion],
-  optional: COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
 export const UPGRADE_PREPARE_FLAGS: CommandFlags = {

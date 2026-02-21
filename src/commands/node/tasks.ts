@@ -45,6 +45,7 @@ import {execSync} from 'node:child_process';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   entityId,
   extractContextFromConsensusNodes,
   prepareEndpoints,
@@ -55,6 +56,7 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
+import * as versions from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -1251,6 +1253,7 @@ export class NodeCommandTasks {
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          this.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await container.execContainer([
             'unzip',
             '-o',
@@ -1704,15 +1707,18 @@ export class NodeCommandTasks {
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const k8: K8 = this.k8Factory.getK8(context);
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer([
-                  'bash',
-                  '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
-                ]);
+              const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+              await (constants.ENABLE_S6_IMAGE
+                ? container.execContainer([
+                    'bash',
+                    '-c',
+                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
+                  ])
+                : container.execContainer([
+                    'bash',
+                    '-c',
+                    'systemctl stop network-node || true && systemctl enable --now network-node',
+                  ]));
             },
           });
         }
@@ -1779,7 +1785,7 @@ export class NodeCommandTasks {
   public checkAllNodesAreActive(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are ACTIVE',
-      task: (context_, task) => {
+      task: async (context_, task) => {
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };
@@ -1958,12 +1964,19 @@ export class NodeCommandTasks {
 
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
-              task: async (): Promise<string> =>
-                await this.k8Factory
-                  .getK8(context)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
+              task: async () => {
+                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+
+                if (constants.ENABLE_S6_IMAGE) {
+                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
+
+                  // Wait for graceful shutdown
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                } else {
+                  // systemd stop (legacy)
+                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
+                }
+              },
             });
           }
         }
@@ -2914,6 +2927,16 @@ export class NodeCommandTasks {
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+
+      if (constants.ENABLE_S6_IMAGE) {
+        valuesArgumentMap[clusterReference] = addRootImageValues(
+          valuesArgumentMap[clusterReference],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+      }
     }
   }
 
@@ -2949,6 +2972,16 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
+      if (constants.ENABLE_S6_IMAGE) {
+        valuesArgumentMap[node.cluster] = addRootImageValues(
+          valuesArgumentMap[node.cluster],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+      }
     }
 
     // Add new node
@@ -2957,6 +2990,16 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
+
+    if (constants.ENABLE_S6_IMAGE) {
+      valuesArgumentMap[clusterReference] = addRootImageValues(
+        valuesArgumentMap[clusterReference],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
+    }
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3008,6 +3051,16 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
+        if (constants.ENABLE_S6_IMAGE) {
+          valuesArgumentMap[clusterReference] = addRootImageValues(
+            valuesArgumentMap[clusterReference],
+            `hedera.nodes[${index}]`,
+            constants.S6_NODE_IMAGE_REGISTRY,
+            constants.S6_NODE_IMAGE_REPOSITORY,
+            versions.S6_NODE_IMAGE_VERSION,
+          );
+        }
 
         index++;
       }
