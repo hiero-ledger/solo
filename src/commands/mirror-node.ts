@@ -41,7 +41,7 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -1424,7 +1424,7 @@ export class MirrorNodeCommand extends BaseCommand {
         {
           title: 'Cleanup mirror ingress controller RBAC',
           task: async (context_): Promise<void> => {
-            const rbac = this.k8Factory.getK8(context_.config.clusterContext).rbac();
+            const rbac: Rbacs = this.k8Factory.getK8(context_.config.clusterContext).rbac();
             if (await rbac.clusterRoleBindingExists(constants.MIRROR_INGRESS_CONTROLLER)) {
               await rbac.deleteClusterRoleBinding(constants.MIRROR_INGRESS_CONTROLLER);
             }
