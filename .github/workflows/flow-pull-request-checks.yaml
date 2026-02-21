@@ -28,11 +28,6 @@ on:
         type: boolean
         required: false
         default: true
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: false
   pull_request:
     types:
       - opened
@@ -127,7 +122,7 @@ jobs:
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
       install-dependencies: ${{ matrix.e2e-test-type.install-dependencies }}
       runner: ${{ matrix.e2e-test-type.runner }}
-      enable_s6_image: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.enable_s6_image == 'true') || false }}
+      enable_s6_image: ${{ matrix.e2e-test-type.enable_s6_image }}
 
   codecov:
     name: CodeCov
