@@ -471,7 +471,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               await this.remoteConfig.loadAndValidate(argv);
               const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
-              const accountsToCreate = [
+              const accountsToCreate: PredefinedAccount[] = [
                 ...predefinedEcdsaAccounts,
                 ...predefinedEcdsaAccountsWithAlias,
                 ...predefinedEd25519Accounts,
@@ -485,7 +485,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               for (const [index, account] of accountsToCreate.entries()) {
                 // inject index to avoid closure issues
-                ((index: number, account: PredefinedAccount) => {
+                ((index: number, account: PredefinedAccount): void => {
                   subTasks.push({
                     title: `Creating Account ${index}`,
                     task: async (
@@ -494,7 +494,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     ): Promise<void> => {
                       await helpers.sleep(Duration.ofMillis(100 * index));
 
-                      const createdAccount = await this.accountManager.createNewAccount(
+                      const createdAccount: {
+                        accountId: string;
+                        privateKey: string;
+                        publicKey: string;
+                        balance: number;
+                        accountAlias?: string;
+                      } = await this.accountManager.createNewAccount(
                         context_.config.namespace,
                         account.privateKey,
                         account.balance.to(HbarUnit.Hbar).toNumber(),
@@ -729,7 +735,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         createDirectoryIfNotExists(outputFile);
 
         // Format account data in the same way as it appears in the console output
-        const formattedCreatedAccounts = createdAccounts.map(account => {
+        const formattedCreatedAccounts: {
+          accountId: string;
+          privateKey: string;
+          publicKey: string;
+          balance: string;
+          group: string;
+          publicAddress?: string;
+        }[] = createdAccounts.map(account => {
           const formattedAccount = {
             accountId: account.accountId.toString(),
             privateKey: `0x${account.data.privateKey.toStringRaw()}`,
@@ -747,12 +760,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         });
 
         // Format system accounts data
-        const formattedSystemAccounts = systemAccounts.map(account => ({
-          name: account.name,
-          accountId: account.accountId.toString(),
-          publicKey: account.publicKey.toString(),
-          privateKey: account.privateKey,
-        }));
+        const formattedSystemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[] =
+          systemAccounts.map(account => ({
+            name: account.name,
+            accountId: account.accountId.toString(),
+            publicKey: account.publicKey.toString(),
+            privateKey: account.privateKey,
+          }));
 
         // Create the structured output with both systemAccounts and createdAccounts
         const outputData = {
@@ -794,7 +808,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     let config: OneShotSingleDestroyConfigClass;
     let remoteConfigLoaded: boolean = false;
 
-    const taskArray = [
+    const taskArray: any[] = [
       {
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
@@ -824,13 +838,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             if (deployments.length > 1) {
-              const selectedDeployment = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+              const selectedDeployment: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
                 message: 'Select deployment to destroy',
-                choices: deployments.map(deployment => {
-                  const clusterNames = (deployment.clusters ?? [])
-                    .map(cluster => cluster?.toString())
-                    .filter(Boolean)
-                    .join(', ');
+                choices: deployments.map((deployment: any) => {
+                  const clusterNames: string[] = (deployment.clusters ?? [])
+                    .map((cluster: any) => cluster?.toString())
+                    .filter(Boolean);
                   return {
                     name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames || 'unknown'})`,
                     value: deployment.name,
@@ -844,17 +857,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               config.deployment = selectedDeployment;
             } else {
-              config.deployment = deployments.get(0).name;
+              const selectedDeployment: any = deployments.find(
+                (deployment: any) => deployment.name === deployments[0].name,
+              );
+              config.deployment = selectedDeployment.name;
             }
 
             this.configManager.setFlag(flags.deployment, config.deployment);
           }
 
-          const selectedDeployment = this.localConfig.configuration.deployments.find(
-            deployment => deployment.name === config.deployment,
+          const selectedDeployment: any = this.localConfig.configuration.deployments.find(
+            (deployment: any) => deployment.name === config.deployment,
           );
           if (selectedDeployment?.clusters?.length) {
-            const firstCluster = selectedDeployment.clusters.find(cluster => cluster !== null && cluster !== undefined);
+            const firstCluster: any = selectedDeployment.clusters?.find(
+              (cluster: any) => cluster !== null && cluster !== undefined,
+            );
             if (firstCluster) {
               config.clusterRef ??= firstCluster.toString();
             }
@@ -873,7 +891,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         task: async (
           context_: OneShotSingleDeployContext,
           task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): Promise<Listr<OneShotSingleDeployContext>> => {
+        ): Promise<Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue>> => {
           const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
             invokeSoloCommand(
               `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
