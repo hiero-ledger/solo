@@ -21,9 +21,10 @@ import {
   type NodeKeyObject,
   type PrivateKeyAndCertificateObject,
 } from '../../../src/types/index.js';
+import {NodeUpdateTest} from './tests/node-update-test.js';
+import {main} from '../../../src/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {PrivateKey, AccountCreateTransaction, Hbar, HbarUnit, AccountId} from '@hiero-ledger/sdk';
 
 export function testSeparateNodeUpdate(
@@ -43,8 +44,7 @@ export function testSeparateNodeUpdate(
   );
 
   const {
-    opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
-    cmd: {nodeCmd},
+    opts: {k8Factory, logger, remoteConfig, accountManager, keyManager},
   } = bootstrapResp;
 
   describe('Node update via separated commands', async (): Promise<void> => {
@@ -121,35 +121,39 @@ export function testSeparateNodeUpdate(
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
 
       const temporaryDirectory2: string = 'contextDir';
-      const argvPrepare: Argv = argv.clone();
-      argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
 
-      const argvExecute: Argv = argv.clone();
-      argvExecute.setArg(flags.inputDir, temporaryDirectory2);
+      await main(
+        NodeUpdateTest.soloNodeUpdatePrepareArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          argv.getArg<string>(flags.cacheDir),
+          {
+            nodeAlias: updateNodeId,
+            newAdminKey: argv.getArg<string>(flags.newAdminKey),
+            newAccountNumber: argv.getArg<string>(flags.newAccountNumber),
+            tlsPublicKey: argv.getArg<string>(flags.tlsPublicKey),
+            tlsPrivateKey: argv.getArg<string>(flags.tlsPrivateKey),
+            gossipPublicKey: argv.getArg<string>(flags.gossipPublicKey),
+            gossipPrivateKey: argv.getArg<string>(flags.gossipPrivateKey),
+          },
+        ),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvPrepare,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updatePrepare(argv),
-      });
+      await main(
+        NodeUpdateTest.soloNodeUpdateSubmitArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          argv.getArg<string>(flags.cacheDir),
+        ),
+      );
 
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateSubmitTransactions(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argvExecute,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.DEV_NODE_UPDATE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateExecute(argv),
-      });
+      await main(
+        NodeUpdateTest.soloNodeUpdateExecuteArgv(
+          argv.getArg<string>(flags.deployment),
+          temporaryDirectory2,
+          argv.getArg<string>(flags.cacheDir),
+        ),
+      );
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
