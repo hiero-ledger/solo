@@ -33,7 +33,6 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.localBuildPath,
   flags.force,
   flags.upgradeZipFile,
-  flags.s6,
 ];
 
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
@@ -52,7 +51,6 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.grpcEndpoints,
   flags.domainNames,
   flags.releaseTag,
-  flags.s6,
 ];
 
 export const UPGRADE_FLAGS: CommandFlags = {
@@ -127,7 +125,6 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.chartDirectory,
   flags.domainNames,
   flags.releaseTag,
-  flags.s6,
 ];
 
 const COMMON_ADD_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
@@ -156,7 +153,6 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.generateGossipKeys,
   flags.generateTlsKeys,
   flags.releaseTag,
-  flags.s6,
   flags.blockNodeMapping,
   flags.externalBlockNodeMapping,
 ];
@@ -222,7 +218,6 @@ export const REFRESH_FLAGS: CommandFlags = {
     flags.releaseTag,
     flags.cacheDir,
     flags.domainNames,
-    flags.s6,
   ],
 };
 
@@ -242,12 +237,12 @@ export const KEYS_FLAGS: CommandFlags = {
 
 export const STOP_FLAGS: CommandFlags = {
   required: [flags.deployment],
-  optional: [flags.quiet, flags.nodeAliasesUnparsed, flags.s6],
+  optional: [flags.quiet, flags.nodeAliasesUnparsed],
 };
 
 export const FREEZE_FLAGS: CommandFlags = {
   required: [flags.deployment],
-  optional: [flags.quiet, flags.s6],
+  optional: [flags.quiet],
 };
 
 export const START_FLAGS: CommandFlags = {
@@ -260,13 +255,12 @@ export const START_FLAGS: CommandFlags = {
     flags.stateFile,
     flags.stakeAmounts,
     flags.forcePortForward,
-    flags.s6,
   ],
 };
 
 export const RESTART_FLAGS: CommandFlags = {
   required: [flags.deployment],
-  optional: [flags.quiet, flags.s6],
+  optional: [flags.quiet],
 };
 
 export const SETUP_FLAGS: CommandFlags = {

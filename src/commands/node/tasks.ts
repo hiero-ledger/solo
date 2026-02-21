@@ -1707,9 +1707,8 @@ export class NodeCommandTasks {
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const k8: K8 = this.k8Factory.getK8(context);
               const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-              await (this.configManager.getFlag<boolean>(flags.s6)
+              await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
                     'bash',
                     '-c',
@@ -1968,7 +1967,7 @@ export class NodeCommandTasks {
               task: async () => {
                 const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                if (this.configManager.getFlag<boolean>(flags.s6)) {
+                if (constants.ENABLE_S6_IMAGE) {
                   await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
 
                   // Wait for graceful shutdown
@@ -2929,7 +2928,7 @@ export class NodeCommandTasks {
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
-      if (this.configManager.getFlag<boolean>(flags.s6)) {
+      if (constants.ENABLE_S6_IMAGE) {
         valuesArgumentMap[clusterReference] = addRootImageValues(
           valuesArgumentMap[clusterReference],
           `hedera.nodes[${index}]`,
@@ -2974,7 +2973,7 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
-      if (this.configManager.getFlag<boolean>(flags.s6)) {
+      if (constants.ENABLE_S6_IMAGE) {
         valuesArgumentMap[node.cluster] = addRootImageValues(
           valuesArgumentMap[node.cluster],
           `hedera.nodes[${index}]`,
@@ -2992,7 +2991,7 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
 
-    if (this.configManager.getFlag<boolean>(flags.s6)) {
+    if (constants.ENABLE_S6_IMAGE) {
       valuesArgumentMap[clusterReference] = addRootImageValues(
         valuesArgumentMap[clusterReference],
         `hedera.nodes[${index}]`,
@@ -3053,7 +3052,7 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
-        if (this.configManager.getFlag<boolean>(flags.s6)) {
+        if (constants.ENABLE_S6_IMAGE) {
           valuesArgumentMap[clusterReference] = addRootImageValues(
             valuesArgumentMap[clusterReference],
             `hedera.nodes[${index}]`,
