@@ -2,7 +2,7 @@
 title: "Solo User Guide"
 weight: 20
 description: >
-  Learn how to set up your first Hiero test network using Solo. This step-by-step guide covers installation, deployment, and basic network operations.
+  Learn how to set up your first Hiero test network using Solo. This user guide covers installation, deployment, and basic network operations.
 type: docs
 ---
 

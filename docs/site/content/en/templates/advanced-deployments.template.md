@@ -10,7 +10,7 @@ This guide covers advanced deployment scenarios for users who need more control 
 
 ## Prerequisites
 
-Before using advanced deployment options, ensure you have completed the [Solo User Guide](step-by-step-guide.md) and have:
+Before using advanced deployment options, ensure you have completed the [Solo User Guide](solo-user-guide.md) and have:
 - Solo installed (`solo --version`)
 - Docker running with adequate resources
 - kubectl configured
