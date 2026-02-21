@@ -18,7 +18,7 @@ import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {DeploymentTest} from './tests/deployment-test.js';
-import {NodeTest} from './tests/node-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
@@ -98,13 +98,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
 
-      NodeTest.keys(options);
+      ConsensusNodeTest.keys(options);
       if (blockNodeEnabled) {
         BlockNodeTest.add(options);
       }
       NetworkTest.deploy(options);
-      NodeTest.setup(options);
-      NodeTest.start(options);
+      ConsensusNodeTest.setup(options);
+      ConsensusNodeTest.start(options);
 
       // Mirror node, explorer and relay node are deployed to the second cluster
       MirrorNodeTest.installPostgres(options);
