@@ -71,7 +71,9 @@ export class HelmExecutionBuilder {
       this.helmExecutable = Templates.installationPath(constants.HELM, this.osPlatform);
     } catch (error) {
       this.logger?.error('Failed to find helm executable:', error);
-      throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');
+      throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.', {
+        cause: error,
+      });
     }
 
     const workingDirectoryString: string = process.env.PWD;

@@ -187,13 +187,13 @@ export class CertificateManager {
         throw new SoloError(`Failed to parse input ${input} of type ${type} on ${line}, index ${index}`);
       }
 
-      let fileExists = false;
+      let _fileExists = false;
       try {
-        fileExists = fs.statSync(filePath).isFile();
+        _fileExists = fs.statSync(filePath).isFile();
       } catch {
-        fileExists = false;
+        _fileExists = false;
       }
-      if (!fileExists) {
+      if (!_fileExists) {
         throw new SoloError(`File doesn't exist on path ${input} input of type ${type} on ${line}, index ${index}`);
       }
 

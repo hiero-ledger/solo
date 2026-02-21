@@ -2520,9 +2520,9 @@ export class NodeCommandTasks {
       title: 'Prepare gossip endpoints',
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
-        let endpoints: string[] = [];
+        let _endpoints: string[] = [];
         if (config.gossipEndpoints) {
-          endpoints = splitFlagInput(config.gossipEndpoints);
+          _endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
           const context: string = helpers.extractContextFromConsensusNodes(
             config.consensusNodes[0].name,
@@ -2548,7 +2548,7 @@ export class NodeCommandTasks {
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
           );
 
-          endpoints = [
+          _endpoints = [
             `${helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
             `${externalEndpointAddress.formattedAddress()}`,
           ];
@@ -2556,7 +2556,7 @@ export class NodeCommandTasks {
 
         context_.gossipEndpoints = prepareEndpoints(
           config.endpointType,
-          endpoints,
+          _endpoints,
           constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
         );
       },
@@ -2583,23 +2583,23 @@ export class NodeCommandTasks {
       title: 'Prepare grpc service endpoints',
       task: (context_): void => {
         const config: any = context_.config;
-        let endpoints: any[] = [];
+        let _endpoints: any[] = [];
 
         if (config.grpcEndpoints) {
-          endpoints = splitFlagInput(config.grpcEndpoints);
+          _endpoints = splitFlagInput(config.grpcEndpoints);
         } else {
           if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
             throw new SoloError(`--grpc-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
           }
 
-          endpoints = [
+          _endpoints = [
             `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT}`,
           ];
         }
 
         context_.grpcServiceEndpoints = prepareEndpoints(
           config.endpointType,
-          endpoints,
+          _endpoints,
           constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
         );
       },

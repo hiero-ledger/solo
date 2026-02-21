@@ -32,7 +32,7 @@ export class HelmMetalLoadBalancer {
         true,
       );
     } catch (error) {
-      throw new Error(`${testName}: failed to install metallb: ${(error as Error).message}`);
+      throw new Error(`${testName}: failed to install metallb: ${(error as Error).message}`, {cause: error});
     }
   }
 }

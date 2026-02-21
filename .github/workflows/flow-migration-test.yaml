@@ -97,7 +97,7 @@ jobs:
           sudo mv /tmp/yq /usr/local/bin/yq
           yq --version
           
-          npm install
+          npm ci --legacy-peer-deps
           task build
           .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} || RC=$? || true
           if [[ "$RC" != "0" ]]; then

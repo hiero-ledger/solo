@@ -99,7 +99,7 @@ jobs:
           max_attempts: 10
           timeout_minutes: 10
           command: |
-            npm ci
+            npm ci --legacy-peer-deps
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -204,7 +204,7 @@ jobs:
       - name: Build and Start Metrics Plotter tool
         run: |
             cd ./scripts/metrics-plotter
-            npm ci
+            npm ci --legacy-peer-deps
             npm run build
             mkdir -p ~/.solo/metrics
             mkdir src/data

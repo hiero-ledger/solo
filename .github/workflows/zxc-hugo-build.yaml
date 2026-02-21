@@ -147,6 +147,7 @@ jobs:
         id: hugo-build
         env:
           GH_TOKEN: ${{ secrets.github-token }} # We want this to be null unless we want to pull the existing release artifacts
+          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
           set -eo pipefail
           cd docs/site

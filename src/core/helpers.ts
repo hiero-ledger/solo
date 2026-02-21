@@ -298,14 +298,14 @@ export function prepareEndpoints(endpointType: string, endpoints: string[], defa
   for (const endpoint of endpoints) {
     const parts: string[] = endpoint.split(':');
 
-    let url: string = '';
-    let port: number | string = defaultPort;
+    let _url: string = '';
+    let _port: number | string = defaultPort;
 
     if (parts.length === 2) {
-      url = parts[0].trim();
-      port = +parts[1].trim();
+      _url = parts[0].trim();
+      _port = +parts[1].trim();
     } else if (parts.length === 1) {
-      url = parts[0];
+      _url = parts[0];
     } else {
       throw new SoloError(`incorrect endpoint format. expected url:port, found ${endpoint}`);
     }
@@ -313,15 +313,15 @@ export function prepareEndpoints(endpointType: string, endpoints: string[], defa
     if (endpointType.toUpperCase() === constants.ENDPOINT_TYPE_IP) {
       returnValue.push(
         new ServiceEndpoint({
-          port: +port,
-          ipAddressV4: parseIpAddressToUint8Array(url),
+          port: +_port,
+          ipAddressV4: parseIpAddressToUint8Array(_url),
         }),
       );
     } else {
       returnValue.push(
         new ServiceEndpoint({
-          port: +port,
-          domainName: url,
+          port: +_port,
+          domainName: _url,
         }),
       );
     }

@@ -235,7 +235,7 @@ jobs:
         run: |
           set -eo pipefail
           npm install -g npm@11.7.0
-          npm ci
+          npm ci --legacy-peer-deps
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
@@ -274,7 +274,7 @@ jobs:
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
 
       - name: Install Dependencies
-        run: jf npm ci
+        run: jf npm ci --legacy-peer-deps
 
       - name: Set Publish Data
         id: set-publish-data
