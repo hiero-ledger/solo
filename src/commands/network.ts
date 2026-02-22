@@ -1311,7 +1311,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
-          title: 'Copy JFR file to nodes',
+          title: 'Copy JFR config file to nodes',
           skip: ({config: {javaFlightRecorderConfiguration}}): boolean => javaFlightRecorderConfiguration.length === 0,
           task: async (
             {config: {consensusNodes, javaFlightRecorderConfiguration}},
@@ -1320,7 +1320,7 @@ export class NetworkCommand extends BaseCommand {
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
             for (const consensusNode of consensusNodes) {
               subTasks.push({
-                title: `Copy JFR file to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.context)}`,
+                title: `Copy config JFR file to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.context)}`,
                 task: async () => {
                   try {
                     const container: Container = await new K8Helper(
