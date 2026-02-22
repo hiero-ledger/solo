@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  V1Pod,
-  type KubeConfig,
   type CoreV1Api,
-  V1ObjectMeta,
+  type KubeConfig,
   V1Container,
-  V1Probe,
   V1ExecAction,
-  V1PodSpec,
+  V1ObjectMeta,
+  V1Pod,
   type V1PodList,
+  V1PodSpec,
+  V1Probe,
 } from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
@@ -26,6 +26,9 @@ import {container} from 'tsyringe-neo';
 import {type ContainerName} from '../../../resources/container/container-name.js';
 import {PodName} from '../../../resources/pod/pod-name.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
+import {ResourceType} from '../../../resources/resource-type.js';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -237,7 +240,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
       }
     } catch (error) {
-      throw new SoloError('Error listing pods for all namespaces', error);
+      KubeApiResponse.check(error, ResourceOperation.LIST, ResourceType.POD, undefined, '');
     }
 
     return pods;
