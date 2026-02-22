@@ -2,10 +2,12 @@
 
 import {type Rbacs} from '../../../resources/rbac/rbacs.js';
 import {type ClusterRole} from '../../../resources/rbac/cluster-role.js';
-import {type V1ClusterRole, type RbacAuthorizationV1Api, type V1Status} from '@kubernetes/client-node';
+import {type RbacAuthorizationV1Api, type V1Status} from '@kubernetes/client-node';
 import {K8ClientClusterRole} from './k8-client-cluster-role.js';
-import {ResourceCreateError, ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
+import {ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
 
 export class K8ClientRbacs implements Rbacs {
   public constructor(private readonly k8sRbacApi: RbacAuthorizationV1Api) {}
@@ -20,29 +22,22 @@ export class K8ClientRbacs implements Rbacs {
     labels?: Record<string, string>,
   ): Promise<void> {
     const clusterRole: ClusterRole = new K8ClientClusterRole(name, rules, labels);
-    let result: V1ClusterRole;
     try {
-      result = await this.k8sRbacApi.createClusterRole({body: clusterRole.toV1ClusterRole()});
+      await this.k8sRbacApi.createClusterRole({body: clusterRole.toV1ClusterRole()});
     } catch (error) {
-      throw new ResourceCreateError(ResourceType.RBAC, undefined, name, error);
+      KubeApiResponse.check(error.response, ResourceOperation.CREATE, ResourceType.RBAC, undefined, name);
     }
-
-    // KubeApiResponse.check(result.response, ResourceOperation.CREATE, ResourceType.RBAC, undefined, name);
   }
 
   public async clusterRoleExists(name: string): Promise<boolean> {
-    let result: V1ClusterRole;
     try {
-      result = await this.k8sRbacApi.readClusterRole({name});
-    } catch {
-      return false;
+      await this.k8sRbacApi.readClusterRole({name});
+    } catch (error) {
+      if (KubeApiResponse.isNotFound(error)) {
+        return false;
+      }
+      KubeApiResponse.check(error, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
     }
-
-    // try {
-    //   KubeApiResponse.check(result.response, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
-    // } catch {
-    //   return false;
-    // }
 
     return true;
   }
