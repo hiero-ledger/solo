@@ -49,7 +49,7 @@ export class K8ClientIngresses implements Ingresses {
         }
       }
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, name);
+      KubeApiResponse.throwError(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, name);
     }
 
     for (const ingressName of ingresses) {
@@ -63,7 +63,7 @@ export class K8ClientIngresses implements Ingresses {
 
         this.logger.info(`Patched Ingress ${ingressName} in namespace ${namespace}, patch: ${JSON.stringify(patch)}`);
       } catch (error) {
-        KubeApiResponse.check(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, ingressName);
+        KubeApiResponse.throwError(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, ingressName);
       }
 
       if (!result) {

@@ -25,7 +25,7 @@ export class KubeApiResponse {
    * @param namespace - the namespace of the resource being checked.
    * @param name - the name of the resource being checked.
    */
-  public static check(
+  public static throwError(
     errorResponse: ApiError,
     resourceOperation: ResourceOperation,
     resourceType: ResourceType,

@@ -65,7 +65,7 @@ export class K8ClientSecrets implements Secrets {
         data: result.data as Record<string, string>,
       };
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
       return undefined;
     }
   }

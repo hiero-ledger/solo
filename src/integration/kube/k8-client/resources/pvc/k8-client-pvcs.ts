@@ -29,7 +29,7 @@ export class K8ClientPvcs implements Pvcs {
         namespace: pvcReference.namespace.toString(),
       });
     } catch (error) {
-      KubeApiResponse.check(
+      KubeApiResponse.throwError(
         error,
         ResourceOperation.DELETE,
         ResourceType.PERSISTENT_VOLUME_CLAIM,
@@ -52,7 +52,7 @@ export class K8ClientPvcs implements Pvcs {
         timeoutSeconds: Duration.ofMinutes(5).toMillis(),
       });
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.LIST, ResourceType.PERSISTENT_VOLUME_CLAIM, namespace, '');
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.PERSISTENT_VOLUME_CLAIM, namespace, '');
     }
 
     for (const item of resp.items) {
@@ -84,7 +84,7 @@ export class K8ClientPvcs implements Pvcs {
         body: v1Pvc,
       });
     } catch (error) {
-      KubeApiResponse.check(
+      KubeApiResponse.throwError(
         error,
         ResourceOperation.CREATE,
         ResourceType.PERSISTENT_VOLUME_CLAIM,

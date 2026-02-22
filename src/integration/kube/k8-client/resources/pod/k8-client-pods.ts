@@ -240,7 +240,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
       }
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.LIST, ResourceType.POD, undefined, '');
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.POD, undefined, '');
     }
 
     return pods;
@@ -285,7 +285,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       if (error instanceof SoloError) {
         throw error;
       }
-      KubeApiResponse.check(
+      KubeApiResponse.throwError(
         error,
         ResourceOperation.CREATE,
         ResourceType.POD,

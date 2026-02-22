@@ -25,7 +25,7 @@ export class K8ClientRbacs implements Rbacs {
     try {
       await this.k8sRbacApi.createClusterRole({body: clusterRole.toV1ClusterRole()});
     } catch (error) {
-      KubeApiResponse.check(error.response, ResourceOperation.CREATE, ResourceType.RBAC, undefined, name);
+      KubeApiResponse.throwError(error.response, ResourceOperation.CREATE, ResourceType.RBAC, undefined, name);
     }
   }
 
@@ -36,7 +36,7 @@ export class K8ClientRbacs implements Rbacs {
       if (KubeApiResponse.isNotFound(error)) {
         return false;
       }
-      KubeApiResponse.check(error, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
     }
 
     return true;

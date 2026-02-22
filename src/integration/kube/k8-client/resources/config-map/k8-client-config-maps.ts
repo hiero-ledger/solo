@@ -63,7 +63,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
       const body: V1ConfigMap = await this.kubeClient.readNamespacedConfigMap({name, namespace: namespace?.name});
       return K8ClientConfigMap.fromV1ConfigMap(body);
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
     }
     throw new ResourceNotFoundError(ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
   }
@@ -113,7 +113,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
         : this.kubeClient.createNamespacedConfigMap({namespace: namespace.name, body: configMap}));
       return true;
     } catch (error) {
-      KubeApiResponse.check(
+      KubeApiResponse.throwError(
         error,
         replace ? ResourceOperation.REPLACE : ResourceOperation.CREATE,
         ResourceType.CONFIG_MAP,
@@ -151,7 +151,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
         labelSelector,
       });
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.LIST, ResourceType.CONFIG_MAP, namespace, '');
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.CONFIG_MAP, namespace, '');
     }
 
     return results?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
@@ -164,7 +164,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
     try {
       results = await this.kubeClient.listConfigMapForAllNamespaces({labelSelector});
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.LIST, ResourceType.CONFIG_MAP, undefined, '');
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.CONFIG_MAP, undefined, '');
     }
 
     return results?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
@@ -191,7 +191,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
       );
       this.logger.info(`Patched ConfigMap ${name} in namespace ${namespace}`);
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.UPDATE, ResourceType.CONFIG_MAP, namespace, name);
+      KubeApiResponse.throwError(error, ResourceOperation.UPDATE, ResourceType.CONFIG_MAP, namespace, name);
     }
 
     if (result) {

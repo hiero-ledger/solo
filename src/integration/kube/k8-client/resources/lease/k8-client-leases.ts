@@ -53,7 +53,7 @@ export class K8ClientLeases implements Leases {
     try {
       result = await this.coordinationApiClient.createNamespacedLease({namespace: namespace.name, body: lease});
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.CREATE, ResourceType.LEASE, namespace, leaseName);
+      KubeApiResponse.throwError(error, ResourceOperation.CREATE, ResourceType.LEASE, namespace, leaseName);
     }
 
     return K8ClientLease.fromV1Lease(result);
@@ -64,7 +64,7 @@ export class K8ClientLeases implements Leases {
     try {
       result = await this.coordinationApiClient.deleteNamespacedLease({name, namespace: namespace.name});
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.DELETE, ResourceType.LEASE, namespace, name);
+      KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.LEASE, namespace, name);
     }
 
     return result;
@@ -106,7 +106,7 @@ export class K8ClientLeases implements Leases {
         body: v1Lease,
       });
     } catch (error) {
-      KubeApiResponse.check(error, ResourceOperation.REPLACE, ResourceType.LEASE, namespace, leaseName);
+      KubeApiResponse.throwError(error, ResourceOperation.REPLACE, ResourceType.LEASE, namespace, leaseName);
     }
 
     return K8ClientLease.fromV1Lease(result);
@@ -126,7 +126,7 @@ export class K8ClientLeases implements Leases {
         body: v1Lease,
       });
     } catch (error) {
-      KubeApiResponse.check(
+      KubeApiResponse.throwError(
         error,
         ResourceOperation.REPLACE,
         ResourceType.LEASE,
