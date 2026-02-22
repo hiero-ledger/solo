@@ -40,7 +40,7 @@ export class K8ClientSecrets implements Secrets {
       await this.kubeClient.deleteNamespacedSecret({name, namespace: namespace.name});
     } catch (error) {
       if (KubeApiResponse.isNotFound(error)) {
-        return false;
+        return true;
       }
       KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.SECRET, namespace, name);
     }
