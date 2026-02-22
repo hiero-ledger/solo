@@ -274,6 +274,11 @@ export const SETUP_FLAGS: CommandFlags = {
   ],
 };
 
+export const COLLECT_JFR_FLAGS: CommandFlags = {
+  required: [flags.deployment, flags.nodeAlias],
+  optional: [flags.quiet, flags.devMode],
+};
+
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.devMode],

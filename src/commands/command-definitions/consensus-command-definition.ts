@@ -25,61 +25,64 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'consensus';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'consensus';
+  protected static override readonly DESCRIPTION: string =
     'Consensus Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NETWORK_SUBCOMMAND_NAME = 'network';
-  private static readonly NETWORK_SUBCOMMAND_DESCRIPTION =
+  public static readonly NETWORK_SUBCOMMAND_NAME: string = 'network';
+  private static readonly NETWORK_SUBCOMMAND_DESCRIPTION: string =
     'Ledger/network wide consensus operations such as freeze, upgrade, ' +
     'and deploy. Operates on the entire ledger and all consensus node instances.';
 
-  public static readonly NODE_SUBCOMMAND_NAME = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
+  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, or destroy consensus node instances. Operates on a single consensus node instance at a time.';
 
-  public static readonly STATE_SUBCOMMAND_NAME = 'state';
-  private static readonly STATE_SUBCOMMAND_DESCRIPTION =
+  public static readonly STATE_SUBCOMMAND_NAME: string = 'state';
+  private static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
     'List, download, and upload consensus node state backups to/from individual consensus node instances.';
 
-  public static readonly DEV_NODE_ADD_SUBCOMMAND_NAME = 'dev-node-add';
-  private static readonly DEV_NODE_ADD_SUBCOMMAND_DESCRIPTION = 'Dev operations for adding consensus nodes.';
+  public static readonly DEV_NODE_ADD_SUBCOMMAND_NAME: string = 'dev-node-add';
+  private static readonly DEV_NODE_ADD_SUBCOMMAND_DESCRIPTION: string = 'Dev operations for adding consensus nodes.';
 
-  public static readonly DEV_NODE_UPDATE_SUBCOMMAND_NAME = 'dev-node-update';
-  private static readonly DEV_NODE_UPDATE_SUBCOMMAND_DESCRIPTION = 'Dev operations for updating consensus nodes';
+  public static readonly DEV_NODE_UPDATE_SUBCOMMAND_NAME: string = 'dev-node-update';
+  private static readonly DEV_NODE_UPDATE_SUBCOMMAND_DESCRIPTION: string =
+    'Dev operations for updating consensus nodes';
 
-  public static readonly DEV_NODE_UPGRADE_SUBCOMMAND_NAME = 'dev-node-upgrade';
-  private static readonly DEV_NODE_UPGRADE_SUBCOMMAND_DESCRIPTION = 'Dev operations for upgrading consensus nodes';
+  public static readonly DEV_NODE_UPGRADE_SUBCOMMAND_NAME: string = 'dev-node-upgrade';
+  private static readonly DEV_NODE_UPGRADE_SUBCOMMAND_DESCRIPTION: string =
+    'Dev operations for upgrading consensus nodes';
 
-  public static readonly DEV_NODE_DELETE_SUBCOMMAND_NAME = 'dev-node-delete';
-  private static readonly DEV_NODE_DELETE_SUBCOMMAND_DESCRIPTION = 'Dev operations for delete consensus nodes';
+  public static readonly DEV_NODE_DELETE_SUBCOMMAND_NAME: string = 'dev-node-delete';
+  private static readonly DEV_NODE_DELETE_SUBCOMMAND_DESCRIPTION: string = 'Dev operations for delete consensus nodes';
 
-  public static readonly DEV_FREEZE_SUBCOMMAND_NAME = 'dev-freeze';
-  private static readonly DEV_FREEZE_SUBCOMMAND_DESCRIPTION = 'Dev operations for freezing consensus nodes';
+  public static readonly DEV_FREEZE_SUBCOMMAND_NAME: string = 'dev-freeze';
+  private static readonly DEV_FREEZE_SUBCOMMAND_DESCRIPTION: string = 'Dev operations for freezing consensus nodes';
 
-  public static readonly DEV_NODE_PREPARE = 'prepare';
-  public static readonly DEV_NODE_SUBMIT_TRANSACTION = 'submit-transactions';
-  public static readonly DEV_NODE_EXECUTE = 'execute';
+  public static readonly DEV_NODE_PREPARE: string = 'prepare';
+  public static readonly DEV_NODE_SUBMIT_TRANSACTION: string = 'submit-transactions';
+  public static readonly DEV_NODE_EXECUTE: string = 'execute';
 
-  public static readonly DEV_FREEZE_PREPARE_UPGRADE = 'prepare-upgrade';
-  public static readonly DEV_FREEZE_FREEZE_UPGRADE = 'freeze-upgrade';
+  public static readonly DEV_FREEZE_PREPARE_UPGRADE: string = 'prepare-upgrade';
+  public static readonly DEV_FREEZE_FREEZE_UPGRADE: string = 'freeze-upgrade';
 
-  public static readonly NODE_SETUP = 'setup';
-  public static readonly NODE_START = 'start';
-  public static readonly NODE_STOP = 'stop';
-  public static readonly NODE_RESTART = 'restart';
-  public static readonly NODE_REFRESH = 'refresh';
-  public static readonly NODE_LOGS = 'logs';
-  public static readonly NODE_STATES = 'states';
-  public static readonly NODE_ADD = 'add';
-  public static readonly NODE_UPDATE = 'update';
-  public static readonly NODE_DESTROY = 'destroy';
+  public static readonly NODE_SETUP: string = 'setup';
+  public static readonly NODE_START: string = 'start';
+  public static readonly NODE_STOP: string = 'stop';
+  public static readonly NODE_RESTART: string = 'restart';
+  public static readonly NODE_REFRESH: string = 'refresh';
+  public static readonly NODE_LOGS: string = 'logs';
+  public static readonly NODE_STATES: string = 'states';
+  public static readonly NODE_ADD: string = 'add';
+  public static readonly NODE_UPDATE: string = 'update';
+  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly COLLECT_JFR: string = 'collect-jfr';
 
-  public static readonly NETWORK_DEPLOY = 'deploy';
-  public static readonly NETWORK_DESTROY = 'destroy';
-  public static readonly NETWORK_UPGRADE = 'upgrade';
-  public static readonly NETWORK_FREEZE = 'freeze';
+  public static readonly NETWORK_DEPLOY: string = 'deploy';
+  public static readonly NETWORK_DESTROY: string = 'destroy';
+  public static readonly NETWORK_UPGRADE: string = 'upgrade';
+  public static readonly NETWORK_FREEZE: string = 'freeze';
 
   public static readonly STATE_DOWNLOAD = 'download';
 
@@ -229,6 +232,17 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.destroy,
                 NodeFlags.DESTROY_FLAGS,
                 [constants.HELM],
+              ),
+            )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.COLLECT_JFR,
+                'Collect Java Flight Recorder (JFR) files from a node for diagnostics and performance analysis. ' +
+                  'Requires the node to be running with Java Flight Recorder enabled.',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.collectJavaFlightRecorderLogs,
+                NodeFlags.COLLECT_JFR_FLAGS,
+                [constants.HELM, constants.KUBECTL],
               ),
             ),
         )

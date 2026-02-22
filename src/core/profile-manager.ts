@@ -350,6 +350,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<AnyObject> {
     if (!profile) {
       throw new MissingArgumentError('profile is required');
@@ -365,6 +366,24 @@ export class ProfileManager {
     );
 
     if (profile.consensus) {
+      if (
+        jfrFile !== '' &&
+        profile.consensus.root &&
+        profile.consensus.root.extraEnv &&
+        Array.isArray(profile.consensus.root.extraEnv)
+      ) {
+        const javaOption: AnyObject = profile.consensus.root.extraEnv.find(
+          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
+        );
+
+        if (javaOption) {
+          javaOption.value +=
+            ' -XX:StartFlightRecording=dumponexit=true,' +
+            `settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile},` +
+            `filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
+        }
+      }
+
       // set default for consensus pod
       this._setChartItems('defaults.root', profile.consensus.root, yamlRoot);
 
@@ -438,6 +457,7 @@ export class ProfileManager {
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
+   * @param jfrFile - the name of the custom JFR settings file to use for recording
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
@@ -446,6 +466,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<Record<ClusterReferenceName, string>> {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
@@ -469,6 +490,7 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
+        jfrFile,
       );
       this.resourcesForHaProxyPod(profile, yamlRoot);
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);
