@@ -51,7 +51,9 @@ export class K8ClientIngresses implements Ingresses {
         }
       }
     } catch (error) {
-      KubeApiResponse.throwError(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, name);
+      if (!KubeApiResponse.isNotFound(error)) {
+        KubeApiResponse.throwError(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, name);
+      }
     }
 
     for (const ingressName of ingresses) {
