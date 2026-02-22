@@ -3,12 +3,14 @@
 import {type Ingresses} from '../../../resources/ingress/ingresses.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
-import {type V1IngressList, type NetworkingV1Api, type V1Ingress} from '@kubernetes/client-node';
+import {type NetworkingV1Api, type V1Ingress, type V1IngressList} from '@kubernetes/client-node';
 import {container} from 'tsyringe-neo';
-import {ResourceReadError, ResourceUpdateError} from '../../../errors/resource-operation-errors.js';
+import {ResourceReadError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
 
 export class K8ClientIngresses implements Ingresses {
   private readonly logger: SoloLogger;
@@ -38,20 +40,17 @@ export class K8ClientIngresses implements Ingresses {
 
   public async update(namespace: NamespaceName, name: string, patch: object): Promise<void> {
     const ingresses: string[] = [];
-    // find the ingresses that match the specified name
-    await this.networkingApi
-      .listIngressForAllNamespaces()
-      .then((response): void => {
-        for (const ingress of response.items) {
-          const currentIngressName: string = ingress.metadata.name;
-          if (currentIngressName.includes(name)) {
-            ingresses.push(currentIngressName);
-          }
+    try {
+      const result: V1IngressList = await this.networkingApi.listIngressForAllNamespaces();
+      for (const ingress of result.items) {
+        const currentIngressName: string = ingress.metadata.name;
+        if (currentIngressName.includes(name)) {
+          ingresses.push(currentIngressName);
         }
-      })
-      .catch((error): never => {
-        throw new SoloError(`Error listing Ingresses: ${error}`);
-      });
+      }
+    } catch (error) {
+      KubeApiResponse.check(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, name);
+    }
 
     for (const ingressName of ingresses) {
       let result: V1Ingress;
@@ -64,7 +63,7 @@ export class K8ClientIngresses implements Ingresses {
 
         this.logger.info(`Patched Ingress ${ingressName} in namespace ${namespace}, patch: ${JSON.stringify(patch)}`);
       } catch (error) {
-        throw new ResourceUpdateError(ResourceType.INGRESS, namespace, ingressName, error);
+        KubeApiResponse.check(error, ResourceOperation.UPDATE, ResourceType.INGRESS, namespace, ingressName);
       }
 
       if (!result) {

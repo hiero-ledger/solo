@@ -4,17 +4,17 @@ import {type Secrets} from '../../../resources/secret/secrets.js';
 import {type CoreV1Api, V1ObjectMeta, V1Secret, type V1SecretList} from '@kubernetes/client-node';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type Optional} from '../../../../../types/index.js';
-import {KubeApiResponse} from '../../../kube-api-response.js';
 import {
   ResourceCreateError,
   ResourceNotFoundError,
   ResourceReplaceError,
 } from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
-import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type SecretType} from '../../../resources/secret/secret-type.js';
 import {type Secret} from '../../../resources/secret/secret.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
 
 export class K8ClientSecrets implements Secrets {
   public constructor(private readonly kubeClient: CoreV1Api) {}
@@ -55,17 +55,19 @@ export class K8ClientSecrets implements Secrets {
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<Secret> {
-    const {response, body} = await this.kubeClient
-      .readNamespacedSecret({name, namespace: namespace.name})
-      .catch((error): any => error);
-    KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
-    return {
-      name: body.metadata!.name as string,
-      labels: body.metadata!.labels as Record<string, string>,
-      namespace: body.metadata!.namespace as string,
-      type: body.type as string,
-      data: body.data as Record<string, string>,
-    };
+    try {
+      const result: V1Secret = await this.kubeClient.readNamespacedSecret({name, namespace: namespace.name});
+      return {
+        name: result.metadata!.name as string,
+        labels: result.metadata!.labels as Record<string, string>,
+        namespace: result.metadata!.namespace as string,
+        type: result.type as string,
+        data: result.data as Record<string, string>,
+      };
+    } catch (error) {
+      KubeApiResponse.check(error, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
+      return undefined;
+    }
   }
 
   public async list(namespace: NamespaceName, labels?: string[]): Promise<Array<Secret>> {

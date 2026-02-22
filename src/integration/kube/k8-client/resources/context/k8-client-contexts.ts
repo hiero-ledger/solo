@@ -34,15 +34,15 @@ export class K8ClientContexts implements Contexts {
     this.kubeConfig.setCurrentContext(context);
 
     const temporaryKubeClient: CoreV1Api = this.kubeConfig.makeApiClient(CoreV1Api);
-    return await temporaryKubeClient
-      .listNamespace()
-      .then((): boolean => {
+    try {
+      const result: any = await temporaryKubeClient.listNamespace();
+      if (result?.items) {
         this.kubeConfig.setCurrentContext(originalContextName);
         return true;
-      })
-      .catch((): boolean => {
-        this.kubeConfig.setCurrentContext(originalContextName);
-        return false;
-      });
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 }
