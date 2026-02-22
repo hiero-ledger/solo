@@ -31,6 +31,7 @@ import {patchInject} from '../../../core/dependency-injection/container-helper.j
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {AddRepoOptions} from '../model/add/add-repo-options.js';
 import {SoloError} from '../../../core/errors/solo-error.js';
+import { RepositoryUpdateRequest } from '../request/repository/repository-update-request.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -203,5 +204,9 @@ export class DefaultHelmClient implements HelmClient {
 
       throw new SoloError('GHCR stale Docker auth detected');
     }
+  }
+
+  public async updateRepositories(): Promise<void> {
+    await this.executeAsync(new RepositoryUpdateRequest());
   }
 }
