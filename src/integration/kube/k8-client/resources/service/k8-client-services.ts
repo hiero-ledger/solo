@@ -16,7 +16,9 @@ import {K8ClientService} from './k8-client-service.js';
 import {type ServiceSpec} from '../../../resources/service/service-spec.js';
 import {type ServiceStatus} from '../../../resources/service/service-status.js';
 import {type ServiceReference} from '../../../resources/service/service-reference.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
+import {ResourceType} from '../../../resources/resource-type.js';
 
 export class K8ClientServices extends K8ClientBase implements Services {
   public constructor(private readonly kubeClient: CoreV1Api) {
@@ -25,10 +27,15 @@ export class K8ClientServices extends K8ClientBase implements Services {
 
   public async list(namespace: NamespaceName, labels?: string[]): Promise<Service[]> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
-    const serviceList: V1ServiceList = await this.kubeClient.listNamespacedService({
-      namespace: namespace.name,
-      labelSelector,
-    });
+    let serviceList: V1ServiceList;
+    try {
+      serviceList = await this.kubeClient.listNamespacedService({
+        namespace: namespace.name,
+        labelSelector,
+      });
+    } catch (error) {
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.SERVICE, namespace, '');
+    }
     return serviceList.items.map((svc: V1Service): Service => {
       return this.wrapService(namespace, svc);
     });
@@ -45,7 +52,13 @@ export class K8ClientServices extends K8ClientBase implements Services {
   }
 
   private async readV1Service(namespace: NamespaceName, name: string): Promise<V1Service> {
-    return await this.kubeClient.readNamespacedService({name, namespace: namespace.name});
+    let service: V1Service;
+    try {
+      service = await this.kubeClient.readNamespacedService({name, namespace: namespace.name});
+    } catch (error) {
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.SERVICE, namespace, name);
+    }
+    return service;
   }
 
   private wrapService(_namespace: NamespaceName, svc: V1Service): Service {
@@ -81,7 +94,13 @@ export class K8ClientServices extends K8ClientBase implements Services {
         body: v1Svc,
       });
     } catch (error) {
-      throw new SoloError('Failed to create service', error);
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.CREATE,
+        ResourceType.SERVICE,
+        serviceReference.namespace,
+        serviceReference.name.toString(),
+      );
     }
 
     return this.wrapService(serviceReference.namespace, result);
