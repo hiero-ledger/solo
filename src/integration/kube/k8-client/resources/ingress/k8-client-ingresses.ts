@@ -3,7 +3,13 @@
 import {type Ingresses} from '../../../resources/ingress/ingresses.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
-import {type NetworkingV1Api, type V1Ingress, type V1IngressList} from '@kubernetes/client-node';
+import {
+  PatchStrategy,
+  setHeaderOptions,
+  type NetworkingV1Api,
+  type V1Ingress,
+  type V1IngressList,
+} from '@kubernetes/client-node';
 import {container} from 'tsyringe-neo';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
@@ -59,11 +65,14 @@ export class K8ClientIngresses implements Ingresses {
     for (const ingressName of ingresses) {
       let result: V1Ingress;
       try {
-        result = await this.networkingApi.patchNamespacedIngress({
-          name: ingressName,
-          namespace: namespace.name,
-          body: patch,
-        });
+        result = await this.networkingApi.patchNamespacedIngress(
+          {
+            name: ingressName,
+            namespace: namespace.name,
+            body: patch,
+          },
+          setHeaderOptions('Content-Type', PatchStrategy.MergePatch),
+        );
 
         this.logger.info(`Patched Ingress ${ingressName} in namespace ${namespace}, patch: ${JSON.stringify(patch)}`);
       } catch (error) {
