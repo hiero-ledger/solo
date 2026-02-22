@@ -676,8 +676,8 @@ export class Flags {
   };
 
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
-    constName: 'jfcFile',
-    name: 'jfc',
+    constName: 'javaFlightRecorderConfiguration',
+    name: 'jfr-config',
     definition: {
       describe: 'Java Flight Recorder configuration file path',
       defaultValue: '',

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type NodeCollectJFRLogsConfigClass} from './node-collect-jfr-logs-config-class.js';
+import {type NodeCollectJfrLogsConfigClass} from './node-collect-jfr-logs-config-class.js';
 
-export interface NodeCollectJFRLogsContext {
-  config: NodeCollectJFRLogsConfigClass;
+export interface NodeCollectJfrLogsContext {
+  config: NodeCollectJfrLogsConfigClass;
 }

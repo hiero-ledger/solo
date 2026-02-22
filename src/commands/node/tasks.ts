@@ -153,8 +153,8 @@ import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
-import {NodeCollectJFRLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
-import {NodeCollectJFRLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
+import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
+import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 
 const {gray, cyan, red, green, yellow}: any = chalk;
 
@@ -3639,12 +3639,12 @@ export class NodeCommandTasks {
     }
   }
 
-  public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJFRLogsContext> {
+  public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
-      task: async (context_: NodeCollectJFRLogsContext): Promise<void> => {
+      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
         this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
-        const config: NodeCollectJFRLogsConfigClass = context_.config;
+        const config: NodeCollectJfrLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);

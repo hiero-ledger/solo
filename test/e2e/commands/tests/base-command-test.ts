@@ -94,7 +94,7 @@ export class BaseCommandTest {
       argv.setCommand(
         ConsensusCommandDefinition.COMMAND_NAME,
         ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        ConsensusCommandDefinition.COLLECT_JFC,
+        ConsensusCommandDefinition.COLLECT_JFR,
       );
 
       const nodeCmd: NodeCommand = container.resolve<NodeCommand>(InjectTokens.NodeCommand);

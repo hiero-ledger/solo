@@ -1033,7 +1033,7 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.collectJFRConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.initialize(argv, this.configs.collectJfrConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.downloadJavaFlightRecorderLogs(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

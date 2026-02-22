@@ -5,7 +5,7 @@ import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type DeploymentName} from '../../../types/index.js';
 import {type ConsensusNode} from '../../../core/model/consensus-node.js';
 
-export interface NodeCollectJFRLogsConfigClass {
+export interface NodeCollectJfrLogsConfigClass {
   namespace: NamespaceName;
   deployment: DeploymentName;
   consensusNodes: ConsensusNode[];
