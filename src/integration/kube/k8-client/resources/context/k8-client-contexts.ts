@@ -40,9 +40,10 @@ export class K8ClientContexts implements Contexts {
         this.kubeConfig.setCurrentContext(originalContextName);
         return true;
       }
-      return false;
     } catch {
-      return false;
+      // Do nothing, we will return false at the end of the method
     }
+    this.kubeConfig.setCurrentContext(originalContextName);
+    return false;
   }
 }
