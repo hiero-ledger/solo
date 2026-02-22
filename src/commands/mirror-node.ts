@@ -752,7 +752,8 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
                 const cacheDirectory: string = config.cacheDir;
                 // Build the path
-                const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, 'database-seeding-query.sql');
+                const databaseSeedingQueryFileName: string = 'database-seeding-query.sql';
+                const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, databaseSeedingQueryFileName);
 
                 // Write the file database seeding query inside the cache
                 fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
@@ -808,13 +809,14 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
                 );
 
-                const targetPath: string = '/tmp/database-seeding-query.sql';
+                const targetDirectory: string = '/tmp';
+                const targetPath: string = `${targetDirectory}/${databaseSeedingQueryFileName}`;
 
                 await this.k8Factory
                   .getK8(config.clusterContext)
                   .containers()
                   .readByRef(containerReference)
-                  .copyTo(databaseSeedingQueryPath, targetPath);
+                  .copyTo(databaseSeedingQueryPath, targetDirectory);
 
                 await this.k8Factory
                   .getK8(config.clusterContext)
