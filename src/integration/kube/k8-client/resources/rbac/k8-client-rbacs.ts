@@ -2,7 +2,12 @@
 
 import {type Rbacs} from '../../../resources/rbac/rbacs.js';
 import {type ClusterRole} from '../../../resources/rbac/cluster-role.js';
-import {type V1ClusterRole, type RbacAuthorizationV1Api, type V1Status} from '@kubernetes/client-node';
+import {
+  type V1ClusterRole,
+  type V1ClusterRoleBinding,
+  type RbacAuthorizationV1Api,
+  type V1Status,
+} from '@kubernetes/client-node';
 import {K8ClientClusterRole} from './k8-client-cluster-role.js';
 import {type IncomingMessage} from 'node:http';
 import {ResourceCreateError, ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
@@ -54,6 +59,34 @@ export class K8ClientRbacs implements Rbacs {
     let result: {response: IncomingMessage; body: V1Status};
     try {
       result = await this.k8sRbacApi.deleteClusterRole(name);
+    } catch (error) {
+      throw new ResourceDeleteError(ResourceType.RBAC, undefined, name, error);
+    }
+
+    KubeApiResponse.check(result.response, ResourceOperation.DELETE, ResourceType.RBAC, undefined, name);
+  }
+
+  public async clusterRoleBindingExists(name: string): Promise<boolean> {
+    let result: {response: IncomingMessage; body: V1ClusterRoleBinding};
+    try {
+      result = await this.k8sRbacApi.readClusterRoleBinding(name);
+    } catch {
+      return false;
+    }
+
+    try {
+      KubeApiResponse.check(result.response, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
+    } catch {
+      return false;
+    }
+
+    return true;
+  }
+
+  public async deleteClusterRoleBinding(name: string): Promise<void> {
+    let result: {response: IncomingMessage; body: V1Status};
+    try {
+      result = await this.k8sRbacApi.deleteClusterRoleBinding(name);
     } catch (error) {
       throw new ResourceDeleteError(ResourceType.RBAC, undefined, name, error);
     }

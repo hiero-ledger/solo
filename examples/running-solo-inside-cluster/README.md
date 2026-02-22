@@ -1,5 +1,8 @@
 # Running Solo Inside Cluster Example
 
+> **Note for unzipped release archive:** If you run tasks from an unzipped release directory (outside the Solo git repository), set `USE_RELEASED_VERSION` before running `task`:
+> `export USE_RELEASED_VERSION=true`
+
 This example demonstrates how to run the Solo network inside a privileged Ubuntu pod in a Kubernetes cluster for end-to-end testing. It automates the setup of all required dependencies and configures the environment for Solo to run inside the cluster.
 
 ## What it does

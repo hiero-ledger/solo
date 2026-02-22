@@ -12,6 +12,9 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo network with a bl
 
 ### Download Archive
 
+> **Note for unzipped release archive:** If you run tasks from an unzipped release directory (outside the Solo git repository), set `USE_RELEASED_VERSION` before running `task`:
+> `export USE_RELEASED_VERSION=true`
+
 You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
 
 ```
@@ -72,6 +75,7 @@ solo block node add --deployment my-network --priority-mapping node1,node2=10
 ```
 
 This example means:
+
 * Consensus node `node1` sends blocks to block nodes 1 and 2
   * Block node 1 priority is 2
   * Block node 2 priority is 1

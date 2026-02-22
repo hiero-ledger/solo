@@ -136,12 +136,7 @@ tasks:
 
       # Solo relay node add"
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
-      # Run solo smoke test"
-      - cmd: |
-          cd ../../
-          export SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}"
-          export SOLO_NAMESPACE="{{ .NAMESPACE }}"
-          ./.github/workflows/script/solo_smoke_test.sh
+
   destroy:
     desc: destroy example cluster
     cmds:

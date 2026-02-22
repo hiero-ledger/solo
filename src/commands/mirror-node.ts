@@ -34,6 +34,7 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
@@ -41,7 +42,7 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -873,7 +874,7 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             lease = await this.leaseManager.create();
             this.configManager.update(argv);
 
@@ -1052,7 +1053,7 @@ export class MirrorNodeCommand extends BaseCommand {
         //   },
         // },
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
       'mirror node add',
     );
@@ -1287,6 +1288,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
+    let remoteConfigLoaded: boolean = false;
 
     const tasks: SoloListr<MirrorNodeDestroyContext> = this.taskList.newTaskList<MirrorNodeDestroyContext>(
       [
@@ -1295,6 +1297,7 @@ export class MirrorNodeCommand extends BaseCommand {
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
+            remoteConfigLoaded = true;
             lease = await this.leaseManager.create();
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
@@ -1334,12 +1337,14 @@ export class MirrorNodeCommand extends BaseCommand {
               ),
             };
 
-            await this.accountManager.loadNodeClient(
-              context_.config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              this.configManager.getFlag<DeploymentName>(flags.deployment),
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
+            if (remoteConfigLoaded) {
+              await this.accountManager.loadNodeClient(
+                context_.config.namespace,
+                this.remoteConfig.getClusterRefs(),
+                this.configManager.getFlag<DeploymentName>(flags.deployment),
+                this.configManager.getFlag<boolean>(flags.forcePortForward),
+              );
+            }
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -1415,6 +1420,18 @@ export class MirrorNodeCommand extends BaseCommand {
                   .delete(constants.MIRROR_INGRESS_CLASS_NAME);
               }
             });
+          },
+        },
+        {
+          title: 'Cleanup mirror ingress controller RBAC',
+          task: async (context_): Promise<void> => {
+            const rbac: Rbacs = this.k8Factory.getK8(context_.config.clusterContext).rbac();
+            if (await rbac.clusterRoleBindingExists(constants.MIRROR_INGRESS_CONTROLLER)) {
+              await rbac.deleteClusterRoleBinding(constants.MIRROR_INGRESS_CONTROLLER);
+            }
+            if (await rbac.clusterRoleExists(constants.MIRROR_INGRESS_CONTROLLER)) {
+              await rbac.deleteClusterRole(constants.MIRROR_INGRESS_CONTROLLER);
+            }
           },
         },
         this.disableMirrorNodeComponents(),
