@@ -3,18 +3,21 @@
 import {type Pvcs} from '../../../resources/pvc/pvcs.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {
+  type CoreV1Api,
   V1ObjectMeta,
   V1PersistentVolumeClaim,
+  type V1PersistentVolumeClaimList,
   V1PersistentVolumeClaimSpec,
   V1VolumeResourceRequirements,
-  type CoreV1Api,
-  type V1PersistentVolumeClaimList,
 } from '@kubernetes/client-node';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type Pvc} from '../../../resources/pvc/pvc.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {K8ClientPvc} from './k8-client-pvc.js';
 import {type PvcReference} from '../../../resources/pvc/pvc-reference.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
+import {ResourceType} from '../../../resources/resource-type.js';
 
 export class K8ClientPvcs implements Pvcs {
   public constructor(private readonly kubeClient: CoreV1Api) {}
@@ -26,8 +29,12 @@ export class K8ClientPvcs implements Pvcs {
         namespace: pvcReference.namespace.toString(),
       });
     } catch (error) {
-      throw new SoloError(
-        `Failed to delete pvc [pvc=${pvcReference.name.toString()}, ns=${pvcReference.namespace.toString()}], error: ${error.message}`,
+      KubeApiResponse.check(
+        error,
+        ResourceOperation.DELETE,
+        ResourceType.PERSISTENT_VOLUME_CLAIM,
+        pvcReference.namespace,
+        pvcReference.name.toString(),
       );
     }
     return true;
@@ -45,7 +52,7 @@ export class K8ClientPvcs implements Pvcs {
         timeoutSeconds: Duration.ofMinutes(5).toMillis(),
       });
     } catch (error) {
-      throw new SoloError('Failed to list pvcs', error);
+      KubeApiResponse.check(error, ResourceOperation.LIST, ResourceType.PERSISTENT_VOLUME_CLAIM, namespace, '');
     }
 
     for (const item of resp.items) {
@@ -77,7 +84,13 @@ export class K8ClientPvcs implements Pvcs {
         body: v1Pvc,
       });
     } catch (error) {
-      throw new SoloError('Failed to create pvc', error);
+      KubeApiResponse.check(
+        error,
+        ResourceOperation.CREATE,
+        ResourceType.PERSISTENT_VOLUME_CLAIM,
+        pvcReference.namespace,
+        pvcReference.name.toString(),
+      );
     }
 
     if (result) {
