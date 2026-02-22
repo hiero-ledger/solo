@@ -4,11 +4,7 @@ import {type Secrets} from '../../../resources/secret/secrets.js';
 import {type CoreV1Api, V1ObjectMeta, V1Secret, type V1SecretList} from '@kubernetes/client-node';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type Optional} from '../../../../../types/index.js';
-import {
-  ResourceCreateError,
-  ResourceNotFoundError,
-  ResourceReplaceError,
-} from '../../../errors/resource-operation-errors.js';
+import {ResourceNotFoundError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type SecretType} from '../../../resources/secret/secret-type.js';
@@ -40,7 +36,14 @@ export class K8ClientSecrets implements Secrets {
   }
 
   public async delete(namespace: NamespaceName, name: string): Promise<boolean> {
-    await this.kubeClient.deleteNamespacedSecret({name, namespace: namespace.name});
+    try {
+      await this.kubeClient.deleteNamespacedSecret({name, namespace: namespace.name});
+    } catch (error) {
+      if (KubeApiResponse.isNotFound(error)) {
+        return false;
+      }
+      KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.SECRET, namespace, name);
+    }
     return true;
   }
 
@@ -55,28 +58,33 @@ export class K8ClientSecrets implements Secrets {
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<Secret> {
+    let result: V1Secret;
     try {
-      const result: V1Secret = await this.kubeClient.readNamespacedSecret({name, namespace: namespace.name});
-      return {
-        name: result.metadata!.name as string,
-        labels: result.metadata!.labels as Record<string, string>,
-        namespace: result.metadata!.namespace as string,
-        type: result.type as string,
-        data: result.data as Record<string, string>,
-      };
+      result = await this.kubeClient.readNamespacedSecret({name, namespace: namespace.name});
     } catch (error) {
       KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
-      return undefined;
     }
+    return {
+      name: result.metadata!.name as string,
+      labels: result.metadata!.labels as Record<string, string>,
+      namespace: result.metadata!.namespace as string,
+      type: result.type as string,
+      data: result.data as Record<string, string>,
+    };
   }
 
   public async list(namespace: NamespaceName, labels?: string[]): Promise<Array<Secret>> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
-    const secretList: V1SecretList = await this.kubeClient.listNamespacedSecret({
-      namespace: namespace.toString(),
-      labelSelector,
-      timeoutSeconds: Duration.ofMinutes(5).toMillis(),
-    });
+    let secretList: V1SecretList;
+    try {
+      secretList = await this.kubeClient.listNamespacedSecret({
+        namespace: namespace.toString(),
+        labelSelector,
+        timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+      });
+    } catch (error) {
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.SECRET, namespace, '');
+    }
 
     return secretList.items.map((secret: V1Secret): Secret => {
       return {
@@ -125,12 +133,16 @@ export class K8ClientSecrets implements Secrets {
       await (replace
         ? this.kubeClient.replaceNamespacedSecret({name, namespace: namespace.name, body: v1Secret})
         : this.kubeClient.createNamespacedSecret({namespace: namespace.name, body: v1Secret}));
-      return true;
     } catch (error) {
-      throw replace
-        ? new ResourceReplaceError(ResourceType.SECRET, namespace, name, error)
-        : new ResourceCreateError(ResourceType.SECRET, namespace, name, error);
+      KubeApiResponse.throwError(
+        error,
+        replace ? ResourceOperation.REPLACE : ResourceOperation.CREATE,
+        ResourceType.SECRET,
+        namespace,
+        name,
+      );
     }
+    return true;
   }
 
   private async shouldReplace(
