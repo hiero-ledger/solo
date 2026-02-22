@@ -325,7 +325,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Executes the updating of a node with a specific version of Hedera platform',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.updateExecute,
-                NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS,
+                NodeFlags.UPDATE_EXECUTE_FLAGS,
               ),
             ),
         )
@@ -341,7 +341,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Prepare for upgrading network',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.upgradePrepare,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.UPGRADE_PREPARE_FLAGS,
               ),
             )
             .addSubcommand(
