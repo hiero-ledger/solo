@@ -618,7 +618,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
 
                 await this.chartManager.upgrade(
-                  config.namespace,
+                  undefined,
                   config.ingressReleaseName,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
@@ -742,28 +742,25 @@ export class MirrorNodeCommand extends BaseCommand {
                   this.configManager.getFlag<boolean>(flags.forcePortForward),
                 );
 
-                const importFeesQuery: string = `INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id,
-                                                                              transaction_type)
-                                                 VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'},
-                                                         ${feesFileIdNumber}, 17);`;
-                const importExchangeRatesQuery: string = `INSERT INTO public.file_data(file_data, consensus_timestamp,
-                                                                                       entity_id, transaction_type)
-                                                          VALUES (decode('${exchangeRates}', 'hex'), ${
-                                                            timestamp + '000001'
-                                                          }, ${exchangeRatesFileIdNumber}, 17);`;
+                const importFeesQuery: string = `
+INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
+VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 17);`;
+                const importExchangeRatesQuery: string = `
+INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
+VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
                 const sqlQuery: string = [importFeesQuery, importExchangeRatesQuery].join('\n');
+
+                const cacheDirectory: string = config.cacheDir;
+                // Build the path
+                const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, 'database-seeding-query.sql');
+
+                // Write the file database seeding query inside the cache
+                fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
 
                 // When useExternalDatabase flag is enabled, the query is not executed,
                 // but exported to the specified path inside the cache directory,
                 // and the user has the responsibility to execute it manually on his own
                 if (config.useExternalDatabase) {
-                  const cacheDirectory: string = config.cacheDir;
-                  // Build the path
-                  const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, 'database-seeding-query.sql');
-
-                  // Write the file database seeding query inside the cache
-                  fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
-
                   // Notify the user
                   this.logger.showUser(
                     chalk.cyan(
@@ -811,6 +808,14 @@ export class MirrorNodeCommand extends BaseCommand {
                   `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
                 );
 
+                const targetPath: string = '/tmp/database-seeding-query.sql';
+
+                await this.k8Factory
+                  .getK8(config.clusterContext)
+                  .containers()
+                  .readByRef(containerReference)
+                  .copyTo(databaseSeedingQueryPath, targetPath);
+
                 await this.k8Factory
                   .getK8(config.clusterContext)
                   .containers()
@@ -818,8 +823,8 @@ export class MirrorNodeCommand extends BaseCommand {
                   .execContainer([
                     'psql',
                     `postgresql://${MIRROR_IMPORTER_DB_OWNER}:${MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${MIRROR_IMPORTER_DB_NAME}`,
-                    '-c',
-                    sqlQuery,
+                    '-f',
+                    targetPath,
                   ]);
               },
             },

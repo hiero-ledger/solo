@@ -395,6 +395,8 @@ export function prepareValuesFiles(valuesFile: string): string {
     const valuesFiles: string[] = valuesFile.split(',');
     for (const vf of valuesFiles) {
       const vfp: string = PathEx.resolve(vf);
+      // // need to use relative path for Helm to be able to find the file when executing from a different directory on Windows
+      // const vfp: string = PathEx.relative(process.cwd(), vf);
       valuesArgument += ` --values ${vfp}`;
     }
   }

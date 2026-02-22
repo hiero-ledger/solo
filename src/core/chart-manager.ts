@@ -201,7 +201,7 @@ export class ChartManager {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
       const options: UpgradeChartOptions = new UpgradeChartOptions(
-        namespaceName.name,
+        namespaceName?.name,
         kubeContext,
         reuseValues ?? true,
         valuesArgument,

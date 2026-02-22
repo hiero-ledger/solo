@@ -411,7 +411,7 @@ export class ExplorerCommand extends BaseCommand {
         }
 
         await this.chartManager.upgrade(
-          config.namespace,
+          undefined,
           config.ingressReleaseName,
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
