@@ -285,7 +285,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Error creating pod with call to createNamespacedPod()', error);
+      KubeApiResponse.check(
+        error,
+        ResourceOperation.CREATE,
+        ResourceType.POD,
+        podReference.namespace,
+        podReference.name.toString(),
+      );
     }
 
     if (result) {
