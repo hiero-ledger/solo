@@ -1245,7 +1245,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return;
               }
 
-              const remoteConfigData = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
+              const remoteConfigData: any = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
               context_.remoteConfig = remoteConfigData;
             } catch (error) {
               this.logger.showUser(chalk.yellow(`\n⚠️  Unable to fetch remote configuration: ${error.message}`));
@@ -1254,7 +1254,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         {
           title: 'Display deployment information',
-          task: async (context_, _task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
             // Show versions
@@ -1267,13 +1267,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.showUser(`  Block Node Version: ${chalk.bold(version.BLOCK_NODE_VERSION)}`);
 
             if (context_.remoteConfig) {
-              const components = context_.remoteConfig.components?.state;
+              const components: any = context_.remoteConfig.components?.state;
 
               if (components) {
                 this.logger.showUser(chalk.cyan('\nDeployed Components:'));
 
                 if (components.consensusNodes && components.consensusNodes.length > 0) {
-                  const nodeNames = components.consensusNodes.map(n => n.name).join(', ');
+                  const nodeNames: string = components.consensusNodes.map(n => n.name).join(', ');
                   this.logger.showUser(
                     `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`,
                   );
@@ -1308,17 +1308,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             // Show information about where files are stored
-            const outputDirectory = this.getOneShotOutputDirectory(context_.deploymentName);
+            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
 
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
 
             if (fs.existsSync(outputDirectory)) {
               this.logger.showUser(`Output directory: ${chalk.bold(outputDirectory)}`);
 
-              const notesFile = PathEx.join(outputDirectory, 'notes');
-              const versionsFile = PathEx.join(outputDirectory, 'versions');
-              const forwardsFile = PathEx.join(outputDirectory, 'forwards');
-              const accountsFile = PathEx.join(outputDirectory, 'accounts.json');
+              const notesFile: string = PathEx.join(outputDirectory, 'notes');
+              const versionsFile: string = PathEx.join(outputDirectory, 'versions');
+              const forwardsFile: string = PathEx.join(outputDirectory, 'forwards');
+              const accountsFile: string = PathEx.join(outputDirectory, 'accounts.json');
 
               if (fs.existsSync(notesFile)) {
                 this.logger.showUser(`  ${chalk.green('✓')} Notes: ${notesFile}`);
