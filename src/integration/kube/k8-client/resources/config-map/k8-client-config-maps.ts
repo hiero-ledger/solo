@@ -10,11 +10,7 @@ import {
 } from '@kubernetes/client-node';
 import {type ConfigMaps} from '../../../resources/config-map/config-maps.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
-import {
-  ResourceCreateError,
-  ResourceNotFoundError,
-  ResourceReplaceError,
-} from '../../../errors/resource-operation-errors.js';
+import {ResourceNotFoundError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
@@ -117,9 +113,14 @@ export class K8ClientConfigMaps implements ConfigMaps {
         : this.kubeClient.createNamespacedConfigMap({namespace: namespace.name, body: configMap}));
       return true;
     } catch (error) {
-      throw replace
-        ? new ResourceReplaceError(ResourceType.CONFIG_MAP, namespace, name, error)
-        : new ResourceCreateError(ResourceType.CONFIG_MAP, namespace, name, error);
+      KubeApiResponse.check(
+        error,
+        replace ? ResourceOperation.REPLACE : ResourceOperation.CREATE,
+        ResourceType.CONFIG_MAP,
+        namespace,
+        name,
+      );
+      return false;
     }
   }
 
