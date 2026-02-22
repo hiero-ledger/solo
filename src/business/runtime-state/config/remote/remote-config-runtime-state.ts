@@ -453,12 +453,21 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
-    if (this.configManager.hasFlag(flags.namespace)) {
+    const namespaceFromConfig: NamespaceNameAsString = this.configManager.getFlag(flags.namespace);
+    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    const deploymentFromArgv: DeploymentName = argv[flags.deployment.name] as DeploymentName;
+
+    // Keep config manager in sync when deployment is resolved directly in argv by caller logic.
+    if (!deploymentName && deploymentFromArgv) {
+      this.configManager.setFlag(flags.deployment, deploymentFromArgv);
+      deploymentName = deploymentFromArgv;
+    }
+
+    if (namespaceFromConfig && deploymentName) {
       return;
     }
 
     // TODO: Current quick fix for commands where namespace is not passed
-    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
     if (!deploymentName) {
