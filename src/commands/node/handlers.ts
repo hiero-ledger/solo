@@ -31,6 +31,8 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {Flags as flags} from '../flags.js';
+import {select as selectPrompt} from '@inquirer/prompts';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -612,6 +614,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    await this.resolveDeploymentForLogs(argv);
 
     const outputDirectory: string = (argv.outputDir as string) || '';
 
@@ -629,6 +632,42 @@ export class NodeCommandHandlers extends CommandHandler {
     );
 
     return true;
+  }
+
+  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
+    const deploymentFromFlag = argv[flags.deployment.name] as string;
+    if (deploymentFromFlag && deploymentFromFlag.trim()) {
+      return;
+    }
+
+    await this.localConfig.load();
+    const deployments = this.localConfig.configuration.deployments;
+
+    if (deployments.length === 0) {
+      throw new SoloError(
+        `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
+      );
+    }
+
+    if (deployments.length === 1) {
+      argv[flags.deployment.name] = deployments[0].name;
+      this.logger.showUser(`Using deployment from local config: ${deployments[0].name}`);
+      return;
+    }
+
+    if ((argv[flags.quiet.name] as boolean) === true) {
+      const deploymentNames = deployments.map(d => d.name).join(', ');
+      throw new SoloError(
+        `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
+      );
+    }
+
+    const selectedDeployment = (await selectPrompt({
+      message: 'Select deployment for diagnostics logs:',
+      choices: deployments.map(d => ({name: d.name, value: d.name})),
+    })) as string;
+    argv[flags.deployment.name] = selectedDeployment;
+    this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
   }
 
   public async all(argv: ArgvStruct): Promise<boolean> {
