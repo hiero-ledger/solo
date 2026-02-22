@@ -618,7 +618,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
 
                 await this.chartManager.upgrade(
-                  undefined,
+                  config.namespace,
                   config.ingressReleaseName,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
@@ -846,7 +846,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
           .pods()
           .list(config.namespace, [`app.kubernetes.io/instance=${config.ingressReleaseName}`]);
         if (pods.length === 0) {
-          throw new SoloError('No Hiero Explorer pod found');
+          throw new SoloError('No mirror ingress controller pod found');
         }
         let podReference: PodReference;
         for (const pod of pods) {
@@ -915,7 +915,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
             if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
-              config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+              config.ingressReleaseName = `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${config.namespace.name}`;
             } else {
               config.releaseName = this.getReleaseName();
               config.ingressReleaseName = this.getIngressReleaseName();
