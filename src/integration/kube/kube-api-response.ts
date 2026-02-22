@@ -49,6 +49,18 @@ export class KubeApiResponse {
         },
       );
     }
+
+    throw new KubeApiError(
+      `error occurred during ${resourceOperation} ${resourceType} '${name}' in namespace '${namespace}'`,
+      +errorResponse?.code,
+      null,
+      {
+        resourceType: resourceType,
+        resourceOperation: resourceOperation,
+        namespace: namespace,
+        name: name,
+      },
+    );
   }
 
   public static isFailingStatus(errorResponse: ApiError): boolean {
