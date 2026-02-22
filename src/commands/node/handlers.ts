@@ -650,8 +650,9 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (deployments.length === 1) {
-      argv[flags.deployment.name] = deployments[0].name;
-      this.logger.showUser(`Using deployment from local config: ${deployments[0].name}`);
+      const deployment = deployments.get(0);
+      argv[flags.deployment.name] = deployment.name;
+      this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
       return;
     }
 
