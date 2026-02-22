@@ -5,7 +5,6 @@ import {type NamespaceName} from '../../../../../types/namespace/namespace-name.
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {type NetworkingV1Api, type V1Ingress, type V1IngressList} from '@kubernetes/client-node';
 import {container} from 'tsyringe-neo';
-import {ResourceReadError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
@@ -24,7 +23,10 @@ export class K8ClientIngresses implements Ingresses {
     try {
       result = await this.networkingApi.listIngressForAllNamespaces();
     } catch (error) {
-      throw new ResourceReadError(ResourceType.INGRESS, undefined, '', error);
+      if (KubeApiResponse.isNotFound(error)) {
+        return [];
+      }
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.INGRESS, undefined, '');
     }
 
     if (result?.items) {
