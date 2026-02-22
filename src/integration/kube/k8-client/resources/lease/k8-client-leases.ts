@@ -15,16 +15,13 @@ import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {K8ClientLease} from './k8-client-lease.js';
 import {type Lease} from '../../../resources/lease/lease.js';
-import {
-  ResourceCreateError,
-  ResourceDeleteError,
-  ResourceReadError,
-  ResourceReplaceError,
-} from '../../../errors/resource-operation-errors.js';
+import {ResourceReadError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {getReasonPhrase, StatusCodes} from 'http-status-codes';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
 
 export class K8ClientLeases implements Leases {
   private readonly logger: SoloLogger;
@@ -56,7 +53,7 @@ export class K8ClientLeases implements Leases {
     try {
       result = await this.coordinationApiClient.createNamespacedLease({namespace: namespace.name, body: lease});
     } catch (error) {
-      throw new ResourceCreateError(ResourceType.LEASE, namespace, leaseName, error);
+      KubeApiResponse.check(error, ResourceOperation.CREATE, ResourceType.LEASE, namespace, leaseName);
     }
 
     return K8ClientLease.fromV1Lease(result);
@@ -67,7 +64,7 @@ export class K8ClientLeases implements Leases {
     try {
       result = await this.coordinationApiClient.deleteNamespacedLease({name, namespace: namespace.name});
     } catch (error) {
-      throw new ResourceDeleteError(ResourceType.LEASE, namespace, name, error);
+      KubeApiResponse.check(error, ResourceOperation.DELETE, ResourceType.LEASE, namespace, name);
     }
 
     return result;
@@ -109,7 +106,7 @@ export class K8ClientLeases implements Leases {
         body: v1Lease,
       });
     } catch (error) {
-      throw new ResourceReplaceError(ResourceType.LEASE, namespace, leaseName, error);
+      KubeApiResponse.check(error, ResourceOperation.REPLACE, ResourceType.LEASE, namespace, leaseName);
     }
 
     return K8ClientLease.fromV1Lease(result);
@@ -129,7 +126,13 @@ export class K8ClientLeases implements Leases {
         body: v1Lease,
       });
     } catch (error) {
-      throw new ResourceReplaceError(ResourceType.LEASE, lease.namespace, v1Lease.metadata.name, error);
+      KubeApiResponse.check(
+        error,
+        ResourceOperation.REPLACE,
+        ResourceType.LEASE,
+        lease.namespace,
+        v1Lease.metadata.name,
+      );
     }
 
     return K8ClientLease.fromV1Lease(result);
