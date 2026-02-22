@@ -12,7 +12,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -157,6 +157,8 @@ import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
+import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
+import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 
 const {gray, cyan, red, green, yellow}: any = chalk;
 
@@ -3649,5 +3651,60 @@ export class NodeCommandTasks {
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
+  }
+
+  public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
+    return {
+      title: 'Download Java Flight Recorder logs from node pod',
+      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+        this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
+        const config: NodeCollectJfrLogsConfigClass = context_.config;
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const context: Context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+
+        const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+        let pid: string;
+        try {
+          const result: string = await k8Container.execContainer('ps axww -o pid,command');
+          const resultLines: string[] = result.split('\n');
+          const servicesMainProcess: string = resultLines.find((line: string): boolean =>
+            line.includes('com.hedera.node.app.ServicesMain'),
+          );
+          pid = servicesMainProcess.trim().split(' ')[0];
+        } catch (error) {
+          throw new SoloError(`Failed to get process list from node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        if (!pid) {
+          throw new SoloError(`Could not find process ID for ServicesMain in node pod ${nodeFullyQualifiedPodName}`);
+        }
+
+        const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        try {
+          const result: string = await k8Container.execContainer(
+            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
+          );
+          this.logger.info(`JFR dump command output: ${result}`);
+        } catch (error) {
+          throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        try {
+          const localJfrLogsDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, config.deployment);
+          fs.mkdirSync(localJfrLogsDirectory, {recursive: true});
+          await k8Container.copyFrom(recordingFilePath, localJfrLogsDirectory);
+          const targetPath: string = PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr');
+          fs.renameSync(PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr'), targetPath);
+          this.logger.showUser(`Downloaded Java Flight Recorder logs to ${targetPath}`);
+        } catch (error) {
+          throw new SoloError(
+            `Failed to copy JFR recording from node pod ${nodeFullyQualifiedPodName} to local machine`,
+            error,
+          );
+        }
+      },
+    };
   }
 }
