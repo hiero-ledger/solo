@@ -6,18 +6,20 @@ import {K8Client} from './k8-client.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
-import path from 'node:path';
-import {KUBECTL_EXECUTABLE} from '../../../core/constants.js';
+import {PathEx} from '../../../business/utils/path-ex.js';
 
 @injectable()
 export class K8ClientFactory implements K8Factory {
   private readonly k8Clients: Map<string, K8> = new Map<string, K8>();
   private readonly kubectlExecutable: string;
 
-  public constructor(@inject(InjectTokens.KubectlInstallationDir) installationDirectory: string) {
-    this.kubectlExecutable = path.join(
+  public constructor(
+    @inject(InjectTokens.KubectlInstallationDir) installationDirectory: string,
+    @inject(InjectTokens.OsPlatform) platform: string,
+  ) {
+    this.kubectlExecutable = PathEx.join(
       patchInject(installationDirectory, InjectTokens.KubectlInstallationDir, K8ClientFactory.name),
-      KUBECTL_EXECUTABLE,
+      platform === 'win32' ? 'kubectl.exe' : 'kubectl',
     );
   }
 

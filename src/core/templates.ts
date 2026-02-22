@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as x509 from '@peculiar/x509';
-import os from 'node:os';
 import {DataValidationError} from './errors/data-validation-error.js';
 import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
@@ -21,6 +20,7 @@ import {
 } from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConsensusNode} from './model/consensus-node.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
@@ -160,7 +160,6 @@ export class Templates {
 
   public static installationPath(
     dep: string,
-    osPlatform: NodeJS.Platform | string = os.platform(),
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ): string {
     switch (dep) {
@@ -170,7 +169,7 @@ export class Templates {
       case constants.VFKIT:
       case constants.GVPROXY:
       case constants.KUBECTL: {
-        if (osPlatform === constants.OS_WINDOWS) {
+        if (OperatingSystem.isWin32()) {
           return PathEx.join(installationDirectory, `${dep}.exe`);
         }
 
