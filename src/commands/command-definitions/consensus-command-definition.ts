@@ -77,7 +77,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD: string = 'add';
   public static readonly NODE_UPDATE: string = 'update';
   public static readonly NODE_DESTROY: string = 'destroy';
-  public static readonly COLLECT_JFR: string = 'collect-jfc';
+  public static readonly COLLECT_JFR: string = 'collect-jfr';
 
   public static readonly NETWORK_DEPLOY: string = 'deploy';
   public static readonly NETWORK_DESTROY: string = 'destroy';
