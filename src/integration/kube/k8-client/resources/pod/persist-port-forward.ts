@@ -39,7 +39,7 @@ function runKubectl(): Promise<number> {
 
     child = spawn(KUBECTL_EXECUTABLE, arguments_, {
       stdio: 'inherit',
-      windowsHide: os.platform() === 'win32' ? true : false,
+      windowsHide: os.platform() === 'win32',
     });
 
     child.on('error', (error): void => {
