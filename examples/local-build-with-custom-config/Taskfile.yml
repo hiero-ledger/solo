@@ -118,7 +118,7 @@ tasks:
           {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
 
       - cmd: |
-          $SOLO_COMMAND deployment diagnostics logs --deployment {{ .DEPLOYMENT }} 
+          $SOLO_COMMAND deployment diagnostics logs 
 
   destroy:
     desc: Destroy the Solo network with block node
