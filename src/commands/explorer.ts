@@ -238,7 +238,7 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += ' --set ingress.enabled=true';
       valuesArgument += ` --set ingressClassName=${config.ingressReleaseName}`;
     }
-    valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
+    valuesArgument += ` --set fullnameOverride=${config.releaseName}-${config.namespace.name}`;
 
     valuesArgument += ` --set proxyPass./api="http://${config.mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
 
