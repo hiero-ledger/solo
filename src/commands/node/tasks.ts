@@ -1216,7 +1216,7 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName: any = podReference.name.name;
-            const statesDirectory: string = path.join(
+            const statesDirectory: string = PathEx.join(
               stateFileDirectory,
               'states',
               clusterReference,
@@ -1237,7 +1237,7 @@ export class NodeCommandTasks {
               continue;
             }
 
-            zipFile = path.join(statesDirectory, stateFiles[0]);
+            zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
             // It's a single file or use default from config
@@ -2036,7 +2036,7 @@ export class NodeCommandTasks {
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
         const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
-        const outputDirectory: string = path.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+        const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
           if (!fs.existsSync(outputDirectory)) {
@@ -2066,7 +2066,7 @@ export class NodeCommandTasks {
             this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
 
             // Create directory for this context
-            const contextDirectory: string = path.join(outputDirectory, context);
+            const contextDirectory: string = PathEx.join(outputDirectory, context);
             try {
               if (!fs.existsSync(contextDirectory)) {
                 fs.mkdirSync(contextDirectory, {recursive: true});
@@ -2088,7 +2088,7 @@ export class NodeCommandTasks {
                   maxBuffer: 1024 * 1024 * 10, // 10MB buffer
                 }).toString();
 
-                const valuesFile: string = path.join(contextDirectory, `${release.name}.yaml`);
+                const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {
                   fs.writeFileSync(valuesFile, output);
                   this.logger.info(`Saved Helm values for ${release.name} to ${valuesFile}`);
@@ -3536,7 +3536,7 @@ export class NodeCommandTasks {
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
           ? path.resolve(customOutputDirectory)
-          : path.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
@@ -3593,13 +3593,13 @@ export class NodeCommandTasks {
 
     try {
       // Create directory for this pod's logs
-      const podLogDirectory: string = path.join(outputDirectory, context);
+      const podLogDirectory: string = PathEx.join(outputDirectory, context);
       if (!fs.existsSync(podLogDirectory)) {
         fs.mkdirSync(podLogDirectory, {recursive: true});
       }
 
       // Get logs using kubectl with output to file (avoids buffer issues)
-      const logFile: string = path.join(podLogDirectory, `${podName}.log`);
+      const logFile: string = PathEx.join(podLogDirectory, `${podName}.log`);
       const logCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
 
       this.logger.info(`Downloading logs for pod ${podName}...`);
@@ -3640,7 +3640,7 @@ export class NodeCommandTasks {
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
-      const blockNodeLogDirectory: string = path.join(outputDirectory, context, `${podName}-block-logs`);
+      const blockNodeLogDirectory: string = PathEx.join(outputDirectory, context, `${podName}-block-logs`);
       if (!fs.existsSync(blockNodeLogDirectory)) {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
