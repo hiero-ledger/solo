@@ -286,7 +286,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
 
     if (result) {
-      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig);
+      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
     } else {
       throw new SoloError('Error creating pod', result);
     }
