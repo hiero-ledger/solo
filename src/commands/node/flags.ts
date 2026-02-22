@@ -193,8 +193,8 @@ export const ADD_EXECUTE_FLAGS: CommandFlags = {
 };
 
 export const LOGS_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.outputDir],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
 export const STATES_FLAGS: CommandFlags = {

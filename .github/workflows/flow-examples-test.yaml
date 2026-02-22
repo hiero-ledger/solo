@@ -242,8 +242,20 @@ jobs:
           # Run the example
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          set +e
           task
-          
+          TASK_RC=$?
+          set -e
+
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            cd "examples/${{ matrix.example.directory }}"
+
+            exit "${TASK_RC}"
+          fi
+
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
