@@ -31,7 +31,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  HASHGRAPH_PKG_NAME: "@hashgraph/solo"
+  HASHGRAPH_PKG_NAME: "hiero-ledger/solo"
   HIERO_PKG_NAME: "@hiero-ledger/solo"
 
 defaults:
@@ -115,7 +115,7 @@ jobs:
             fi
           fi
 
-          echo "need-hg-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
+          echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
       - name: Extract Version
         id: set-outputs
@@ -142,7 +142,7 @@ jobs:
 
       - name: "Check: HL release needed"
         id: check-hl-release-needed
-        if: ${{ steps.set-outputs.outputs.need-release == 'true' && inputs.dual-publish-enabled == true }}
+        if: ${{ steps.calculate-version.outputs.need-release == 'true' && inputs.dual-publish-enabled == true }}
         run: |
           PUBLISH_REQUIRED="false"
           if ! curl -sSLf "https://registry.npmjs.org/${{ env.HIERO_PKG_NAME }}/${{ steps.set-outputs.outputs.version }}" >/dev/null 2>&1; then
@@ -154,7 +154,7 @@ jobs:
   get-package-info:
     name: 'Get Package Info'
     runs-on: hiero-solo-linux-medium
-    if: ${{ needs.prepare-release.outputs.need-release == 'true' }}
+    if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' || needs.prepare-release.outputs.need-hl-release == 'true' }}
     needs:
       - prepare-release
     outputs:
@@ -213,7 +213,7 @@ jobs:
       - get-package-info
     outputs:
       need-hg-publish: ${{ steps.verify-package.outputs.need-hg-publish }}
-      need-hl-publish: ${{ steps.verify-package.outputs.need-hl-publish }}
+      need-hl-publish: ${{ steps.update-for-dual-publish.outputs.need-hl-publish }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
@@ -379,7 +379,7 @@ jobs:
         run: |
           PROCEED="true"
           echo "::group::Verify Package is Created"
-            if ls -l output | grep "${{ needs.get-package-info.outputs.hg-package-name }}" > /dev/null 2>&1 ; then
+            if ls -l output/hg | grep "${{ needs.get-package-info.outputs.hg-package-name }}" > /dev/null 2>&1 ; then
               echo "::notice file=flow-deploy-release-artifact.yaml::HG Package is created"
             else
               PROCEED="false"
@@ -399,20 +399,20 @@ jobs:
 
       - name: Update Files for Dual Publish
         id: update-for-dual-publish
-        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.needs-hl-release == 'true' }}
+        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' }}
         run: |
           echo "::group::Update package.json files for dual publish"
           files=("package.json")
           for file in "${files[@]}"; do
             if [[ -f "$file" ]]; then
               cp "$file" "$file.tmp"
-              jq '.name |= sub("@hashgraph/solo";"@hiero-ledger/solo")' "$file.tmp" > "$file"
+              jq '.name |= sub("hiero-ledger/solo";"@hiero-ledger/solo")' "$file.tmp" > "$file"
             else
               echo "::warning::File $file does not exist, skipping update."
             fi
           done
           
-          find . -type f -name "*.js" -exec sed -i "s/\b@hashgraph\/solo\b/@hiero-ledger\/solo/g" {} +
+          find . -type f -exec sed -i "s/@hashgraph\/solo/@hiero-ledger\/solo/g" {} +
           npm install
           task build
           echo "::endgroup::"
@@ -441,7 +441,7 @@ jobs:
           
           PROCEED="true"
           echo "::group::Verify HL Package is Created"
-            if ls -l output | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1 ; then
+            if ls -l output/hl | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1 ; then
               echo "::notice file=flow-deploy-release-artifact.yaml::HL Package is created"
             else
               PROCEED="false"
