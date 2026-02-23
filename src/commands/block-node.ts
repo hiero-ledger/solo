@@ -464,7 +464,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {
@@ -655,7 +655,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {
@@ -759,7 +759,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {
@@ -890,7 +890,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.addExternalBlockNodeComponent(),
@@ -964,7 +964,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.removeExternalBlockNodeComponent(),

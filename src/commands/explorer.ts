@@ -622,7 +622,7 @@ export class ExplorerCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -729,7 +729,7 @@ export class ExplorerCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -816,7 +816,7 @@ export class ExplorerCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.loadRemoteConfigTask(argv),

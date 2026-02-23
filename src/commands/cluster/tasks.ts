@@ -430,7 +430,7 @@ export class ClusterCommandTasks {
           const lease: Lock = await this.leaseManager.create();
           return ListrLock.newAcquireLockTask(lease, task);
         }
-        return undefined;
+        return null;
       },
     };
   }

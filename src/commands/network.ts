@@ -991,7 +991,7 @@ export class NetworkCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {
@@ -1522,7 +1522,7 @@ export class NetworkCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {
