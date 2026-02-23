@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
@@ -425,7 +426,7 @@ export class ClusterCommandTasks {
   public acquireNewLease(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Acquire new lease',
-      task: async (_, task): Promise<SoloListr<AnyListrContext> | null> => {
+      task: async (_, task): Promise<Listr<AnyListrContext> | null> => {
         if (!this.oneShotState.isActive()) {
           const lease: Lock = await this.leaseManager.create();
           return ListrLock.newAcquireLockTask(lease, task);

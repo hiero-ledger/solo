@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
@@ -565,7 +566,7 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -675,7 +676,7 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -774,7 +775,7 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {

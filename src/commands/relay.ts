@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
@@ -509,7 +510,7 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -631,7 +632,7 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -738,7 +739,7 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
