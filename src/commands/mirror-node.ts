@@ -879,7 +879,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -1101,7 +1101,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -1318,7 +1318,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
