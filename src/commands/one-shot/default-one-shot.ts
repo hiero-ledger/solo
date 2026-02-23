@@ -857,10 +857,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               config.deployment = selectedDeployment;
             } else {
-              const selectedDeployment: any = deployments.find(
-                (deployment: any) => deployment.name === deployments[0].name,
-              );
-              config.deployment = selectedDeployment.name;
+              // Only one deployment exists, use it directly
+              if (!deployments[0] || !deployments[0].name) {
+                throw new SoloError('Invalid deployment configuration: deployment name is missing');
+              }
+              config.deployment = deployments[0].name;
             }
 
             this.configManager.setFlag(flags.deployment, config.deployment);

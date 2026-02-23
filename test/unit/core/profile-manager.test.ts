@@ -270,7 +270,7 @@ describe('ProfileManager', () => {
 
   describe('prepareConfigText', () => {
     it('should write and return the path to the config.txt file', async () => {
-      const nodeAccountMap = new Map<NodeAlias, string>([
+      const _nodeAccountMap = new Map<NodeAlias, string>([
         ['node1', entityId(shard, realm, 3)],
         ['node2', entityId(shard, realm, 4)],
         ['node3', entityId(shard, realm, 5)],
