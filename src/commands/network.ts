@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
@@ -1005,7 +1006,7 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             this.configManager.update(argv);
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv, true, true);
@@ -1574,7 +1575,7 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
