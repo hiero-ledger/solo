@@ -40,6 +40,7 @@ export class KindExecution {
    * @param environmentVariables The environment variables to set
    */
   public constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+    // TODO prependToPath solo home bin
     this.process = spawn(command.join(' '), {
       shell: true,
       cwd: workingDirectory,

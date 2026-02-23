@@ -55,6 +55,7 @@ export class HelmExecution {
       this.logger.info(`Executing helm command: ${this.commandLine}`);
     }
 
+    // TODO prependToPath solo home bin
     this.process = spawn(command.join(' '), {
       shell: true,
       cwd: workingDirectory,
