@@ -104,7 +104,7 @@ export class NetworkTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
-  private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
+  private static soloConsensusNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
@@ -125,10 +125,10 @@ export class NetworkTest extends BaseCommandTest {
 
   public static destroy(options: BaseTestOptions): void {
     const {testName, deployment} = options;
-    const {soloNetworkDestroyArgv} = NetworkTest;
+    const {soloConsensusNetworkDestroyArgv} = NetworkTest;
 
     it(`${testName}: consensus network destroy`, async (): Promise<void> => {
-      await main(soloNetworkDestroyArgv(testName, deployment));
+      await main(soloConsensusNetworkDestroyArgv(testName, deployment));
     }).timeout(Duration.ofMinutes(10).toMillis());
 
     it(`${testName}: consensus network destroy should success`, async (): Promise<void> => {

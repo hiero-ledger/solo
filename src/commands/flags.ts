@@ -675,6 +675,17 @@ export class Flags {
     },
   };
 
+  public static readonly javaFlightRecorderConfiguration: CommandFlag = {
+    constName: 'javaFlightRecorderConfiguration',
+    name: 'jfr-config',
+    definition: {
+      describe: 'Java Flight Recorder configuration file path',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly chartDirectory: CommandFlag = {
     constName: 'chartDirectory',
     name: 'chart-dir',
@@ -2832,6 +2843,39 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly deployMirrorNode: CommandFlag = {
+    constName: 'deployMirrorNode',
+    name: 'deploy-mirror-node',
+    definition: {
+      describe: 'Deploy mirror node as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployExplorer: CommandFlag = {
+    constName: 'deployExplorer',
+    name: 'deploy-explorer',
+    definition: {
+      describe: 'Deploy explorer as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployRelay: CommandFlag = {
+    constName: 'deployRelay',
+    name: 'deploy-relay',
+    definition: {
+      describe: 'Deploy relay as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -2990,12 +3034,16 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.deployMirrorNode,
+    Flags.deployExplorer,
+    Flags.deployRelay,
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
+    Flags.javaFlightRecorderConfiguration,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

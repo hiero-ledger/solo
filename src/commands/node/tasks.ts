@@ -12,7 +12,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -107,7 +107,11 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS} from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
@@ -153,6 +157,8 @@ import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
+import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
+import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 
 const {gray, cyan, red, green, yellow}: any = chalk;
 
@@ -972,8 +978,14 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        // copy the config.txt file from the node1 upgrade directory
-        await k8Container.copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, stagingDir);
+        const consensusVersion: SemVer | undefined = this.remoteConfig.configuration?.versions?.consensusNode;
+        const releaseTag: string = consensusVersion?.version || consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
+        const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
+        const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
+        if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
+          // copy the config.txt file from the node1 upgrade directory if it exists
+          await k8Container.copyFrom(configSource, stagingDir);
+        }
 
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
@@ -1221,7 +1233,7 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName: any = podReference.name.name;
-            const statesDirectory: string = path.join(
+            const statesDirectory: string = PathEx.join(
               stateFileDirectory,
               'states',
               clusterReference,
@@ -1242,7 +1254,7 @@ export class NodeCommandTasks {
               continue;
             }
 
-            zipFile = path.join(statesDirectory, stateFiles[0]);
+            zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
             // It's a single file or use default from config
@@ -2041,7 +2053,7 @@ export class NodeCommandTasks {
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
         const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
-        const outputDirectory: string = path.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+        const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
           if (!fs.existsSync(outputDirectory)) {
@@ -2071,7 +2083,7 @@ export class NodeCommandTasks {
             this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
 
             // Create directory for this context
-            const contextDirectory: string = path.join(outputDirectory, context);
+            const contextDirectory: string = PathEx.join(outputDirectory, context);
             try {
               if (!fs.existsSync(contextDirectory)) {
                 fs.mkdirSync(contextDirectory, {recursive: true});
@@ -2093,7 +2105,7 @@ export class NodeCommandTasks {
                   maxBuffer: 1024 * 1024 * 10, // 10MB buffer
                 }).toString();
 
-                const valuesFile: string = path.join(contextDirectory, `${release.name}.yaml`);
+                const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {
                   fs.writeFileSync(valuesFile, output);
                   this.logger.info(`Saved Helm values for ${release.name} to ${valuesFile}`);
@@ -2825,9 +2837,13 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
+        const releaseTag: string = config.releaseTag || HEDERA_PLATFORM_VERSION;
+        const configTxtPath: string | undefined = needsConfigTxtForConsensusVersion(releaseTag)
+          ? PathEx.joinWithRealPath(config.stagingDir, 'config.txt')
+          : undefined;
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
-          PathEx.joinWithRealPath(config.stagingDir, 'config.txt'),
           PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
+          configTxtPath,
         );
 
         if (profileValuesFile) {
@@ -3537,7 +3553,7 @@ export class NodeCommandTasks {
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
           ? path.resolve(customOutputDirectory)
-          : path.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
@@ -3594,13 +3610,13 @@ export class NodeCommandTasks {
 
     try {
       // Create directory for this pod's logs
-      const podLogDirectory: string = path.join(outputDirectory, context);
+      const podLogDirectory: string = PathEx.join(outputDirectory, context);
       if (!fs.existsSync(podLogDirectory)) {
         fs.mkdirSync(podLogDirectory, {recursive: true});
       }
 
       // Get logs using kubectl with output to file (avoids buffer issues)
-      const logFile: string = path.join(podLogDirectory, `${podName}.log`);
+      const logFile: string = PathEx.join(podLogDirectory, `${podName}.log`);
       const logCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
 
       this.logger.info(`Downloading logs for pod ${podName}...`);
@@ -3641,7 +3657,7 @@ export class NodeCommandTasks {
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
-      const blockNodeLogDirectory: string = path.join(outputDirectory, context, `${podName}-block-logs`);
+      const blockNodeLogDirectory: string = PathEx.join(outputDirectory, context, `${podName}-block-logs`);
       if (!fs.existsSync(blockNodeLogDirectory)) {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
@@ -3650,5 +3666,60 @@ export class NodeCommandTasks {
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
+  }
+
+  public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
+    return {
+      title: 'Download Java Flight Recorder logs from node pod',
+      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+        this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
+        const config: NodeCollectJfrLogsConfigClass = context_.config;
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const context: Context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+
+        const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+        let pid: string;
+        try {
+          const result: string = await k8Container.execContainer('ps axww -o pid,command');
+          const resultLines: string[] = result.split('\n');
+          const servicesMainProcess: string = resultLines.find((line: string): boolean =>
+            line.includes('com.hedera.node.app.ServicesMain'),
+          );
+          pid = servicesMainProcess.trim().split(' ')[0];
+        } catch (error) {
+          throw new SoloError(`Failed to get process list from node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        if (!pid) {
+          throw new SoloError(`Could not find process ID for ServicesMain in node pod ${nodeFullyQualifiedPodName}`);
+        }
+
+        const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        try {
+          const result: string = await k8Container.execContainer(
+            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
+          );
+          this.logger.info(`JFR dump command output: ${result}`);
+        } catch (error) {
+          throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        try {
+          const localJfrLogsDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, config.deployment);
+          fs.mkdirSync(localJfrLogsDirectory, {recursive: true});
+          await k8Container.copyFrom(recordingFilePath, localJfrLogsDirectory);
+          const targetPath: string = PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr');
+          fs.renameSync(PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr'), targetPath);
+          this.logger.showUser(`Downloaded Java Flight Recorder logs to ${targetPath}`);
+        } catch (error) {
+          throw new SoloError(
+            `Failed to copy JFR recording from node pod ${nodeFullyQualifiedPodName} to local machine`,
+            error,
+          );
+        }
+      },
+    };
   }
 }

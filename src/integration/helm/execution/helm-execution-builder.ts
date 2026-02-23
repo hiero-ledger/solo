@@ -60,15 +60,11 @@ export class HelmExecutionBuilder {
   /**
    * Creates a new HelmExecutionBuilder instance.
    */
-  public constructor(
-    @inject(InjectTokens.OsPlatform) private readonly osPlatform?: NodeJS.Platform,
-    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-  ) {
-    this.osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, this.constructor.name);
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
 
     try {
-      this.helmExecutable = Templates.installationPath(constants.HELM, this.osPlatform);
+      this.helmExecutable = Templates.installationPath(constants.HELM);
     } catch (error) {
       this.logger?.error('Failed to find helm executable:', error);
       throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');

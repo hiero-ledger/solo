@@ -7,8 +7,7 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import * as semver from 'semver';
-import {type SemVer} from 'semver';
+import {parse, type SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -21,8 +20,6 @@ import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, ty
 import {type Optional} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import * as versions from '../../version.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -32,8 +29,10 @@ import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {Address} from '../business/address/address.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {Address} from '../business/address/address.js';
+import * as versions from '../../version.js';
 
 @injectable()
 export class ProfileManager {
@@ -231,16 +230,21 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const configTxtPath: string = await this.prepareConfigTxt(
-      accountMap,
-      consensusNodes,
-      stagingDirectory,
-      this.configManager.getFlag(flags.releaseTag),
-      domainNamesMapping,
-      this.configManager.getFlag(flags.app),
-      this.configManager.getFlag(flags.chainId),
-      this.configManager.getFlag(flags.loadBalancerEnabled),
-    );
+    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
+    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(releaseTag);
+    let configTxtPath: Optional<string>;
+    if (needsConfigTxt) {
+      configTxtPath = await this.prepareConfigTxt(
+        accountMap,
+        consensusNodes,
+        stagingDirectory,
+        releaseTag,
+        domainNamesMapping,
+        this.configManager.getFlag(flags.app),
+        this.configManager.getFlag(flags.chainId),
+        this.configManager.getFlag(flags.loadBalancerEnabled),
+      );
+    }
 
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
@@ -268,7 +272,9 @@ export class ProfileManager {
       fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
     }
 
-    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    if (configTxtPath) {
+      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    }
     this._setFileContentsAsValue(
       'hedera.configMaps.log4j2Xml',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'log4j2.xml'),
@@ -344,6 +350,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<AnyObject> {
     if (!profile) {
       throw new MissingArgumentError('profile is required');
@@ -359,6 +366,24 @@ export class ProfileManager {
     );
 
     if (profile.consensus) {
+      if (
+        jfrFile !== '' &&
+        profile.consensus.root &&
+        profile.consensus.root.extraEnv &&
+        Array.isArray(profile.consensus.root.extraEnv)
+      ) {
+        const javaOption: AnyObject = profile.consensus.root.extraEnv.find(
+          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
+        );
+
+        if (javaOption) {
+          javaOption.value +=
+            ' -XX:StartFlightRecording=dumponexit=true,' +
+            `settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile},` +
+            `filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
+        }
+      }
+
       // set default for consensus pod
       this._setChartItems('defaults.root', profile.consensus.root, yamlRoot);
 
@@ -432,6 +457,7 @@ export class ProfileManager {
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
+   * @param jfrFile - the name of the custom JFR settings file to use for recording
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
@@ -440,6 +466,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<Record<ClusterReferenceName, string>> {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
@@ -463,6 +490,7 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
+        jfrFile,
       );
       this.resourcesForHaProxyPod(profile, yamlRoot);
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);
@@ -497,7 +525,7 @@ export class ProfileManager {
       return;
     }
 
-    const lines: string[] = await readFile(applicationPropertiesPath, 'utf-8').then((fileText): string[] =>
+    const lines: string[] = await readFile(applicationPropertiesPath, 'utf8').then((fileText): string[] =>
       fileText.split('\n'),
     );
 
@@ -560,9 +588,14 @@ export class ProfileManager {
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
-  public async prepareValuesForNodeTransaction(configTxtPath: string, applicationPropertiesPath: string) {
+  public async prepareValuesForNodeTransaction(
+    applicationPropertiesPath: string,
+    configTxtPath?: string,
+  ): Promise<string> {
     const yamlRoot = {};
-    this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    if (configTxtPath) {
+      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
+    }
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 
@@ -714,7 +747,7 @@ export class ProfileManager {
     const nodeStakeAmount = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
     // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion = semver.parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const releaseVersion = parse(releaseTag, {includePrerelease: true}) as SemVer;
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];

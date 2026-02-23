@@ -10,14 +10,17 @@ vars:
 
 tasks:
   test-setup:
+    desc: "Setup for E2E tests that require a single cluster environment"
     cmds:
-      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   dual-cluster-setup:
+    desc: "Setup for E2E tests that require a dual cluster environment"
     cmds:
-      - sh {{.TASKFILE_DIR}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   test:
+    desc: "Runs all unit tests with coverage and generates reports in coverage/unit"
     cmds:
       - "{{ .test_prefix }}=\"Unit Tests\" 
         {{ .reporter_prefix }}='coverage/unit' 
@@ -26,6 +29,7 @@ tasks:
         {{ .reporter_options_prefix }}.xml"
 
   test-mathex:
+    desc: "Runs all MathEx unit tests with coverage and generates reports in coverage/unit-mathex"
     cmds:
       - "{{ .test_prefix }}=\"MathEx Unit Tests\"
         {{ .reporter_prefix }}='coverage/unit-mathex'
@@ -33,6 +37,7 @@ tasks:
         {{ .reporter_options_prefix }}.xml"
 
   test-data:
+    desc: "Runs all Data Layer unit tests with coverage and generates reports in coverage/unit-data"
     cmds:
       - "{{ .test_prefix }}=\"Data Layer Unit Tests\"
         {{ .reporter_prefix }}='coverage/unit-data'
@@ -40,6 +45,7 @@ tasks:
         {{ .reporter_options_prefix }}.xml"
 
   test-e2e-all:
+    desc: "Runs all E2E tests with coverage and generates reports in coverage/e2e-all"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E All Tests\" 
         {{ .reporter_prefix }}='coverage/e2e-all' 
@@ -47,6 +53,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-all.xml"
 
   test-e2e-integration:
+    desc: "Runs E2E integration tests with coverage and generates reports in coverage/e2e-integration"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Integration Tests\"
         {{ .reporter_prefix }}='coverage/e2e-integration'
@@ -54,6 +61,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-integration.xml"
 
   test-e2e-leases:
+    desc: "Runs E2E lease tests with coverage and generates reports in coverage/e2e-leases"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Lease Tests\"
         {{ .reporter_prefix }}='coverage/e2e-leases'
@@ -61,6 +69,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-integration.xml"
 
   test-helm:
+    desc: "Runs Helm unit tests with coverage and generates reports in coverage/unit-helm"
     cmds:
       - "{{ .test_prefix }}=\"Unit Helm Tests\"
         {{ .reporter_prefix }}='coverage/unit-helm'
@@ -68,6 +77,7 @@ tasks:
         {{ .reporter_options_prefix }}.xml"
 
   test-e2e-standard:
+    desc: "Runs standard E2E tests with coverage and generates reports in coverage/e2e-standard"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Standard Tests\"
         {{ .reporter_prefix }}='coverage/e2e-standard' 
@@ -87,14 +97,8 @@ tasks:
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
-  test-e2e-node-local-ptt:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Local PTT Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-local-ptt'
-        {{ .mocha_bin }} 'test/e2e/commands/node-local-ptt.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-local-ptt.xml"
-
   test-e2e-node-add-local:
+    desc: "Runs E2E Node Add Local tests with coverage and generates reports in coverage/e2e-node-add-local"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Add Local Tests\"
         {{ .reporter_prefix }}='coverage/e2e-node-add-local'
@@ -102,6 +106,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-node-add-local.xml"
 
   test-e2e-node-upgrade:
+    desc: "Runs E2E Node Upgrade tests with coverage and generates reports in coverage/e2e-node-upgrade"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Upgrade Tests\"
         {{ .reporter_prefix }}='coverage/e2e-node-upgrade'
@@ -109,6 +114,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-node-upgrade.xml"
 
   test-e2e-block-node:
+    desc: "Runs E2E Block Node tests with coverage and generates reports in coverage/e2e-block-node"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Block Nodes Tests\"
         {{ .reporter_prefix }}='coverage/e2e-block-node'
@@ -116,6 +122,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-block-node.xml"
 
   test-e2e-dual-cluster-full:
+    desc: "Runs E2E Dual Cluster Full tests with coverage and generates reports in coverage/e2e-dual-cluster-full"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Dual Cluster Full Test\"
         {{ .reporter_prefix }}='coverage/e2e-dual-cluster-full'
@@ -123,6 +130,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
 
   test-e2e-external-database:
+    desc: "Runs E2E External Database tests with coverage and generates reports in coverage/e2e-external-database"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E External Database Test\"
         {{ .reporter_prefix }}='coverage/e2e-external-database'
@@ -130,15 +138,17 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-external-database.xml"
 
   test-external-database:
+    desc: "Runs the external database example test without coverage (used for local development)"
     cmd: |
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
-          export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+          export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
         fi
         cd examples/external-database-test
         task default
         task destroy
 
   test-e2e-one-shot-single:
+    desc: "Runs E2E One Shot Single tests with coverage and generates reports in coverage/e2e-one-shot-single"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single'
@@ -146,6 +156,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
 
   test-e2e-one-shot-single-minimal:
+    desc: "Runs E2E One Shot Single Minimal tests with coverage and generates reports in coverage/e2e-one-shot-single-minimal"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
@@ -153,6 +164,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
 
   test-e2e-performance:
+    desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
         {{ .reporter_prefix }}='coverage/e2e-performance'
@@ -160,18 +172,21 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-performance.xml"
 
   test-example-node-create-transaction:
+    desc: "Runs the node create transaction example test without coverage (used for local development)"
     dir: examples/node-create-transaction
     cmds:
       - task
       - task destroy
 
   test-example-node-update-transaction:
+    desc: "Runs the node update transaction example test without coverage (used for local development)"
     dir: examples/node-update-transaction
     cmds:
       - task
       - task destroy
 
   test-example-node-delete-transaction:
+    desc: "Runs the node delete transaction example test without coverage (used for local development)"
     dir: examples/node-delete-transaction
     cmds:
       - task

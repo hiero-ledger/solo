@@ -21,7 +21,8 @@ export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURL
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR: string =
-  getEnvironmentVariable('SOLO_HOME') || PathEx.join(process.env.HOME as string, '.solo');
+  getEnvironmentVariable('SOLO_HOME') ||
+  PathEx.join((process.env.HOME as string) || (process.env.USERPROFILE as string), '.solo');
 export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
@@ -38,6 +39,7 @@ export const KUBECTL: string = 'kubectl';
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
+export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
@@ -324,11 +326,6 @@ export const LISTR_DEFAULT_OPTIONS: {
 
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
-
-export const OS_WINDOWS: string = 'windows';
-export const OS_WIN32: string = 'win32';
-export const OS_DARWIN: string = 'darwin';
-export const OS_LINUX: string = 'linux';
 
 export const LOCAL_HOST: string = '127.0.0.1';
 

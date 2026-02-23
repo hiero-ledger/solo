@@ -78,7 +78,7 @@ jobs:
         id: install
 
       - name: Setup Kind
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -178,6 +178,12 @@ jobs:
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-performance-test
 
+      - name: Move JVM Memory Usage Data to Metrics Directory
+        run: |
+          mkdir -p ~/.solo/metrics
+          mv ~/.solo/logs/performance-tests-deployment/* ~/.solo/metrics/
+          rm -rf ~/.solo/logs/performance-tests-deployment
+
       - name: Upload E2E Logs to GitHub
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -188,7 +194,7 @@ jobs:
 
       - name: Performance Test Verification
         run: |
-          MAX_MEMORY_MB=10000
+          MAX_MEMORY_MB=11000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')

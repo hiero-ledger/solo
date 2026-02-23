@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../../src/commands/flags.js';
-import {K8Client} from '../../src/integration/kube/k8-client/k8-client.js';
 import * as helpers from '../../src/core/helpers.js';
 import {getTestCacheDirectory, getTestCluster} from '../test-utility.js';
 import {type NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type CommandFlag} from '../../src/types/flag-types.js';
 import {type ArgvStruct, type NodeAliases} from '../../src/types/aliases.js';
 import {type CloneTrait} from '../../src/types/traits/clone-trait.js';
+import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
+import {type K8Factory} from '../../src/integration/kube/k8-factory.js';
 
 export class Argv implements CloneTrait<Argv> {
   private args: Record<string, any> = {};
@@ -83,7 +85,9 @@ export class Argv implements CloneTrait<Argv> {
     argv.setArg(flags.deployment, currentDeployment);
     argv.setArg(flags.clusterRef, getTestCluster());
     argv.setArg(flags.deploymentClusters, [getTestCluster()]);
-    argv.setArg(flags.context, new K8Client(undefined).contexts().readCurrent());
+
+    const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+    argv.setArg(flags.context, k8Factory.default().contexts().readCurrent());
     argv.setArg(flags.chartDirectory, process.env.SOLO_CHARTS_DIR ?? undefined);
     argv.setArg(flags.quiet, true);
 

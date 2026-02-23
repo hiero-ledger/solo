@@ -75,3 +75,22 @@ The `falcon-values.yaml` file contains the following configuration sections:
 * `explorerNode` - Explorer deployment settings
 * `relayNode` - Relay deployment settings
 * `blockNode` - Block node deployment settings (optional)
+
+## Component Deployment Toggles
+
+You can selectively disable deployment of optional components using command-line flags:
+
+* `--deploy-mirror-node` - Deploy mirror node (default: true)
+* `--deploy-explorer` - Deploy explorer (default: true)
+* `--deploy-relay` - Deploy relay (default: true)
+
+### Example: Deploy without Explorer and Relay
+
+```sh
+solo one-shot falcon deploy --values-file falcon-values.yaml --deploy-explorer=false --deploy-relay=false
+```
+
+This is useful for:
+* Testing specific components in isolation
+* Reducing resource usage during development
+* Customizing deployment for specific testing scenarios

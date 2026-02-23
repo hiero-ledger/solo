@@ -3,8 +3,8 @@ includes:
   tests:
     taskfile: ./Taskfile.tests.yml
     flatten: true
-  docker:
-    taskfile: ./docker/Taskfile.yaml
+  #docker:
+  #  taskfile: ./docker/Taskfile.yaml
 vars:
   cross_env: npx cross-env
   mocha_bin: npx mocha
@@ -35,25 +35,90 @@ env:
   EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
 
 tasks:
+  default:
+    desc: "List all available tasks"
+    cmds:
+      - task --list
+
+  npm:install:
+    desc: "Install npm dependencies"
+    sources:
+      - package.json
+      - package-lock.json
+    cmds:
+      - |
+        {{if .CI}}
+        npm ci
+        {{else}}
+        npm install
+        {{end}}
+
   check:
+    desc: "Run all checks (lint, circular dependencies, typedoc)"
+    deps: [build]
+    sources:
+      - src/**/*.ts
+      - test/**/*.ts
+      - docs/site/cntent/**/*.md
     cmds:
       - npx remark . --quiet --frail
-      - npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log && npx eslint . --quiet
-      - npx tsc
-      - npx madge --circular {{.TASKFILE_DIR}}/src/*
+      - echo OS:{{OS}}
+      - |
+        {{if eq OS "windows"}}
+        powershell "npx eslint . | Tee-Object -FilePath \"eslint.log\" -Append" && npx tsx lint-formatter.ts eslint.log
+        {{else}}
+        npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
+        {{end}}
+      - npx madge --circular {{.TASKFILE_DIR | toSlash}}/src/*
       - npx typedoc --emit none
 
   format:
+    desc: "Run all checks with auto-fix (lint, circular dependencies, typedoc)"
+    deps: [build]
+    sources:
+      - src/**/*.ts
+      - test/**/*.ts
+      - docs/site/cntent/**/*.md
     cmds:
       - npx remark . --quiet --frail --output
-      - npx eslint --fix {{.TASKFILE_DIR}} || true
-      - npx tsc
-      - npx madge --circular {{.TASKFILE_DIR}}/src/*
+      - npx eslint --fix {{.TASKFILE_DIR | toSlash}} || true
+      - npx madge --circular {{.TASKFILE_DIR | toSlash}}/src/*
       - npx typedoc --emit none
-      - npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log && npx eslint . --quiet
+      - |
+        {{if eq OS "windows"}}
+        powershell "npx eslint . | Tee-Object -FilePath \"eslint.log\" -Append" && npx tsx lint-formatter.ts eslint.log
+        {{else}}
+        npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
+        {{end}}
 
   build:
+    desc: "Build the project (compile and lint)"
+    deps: [npm:install]
+    sources:
+      - src/**/*.ts
+      - test/**/*.tss 
+    cmds:
+      - task: "build:compile"
+      - task: "build:lint"
+
+  build:compile:
+    desc: "Compile the TypeScript code and run post-build script"
+    deps: [npm:install]
+    sources:
+      - src/**/*.ts
+      - test/**/*.tss 
+    vars:
+      POST_BUILD_SCRIPT: "{{.TASKFILE_DIR | toSlash}}/resources/post-build-script.js"
     cmds:
       - rm -Rf dist
       - npx tsc
-      - node {{.TASKFILE_DIR}}/resources/post-build-script.js
+      - node {{.POST_BUILD_SCRIPT}}
+
+  build:lint:
+    desc: "Lint the TypeScript code"
+    deps: [npm:install]
+    sources:
+      - src/**/*.ts
+      - test/**/*.tss 
+    cmds:
+      - npx eslint .
