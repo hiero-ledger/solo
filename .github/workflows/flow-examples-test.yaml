@@ -211,7 +211,7 @@ jobs:
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         run: |
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
           cd ..
           git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
           cd hiero-consensus-node
@@ -241,7 +241,7 @@ jobs:
           
           # Run the example
           echo "Starting task..."
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
           set +e
           task
           TASK_RC=$?
