@@ -587,12 +587,21 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    const releaseTag: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+    let releaseTag: SemVer = new SemVer(versions.HEDERA_PLATFORM_VERSION);
+    try {
+      releaseTag = this.remoteConfig.configuration.versions.consensusNode;
+    } catch {
+      // Guard
+    }
 
-    if (
-      !semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) &&
-      this.remoteConfig.configuration.state.tssEnabled
-    ) {
+    let tssEnabled: boolean = false;
+    try {
+      tssEnabled = this.remoteConfig.configuration.state.tssEnabled;
+    } catch {
+      // Guard
+    }
+
+    if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
       lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
       // TODO: Enable with wraps
