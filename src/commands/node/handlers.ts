@@ -32,7 +32,7 @@ import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Zippy} from '../../core/zippy.js';
-import path from 'node:path';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -670,7 +670,7 @@ export class NodeCommandHandlers extends CommandHandler {
     const deployment: string = (argv.deployment as string) || '';
     const timestamp: string = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-').slice(0, 19);
     const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
-    const zipFilePath: string = path.join(outputDirectory, '..', zipFileName);
+    const zipFilePath: string = PathEx.join(outputDirectory, '..', zipFileName);
 
     this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
     this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
