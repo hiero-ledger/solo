@@ -22,7 +22,10 @@ export class SoloError extends Error {
     Error.captureStackTrace(this, this.constructor);
     if (cause && Object.keys(cause).length > 0) {
       // if the cause message is the same as this message and this is a SoloError, re-throw the cause to avoid redundant wrapping
-      if (message === cause.message && this.name === SoloError.name) {
+      if (
+        message?.toString().trim() === cause.message?.toString().trim() &&
+        this.name.toString().trim() === cause.name?.toString().trim()
+      ) {
         throw cause;
       }
       this.cause = cause;
