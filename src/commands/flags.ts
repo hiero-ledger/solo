@@ -1240,7 +1240,7 @@ export class Flags {
 
   public static readonly tssEnabled: CommandFlag = {
     constName: 'tssEnabled',
-    name: 'wraps',
+    name: 'tss',
     definition: {
       describe: 'Enable hinTS/TSS (CN >= v0.72).',
       type: 'boolean',
