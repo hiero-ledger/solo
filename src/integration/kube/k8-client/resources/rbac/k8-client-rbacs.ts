@@ -2,17 +2,12 @@
 
 import {type Rbacs} from '../../../resources/rbac/rbacs.js';
 import {type ClusterRole} from '../../../resources/rbac/cluster-role.js';
-import {
-  type V1ClusterRole,
-  type V1ClusterRoleBinding,
-  type RbacAuthorizationV1Api,
-  type V1Status,
-  type RbacAuthorizationV1Api,
-} from '@kubernetes/client-node';
+import {type RbacAuthorizationV1Api} from '@kubernetes/client-node';
 import {K8ClientClusterRole} from './k8-client-cluster-role.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
+import {ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
 
 export class K8ClientRbacs implements Rbacs {
   public constructor(private readonly k8sRbacApi: RbacAuthorizationV1Api) {}
@@ -56,30 +51,22 @@ export class K8ClientRbacs implements Rbacs {
   }
 
   public async clusterRoleBindingExists(name: string): Promise<boolean> {
-    let result: {response: IncomingMessage; body: V1ClusterRoleBinding};
     try {
-      result = await this.k8sRbacApi.readClusterRoleBinding(name);
-    } catch {
-      return false;
+      await this.k8sRbacApi.readClusterRoleBinding({name});
+      return true;
+    } catch (error) {
+      if (KubeApiResponse.isNotFound(error)) {
+        return false;
+      }
+      throw error;
     }
-
-    try {
-      KubeApiResponse.check(result.response, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
-    } catch {
-      return false;
-    }
-
-    return true;
   }
 
   public async deleteClusterRoleBinding(name: string): Promise<void> {
-    let result: {response: IncomingMessage; body: V1Status};
     try {
-      result = await this.k8sRbacApi.deleteClusterRoleBinding(name);
+      await this.k8sRbacApi.deleteClusterRoleBinding({name});
     } catch (error) {
       throw new ResourceDeleteError(ResourceType.RBAC, undefined, name, error);
     }
-
-    KubeApiResponse.check(result.response, ResourceOperation.DELETE, ResourceType.RBAC, undefined, name);
   }
 }
