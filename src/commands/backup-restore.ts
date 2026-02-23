@@ -47,6 +47,7 @@ import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-ki
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
+import {PathEx} from '../business/utils/path-ex.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -108,7 +109,7 @@ export class BackupRestoreCommand extends BaseCommand {
         const k8: K8 = this.k8Factory.getK8(context);
 
         // Create output directory using cluster reference (not context)
-        const contextDirectory: string = path.join(outputDirectory, clusterReference, resourceType);
+        const contextDirectory: string = PathEx.join(outputDirectory, clusterReference, resourceType);
         if (!fs.existsSync(contextDirectory)) {
           fs.mkdirSync(contextDirectory, {recursive: true});
         }
@@ -145,7 +146,7 @@ export class BackupRestoreCommand extends BaseCommand {
         // Export each resource as YAML
         for (const resource of resources) {
           const fileName: string = `${resource.name}.yaml`;
-          const filePath: string = path.join(contextDirectory, fileName);
+          const filePath: string = PathEx.join(contextDirectory, fileName);
 
           // Create a Kubernetes-compatible resource object
           const k8sResource: Record<string, unknown> = {
@@ -280,7 +281,7 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const [clusterReference, context] of clusterReferences.entries()) {
-              const logsDirectory: string = path.join(outputDirectory, clusterReference, 'logs');
+              const logsDirectory: string = PathEx.join(outputDirectory, clusterReference, 'logs');
               await networkNodes.getLogs(namespace, [context], logsDirectory);
             }
             task.title = `Download Node Logs: ${clusterReferences.size} cluster(s) completed`;
@@ -294,7 +295,7 @@ export class BackupRestoreCommand extends BaseCommand {
               const nodeAlias: string = node.name;
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
-              const statesDirectory: string = path.join(outputDirectory, 'states', clusterReference);
+              const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
@@ -362,7 +363,7 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterReference} (context: ${context})`));
 
         const k8: K8 = this.k8Factory.getK8(context);
-        const contextDirectory: string = path.join(inputDirectory, clusterReference, resourceType);
+        const contextDirectory: string = PathEx.join(inputDirectory, clusterReference, resourceType);
 
         // Check if directory exists
         if (!fs.existsSync(contextDirectory)) {
@@ -384,7 +385,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Import each resource from YAML
         for (const file of files) {
-          const filePath: string = path.join(contextDirectory, file);
+          const filePath: string = PathEx.join(contextDirectory, file);
           const yamlContent: string = fs.readFileSync(filePath, 'utf8');
           const resource: any = yaml.parse(yamlContent);
 
@@ -462,7 +463,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
     for (const [clusterReference, context] of clusterReferences.entries()) {
-      const logsDirectory: string = path.join(inputDirectory, clusterReference, 'logs', namespace.toString());
+      const logsDirectory: string = PathEx.join(inputDirectory, clusterReference, 'logs', namespace.toString());
 
       // Check if logs directory exists
       if (!fs.existsSync(logsDirectory)) {
@@ -500,7 +501,7 @@ export class BackupRestoreCommand extends BaseCommand {
           continue;
         }
 
-        const logFilePath: string = path.join(logsDirectory, logFile);
+        const logFilePath: string = PathEx.join(logsDirectory, logFile);
         const podReference: any = pod.podReference;
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const container: any = await k8.containers().readByRef(containerReference);
@@ -1189,7 +1190,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Read solo-remote-config.yaml from the first cluster's configmaps directory
         const firstClusterReference: string = clusterReferenceDirectories[0];
-        const configPath: string = path.join(
+        const configPath: string = PathEx.join(
           inputDirectory,
           firstClusterReference,
           'configmaps',

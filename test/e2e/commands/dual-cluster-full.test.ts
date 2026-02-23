@@ -43,76 +43,82 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withShard(3)
   .withServiceMonitor(true)
   .withPodLog(true)
-  .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe('Dual Cluster Full E2E Test', (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts} = options;
+  .withTestSuiteCallback(
+    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
+      describe('Dual Cluster Full E2E Test', (): void => {
+        const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
-      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
-      before(async (): Promise<void> => {
-        fs.rmSync(testCacheDirectory, {recursive: true, force: true});
-        try {
-          fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
-            force: true,
-          });
-        } catch {
-          // allowed to fail if the file doesn't exist
+        // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
+        before(async (): Promise<void> => {
+          fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+          try {
+            fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+              force: true,
+            });
+          } catch {
+            // allowed to fail if the file doesn't exist
+          }
+          resetForTest(namespace.name, testCacheDirectory, false);
+          for (const item of contexts) {
+            const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
+            await k8Client.namespaces().delete(namespace);
+          }
+          testLogger.info(`${testName}: starting ${testName} e2e test`);
+        }).timeout(Duration.ofMinutes(5).toMillis());
+
+        after(async (): Promise<void> => {
+          await preDestroy(endToEndTestSuite);
+        });
+
+        beforeEach(async (): Promise<void> => {
+          testLogger.info(`${testName}: resetting containers for each test`);
+          resetForTest(namespace.name, testCacheDirectory, false);
+          testLogger.info(`${testName}: finished resetting containers for each test`);
+        });
+
+        InitTest.init(options);
+        ClusterReferenceTest.connect(options);
+        DeploymentTest.create(options);
+        DeploymentTest.addCluster(options);
+        ConsensusNodeTest.keys(options);
+
+        BlockNodeTest.add(options);
+
+        NetworkTest.deploy(options);
+        ConsensusNodeTest.setup(options);
+        ConsensusNodeTest.start(options);
+
+        ConsensusNodeTest.PemStop(options);
+        ConsensusNodeTest.PemKill(options);
+
+        MirrorNodeTest.add(options);
+
+        ConsensusNodeTest.add(options);
+        ConsensusNodeTest.update(options);
+        ConsensusNodeTest.destroy(options);
+
+        ExplorerTest.add(options);
+        RelayTest.add(options);
+
+        it('Should write log metrics', async (): Promise<void> => {
+          await new MetricsServerImpl().logMetrics(
+            testName,
+            PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+            undefined,
+            undefined,
+            contexts,
+          );
+        });
+
+        if (destroyEnabled()) {
+          BlockNodeTest.destroy(options);
+          RelayTest.destroy(options);
+          ExplorerTest.destroy(options);
+          MirrorNodeTest.destroy(options);
+          NetworkTest.destroy(options);
         }
-        resetForTest(namespace.name, testCacheDirectory, false);
-        for (const item of contexts) {
-          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          await k8Client.namespaces().delete(namespace);
-        }
-        testLogger.info(`${testName}: starting ${testName} e2e test`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
-
-      beforeEach(async (): Promise<void> => {
-        testLogger.info(`${testName}: resetting containers for each test`);
-        resetForTest(namespace.name, testCacheDirectory, false);
-        testLogger.info(`${testName}: finished resetting containers for each test`);
-      });
-
-      InitTest.init(options);
-      ClusterReferenceTest.connect(options);
-      DeploymentTest.create(options);
-      DeploymentTest.addCluster(options);
-      ConsensusNodeTest.keys(options);
-
-      BlockNodeTest.add(options);
-
-      NetworkTest.deploy(options);
-      ConsensusNodeTest.setup(options);
-      ConsensusNodeTest.start(options);
-
-      ConsensusNodeTest.PemStop(options);
-      ConsensusNodeTest.PemKill(options);
-
-      MirrorNodeTest.add(options);
-
-      ConsensusNodeTest.add(options);
-      ConsensusNodeTest.update(options);
-      ConsensusNodeTest.destroy(options);
-
-      ExplorerTest.add(options);
-      RelayTest.add(options);
-
-      it('Should write log metrics', async (): Promise<void> => {
-        await new MetricsServerImpl().logMetrics(
-          testName,
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
-          undefined,
-          undefined,
-          contexts,
-        );
-      });
-
-      if (destroyEnabled()) {
-        BlockNodeTest.destroy(options);
-        RelayTest.destroy(options);
-        ExplorerTest.destroy(options);
-        MirrorNodeTest.destroy(options);
-        NetworkTest.destroy(options);
-      }
-    }).timeout(Duration.ofMinutes(30).toMillis());
-  })
+      }).timeout(Duration.ofMinutes(30).toMillis());
+    },
+  )
   .build();
 endToEndTestSuite.runTestSuite();

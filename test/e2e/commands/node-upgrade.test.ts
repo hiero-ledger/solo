@@ -23,10 +23,11 @@ import {resetForTest} from '../../test-container.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
+import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
 const testName: string = 'node-upgrade-test';
 
-new EndToEndTestSuiteBuilder()
+const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Dual Cluster Full E2E Test Suite')
   .withNamespace(testName)
@@ -39,62 +40,69 @@ new EndToEndTestSuiteBuilder()
   .withShard(0)
   .withServiceMonitor(true)
   .withPodLog(true)
-  .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe('Node Upgrade E2E Test', (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts} = options;
+  .withTestSuiteCallback(
+    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
+      describe('Node Upgrade E2E Test', (): void => {
+        const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
-      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
-      before(async (): Promise<void> => {
-        fs.rmSync(testCacheDirectory, {recursive: true, force: true});
-        try {
-          fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
-            force: true,
-          });
-        } catch {
-          // allowed to fail if the file doesn't exist
-        }
-        resetForTest(namespace.name, testCacheDirectory, false);
-        for (const item of contexts) {
-          await container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item).namespaces().delete(namespace);
-        }
-        await HelmMetricsServer.installMetricsServer(testName);
-        await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
-        testLogger.info(`${testName}: starting ${testName} e2e test`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
+        // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
+        before(async (): Promise<void> => {
+          fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+          try {
+            fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+              force: true,
+            });
+          } catch {
+            // allowed to fail if the file doesn't exist
+          }
+          resetForTest(namespace.name, testCacheDirectory, false);
+          for (const item of contexts) {
+            await container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item).namespaces().delete(namespace);
+          }
+          await HelmMetricsServer.installMetricsServer(testName);
+          await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
+          testLogger.info(`${testName}: starting ${testName} e2e test`);
+        }).timeout(Duration.ofMinutes(5).toMillis());
 
-      beforeEach(async (): Promise<void> => {
-        testLogger.info(`${testName}: resetting containers for each test`);
-        resetForTest(namespace.name, testCacheDirectory, false);
-        testLogger.info(`${testName}: finished resetting containers for each test`);
-      });
-
-      InitTest.init(options);
-      ClusterReferenceTest.connect(options);
-      DeploymentTest.create(options);
-      DeploymentTest.addCluster(options);
-      ConsensusNodeTest.keys(options);
-
-      NetworkTest.deploy(options);
-      ConsensusNodeTest.setup(options);
-      ConsensusNodeTest.start(options);
-
-      AccountTest.accountCreationShouldSucceed(options);
-      AccountTest.predefinedAccountCreationShouldSucceed(options);
-
-      ConsensusNodeTest.upgrade(options);
-
-      describe('Write log metrics', async (): Promise<void> => {
-        it('Should write log metrics', async (): Promise<void> => {
-          await new MetricsServerImpl().logMetrics(
-            testName,
-            PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
-            undefined,
-            undefined,
-            contexts,
-          );
+        after(async (): Promise<void> => {
+          await preDestroy(endToEndTestSuite);
         });
-      });
-    }).timeout(Duration.ofMinutes(30).toMillis());
-  })
-  .build()
-  .runTestSuite();
+
+        beforeEach(async (): Promise<void> => {
+          testLogger.info(`${testName}: resetting containers for each test`);
+          resetForTest(namespace.name, testCacheDirectory, false);
+          testLogger.info(`${testName}: finished resetting containers for each test`);
+        });
+
+        InitTest.init(options);
+        ClusterReferenceTest.connect(options);
+        DeploymentTest.create(options);
+        DeploymentTest.addCluster(options);
+        ConsensusNodeTest.keys(options);
+
+        NetworkTest.deploy(options);
+        ConsensusNodeTest.setup(options);
+        ConsensusNodeTest.start(options);
+
+        AccountTest.accountCreationShouldSucceed(options);
+        AccountTest.predefinedAccountCreationShouldSucceed(options);
+
+        ConsensusNodeTest.upgrade(options);
+
+        describe('Write log metrics', async (): Promise<void> => {
+          it('Should write log metrics', async (): Promise<void> => {
+            await new MetricsServerImpl().logMetrics(
+              testName,
+              PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+              undefined,
+              undefined,
+              contexts,
+            );
+          });
+        });
+      }).timeout(Duration.ofMinutes(30).toMillis());
+    },
+  )
+  .build();
+
+endToEndTestSuite.runTestSuite();

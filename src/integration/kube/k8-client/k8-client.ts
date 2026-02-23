@@ -199,4 +199,8 @@ export class K8Client implements K8 {
   public manifests(): K8ClientManifests {
     return this.k8Manifests;
   }
+
+  public getKubectlExecutablePath(): string {
+    return this.kubectlExecutable;
+  }
 }
