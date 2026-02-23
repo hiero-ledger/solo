@@ -238,7 +238,7 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += ' --set ingress.enabled=true';
       valuesArgument += ` --set ingressClassName=${config.ingressReleaseName}`;
     }
-    valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
+    valuesArgument += ` --set fullnameOverride=${config.releaseName}-${config.namespace.name}`;
 
     valuesArgument += ` --set proxyPass./api="http://${config.mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
 
@@ -537,9 +537,10 @@ export class ExplorerCommand extends BaseCommand {
     );
   }
 
-  private getIngressReleaseName(): string {
+  private getIngressReleaseName(namespaceName: NamespaceName): string {
     return this.renderIngressReleaseName(
       this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer),
+      namespaceName,
     );
   }
 
@@ -550,11 +551,11 @@ export class ExplorerCommand extends BaseCommand {
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
-  private renderIngressReleaseName(id: ComponentId): string {
+  private renderIngressReleaseName(id: ComponentId, namespaceName: NamespaceName): string {
     if (typeof id !== 'number') {
       throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
-    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
+    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {
@@ -594,7 +595,7 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
             config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
+            config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
             const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
               config.namespace,
@@ -943,7 +944,7 @@ export class ExplorerCommand extends BaseCommand {
     return {
       id,
       releaseName,
-      ingressReleaseName: this.renderIngressReleaseName(id),
+      ingressReleaseName: this.renderIngressReleaseName(id, namespace),
       isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
       isLegacyChartInstalled,
     };

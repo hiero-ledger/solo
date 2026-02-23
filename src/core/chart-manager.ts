@@ -37,7 +37,10 @@ export class ChartManager {
    * @param force - whether or not to update the repo
    * @returns the urls
    */
-  async setup(repoURLs: Map<string, string> = constants.DEFAULT_CHART_REPO, force: boolean = true) {
+  public async setup(
+    repoURLs: Map<string, string> = constants.DEFAULT_CHART_REPO,
+    force: boolean = true,
+  ): Promise<string[]> {
     try {
       const promises: Promise<string>[] = [];
       for (const [name, url] of repoURLs.entries()) {
@@ -45,7 +48,9 @@ export class ChartManager {
         promises.push(this.addRepo(name, url, force));
       }
 
-      return await Promise.all(promises); // urls
+      const urls: string[] = await Promise.all(promises); // urls
+      await this.helm.updateRepositories();
+      return urls;
     } catch (error) {
       throw new SoloError(`failed to setup chart repositories: ${error.message}`, error);
     }
@@ -201,7 +206,7 @@ export class ChartManager {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
       const options: UpgradeChartOptions = new UpgradeChartOptions(
-        namespaceName.name,
+        namespaceName?.name,
         kubeContext,
         reuseValues ?? true,
         valuesArgument,
