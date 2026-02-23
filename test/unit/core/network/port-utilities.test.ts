@@ -4,9 +4,10 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import net from 'node:net';
 import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
+import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 // Mock logger for testing
-const mockLogger = {
+const mockLogger: SoloLogger = {
   debug: (): void => {},
   error: (): void => {},
   info: (): void => {},
@@ -24,6 +25,9 @@ const mockLogger = {
   getMessageGroupKeys: (): string[] => [],
   showAllMessageGroups: (): void => {},
   getMessageGroup: (): string[] => [],
+  flush: (callback: (error?: Error) => void): void => {
+    callback();
+  },
 };
 
 describe('Port Utils', (): void => {

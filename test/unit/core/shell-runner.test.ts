@@ -11,15 +11,16 @@ import {ChildProcess} from 'node:child_process';
 import {Readable} from 'node:stream';
 import {Duration} from '../../../src/core/time/duration.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
 
-describe('ShellRunner', () => {
+describe('ShellRunner', (): void => {
   let shellRunner: ShellRunner,
     loggerDebugStub: SinonStub,
     loggerInfoStub: SinonStub,
     childProcessSpy: SinonSpy,
     readableSpy: SinonSpy;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     shellRunner = new ShellRunner();
 
     // Spy on methods
@@ -29,13 +30,14 @@ describe('ShellRunner', () => {
     readableSpy = sinon.spy(Readable.prototype, 'on');
   });
 
-  afterEach(() => sinon.restore());
+  afterEach((): void => sinon.restore());
 
-  it('should run command', async () => {
-    await shellRunner.run('ls -l');
+  it('should run command', async (): Promise<void> => {
+    const commandToRun: string = OperatingSystem.isWin32() ? 'dir' : 'ls -l';
+    await shellRunner.run(commandToRun);
 
-    loggerInfoStub.withArgs("Executing command: 'ls -l'").onFirstCall();
-    loggerDebugStub.withArgs("Finished executing: 'ls -l'", sinon.match.any).onFirstCall();
+    loggerInfoStub.withArgs(`Executing command: '${commandToRun}'`).onFirstCall();
+    loggerDebugStub.withArgs(`Finished executing: '${commandToRun}'`, sinon.match.any).onFirstCall();
 
     expect(loggerDebugStub).to.have.been.calledOnce;
     expect(loggerInfoStub).to.have.been.calledOnce;

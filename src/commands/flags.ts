@@ -652,6 +652,17 @@ export class Flags {
     },
   };
 
+  public static readonly javaFlightRecorderConfiguration: CommandFlag = {
+    constName: 'javaFlightRecorderConfiguration',
+    name: 'jfr-config',
+    definition: {
+      describe: 'Java Flight Recorder configuration file path',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly chartDirectory: CommandFlag = {
     constName: 'chartDirectory',
     name: 'chart-dir',
@@ -3008,6 +3019,7 @@ export class Flags {
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
+    Flags.javaFlightRecorderConfiguration,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

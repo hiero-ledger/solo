@@ -106,4 +106,10 @@ export interface K8 {
    * @returns an object instance providing manifest operations
    */
   manifests(): Manifests;
+
+  /**
+   * Get the file path to the kubectl executable being used by this K8 client instance.
+   * @returns the file path to the kubectl executable
+   */
+  getKubectlExecutablePath(): string;
 }
