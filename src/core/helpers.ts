@@ -198,8 +198,8 @@ export function renameAndCopyFile(
   expectedBaseName: string,
   destinationDirectory: string,
   _logger: SoloLogger,
-) {
-  const sourceDirectory = path.dirname(sourceFilePath);
+): void {
+  const sourceDirectory: string = path.dirname(sourceFilePath);
   if (path.basename(sourceFilePath) !== expectedBaseName) {
     fs.renameSync(sourceFilePath, PathEx.join(sourceDirectory, expectedBaseName));
   }
@@ -293,7 +293,11 @@ export function addLoadContextParser(context_: any, contextData: any): void {
   }
 }
 
-export function prepareEndpoints(endpointType: string, endpoints: string[], defaultPort: number | string) {
+export function prepareEndpoints(
+  endpointType: string,
+  endpoints: string[],
+  defaultPort: number | string,
+): ServiceEndpoint[] {
   const returnValue: ServiceEndpoint[] = [];
   for (const endpoint of endpoints) {
     const parts: string[] = endpoint.split(':');

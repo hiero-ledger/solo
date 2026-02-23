@@ -36,4 +36,6 @@ export interface SoloLogger {
   getMessageGroupKeys(): string[];
 
   showAllMessageGroups(): void;
+
+  flush(callback: (error?: Error) => void): void;
 }

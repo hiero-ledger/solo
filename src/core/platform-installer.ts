@@ -176,7 +176,10 @@ export class PlatformInstaller {
 
       return copiedFiles;
     } catch (error) {
-      throw new SoloError(`failed to copy files to pod '${podReference.name}': ${error.message}`, error);
+      throw new SoloError(
+        `failed to copy files: ${sourceFiles.join(', ')}, to ${podReference.name}:${destinationDirectory}: ${error.message}`,
+        error,
+      );
     }
   }
 

@@ -6,7 +6,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {BrewPackageManager} from './brew-package-manager.js';
 import {AptGetPackageManager} from './apt-get-package-manager.js';
-import * as constants from '../constants.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 @injectable()
 export class OsPackageManager {
@@ -15,7 +15,6 @@ export class OsPackageManager {
   public constructor(
     @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
     @inject(InjectTokens.AptGetPackageManager) protected readonly aptGetPackageManager: AptGetPackageManager,
-    @inject(InjectTokens.OsPlatform) protected readonly osPlatform: NodeJS.Platform,
   ) {
     this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, OsPackageManager.name);
     this.aptGetPackageManager = patchInject(
@@ -23,21 +22,13 @@ export class OsPackageManager {
       InjectTokens.AptGetPackageManager,
       OsPackageManager.name,
     );
-    this.osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, OsPackageManager.name);
 
-    switch (this.osPlatform) {
-      case constants.OS_DARWIN: {
-        this.packageManager = this.brewPackageManager;
-        break;
-      }
-      case constants.OS_LINUX:
-      case constants.OS_WIN32: {
-        this.packageManager = this.aptGetPackageManager;
-        break;
-      }
-      default: {
-        throw new Error(`Unsupported OS platform: ${this.osPlatform}`);
-      }
+    if (OperatingSystem.isDarwin()) {
+      this.packageManager = this.brewPackageManager;
+    } else if (OperatingSystem.isLinux() || OperatingSystem.isWin32()) {
+      this.packageManager = this.aptGetPackageManager;
+    } else {
+      throw new Error(`Unsupported OS platform: ${OperatingSystem.getPlatform()}`);
     }
   }
 
