@@ -891,6 +891,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           if (!config.deployment) {
             return true;
           }
+          // don't make remote config call if deployment is not set or it will fail
           const hasExplorers: boolean = this.remoteConfig.configuration.components.state.explorers.length > 0;
           const hasRelays: boolean = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
           return !hasExplorers || !hasRelays;
@@ -914,12 +915,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => {
-          if (!config.deployment) {
-            return true;
-          }
-          return this.remoteConfig.configuration.components.state.mirrorNodes.length === 0;
-        },
+        (): boolean => !config.deployment || this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
@@ -937,15 +933,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => {
-          if (!config.deployment) {
-            return true;
-          }
-          return (
-            constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-            this.remoteConfig.configuration.components.state.blockNodes.length === 0
-          );
-        },
+        (): boolean =>
+          !config.deployment ||
+          constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+          this.remoteConfig.configuration.components.state.blockNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
