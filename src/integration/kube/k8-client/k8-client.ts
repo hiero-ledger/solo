@@ -75,6 +75,7 @@ export class K8Client implements K8 {
   public constructor(
     private readonly context: string,
     private readonly kubectlExecutable: string,
+    private readonly prependToPath: string,
   ) {
     this.init(this.context);
   }
@@ -102,8 +103,8 @@ export class K8Client implements K8 {
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
     this.k8Contexts = new K8ClientContexts(this.kubeConfig);
     this.k8Services = new K8ClientServices(this.kubeClient);
-    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig, this.kubectlExecutable);
-    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods, this.kubectlExecutable);
+    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig, this.kubectlExecutable, this.prependToPath);
+    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods, this.kubectlExecutable, this.prependToPath);
     this.k8Pvcs = new K8ClientPvcs(this.kubeClient);
     this.k8Leases = new K8ClientLeases(this.coordinationApiClient);
     this.k8Namespaces = new K8ClientNamespaces(this.kubeClient);

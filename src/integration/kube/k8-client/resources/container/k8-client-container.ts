@@ -55,6 +55,7 @@ export class K8ClientContainer implements Container {
 
     return new Promise((resolve, reject): void => {
       const callMessage: string = `"${this.kubectlExecutable}" ${fullArguments.join(' ')}`;
+      // TODO prependToPath solo home bin
       const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
         this.kubectlExecutable,
         fullArguments,

@@ -37,6 +37,7 @@ function runKubectl(): Promise<number> {
 
     console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
+    // TODO prependToPath solo home bin
     child = spawn(KUBECTL_EXECUTABLE, arguments_, {
       stdio: 'inherit',
       windowsHide: os.platform() === 'win32',

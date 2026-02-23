@@ -43,6 +43,7 @@ export class K8ClientPod implements Pod {
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
     private readonly kubectlExecutable: string,
+    private readonly prependToPath: string,
     public readonly labels?: Record<string, string>,
     public readonly startupProbeCommand?: string[],
     public readonly containerName?: ContainerName,
@@ -203,7 +204,7 @@ export class K8ClientPod implements Pod {
         ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${this.kubectlExecutable} &`
         : `${this.kubectlExecutable} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
 
-      await new ShellRunner().run(cmd, [], true, true);
+      await new ShellRunner().run(cmd, [], true, true, this.prependToPath);
 
       return availablePort;
     } catch (error) {
