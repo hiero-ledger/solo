@@ -944,9 +944,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           });
         },
         skip: (): boolean => {
-          if (!remoteConfigLoaded) {
-            return false;
+          if (!config.deployment) {
+            return true;
           }
+          // don't make remote config call if deployment is not set or it will fail
           const hasExplorers: boolean = this.remoteConfig.configuration.components.state.explorers.length > 0;
           const hasRelays: boolean = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
           return !hasExplorers || !hasRelays;
@@ -986,7 +987,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => remoteConfigLoaded && this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
+        (): boolean => !config.deployment || this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
@@ -1005,6 +1006,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         this.taskList,
         (): boolean =>
+          !config.deployment ||
           constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
           (remoteConfigLoaded && this.remoteConfig.configuration.components.state.blockNodes.length === 0),
       ),
@@ -1026,6 +1028,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => !config.deployment,
       ),
       invokeSoloCommand(
         `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
@@ -1042,6 +1045,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => !config.deployment,
       ),
       invokeSoloCommand(
         `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
@@ -1057,6 +1061,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => !config.deployment,
       ),
       invokeSoloCommand(
         `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
@@ -1072,6 +1077,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => !config.deployment,
       ),
       {
         title: 'Delete cache folder',
