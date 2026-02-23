@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type CoreV1Api, V1ConfigMap, type V1ConfigMapList, V1ObjectMeta, type V1Status} from '@kubernetes/client-node';
+import {
+  type CoreV1Api,
+  PatchStrategy,
+  setHeaderOptions,
+  V1ConfigMap,
+  type V1ConfigMapList,
+  V1ObjectMeta,
+} from '@kubernetes/client-node';
 import {type ConfigMaps} from '../../../resources/config-map/config-maps.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
-import {
-  ResourceCreateError,
-  ResourceDeleteError,
-  ResourceNotFoundError,
-  ResourceReplaceError,
-  ResourceUpdateError,
-} from '../../../errors/resource-operation-errors.js';
+import {ResourceNotFoundError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
-import {KubeApiResponse} from '../../../kube-api-response.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
 import {type ConfigMap} from '../../../resources/config-map/config-map.js';
 import {K8ClientConfigMap} from './k8-client-config-map.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
-import {type IncomingMessage} from 'node:http';
+import {KubeApiResponse} from '../../../kube-api-response.js';
 
 export class K8ClientConfigMaps implements ConfigMaps {
   private readonly logger: SoloLogger;
@@ -48,23 +48,23 @@ export class K8ClientConfigMaps implements ConfigMaps {
 
   public async delete(namespace: NamespaceName, name: string): Promise<boolean> {
     try {
-      const resp: {response: IncomingMessage; body: V1Status} = await this.kubeClient.deleteNamespacedConfigMap(
+      await this.kubeClient.deleteNamespacedConfigMap({
         name,
-        namespace.name,
-      );
-      return KubeApiResponse.isFailingStatus(resp.response);
+        namespace: namespace.name,
+      });
+      return true;
     } catch (error) {
-      throw new ResourceDeleteError(ResourceType.CONFIG_MAP, namespace, name, error);
+      return KubeApiResponse.isFailingStatus(error);
     }
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<ConfigMap> {
-    const {response, body} = await this.kubeClient
-      .readNamespacedConfigMap(name, namespace?.name)
-      .catch((error): any => error);
-
-    KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
-    return K8ClientConfigMap.fromV1ConfigMap(body);
+    try {
+      const body: V1ConfigMap = await this.kubeClient.readNamespacedConfigMap({name, namespace: namespace?.name});
+      return K8ClientConfigMap.fromV1ConfigMap(body);
+    } catch (error) {
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
+    }
   }
 
   public async replace(
@@ -107,14 +107,18 @@ export class K8ClientConfigMaps implements ConfigMaps {
     metadata.labels = labels;
     configMap.metadata = metadata;
     try {
-      const resp: {response: IncomingMessage; body: V1ConfigMap} = replace
-        ? await this.kubeClient.replaceNamespacedConfigMap(name, namespace.name, configMap)
-        : await this.kubeClient.createNamespacedConfigMap(namespace.name, configMap);
-      return KubeApiResponse.isCreatedStatus(resp.response);
+      await (replace
+        ? this.kubeClient.replaceNamespacedConfigMap({name, namespace: namespace.name, body: configMap})
+        : this.kubeClient.createNamespacedConfigMap({namespace: namespace.name, body: configMap}));
+      return true;
     } catch (error) {
-      throw replace
-        ? new ResourceReplaceError(ResourceType.CONFIG_MAP, namespace, name, error)
-        : new ResourceCreateError(ResourceType.CONFIG_MAP, namespace, name, error);
+      KubeApiResponse.throwError(
+        error,
+        replace ? ResourceOperation.REPLACE : ResourceOperation.CREATE,
+        ResourceType.CONFIG_MAP,
+        namespace,
+        name,
+      );
     }
   }
 
@@ -136,38 +140,32 @@ export class K8ClientConfigMaps implements ConfigMaps {
   }
 
   public async list(namespace: NamespaceName, labels: string[]): Promise<ConfigMap[]> {
-    const labelsSelector: string = labels ? labels.join(',') : undefined;
+    const labelSelector: string = labels ? labels.join(',') : undefined;
 
-    let results: {response: IncomingMessage; body: V1ConfigMapList};
+    let results: V1ConfigMapList;
     try {
-      results = await this.kubeClient.listNamespacedConfigMap(
-        namespace.name,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        labelsSelector,
-      );
+      results = await this.kubeClient.listNamespacedConfigMap({
+        namespace: namespace.name,
+        labelSelector,
+      });
     } catch (error) {
-      throw new SoloError('Failed to list config maps', error);
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.CONFIG_MAP, namespace, '');
     }
 
-    KubeApiResponse.check(results.response, ResourceOperation.LIST, ResourceType.CONFIG_MAP, namespace, '');
-    return results?.body?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
+    return results?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
   }
 
   public async listForAllNamespaces(labels: string[]): Promise<ConfigMap[]> {
-    const labelsSelector: string = labels ? labels.join(',') : undefined;
+    const labelSelector: string = labels ? labels.join(',') : undefined;
 
-    let results: {response: IncomingMessage; body: V1ConfigMapList};
+    let results: V1ConfigMapList;
     try {
-      results = await this.kubeClient.listConfigMapForAllNamespaces(undefined, undefined, undefined, labelsSelector);
+      results = await this.kubeClient.listConfigMapForAllNamespaces({labelSelector});
     } catch (error) {
-      throw new SoloError('Failed to list config maps for all namespaces', error);
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.CONFIG_MAP, undefined, '');
     }
 
-    KubeApiResponse.check(results.response, ResourceOperation.LIST, ResourceType.CONFIG_MAP, undefined, '');
-    return results?.body?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
+    return results?.items?.map((v1ConfigMap): ConfigMap => K8ClientConfigMap.fromV1ConfigMap(v1ConfigMap)) || [];
   }
 
   public async update(namespace: NamespaceName, name: string, data: Record<string, string>): Promise<void> {
@@ -179,31 +177,22 @@ export class K8ClientConfigMaps implements ConfigMaps {
       data: data,
     };
 
-    const options: {headers: {[name: string]: string} | {'Content-Type': string}} = {
-      headers: {'Content-Type': 'application/merge-patch+json'}, // Or the appropriate content type
-    };
-
-    let result: {response: IncomingMessage; body?: V1ConfigMap};
+    let result: V1ConfigMap;
     try {
       result = await this.kubeClient.patchNamespacedConfigMap(
-        name,
-        namespace.name,
-        patch,
-        undefined, // pretty
-        undefined, // dryRun
-        undefined, // fieldManager
-        undefined, // fieldValidation
-        undefined, // force
-        options, // Pass the options here
+        {
+          name,
+          namespace: namespace.name,
+          body: patch,
+        },
+        setHeaderOptions('Content-Type', PatchStrategy.MergePatch),
       );
       this.logger.info(`Patched ConfigMap ${name} in namespace ${namespace}`);
     } catch (error) {
-      throw new ResourceUpdateError(ResourceType.CONFIG_MAP, namespace, name, error);
+      KubeApiResponse.throwError(error, ResourceOperation.UPDATE, ResourceType.CONFIG_MAP, namespace, name);
     }
 
-    KubeApiResponse.check(result.response, ResourceOperation.UPDATE, ResourceType.CONFIG_MAP, namespace, name);
-
-    if (result.body) {
+    if (result) {
       return;
     } else {
       throw new SoloError(

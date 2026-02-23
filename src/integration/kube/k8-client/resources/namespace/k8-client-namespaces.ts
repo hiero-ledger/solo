@@ -1,39 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Namespaces} from '../../../../../types/namespace/namespaces.js';
-import {type V1Status, type CoreV1Api, type V1Namespace, type V1NamespaceList} from '@kubernetes/client-node';
-import {StatusCodes} from 'http-status-codes';
+import {type CoreV1Api, type V1Namespace, type V1NamespaceList} from '@kubernetes/client-node';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
-import {type IncomingMessage} from 'node:http';
 
 export class K8ClientNamespaces implements Namespaces {
   public constructor(private readonly kubeClient: CoreV1Api) {}
 
   public async create(namespace: NamespaceName): Promise<boolean> {
-    const payload: V1Namespace = {
+    const body: V1Namespace = {
       metadata: {
         name: namespace.name,
       },
     };
 
-    const resp: {response: IncomingMessage; body: V1Namespace} = await this.kubeClient.createNamespace(payload);
-    return resp.response.statusCode === StatusCodes.CREATED;
+    await this.kubeClient.createNamespace({body});
+    return true;
   }
 
   public async delete(namespace: NamespaceName): Promise<boolean> {
     try {
-      const resp: {response: IncomingMessage; body?: V1Status} = await this.kubeClient.deleteNamespace(namespace.name);
+      await this.kubeClient.deleteNamespace({name: namespace.name});
       try {
         let namespaceExists: boolean = true;
         while (namespaceExists) {
-          const response: {response: IncomingMessage; body: V1Namespace} = await this.kubeClient.readNamespace(
-            namespace.name,
-          );
+          const response: V1Namespace = await this.kubeClient.readNamespace({name: namespace.name});
 
-          if (response?.body?.metadata?.deletionTimestamp) {
+          if (response?.metadata?.deletionTimestamp) {
             await sleep(Duration.ofSeconds(1));
           } else {
             namespaceExists = false;
@@ -43,7 +39,7 @@ export class K8ClientNamespaces implements Namespaces {
         // The namespace has been deleted
       }
 
-      return resp.response.statusCode === StatusCodes.OK;
+      return true;
     } catch {
       return false;
     }
@@ -55,10 +51,10 @@ export class K8ClientNamespaces implements Namespaces {
   }
 
   public async list(): Promise<NamespaceName[]> {
-    const resp: {response: IncomingMessage; body: V1NamespaceList} = await this.kubeClient.listNamespace();
-    if (resp.body && resp.body.items) {
+    const response: V1NamespaceList = await this.kubeClient.listNamespace();
+    if (response && response.items) {
       const namespaces: NamespaceName[] = [];
-      for (const item of resp.body.items) {
+      for (const item of response.items) {
         namespaces.push(NamespaceName.of(item.metadata!.name));
       }
 
