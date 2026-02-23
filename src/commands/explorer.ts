@@ -565,10 +565,12 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -617,7 +619,10 @@ export class ExplorerCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -648,11 +653,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -666,10 +675,12 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -715,7 +726,10 @@ export class ExplorerCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -738,11 +752,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -756,10 +774,12 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<AnyListrContext> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -793,7 +813,10 @@ export class ExplorerCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(clusterContext, namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -840,11 +863,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error destroy explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 

@@ -389,10 +389,12 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -459,7 +461,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         {
@@ -583,11 +588,15 @@ export class BlockNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying block node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -601,10 +610,12 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -641,7 +652,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.context, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         {
@@ -676,11 +690,15 @@ export class BlockNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error destroying block node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -694,10 +712,12 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -736,7 +756,10 @@ export class BlockNodeCommand extends BaseCommand {
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         {
@@ -797,11 +820,15 @@ export class BlockNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading block node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -815,10 +842,12 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -858,7 +887,10 @@ export class BlockNodeCommand extends BaseCommand {
                 `${chalk.grey('address')} ${chalk.cyan(`[${address}:${port}]`)} `,
             );
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.addExternalBlockNodeComponent(),
@@ -875,11 +907,15 @@ export class BlockNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error adding external block node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -893,10 +929,12 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -923,7 +961,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.context, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.removeExternalBlockNodeComponent(),
@@ -940,11 +981,15 @@ export class BlockNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error removing external block node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 

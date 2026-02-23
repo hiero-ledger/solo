@@ -21,6 +21,7 @@ import {KeyManager} from '../key-manager.js';
 import {ProfileManager} from '../profile-manager.js';
 import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
+import {OneShotState} from '../one-shot-state.js';
 import {CertificateManager} from '../certificate-manager.js';
 import os from 'node:os';
 import * as version from '../../../version.js';
@@ -170,6 +171,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
+      new SingletonContainer(InjectTokens.OneShotState, OneShotState),
       new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
