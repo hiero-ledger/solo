@@ -9,7 +9,7 @@ import {SoloError} from '../../../../src/core/errors/solo-error.js';
 
 describe('PathEx', () => {
   const baseDirectory: string = path.normalize(path.resolve('/base/dir'));
-  const validPath: string = path.join(baseDirectory, 'file.txt');
+  const validPath: string = PathEx.join(baseDirectory, 'file.txt');
   const validPathNormalized: string = path.normalize(path.resolve(validPath));
   const invalidPath: string = path.normalize(path.resolve('/outside/dir/file.txt'));
 

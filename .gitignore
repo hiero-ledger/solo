@@ -28,13 +28,10 @@
 hs_err_pid*
 replay_pid*
 
-### VisualStudioCode template
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
+### VisualStudioCode/VSCode template
+.vscode
+*.code-workspace
+
 
 # Local History for Visual Studio Code
 .history/
@@ -496,3 +493,4 @@ deleteme.yaml
 /examples/running-solo-inside-cluster/.task-tmp
 /.codacy/cli.sh
 /.codacy/codacy.yaml
+.task/checksum/
