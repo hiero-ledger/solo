@@ -598,9 +598,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
       if (oneShotLease) {
-        cleanupPromises.push(oneShotLease.release().catch((error): void => {
-          this.logger.error('Error releasing one-shot lease:', error);
-        }));
+        cleanupPromises.push(
+          oneShotLease.release().catch((error): void => {
+            this.logger.error('Error releasing one-shot lease:', error);
+          }),
+        );
       }
       cleanupPromises.push(
         this.taskList
@@ -1094,9 +1096,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
       if (oneShotLease) {
-        cleanupPromises.push(oneShotLease.release().catch((error): void => {
-          this.logger.error('Error releasing one-shot lease:', error);
-        }));
+        cleanupPromises.push(
+          oneShotLease.release().catch((error): void => {
+            this.logger.error('Error releasing one-shot lease:', error);
+          }),
+        );
       }
       cleanupPromises.push(
         this.taskList

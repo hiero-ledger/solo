@@ -606,10 +606,8 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
-        if (lease) {
-          if (!this.oneShotState.isActive()) {
-            await lease?.release();
-          }
+        if (lease && !this.oneShotState.isActive()) {
+          await lease.release();
         }
         await this.accountManager.close();
       }

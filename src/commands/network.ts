@@ -1450,10 +1450,8 @@ export class NetworkCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
-        if (lease) {
-          if (!this.oneShotState.isActive()) {
-            await lease?.release();
-          }
+        if (lease && !this.oneShotState.isActive()) {
+          await lease.release();
         }
       }
     } else {
