@@ -7,7 +7,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
-import path from 'node:path';
 
 @injectable()
 export class ShellRunner {
@@ -21,7 +20,6 @@ export class ShellRunner {
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
-    prependToPath: string = '',
   ): Promise<string[]> {
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
@@ -29,7 +27,6 @@ export class ShellRunner {
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
-        env: {...process.env, PATH: `${prependToPath}${path.delimiter}${process.env.PATH}`},
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,

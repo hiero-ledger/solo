@@ -5,19 +5,22 @@ import {type K8} from '../k8.js';
 import {K8Client} from './k8-client.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../../../core/dependency-injection/container-helper.js';
+import {PathEx} from '../../../business/utils/path-ex.js';
 
 @injectable()
 export class K8ClientFactory implements K8Factory {
   private readonly k8Clients: Map<string, K8> = new Map<string, K8>();
   private readonly kubectlExecutable: string;
-  private readonly prependToPath: string;
 
   public constructor(
     @inject(InjectTokens.KubectlInstallationDir) installationDirectory: string,
     @inject(InjectTokens.OsPlatform) platform: string,
   ) {
-    this.kubectlExecutable = platform === 'win32' ? 'kubectl.exe' : 'kubectl';
-    this.prependToPath = installationDirectory;
+    this.kubectlExecutable = PathEx.join(
+      patchInject(installationDirectory, InjectTokens.KubectlInstallationDir, K8ClientFactory.name),
+      platform === 'win32' ? 'kubectl.exe' : 'kubectl',
+    );
   }
 
   public getK8(context: string): K8 {
@@ -34,10 +37,10 @@ export class K8ClientFactory implements K8Factory {
    * @returns a new k8Factory client
    */
   private createK8Client(context: string): K8 {
-    return new K8Client(context, this.kubectlExecutable, this.prependToPath);
+    return new K8Client(context, this.kubectlExecutable);
   }
 
   public default(): K8 {
-    return new K8Client(undefined, this.kubectlExecutable, this.prependToPath);
+    return new K8Client(undefined, this.kubectlExecutable);
   }
 }

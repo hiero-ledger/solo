@@ -226,6 +226,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
     // If it is installed globally and meets requirements, use the global installation
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
       this.logger.debug(`${this.executableName} is installed at globally and meets version requirements.`);
+      // fs.cpSync(this.globalExecutablePath, this.localExecutablePath);
+      // this.logger.debug(`Copied ${this.executableName} executable to ${this.installationDirectory}`);
       return true;
     }
 
