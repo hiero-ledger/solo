@@ -3654,7 +3654,7 @@ export class NodeCommandTasks {
 
       // Get logs using kubectl with output to file (avoids buffer issues)
       const logFile: string = path.join(podLogDirectory, `${podName}.log`);
-      const logCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
+      const logCommand: string = `kubectl --context "${context}" logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
 
       this.logger.info(`Downloading logs for pod ${podName}...`);
 
@@ -3663,7 +3663,7 @@ export class NodeCommandTasks {
         this.logger.info(`Saved logs to ${logFile}`);
       } catch {
         // Try without all-containers flag if that fails
-        const simpleLogCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --timestamps=true > "${logFile}" 2>&1`;
+        const simpleLogCommand: string = `kubectl --context "${context}" logs ${podName} -n ${namespace.toString()} --timestamps=true > "${logFile}" 2>&1`;
         execSync(simpleLogCommand, {
           encoding: 'utf8',
           cwd: process.cwd(),
@@ -3672,6 +3672,17 @@ export class NodeCommandTasks {
         });
         this.logger.info(`Saved logs to ${logFile}`);
       }
+
+      // Save pod describe output for troubleshooting pod states/restarts/events.
+      const describeFile: string = path.join(podLogDirectory, `${podName}.describe.txt`);
+      const describeCommand: string = `kubectl --context "${context}" describe pod ${podName} -n ${namespace.toString()} > "${describeFile}" 2>&1`;
+      execSync(describeCommand, {
+        encoding: 'utf8',
+        cwd: process.cwd(),
+        shell: '/bin/bash',
+        maxBuffer: 1024 * 1024 * 20,
+      });
+      this.logger.info(`Saved pod describe to ${describeFile}`);
     } catch (error) {
       this.logger.showUser(red(`Failed to download logs from pod ${podName}: ${error}`));
       this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);
