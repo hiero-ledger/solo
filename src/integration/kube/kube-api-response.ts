@@ -9,15 +9,13 @@ import {KubeApiError} from './errors/kube-api-error.js';
 
 interface ApiError extends Error {
   code?: number;
-  body?: any;
-  headers?: any;
+  body?: unknown;
+  headers?: unknown;
 }
 
 export class KubeApiResponse {
-  private constructor() {}
-
   /**
-   * Checks the response for an error status code and throws an error if one is found.
+   * Checks the response for an error status code to determine which error should be thrown.
    *
    * @param errorResponse - the error response returned from the Kubernetes API call.
    * @param resourceType - the type of resource being checked.
@@ -31,7 +29,7 @@ export class KubeApiResponse {
     resourceType: ResourceType,
     namespace: NamespaceName,
     name: string,
-  ): void {
+  ): never {
     if (KubeApiResponse.isNotFound(errorResponse)) {
       throw new ResourceNotFoundError(resourceOperation, resourceType, namespace, name);
     }
@@ -40,7 +38,7 @@ export class KubeApiResponse {
       throw new KubeApiError(
         `failed to ${resourceOperation} ${resourceType} '${name}' in namespace '${namespace}'`,
         +errorResponse?.code,
-        null,
+        undefined,
         {
           resourceType: resourceType,
           resourceOperation: resourceOperation,
@@ -53,7 +51,7 @@ export class KubeApiResponse {
     throw new KubeApiError(
       `error occurred during ${resourceOperation} ${resourceType} '${name}' in namespace '${namespace}'`,
       +errorResponse?.code,
-      null,
+      undefined,
       {
         resourceType: resourceType,
         resourceOperation: resourceOperation,
@@ -63,14 +61,26 @@ export class KubeApiResponse {
     );
   }
 
+  /**
+   * Checks if the error response has a status code indicating a failing status (greater than 202 Accepted).
+   * @param errorResponse
+   */
   public static isFailingStatus(errorResponse: ApiError): boolean {
     return (+errorResponse?.code || StatusCodes.INTERNAL_SERVER_ERROR) > StatusCodes.ACCEPTED;
   }
 
+  /**
+   * Checks if the error response has a status code indicating a "Not Found" error (404).
+   * @param errorResponse
+   */
   public static isNotFound(errorResponse: ApiError): boolean {
     return +errorResponse?.code === StatusCodes.NOT_FOUND;
   }
 
+  /**
+   * Checks if the error response has a status code indicating a "Created" status (201).
+   * @param errorResponse
+   */
   public static isCreatedStatus(errorResponse: ApiError): boolean {
     return +errorResponse?.code === StatusCodes.CREATED;
   }
