@@ -576,7 +576,7 @@ export class RelayCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.checkChartIsInstalledTask(),
@@ -694,7 +694,7 @@ export class RelayCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.prepareChartValuesTask(),
@@ -784,7 +784,7 @@ export class RelayCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {

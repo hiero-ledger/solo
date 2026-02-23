@@ -1049,7 +1049,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.enableMirrorNodeTask(),
@@ -1260,7 +1260,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.enableMirrorNodeTask(),
@@ -1372,7 +1372,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         {

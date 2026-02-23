@@ -300,7 +300,7 @@ export class RapidFireCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(leaseReference.lease, task);
             }
-            return undefined;
+            return null;
           },
         },
         this.deployNlgChart(),
@@ -356,7 +356,7 @@ export class RapidFireCommand extends BaseCommand {
         if (!this.oneShotState.isActive()) {
           return ListrLock.newAcquireLockTask(leaseReference.lease, task);
         }
-        return undefined;
+        return null;
       },
     };
   }
