@@ -3572,6 +3572,7 @@ export class NodeCommandTasks {
 
         // Define component types and their label selectors
         const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
+          {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
           {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
           {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
           {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
