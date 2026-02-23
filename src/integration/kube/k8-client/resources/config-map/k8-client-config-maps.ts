@@ -65,7 +65,6 @@ export class K8ClientConfigMaps implements ConfigMaps {
     } catch (error) {
       KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
     }
-    throw new ResourceNotFoundError(ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
   }
 
   public async replace(
@@ -120,7 +119,6 @@ export class K8ClientConfigMaps implements ConfigMaps {
         namespace,
         name,
       );
-      return false;
     }
   }
 
