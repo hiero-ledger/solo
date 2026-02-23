@@ -3654,36 +3654,20 @@ export class NodeCommandTasks {
         fs.mkdirSync(podLogDirectory, {recursive: true});
       }
 
-      // Get logs using kubectl with output to file (avoids buffer issues)
-      const logFile: string = path.join(podLogDirectory, `${podName}.log`);
-      const logCommand: string = `kubectl --context "${context}" logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
+      const k8: K8 = this.k8Factory.getK8(context);
+      const podReference: PodReference = PodReference.of(namespace, PodName.of(podName));
 
+      // Fetch logs via K8 client API (cross-platform, no kubectl shell dependency).
+      const logFile: string = PathEx.join(podLogDirectory, `${podName}.log`);
       this.logger.info(`Downloading logs for pod ${podName}...`);
+      const logs: string = await k8.pods().readLogs(podReference, true);
+      fs.writeFileSync(logFile, logs, 'utf8');
+      this.logger.info(`Saved logs to ${logFile}`);
 
-      try {
-        execSync(logCommand, {encoding: 'utf8', cwd: process.cwd(), shell: '/bin/bash', maxBuffer: 1024 * 1024 * 100}); // 100MB buffer
-        this.logger.info(`Saved logs to ${logFile}`);
-      } catch {
-        // Try without all-containers flag if that fails
-        const simpleLogCommand: string = `kubectl --context "${context}" logs ${podName} -n ${namespace.toString()} --timestamps=true > "${logFile}" 2>&1`;
-        execSync(simpleLogCommand, {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-          shell: '/bin/bash',
-          maxBuffer: 1024 * 1024 * 100,
-        });
-        this.logger.info(`Saved logs to ${logFile}`);
-      }
-
-      // Save pod describe output for troubleshooting pod states/restarts/events.
-      const describeFile: string = path.join(podLogDirectory, `${podName}.describe.txt`);
-      const describeCommand: string = `kubectl --context "${context}" describe pod ${podName} -n ${namespace.toString()} > "${describeFile}" 2>&1`;
-      execSync(describeCommand, {
-        encoding: 'utf8',
-        cwd: process.cwd(),
-        shell: '/bin/bash',
-        maxBuffer: 1024 * 1024 * 20,
-      });
+      // Save pod describe-like output (pod + events) for troubleshooting pod states/restarts/events.
+      const describeFile: string = PathEx.join(podLogDirectory, `${podName}.describe.txt`);
+      const describeOutput: string = await k8.pods().readDescribe(podReference);
+      fs.writeFileSync(describeFile, describeOutput, 'utf8');
       this.logger.info(`Saved pod describe to ${describeFile}`);
     } catch (error) {
       this.logger.showUser(red(`Failed to download logs from pod ${podName}: ${error}`));

@@ -29,6 +29,7 @@ import {InjectTokens} from '../../../../../core/dependency-injection/inject-toke
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
+import yaml from 'yaml';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -299,5 +300,72 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     } else {
       throw new SoloError('Error creating pod', result);
     }
+  }
+
+  public async readLogs(podReference: PodReference, timestamps: boolean = true): Promise<string> {
+    const namespace: string = podReference.namespace.toString();
+    const name: string = podReference.name.toString();
+    const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
+    const containerNames: string[] = [
+      ...(pod.spec?.initContainers?.map(container => container.name) ?? []),
+      ...(pod.spec?.containers?.map(container => container.name) ?? []),
+      ...(pod.spec?.ephemeralContainers?.map(container => container.name) ?? []),
+    ].filter(Boolean);
+
+    if (containerNames.length === 0) {
+      const log: string = await this.kubeClient.readNamespacedPodLog({
+        name,
+        namespace,
+        timestamps,
+      });
+      return log ?? '';
+    }
+
+    const containerLogs: string[] = [];
+    for (const containerName of containerNames) {
+      try {
+        const containerLog: string = await this.kubeClient.readNamespacedPodLog({
+          name,
+          namespace,
+          container: containerName,
+          timestamps,
+        });
+        containerLogs.push(`===== Container: ${containerName} =====\n${containerLog ?? ''}`.trimEnd());
+      } catch (error) {
+        containerLogs.push(
+          `===== Container: ${containerName} =====\nFailed to read logs: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    return containerLogs.join('\n\n');
+  }
+
+  public async readDescribe(podReference: PodReference): Promise<string> {
+    const namespace: string = podReference.namespace.toString();
+    const name: string = podReference.name.toString();
+    const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
+    const events = await this.kubeClient.listNamespacedEvent({
+      namespace,
+      fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
+    });
+
+    // eslint-disable-next-line unicorn/no-array-sort
+    const sortedEvents = [...(events?.items ?? [])].sort((left, right): number => {
+      const leftTime: number = new Date(
+        left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
+      ).getTime();
+      const rightTime: number = new Date(
+        right.lastTimestamp ?? right.eventTime ?? right.firstTimestamp ?? right.metadata?.creationTimestamp ?? 0,
+      ).getTime();
+      return leftTime - rightTime;
+    });
+
+    const describeData: {pod: V1Pod; events: typeof sortedEvents} = {
+      pod,
+      events: sortedEvents,
+    };
+
+    return yaml.stringify(describeData);
   }
 }

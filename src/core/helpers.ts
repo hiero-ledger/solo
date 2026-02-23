@@ -274,10 +274,12 @@ export function addSaveContextParser(context_: AnyListrContext): Record<string, 
 
   exportedContext.signingCertDer = context_.signingCertDer.toString();
   exportedContext.gossipEndpoints = context_.gossipEndpoints.map(
-    (ep: unknown): `${string}:${string}` => `${(ep as ServiceEndpoint)._domainName}:${(ep as ServiceEndpoint)._port}`,
+    (endpoint: unknown): `${string}:${string}` =>
+      `${(endpoint as ServiceEndpoint)._domainName}:${(endpoint as ServiceEndpoint)._port}`,
   );
   exportedContext.grpcServiceEndpoints = context_.grpcServiceEndpoints.map(
-    (ep: unknown): `${string}:${string}` => `${(ep as ServiceEndpoint)._domainName}:${(ep as ServiceEndpoint)._port}`,
+    (endpoint: unknown): `${string}:${string}` =>
+      `${(endpoint as ServiceEndpoint)._domainName}:${(endpoint as ServiceEndpoint)._port}`,
   );
   exportedContext.adminKey = context_.adminKey.toString();
   // @ts-expect-error - existingNodeAliases may not be defined on config
