@@ -439,11 +439,7 @@ export class ClusterCommandTasks {
         }
 
         return task.newListr(
-          [
-            this.uninstallPrometheusStack(argv),
-            this.uninstallMinioOperator(argv),
-            this.uninstallPodMonitorRole(argv),
-          ],
+          [this.uninstallPrometheusStack(argv), this.uninstallMinioOperator(argv), this.uninstallPodMonitorRole(argv)],
           {concurrent: false},
         );
       },
