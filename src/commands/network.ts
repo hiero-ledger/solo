@@ -69,6 +69,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import semver from 'semver/preload.js';
 import {getEnvironmentVariable} from '../core/constants.js';
 
 export interface NetworkDeployConfigClass {
@@ -134,6 +135,7 @@ export interface NetworkDeployConfigClass {
   enableMonitoringSupport: boolean;
   javaFlightRecorderConfiguration: string;
   // wrapsEnabled: boolean; TODO: Enable with wraps
+  tssEnabled: boolean;
 }
 
 interface NetworkDeployContext {
@@ -230,8 +232,9 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
-      // flags.wrapsEnabled, TODO: Enable with wraps
       flags.javaFlightRecorderConfiguration,
+      // flags.wrapsEnabled, TODO: Enable with wraps
+      flags.tssEnabled,
     ],
   };
 
@@ -1035,6 +1038,21 @@ export class NetworkCommand extends BaseCommand {
             //
             // this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
             // await this.remoteConfig.persist();
+
+            const currentVersion: SemVer = new SemVer(
+              this.remoteConfig.configuration.versions.consensusNode.toString(),
+            );
+
+            let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
+            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+
+            // if platform version is insufficient for tss, disable it
+            if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
+              tssEnabled = false;
+            }
+
+            this.remoteConfig.configuration.state.tssEnabled = tssEnabled;
+            await this.remoteConfig.persist();
 
             context_.config = await this.prepareConfig(task, argv);
             return ListrLock.newAcquireLockTask(lease, task);

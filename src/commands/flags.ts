@@ -1238,6 +1238,17 @@ export class Flags {
   //   prompt: undefined,
   // };
 
+  public static readonly tssEnabled: CommandFlag = {
+    constName: 'tssEnabled',
+    name: 'wraps',
+    definition: {
+      describe: 'Enable hinTS/TSS (CN >= v0.72).',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    prompt: undefined,
+  };
+
   public static readonly applicationProperties: CommandFlag = {
     constName: 'applicationProperties',
     name: 'application-properties',
@@ -3058,6 +3069,7 @@ export class Flags {
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
     // Flags.wrapsEnabled,
+    Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
   ];
 

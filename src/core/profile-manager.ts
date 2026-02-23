@@ -33,6 +33,7 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
+import semver from 'semver/preload.js';
 
 @injectable()
 export class ProfileManager {
@@ -586,12 +587,19 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    // TODO: Enable with wraps
-    // if (this.remoteConfig.configuration.state.wrapsEnabled) {
-    //   lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.wrapsEnabled=true');
-    // }
+    const releaseTag: SemVer = this.remoteConfig.configuration.versions.consensusNode;
 
-    lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+    if (
+      !semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) &&
+      this.remoteConfig.configuration.state.tssEnabled
+    ) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+
+      // TODO: Enable with wraps
+      // if (this.remoteConfig.configuration.state.wrapsEnabled) {
+      //   lines.push('tss.wrapsEnabled=true');
+      // }
+    }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }

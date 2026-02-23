@@ -20,6 +20,9 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   @Transform(Transformations.LedgerPhase)
   public ledgerPhase: LedgerPhase;
 
+  @Expose()
+  public tssEnabled: boolean;
+
   // @Expose()
   // public wrapsEnabled: boolean; TODO: Enable with wraps
 
@@ -70,6 +73,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     envoyProxies?: EnvoyProxyStateSchema[],
     explorers?: ExplorerStateSchema[],
     externalBlockNodes?: ExternalBlockNodeStateSchema[],
+    tssEnabled?: boolean,
     // wrapsEnabled?: boolean,
   ) {
     this.ledgerPhase = ledgerPhase;
@@ -82,6 +86,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     this.envoyProxies = envoyProxies || [];
     this.explorers = explorers || [];
     this.externalBlockNodes = externalBlockNodes || [];
+    this.tssEnabled = tssEnabled;
     // this.wrapsEnabled = wrapsEnabled;
   }
 }
