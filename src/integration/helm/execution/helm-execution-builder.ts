@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {join} from 'node:path';
+import path from 'node:path';
 import {HelmExecution} from './helm-execution.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
@@ -74,7 +74,7 @@ export class HelmExecutionBuilder {
     this._workingDirectory =
       workingDirectoryString && workingDirectoryString.trim() !== ''
         ? workingDirectoryString
-        : join(this.helmExecutable, '..');
+        : path.dirname(this.helmExecutable);
   }
 
   /**

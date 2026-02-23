@@ -37,14 +37,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
     private readonly kubectlExecutable: string,
-    private readonly prependToPath: string,
   ) {
     super();
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
   public readByReference(podReference: PodReference | null): Pod {
-    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable, this.prependToPath);
+    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
   }
 
   public async read(podReference: PodReference): Promise<Pod> {
