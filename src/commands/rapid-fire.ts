@@ -237,7 +237,9 @@ export class RapidFireCommand extends BaseCommand {
           }
 
           try {
-            await leaseReference.lease?.release();
+            if (!this.oneShotState.isActive()) {
+              await leaseReference.lease?.release();
+            }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
             let commandString = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
             commandString = commandString.replaceAll('  ', ' ').trim();
@@ -262,10 +264,12 @@ export class RapidFireCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            leaseReference.lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              leaseReference.lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -293,7 +297,10 @@ export class RapidFireCommand extends BaseCommand {
             // Parse nlgArguments to remove any surrounding quotes
             config.parsedNlgArguments = config.nlgArguments.replaceAll("'", '').replaceAll('"', '');
 
-            return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+            }
+            return undefined;
           },
         },
         this.deployNlgChart(),
@@ -307,7 +314,9 @@ export class RapidFireCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error running rapid-fire: ${error.message}`, error);
     } finally {
-      await leaseReference.lease?.release();
+      if (!this.oneShotState.isActive()) {
+        await leaseReference.lease?.release();
+      }
     }
 
     return true;
@@ -316,10 +325,12 @@ export class RapidFireCommand extends BaseCommand {
   private stopInitializeTask(argv: ArgvStruct, leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStopContext> {
     return {
       title: 'Initialize',
-      task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+      task: async (context_, task) => {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv);
-        leaseReference.lease = await this.leaseManager.create();
+        if (!this.oneShotState.isActive()) {
+          leaseReference.lease = await this.leaseManager.create();
+        }
 
         this.configManager.update(argv);
 
@@ -342,7 +353,10 @@ export class RapidFireCommand extends BaseCommand {
         config.context = this.getClusterContext(config.clusterRef);
         context_.config = config;
 
-        return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+        if (!this.oneShotState.isActive()) {
+          return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+        }
+        return undefined;
       },
     };
   }
@@ -359,7 +373,7 @@ export class RapidFireCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
     } finally {
-      if (leaseReference.lease) {
+      if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
       }
     }
@@ -408,7 +422,7 @@ export class RapidFireCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
     } finally {
-      if (leaseReference.lease) {
+      if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
       }
     }

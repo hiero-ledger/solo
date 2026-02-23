@@ -979,14 +979,19 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task) => {
             this.configManager.update(argv);
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv, true, true);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             context_.config = await this.prepareConfig(task, argv);
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         {
@@ -1359,12 +1364,16 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
-          await lease?.release();
+          if (!this.oneShotState.isActive()) {
+            await lease?.release();
+          }
         }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -1479,10 +1488,12 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
@@ -1508,7 +1519,10 @@ export class NetworkCommand extends BaseCommand {
               contexts: this.remoteConfig.getContexts(),
             };
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         {
@@ -1556,11 +1570,15 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloError('Error destroying network', error);
       } finally {
         // If the namespace is deleted, the lease can't be released
-        await lease?.release().catch();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release().catch();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 

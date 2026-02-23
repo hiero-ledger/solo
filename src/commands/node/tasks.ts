@@ -2,6 +2,7 @@
 
 import {type AccountManager} from '../../core/account-manager.js';
 import {type ConfigManager} from '../../core/config-manager.js';
+import {type OneShotState} from '../../core/one-shot-state.js';
 import {type KeyManager} from '../../core/key-manager.js';
 import {type ProfileManager} from '../../core/profile-manager.js';
 import {type PlatformInstaller} from '../../core/platform-installer.js';
@@ -179,6 +180,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -191,6 +193,7 @@ export class NodeCommandTasks {
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -1152,7 +1155,9 @@ export class NodeCommandTasks {
       task: async () => {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv);
-        leaseWrapper.lease = await leaseManager.create();
+        if (!this.oneShotState.isActive()) {
+          leaseWrapper.lease = await leaseManager.create();
+        }
       },
     };
   }
@@ -3398,7 +3403,7 @@ export class NodeCommandTasks {
           }
         }
 
-        if (lease) {
+        if (!this.oneShotState.isActive() && lease) {
           return ListrLock.newAcquireLockTask(lease, task);
         }
       },

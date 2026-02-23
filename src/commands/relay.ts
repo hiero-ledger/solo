@@ -509,10 +509,12 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
@@ -571,7 +573,10 @@ export class RelayCommand extends BaseCommand {
 
             config.id = config.newRelayComponent.metadata.id;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.checkChartIsInstalledTask(),
@@ -601,13 +606,17 @@ export class RelayCommand extends BaseCommand {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
         if (lease) {
-          await lease?.release();
+          if (!this.oneShotState.isActive()) {
+            await lease?.release();
+          }
         }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -622,10 +631,12 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
@@ -680,7 +691,10 @@ export class RelayCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         this.prepareChartValuesTask(),
@@ -700,12 +714,16 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading relay: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -720,10 +738,12 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task) => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
             this.configManager.update(argv);
@@ -761,7 +781,10 @@ export class RelayCommand extends BaseCommand {
 
             context_.config = config;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return undefined;
           },
         },
         {
@@ -792,11 +815,15 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError('Error uninstalling relays', error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
