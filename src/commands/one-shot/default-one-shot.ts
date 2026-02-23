@@ -858,10 +858,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.deployment = selectedDeployment;
             } else {
               // Only one deployment exists, use it directly
-              if (!deployments[0] || !deployments[0].name) {
+              const deployment = deployments.get(0);
+              if (!deployment || !deployment.name) {
                 throw new SoloError('Invalid deployment configuration: deployment name is missing');
               }
-              config.deployment = deployments[0].name;
+              config.deployment = deployment.name;
             }
 
             this.configManager.setFlag(flags.deployment, config.deployment);
@@ -1124,7 +1125,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             await this.localConfig.load();
             const deployments = this.localConfig.configuration.deployments;
             if (deployments.length === 1) {
-              context_.deploymentName = deployments[0].name;
+              context_.deploymentName = deployments.get(0).name;
               this.logger.showUser(
                 chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (single local deployment)`),
               );
