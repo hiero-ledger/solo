@@ -14,6 +14,9 @@ vars:
   DEPLOYMENT: "falcon-deployment"
   CLUSTER_NAME: "falcon-cluster"
   CONTEXT: "kind-falcon-cluster"
+  TEMP_DIR: "{{ .USER_WORKING_DIR }}/.tmp"
+  KILLED_PORT_FILE: "{{ .TEMP_DIR }}/killed_port.txt"
+  EXPECTED_PORT_COUNT_FILE: "{{ .TEMP_DIR }}/expected_port_count.txt"
 
 tasks:
   deploy:
@@ -61,19 +64,20 @@ tasks:
     desc: Kill one port-forward, then run deployment refresh port-forwards
     cmds:    
       - cmd: |
+          mkdir -p "{{ .TEMP_DIR }}"
           echo "==== Current port-forward processes ===="
           ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
           INITIAL_PORT_COUNT=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u | wc -w)
           echo "Initial unique port-forward count: ${INITIAL_PORT_COUNT}"
-          echo "${INITIAL_PORT_COUNT}" > /tmp/expected_port_count.txt
+          echo "${INITIAL_PORT_COUNT}" > "{{ .EXPECTED_PORT_COUNT_FILE }}"
           echo ""
 
       - cmd: |
           echo "==== Killing a random port-forward process ===="
-          bash {{ .USER_WORKING_DIR }}/select-random-port-forward.sh \
+          node {{ .USER_WORKING_DIR }}/select-random-port-forward.mjs \
             --kill \
-            --log-file /tmp/port-forward-random.log \
-            --killed-port-file /tmp/killed_port.txt
+            --log-file "{{ .TEMP_DIR }}/port-forward-random.log" \
+            --killed-port-file "{{ .KILLED_PORT_FILE }}"
 
       - cmd: |
           echo ""
@@ -83,7 +87,7 @@ tasks:
 
       - cmd: |
           echo "==== Running deployment refresh command ===="
-          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
+          RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
           echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
 
           if ! $SOLO_COMMAND deployment refresh port-forwards --help >/dev/null 2>&1; then
@@ -117,8 +121,8 @@ tasks:
           PORT_COUNT=$(echo "$RUNNING_PORTS" | wc -w)
           echo "Total running port-forwards: $PORT_COUNT"
           EXPECTED_COUNT="1"
-          if [ -f /tmp/expected_port_count.txt ]; then
-            EXPECTED_COUNT=$(cat /tmp/expected_port_count.txt)
+          if [ -f "{{ .EXPECTED_PORT_COUNT_FILE }}" ]; then
+            EXPECTED_COUNT=$(cat "{{ .EXPECTED_PORT_COUNT_FILE }}")
           fi
 
           if [ "$PORT_COUNT" -lt "$EXPECTED_COUNT" ]; then
@@ -127,8 +131,8 @@ tasks:
           fi
           echo "✓ Verification PASSED: Found expected number of port-forwards"
 
-          if [ -f /tmp/killed_port.txt ]; then
-            KILLED_PORT=$(cat /tmp/killed_port.txt)
+          if [ -f "{{ .KILLED_PORT_FILE }}" ]; then
+            KILLED_PORT=$(cat "{{ .KILLED_PORT_FILE }}")
             if echo "$RUNNING_PORTS" | grep -Fxq "$KILLED_PORT"; then
               echo "✓ Verification PASSED: Killed port $KILLED_PORT was successfully restored"
             else
@@ -136,12 +140,12 @@ tasks:
               echo "Running ports: $RUNNING_PORTS"
               exit 1
             fi
-            rm -f /tmp/killed_port.txt
+            rm -f "{{ .KILLED_PORT_FILE }}"
           fi
-          rm -f /tmp/expected_port_count.txt
+          rm -f "{{ .EXPECTED_PORT_COUNT_FILE }}"
 
-          RESOLVED_DEPLOYMENT="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}")"
-          RESOLVED_NAMESPACE="$(bash {{ .USER_WORKING_DIR }}/resolve-deployment.sh "{{ .DEPLOYMENT }}" namespace)"
+          RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
+          RESOLVED_NAMESPACE="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}" namespace)"
           echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
           echo "Using namespace: ${RESOLVED_NAMESPACE}"
           export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"

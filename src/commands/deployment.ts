@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
+import psList, {type ProcessDescriptor} from 'ps-list';
 import {SoloError} from '../core/errors/solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -903,15 +904,17 @@ export class DeploymentCommand extends BaseCommand {
    * Check if a port-forward process is running on the specified port
    */
   private async isPortForwardRunning(port: number): Promise<boolean> {
-    // Validate port is a positive integer before using it in shell command
+    // Validate port before process matching.
     if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
       throw new SoloError(`Invalid port number: ${port}`);
     }
 
     try {
-      const shellCommand: string = `ps -ef | grep "port-forward" | grep "${port}:" | grep -v grep`;
-      const result: string[] = await this.run(shellCommand, [], true, false);
-      return result && result.length > 0;
+      const processes: ProcessDescriptor[] = await psList();
+      return processes.some((process: ProcessDescriptor): boolean => {
+        const command: string = (process.cmd ?? '').toLowerCase();
+        return command.includes('port-forward') && command.includes(`${port}:`);
+      });
     } catch {
       return false;
     }
