@@ -57,19 +57,11 @@ export class K8ClientPod implements Pod {
 
   public async killPod(): Promise<void> {
     try {
-      const result: {response: http.IncomingMessage; body: V1Pod} = await this.kubeClient.deleteNamespacedPod(
-        this.podReference.name.toString(),
-        this.podReference.namespace.toString(),
-        undefined,
-        undefined,
-        1,
-      );
-
-      if (result.response.statusCode !== StatusCodes.OK) {
-        throw new SoloError(
-          `Failed to delete pod ${this.podReference.name} in namespace ${this.podReference.namespace}: statusCode: ${result.response.statusCode}`,
-        );
-      }
+      await this.kubeClient.deleteNamespacedPod({
+        name: this.podReference.name.toString(),
+        namespace: this.podReference.namespace.toString(),
+        gracePeriodSeconds: 1,
+      });
 
       let podExists: boolean = true;
       while (podExists) {
