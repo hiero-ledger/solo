@@ -389,7 +389,7 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -610,7 +610,7 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -712,7 +712,7 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -842,7 +842,7 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -929,7 +929,7 @@ export class BlockNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {

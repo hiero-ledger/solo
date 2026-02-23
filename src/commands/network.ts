@@ -979,7 +979,7 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             this.configManager.update(argv);
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv, true, true);
@@ -1488,7 +1488,7 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext> | null> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
