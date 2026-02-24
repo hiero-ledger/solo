@@ -264,7 +264,7 @@ export class RapidFireCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -300,7 +300,7 @@ export class RapidFireCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(leaseReference.lease, task);
             }
-            return undefined;
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.deployNlgChart(),
@@ -325,7 +325,7 @@ export class RapidFireCommand extends BaseCommand {
   private stopInitializeTask(argv: ArgvStruct, leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStopContext> {
     return {
       title: 'Initialize',
-      task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
+      task: async (context_, task): Promise<Listr<AnyListrContext>> => {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv);
         if (!this.oneShotState.isActive()) {
@@ -356,7 +356,7 @@ export class RapidFireCommand extends BaseCommand {
         if (!this.oneShotState.isActive()) {
           return ListrLock.newAcquireLockTask(leaseReference.lease, task);
         }
-        return undefined;
+        return ListrLock.newSkippedLockTask(task);
       },
     };
   }

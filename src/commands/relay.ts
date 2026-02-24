@@ -510,7 +510,7 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -577,7 +577,7 @@ export class RelayCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.checkChartIsInstalledTask(),
@@ -630,7 +630,7 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -693,7 +693,7 @@ export class RelayCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.prepareChartValuesTask(),
@@ -737,7 +737,7 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -783,7 +783,7 @@ export class RelayCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return undefined;
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
