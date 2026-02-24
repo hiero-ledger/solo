@@ -138,6 +138,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.configManager.update(argv);
               this.oneShotState.activate();
 
+              // Pre-set component version flags in configManager so they are available
+              // for all sub-commands during concurrent execution
+              this.configManager.setFlag(Flags.explorerVersion, version.EXPLORER_VERSION);
+              this.configManager.setFlag(Flags.mirrorNodeVersion, version.MIRROR_NODE_VERSION);
+              this.configManager.setFlag(Flags.relayReleaseTag, version.HEDERA_JSON_RPC_RELAY_VERSION);
+              this.configManager.setFlag(Flags.soloChartVersion, version.SOLO_CHART_VERSION);
+
               flags.disablePrompts(flagsList.optional);
 
               const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
