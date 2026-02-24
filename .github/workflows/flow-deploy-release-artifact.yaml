@@ -31,7 +31,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  HASHGRAPH_PKG_NAME: "hiero-ledger/solo"
+  HASHGRAPH_PKG_NAME: "@hashgraph/solo"
   HIERO_PKG_NAME: "@hiero-ledger/solo"
 
 defaults:
@@ -404,17 +404,17 @@ jobs:
           echo "::group::Update package.json files for dual publish"
           files=("package.json")
           for file in "${files[@]}"; do
-            if [[ -f "$file" ]]; then
-              cp "$file" "$file.tmp"
-              jq '.name |= sub("hiero-ledger/solo";"@hiero-ledger/solo")' "$file.tmp" > "$file"
+            if [[ -f "${file}" ]]; then
+              cp "${file}" "${file}.tmp"
+              jq '.name |= sub("${HASHGRAPH_PKG_NAME}";"${HIERO_PKG_NAME}")' "${file}.tmp" > "${file}"
+              rm "${file}.tmp"
             else
-              echo "::warning::File $file does not exist, skipping update."
+              echo "::warning::File ${file} does not exist, skipping update."
             fi
           done
           
-          find . -type f -exec sed -i "s/@hashgraph\/solo/@hiero-ledger\/solo/g" {} +
-          npm install
-          task build
+          git ls-files -z | xargs -0 sed -i 's/\b@hashgraph\/solo\b/@hiero-ledger\/solo/g'
+
           echo "::endgroup::"
           echo "::group::View Version to publish to npm"
             echo "Version to publish:"
@@ -465,8 +465,13 @@ jobs:
     needs:
       - get-package-info
       - create-github-release
-    if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' || needs.create-github-release.outputs.need-hl-publish || inputs.dry-run-enabled == true }}
+    if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' || needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@a57cd6d8d768b2f3c95334bdd4fa8c21609fc651 # 1.0.5
         with:
