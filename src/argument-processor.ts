@@ -31,6 +31,7 @@ export class ArgumentProcessor {
 
     rootCmd.middleware(
       [
+        middlewares.unlinkLocalSoloPackages(),
         middlewares.printCustomHelp(rootCmd),
         middlewares.setLoggerDevFlag(),
         // @ts-expect-error - TS2322: To assign middlewares

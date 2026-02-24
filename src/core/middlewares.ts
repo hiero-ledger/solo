@@ -22,6 +22,7 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {SoloError} from './errors/solo-error.js';
+import {unlinkLocalSoloPackages} from './npm-utilities.js';
 
 @injectable()
 export class Middlewares {
@@ -91,6 +92,16 @@ export class Middlewares {
         logger.setDevMode(argv.dev);
       }
 
+      return argv;
+    };
+  }
+
+  public unlinkLocalSoloPackages(): (argv: ArgvStruct) => AnyObject {
+    /**
+     * @param argv - listr Argv
+     */
+    return async (argv: any): Promise<AnyObject> => {
+      await unlinkLocalSoloPackages(this.logger);
       return argv;
     };
   }

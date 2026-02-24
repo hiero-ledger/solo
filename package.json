@@ -11,9 +11,11 @@
     "access": "public"
   },
   "scripts": {
+    "postinstall": "tsx --no-deprecation --no-warnings unlink-local-solo-instances.ts",
     "solo-test": "tsx --no-deprecation --no-warnings solo.ts",
     "solo": "node --no-deprecation --no-warnings dist/solo.js",
-    "prepare": "node c8-nyc-bridge.mjs"
+    "prepare": "node c8-nyc-bridge.mjs",
+    "debug": "task test-e2e-performance"
   },
   "keywords": [
     "solo",
