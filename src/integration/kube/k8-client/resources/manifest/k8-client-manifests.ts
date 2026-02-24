@@ -70,43 +70,4 @@ export class K8ClientManifests implements Manifests {
       PatchStrategy.StrategicMergePatch,
     );
   }
-
-  public async scaleDeployments(namespace: string, labelSelector: string, replicas: number): Promise<number> {
-    const listResponse: unknown = await this.k8sObjectApi.list(
-      'apps/v1',
-      'Deployment',
-      namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      labelSelector,
-    );
-    const deployments: KubernetesObject[] = (
-      (listResponse as {body?: {items?: KubernetesObject[]}}).body?.items || []
-    ).filter((item: KubernetesObject): boolean => !!item.metadata?.name);
-
-    for (const deployment of deployments) {
-      await this.k8sObjectApi.patch(
-        {
-          apiVersion: 'apps/v1',
-          kind: 'Deployment',
-          metadata: {
-            namespace,
-            name: deployment.metadata?.name,
-          },
-          spec: {
-            replicas,
-          },
-        } as KubernetesObject,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        PatchStrategy.StrategicMergePatch,
-      );
-    }
-
-    return deployments.length;
-  }
 }
