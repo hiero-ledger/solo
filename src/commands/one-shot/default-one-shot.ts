@@ -8,7 +8,7 @@ import {Flags as flags, Flags} from '../flags.js';
 import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
-import {injectable, inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -39,12 +39,12 @@ import {
 } from './predefined-accounts.js';
 import {AccountId, HbarUnit, PublicKey} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
+import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
@@ -871,6 +871,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     let config: OneShotSingleDestroyConfigClass;
     let oneShotLease: Lock | undefined;
 
+    // don't make remote config call if deployment is not set or it will fail
+    let hasExplorers: boolean = false;
+    let hasRelays: boolean = false;
+
     const taskArray = [
       {
         title: 'Initialize',
@@ -910,6 +914,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
           await this.remoteConfig.loadAndValidate(argv);
+
+          hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
+          hasRelays = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
         },
       },
       {
@@ -943,6 +950,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return argvPushGlobalFlags(argv);
               },
               this.taskList,
+              (): boolean => {
+                return hasExplorers;
+              },
             ),
             invokeSoloCommand(
               `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
@@ -962,6 +972,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return argvPushGlobalFlags(argv);
               },
               this.taskList,
+              (): boolean => {
+                return hasRelays;
+              },
             ),
           ];
 
@@ -977,9 +990,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           if (!config.deployment) {
             return true;
           }
-          // don't make remote config call if deployment is not set or it will fail
-          const hasExplorers: boolean = this.remoteConfig.configuration.components.state.explorers.length > 0;
-          const hasRelays: boolean = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
           return !hasExplorers && !hasRelays;
         },
       },
