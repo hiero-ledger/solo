@@ -56,7 +56,7 @@ export class K8ClientContainer implements Container {
     return new Promise((resolve, reject): void => {
       const callMessage: string = `${constants.KUBECTL} ${fullArguments.join(' ')}`;
       const childProcess: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
-        this.kubectlInstallationDirectory,
+        constants.KUBECTL,
         fullArguments,
         {
           env: {...process.env, PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
