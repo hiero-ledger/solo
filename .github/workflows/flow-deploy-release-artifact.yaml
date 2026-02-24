@@ -343,10 +343,10 @@ jobs:
       - name: Deploy to JFrog Registry
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
         run: |
-          if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
-            jf npm publish
-          else
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled, skipping publish to JFrog registry."
+          else
+            jf npm publish
           fi
 
       - name: Create Example Asset Archives and Upload to Release
