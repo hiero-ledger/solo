@@ -565,6 +565,10 @@ jobs:
               npm publish ${TARBALL} ${FLAGS}
             fi
           echo "::endgroup::"
+          
+          echo "::group::Reset Workspace"
+            git restore .
+          echo "::endgroup::"
 
   setup:
     name: Hugo Docs Setup
