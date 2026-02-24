@@ -78,5 +78,10 @@
     "name": "State Save and Restore",
     "directory": "state-save-and-restore",
     "local-java-build": false
+  },
+  {
+    "name": "Ledger Reset Smoke",
+    "directory": "ledger-reset-smoke/README.md",
+    "local-java-build": false
   }
 ]
