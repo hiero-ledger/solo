@@ -94,6 +94,57 @@ export class PlatformInstaller {
     }
   }
 
+  /**
+   * Pre-download platform build zip and checksum to the host cache directory.
+   * On subsequent runs, files are served from cache instead of re-downloading.
+   */
+  async preDownloadPlatformBuild(tag: string): Promise<{zipPath: string; checksumPath: string}> {
+    if (!tag) {
+      throw new MissingArgumentError('tag is required');
+    }
+
+    const cacheDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'platform');
+    if (!fs.existsSync(cacheDirectory)) {
+      fs.mkdirSync(cacheDirectory, {recursive: true});
+    }
+
+    const releaseDirectory = tag.split('.').slice(0, 2).join('.');
+    const zipPath = PathEx.join(cacheDirectory, `build-${tag}.zip`);
+    const checksumPath = PathEx.join(cacheDirectory, `build-${tag}.sha384`);
+
+    const baseUrl = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}`;
+
+    if (fs.existsSync(zipPath)) {
+      this.logger.info(`Platform build zip already cached: ${zipPath}`);
+    } else {
+      this.logger.info(`Pre-downloading platform build to host cache: ${zipPath}`);
+      const zipUrl = `${baseUrl}/build-${tag}.zip`;
+      const response = await fetch(zipUrl);
+      if (!response.ok) {
+        throw new SoloError(`Failed to download ${zipUrl}: ${response.status} ${response.statusText}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      await fs.promises.writeFile(zipPath, buffer);
+      this.logger.info(`Platform build zip cached: ${zipPath}`);
+    }
+
+    if (fs.existsSync(checksumPath)) {
+      this.logger.info(`Platform checksum already cached: ${checksumPath}`);
+    } else {
+      this.logger.info(`Pre-downloading platform checksum to host cache: ${checksumPath}`);
+      const checksumUrl = `${baseUrl}/build-${tag}.sha384`;
+      const response = await fetch(checksumUrl);
+      if (!response.ok) {
+        throw new SoloError(`Failed to download ${checksumUrl}: ${response.status} ${response.statusText}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      await fs.promises.writeFile(checksumPath, buffer);
+      this.logger.info(`Platform checksum cached: ${checksumPath}`);
+    }
+
+    return {zipPath, checksumPath};
+  }
+
   /** Fetch and extract platform code into the container */
   async fetchPlatform(podReference: PodReference, tag: string, context?: string) {
     if (!podReference) {
@@ -104,6 +155,21 @@ export class PlatformInstaller {
     }
 
     try {
+      // Pre-copy cached platform build into the pod if available
+      const cacheDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'platform');
+      const cachedZip = PathEx.join(cacheDirectory, `build-${tag}.zip`);
+      const cachedChecksum = PathEx.join(cacheDirectory, `build-${tag}.sha384`);
+      if (fs.existsSync(cachedZip) && fs.existsSync(cachedChecksum)) {
+        this.logger.info(`Copying cached platform build into pod ${podReference.name}`);
+        await this.copyFiles(
+          podReference,
+          [cachedZip, cachedChecksum],
+          constants.HEDERA_USER_HOME_DIR,
+          undefined,
+          context,
+        );
+      }
+
       const scriptName = 'extract-platform.sh';
       const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
       await this.copyFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);

@@ -205,7 +205,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
 
         if (++attempts < maxAttempts) {
-          setTimeout((): Promise<void> => check(resolve, reject), delay);
+          // Exponential backoff: start at base delay, grow by 1.5x each attempt, cap at 5x base delay
+          const backoffDelay = Math.min(delay * Math.pow(1.5, Math.min(attempts, 10)), delay * 5);
+          setTimeout((): Promise<void> => check(resolve, reject), backoffDelay);
         } else {
           return reject(
             new SoloError(
