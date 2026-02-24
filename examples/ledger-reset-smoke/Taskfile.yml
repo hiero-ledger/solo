@@ -64,11 +64,22 @@ tasks:
     cmds:
       - cmd: |
           set -euo pipefail
-          TIMEOUT_SECS=5
-          mkdir -p "$(dirname "{{.ACCOUNT_OUTPUT_FILE}}")"
-          $SOLO_COMMAND ledger account create --deployment "{{.SOLO_DEPLOYMENT}}" --hbar-amount "{{.EXPECTED_BALANCE_1}}" --create-amount 1 | tee "{{.ACCOUNT_OUTPUT_FILE}}"
-          ACCOUNT_OUTPUT="{{.ACCOUNT_OUTPUT_FILE}}" EXPECTED_BALANCE="{{.EXPECTED_BALANCE_1}}" TIMEOUT_SECS="${TIMEOUT_SECS}" \
-            task -d "{{.TASKFILE_DIR}}" verify-account
+          SMOKE_SCRIPT="{{.TASKFILE_DIR}}/../../.github/workflows/script/solo_smoke_test.sh"
+          if [[ -f "${SMOKE_SCRIPT}" ]]; then
+            echo "Solo repo detected. Running smoke test script."
+            (
+              cd "{{.TASKFILE_DIR}}/../.."
+              export SOLO_DEPLOYMENT="{{ .SOLO_DEPLOYMENT }}"
+              export SOLO_NAMESPACE="{{ .SOLO_NAMESPACE }}"
+              ./.github/workflows/script/solo_smoke_test.sh
+            )
+          else
+            echo "Solo repo not detected. Running ledger account create validation."
+            mkdir -p "$(dirname "{{.ACCOUNT_OUTPUT_FILE}}")"
+            $SOLO_COMMAND ledger account create --deployment "{{.SOLO_DEPLOYMENT}}" --hbar-amount "{{.EXPECTED_BALANCE_1}}" --create-amount 1 | tee "{{.ACCOUNT_OUTPUT_FILE}}"
+            ACCOUNT_OUTPUT="{{.ACCOUNT_OUTPUT_FILE}}" EXPECTED_BALANCE="{{.EXPECTED_BALANCE_1}}" TIMEOUT_SECS="5" \
+              task -d "{{.TASKFILE_DIR}}" verify-account
+          fi
 
   reset:
     desc: "Reset ledger to genesis without restarting nodes"
@@ -76,17 +87,30 @@ tasks:
       - |
         set -euo pipefail
         mkdir -p "{{.SOLO_HOME}}/logs/ledger-reset"
-        $SOLO_COMMAND ledger system reset --deployment "{{.SOLO_DEPLOYMENT}}" --node-aliases "{{.NODE_ALIASES}}"
+        time $SOLO_COMMAND ledger system reset --deployment "{{.SOLO_DEPLOYMENT}}" --node-aliases "{{.NODE_ALIASES}}"
 
   post-reset-test:
     desc: "Create an account (balance {{.EXPECTED_BALANCE_2}}) and verify via mirror REST"
     cmds:
-      - |
-        set -euo pipefail
-        mkdir -p "$(dirname "{{.ACCOUNT_OUTPUT_FILE}}")"
-        $SOLO_COMMAND ledger account create --deployment "{{.SOLO_DEPLOYMENT}}" --hbar-amount "{{.EXPECTED_BALANCE_2}}" --create-amount 1 | tee "{{.ACCOUNT_OUTPUT_FILE}}"
-        ACCOUNT_OUTPUT="{{.ACCOUNT_OUTPUT_FILE}}" EXPECTED_BALANCE="{{.EXPECTED_BALANCE_2}}" TIMEOUT_SECS="5" \
-          task -d "{{.TASKFILE_DIR}}" verify-account
+      - cmd: |
+          set -euo pipefail
+          SMOKE_SCRIPT="{{.TASKFILE_DIR}}/../../.github/workflows/script/solo_smoke_test.sh"
+          if [[ -f "${SMOKE_SCRIPT}" ]]; then
+            echo "Solo repo detected. Running smoke test script."
+            (
+              cd "{{.TASKFILE_DIR}}/../.."
+              export SOLO_DEPLOYMENT="{{ .SOLO_DEPLOYMENT }}"
+              export SOLO_NAMESPACE="{{ .SOLO_NAMESPACE }}"
+              ./.github/workflows/script/solo_smoke_test.sh
+            )
+          else
+            echo "Solo repo not detected. Running ledger account create validation."
+            mkdir -p "$(dirname "{{.ACCOUNT_OUTPUT_FILE}}")"
+            $SOLO_COMMAND ledger account create --deployment "{{.SOLO_DEPLOYMENT}}" --hbar-amount "{{.EXPECTED_BALANCE_2}}" --create-amount 1 | tee "{{.ACCOUNT_OUTPUT_FILE}}"
+            ACCOUNT_OUTPUT="{{.ACCOUNT_OUTPUT_FILE}}" EXPECTED_BALANCE="{{.EXPECTED_BALANCE_2}}" TIMEOUT_SECS="5" \
+              task -d "{{.TASKFILE_DIR}}" verify-account
+          fi
+
 
   verify-account:
     desc: "Verify account balance via mirror REST"
