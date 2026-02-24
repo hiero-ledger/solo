@@ -5,7 +5,9 @@ import {InjectTokens} from '../../../../../core/dependency-injection/inject-toke
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {type ApiextensionsV1Api, type V1CustomResourceDefinition} from '@kubernetes/client-node';
 import {type Crds} from '../../../resources/crd/crds.js';
-import {type IncomingMessage} from 'node:http';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
+import {ResourceType} from '../../../resources/resource-type.js';
 
 export class K8ClientCrds implements Crds {
   private readonly logger: SoloLogger;
@@ -15,19 +17,25 @@ export class K8ClientCrds implements Crds {
   }
 
   public async ifExists(crdName: string): Promise<boolean> {
+    let response: V1CustomResourceDefinition;
     try {
-      const response: {response: IncomingMessage; body: V1CustomResourceDefinition} =
-        await this.networkingApi.readCustomResourceDefinition(crdName);
-      this.logger.debug(`CRD ${crdName} exists, response:`, response);
-      return true;
+      response = await this.networkingApi.readCustomResourceDefinition({
+        name: crdName,
+      });
+      this.logger.debug(`CRD ${crdName} exists.`);
     } catch (error) {
-      if (error.response && error.response.statusCode === 404) {
+      if (KubeApiResponse.isNotFound(error)) {
         this.logger.error(`CRD ${crdName} does not exist.`);
         return false;
-      } else {
-        this.logger.error('Error checking CRD:', error);
-        throw error; // Re-throw unexpected errors
       }
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.READ,
+        ResourceType.CLUSTER_ROLE_DEFINITION,
+        undefined,
+        crdName,
+      );
     }
+    return true;
   }
 }

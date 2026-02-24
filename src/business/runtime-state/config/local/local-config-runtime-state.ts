@@ -143,7 +143,7 @@ export class LocalConfigRuntimeState {
         const versionMatch: string[] | null = versionDirectory.match(versionDirectionRegex);
         if (versionMatch) {
           // If the version directory matches (e.g., 'v0.58')
-          const fullVersionPath: string = path.join(baseDirectory, versionDirectory, 'staging');
+          const fullVersionPath: string = PathEx.join(baseDirectory, versionDirectory, 'staging');
 
           // Check if 'staging' directory exists within the version directory
           if (fs.existsSync(fullVersionPath)) {
@@ -151,7 +151,7 @@ export class LocalConfigRuntimeState {
             const stagingContents: string[] = fs.readdirSync(fullVersionPath);
 
             for (const stagingItem of stagingContents) {
-              const fullItemPath: string = path.join(fullVersionPath, stagingItem);
+              const fullItemPath: string = PathEx.join(fullVersionPath, stagingItem);
               const relativeItemPath: string = path.relative(baseDirectory, fullItemPath); // Get path relative to baseCacheDir
 
               // Check if the full relative path matches the desired pattern

@@ -178,6 +178,12 @@ jobs:
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-performance-test
 
+      - name: Move JVM Memory Usage Data to Metrics Directory
+        run: |
+          mkdir -p ~/.solo/metrics
+          mv ~/.solo/logs/performance-tests-deployment/* ~/.solo/metrics/
+          rm -rf ~/.solo/logs/performance-tests-deployment
+
       - name: Upload E2E Logs to GitHub
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

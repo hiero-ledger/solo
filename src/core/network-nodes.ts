@@ -15,7 +15,6 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import path from 'node:path';
 import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
@@ -73,7 +72,7 @@ export class NetworkNodes {
   private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
-    const targetDirectory: string = path.join(baseDirectory, namespace.toString());
+    const targetDirectory: string = PathEx.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
@@ -138,7 +137,7 @@ export class NetworkNodes {
   private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = path.join(baseDirectory, namespace.toString());
+    const targetDirectory = PathEx.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
