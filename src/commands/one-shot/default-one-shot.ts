@@ -951,7 +951,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               },
               this.taskList,
               (): boolean => {
-                return hasExplorers;
+                return !hasExplorers;
               },
             ),
             invokeSoloCommand(
@@ -973,7 +973,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               },
               this.taskList,
               (): boolean => {
-                return hasRelays;
+                return !hasRelays;
               },
             ),
           ];
