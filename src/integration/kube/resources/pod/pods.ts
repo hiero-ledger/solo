@@ -93,4 +93,10 @@ export interface Pods {
    * @returns describe-like output string
    */
   readDescribe(podReference: PodReference): Promise<string>;
+
+  /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
 }
