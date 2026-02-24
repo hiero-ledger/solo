@@ -772,6 +772,44 @@ export class RelayCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, explorer and relay destroy tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the relay's config independently of the shared context.
+    let destroyConfig: RelayDestroyConfigClass;
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<RelayDestroyContext> = this.taskList.newTaskList<RelayDestroyContext>(
       [
         {
@@ -818,6 +856,7 @@ export class RelayCommand extends BaseCommand {
             };
 
             context_.config = config;
+            destroyConfig = config;
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -825,7 +864,7 @@ export class RelayCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        {
+        restoreConfig({
           title: 'Destroy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
@@ -839,8 +878,8 @@ export class RelayCommand extends BaseCommand {
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
-        },
-        this.disableRelayComponent(),
+        }),
+        restoreConfig(this.disableRelayComponent()),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,

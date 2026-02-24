@@ -816,6 +816,44 @@ export class ExplorerCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, explorer and relay destroy tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the explorer's config independently of the shared context.
+    let destroyConfig: ExplorerDestroyContext['config'];
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<ExplorerDestroyContext> = this.taskList.newTaskList<ExplorerDestroyContext>(
       [
         {
@@ -857,6 +895,8 @@ export class ExplorerCommand extends BaseCommand {
               isLegacyChartInstalled,
             };
 
+            destroyConfig = context_.config;
+
             await this.throwIfNamespaceIsMissing(clusterContext, namespace);
 
             if (!this.oneShotState.isActive()) {
@@ -865,8 +905,8 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.loadRemoteConfigTask(argv),
-        {
+        restoreConfig(this.loadRemoteConfigTask(argv)),
+        restoreConfig({
           title: 'Destroy explorer',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(
@@ -876,8 +916,8 @@ export class ExplorerCommand extends BaseCommand {
             );
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
-        },
-        {
+        }),
+        restoreConfig({
           title: 'Uninstall explorer ingress controller',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(context_.config.namespace, context_.config.ingressReleaseName);
@@ -895,8 +935,8 @@ export class ExplorerCommand extends BaseCommand {
               }
             });
           },
-        },
-        this.disableMirrorNodeExplorerComponents(),
+        }),
+        restoreConfig(this.disableMirrorNodeExplorerComponents()),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
