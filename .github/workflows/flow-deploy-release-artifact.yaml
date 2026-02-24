@@ -413,7 +413,10 @@ jobs:
             fi
           done
           
-          git ls-files -z | xargs -0 sed -i 's/\b@hashgraph\/solo\b/@hiero-ledger\/solo/g'
+          tracked_files=$(git grep -rl "@hashgraph/solo")
+          filtered_files=$(echo "${tracked_files}" | grep -vFf .github/workflows/support/.ignore-deploy-release)
+          
+          echo "${filtered_files}" | tr '\n' ' ' | xargs -0 sed -i 's/\b@hashgraph\/solo\b/@hiero-ledger\/solo/g'
 
           echo "::endgroup::"
           echo "::group::View Version to publish to npm"
@@ -452,7 +455,7 @@ jobs:
           echo "need-hl-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HL Package
-        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
+        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: npm-hl-package
@@ -528,7 +531,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Publish HL NPM Package
-        if: ${{ inputs.dual-publish-enabled == true && needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
+        if: ${{ inputs.dual-publish-enabled == true && (needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true) }}
         run: |
           echo "::group::Set Publish Args"
             FLAGS="--access=public"
