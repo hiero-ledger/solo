@@ -590,6 +590,12 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerDeployConfigClass;
 
+            // In concurrent one-shot execution, configManager may have stale data due to
+            // interleaved updates from other sub-commands. Override with argv values directly.
+            if (this.oneShotState.isActive() && argv[flags.explorerVersion.name]) {
+              config.explorerVersion = argv[flags.explorerVersion.name] as string;
+            }
+
             config.isLegacyChartInstalled = false;
 
             context_.config = config;
