@@ -562,6 +562,44 @@ export class ExplorerCommand extends BaseCommand {
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, explorer and relay tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the explorer's config independently of the shared context.
+    let deployConfig: ExplorerDeployConfigClass;
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (deployConfig) {
+            context_.config = deployConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (deployConfig) {
+            context_.config = deployConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<ExplorerDeployContext> = this.taskList.newTaskList<ExplorerDeployContext>(
       [
         {
@@ -599,6 +637,7 @@ export class ExplorerCommand extends BaseCommand {
             config.isLegacyChartInstalled = false;
 
             context_.config = config;
+            deployConfig = config;
 
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
@@ -632,14 +671,14 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.loadRemoteConfigTask(argv),
-        this.installCertManagerTask(),
-        this.installExplorerTask(),
-        this.installExplorerIngressControllerTask(),
-        this.checkExplorerPodIsReadyTask(),
-        this.checkExplorerIngressControllerPodIsReadyTask(),
-        this.addExplorerComponents(),
-        this.enablePortForwardingTask(),
+        restoreConfig(this.loadRemoteConfigTask(argv)),
+        restoreConfig(this.installCertManagerTask()),
+        restoreConfig(this.installExplorerTask()),
+        restoreConfig(this.installExplorerIngressControllerTask()),
+        restoreConfig(this.checkExplorerPodIsReadyTask()),
+        restoreConfig(this.checkExplorerIngressControllerPodIsReadyTask()),
+        restoreConfig(this.addExplorerComponents()),
+        restoreConfig(this.enablePortForwardingTask()),
         // TODO only show this if we are not running in one-shot mode
         // {
         //   title: 'Show user messages',
