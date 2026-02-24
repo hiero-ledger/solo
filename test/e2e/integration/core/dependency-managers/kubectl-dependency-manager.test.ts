@@ -114,7 +114,7 @@ describe('KubectlDependencyManager', (): void => {
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(cpSyncStub.calledOnce).to.be.true;
       // Should return global path since it meets requirements
-      expect(await kubectlDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/kubectl');
+      expect(await kubectlDependencyManager.getExecutable()).to.equal('/usr/local/bin/kubectl');
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
@@ -130,7 +130,7 @@ describe('KubectlDependencyManager', (): void => {
 
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, 'kubectl'))).to.be.ok;
-      expect(await kubectlDependencyManager.getExecutablePath()).to.equal(
+      expect(await kubectlDependencyManager.getExecutable()).to.equal(
         PathEx.join(localInstallationDirectory, 'kubectl'),
       );
     });

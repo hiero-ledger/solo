@@ -38,16 +38,10 @@ export class HelmExecution {
   /**
    * Creates a new HelmExecution instance.
    * @param command The command array to execute
-   * @param workingDirectory The working directory for the process
    * @param environmentVariables The environment variables to set
    * @param logger Optional logger for command output
    */
-  public constructor(
-    command: string[],
-    workingDirectory: string,
-    environmentVariables: Record<string, string>,
-    logger?: SoloLogger,
-  ) {
+  public constructor(command: string[], environmentVariables: Record<string, string>, logger?: SoloLogger) {
     this.logger = logger;
     this.commandLine = command.join(' ');
 
@@ -57,7 +51,6 @@ export class HelmExecution {
 
     this.process = spawn(command.join(' '), {
       shell: true,
-      cwd: workingDirectory,
       env: {...process.env, ...environmentVariables},
     });
   }

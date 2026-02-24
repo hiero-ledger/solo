@@ -35,7 +35,7 @@ export class K8ClientContainer implements Container {
     private readonly kubeConfig: KubeConfig,
     private readonly containerReference: ContainerReference,
     private readonly pods: Pods,
-    private readonly kubectlExecutable: string,
+    private readonly kubectlInstallationDirectory: string,
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
@@ -51,14 +51,15 @@ export class K8ClientContainer implements Container {
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
-    this.logger.debug(`Executing kubectl [${this.kubectlExecutable}] with arguments: ${fullArguments.join(' ')}`);
+    this.logger.debug(`Executing kubectl with arguments: ${fullArguments.join(' ')}`);
 
     return new Promise((resolve, reject): void => {
-      const callMessage: string = `"${this.kubectlExecutable}" ${fullArguments.join(' ')}`;
-      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
-        this.kubectlExecutable,
+      const callMessage: string = `${constants.KUBECTL} ${fullArguments.join(' ')}`;
+      const childProcess: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
+        this.kubectlInstallationDirectory,
         fullArguments,
         {
+          env: {...process.env, PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',
         },
@@ -67,25 +68,25 @@ export class K8ClientContainer implements Container {
       let stdout: string = '';
       let stderr: string = '';
 
-      process.stdout.on('data', (chunk): void => {
+      childProcess.stdout.on('data', (chunk): void => {
         if (outputPassThroughStream) {
           outputPassThroughStream.write(chunk);
         }
         stdout += chunk.toString();
       });
 
-      process.stderr.on('data', (chunk): void => {
+      childProcess.stderr.on('data', (chunk): void => {
         if (errorPassThroughStream) {
           errorPassThroughStream.write(chunk);
         }
         stderr += chunk.toString();
       });
 
-      process.on('error', (error): void => {
+      childProcess.on('error', (error): void => {
         reject(new SoloError(`container call: ${callMessage}, failed to start: ${error?.message}`));
       });
 
-      process.on('close', (code): void => {
+      childProcess.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {

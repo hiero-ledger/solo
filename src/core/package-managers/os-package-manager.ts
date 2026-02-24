@@ -26,6 +26,8 @@ export class OsPackageManager {
     if (OperatingSystem.isDarwin()) {
       this.packageManager = this.brewPackageManager;
     } else if (OperatingSystem.isLinux() || OperatingSystem.isWin32()) {
+      // TODO how does WSL2 report its OS? probably linux, and there is no Homebrew for Windows
+      // TODO open GHI this is only supporting Debian flavors of linux with apt-get, we should support more distros with their respective package managers
       this.packageManager = this.aptGetPackageManager;
     } else {
       throw new Error(`Unsupported OS platform: ${OperatingSystem.getPlatform()}`);

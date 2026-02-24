@@ -158,11 +158,11 @@ export class Templates {
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
   }
 
-  public static installationPath(
-    dep: string,
+  public static soloHomeBinExecutableForDependency(
+    dependency: string,
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ): string {
-    switch (dep) {
+    switch (dependency) {
       case constants.HELM:
       case constants.KIND:
       case constants.PODMAN:
@@ -170,14 +170,14 @@ export class Templates {
       case constants.GVPROXY:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {
-          return PathEx.join(installationDirectory, `${dep}.exe`);
+          return PathEx.join(installationDirectory, `${dependency}.exe`);
         }
 
-        return PathEx.join(installationDirectory, dep);
+        return PathEx.join(installationDirectory, dependency);
       }
 
       default: {
-        throw new SoloError(`unknown dep: ${dep}`);
+        throw new SoloError(`unknown dependency: ${dependency}`);
       }
     }
   }

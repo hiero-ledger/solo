@@ -129,7 +129,7 @@ describe('HelmDependencyManager', (): void => {
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
       // Should return global path since it meets requirements
-      expect(await helmDependencyManager.getExecutablePath()).to.equal(globalHelmPath);
+      expect(await helmDependencyManager.getExecutable()).to.equal(globalHelmPath);
 
       // Clean up dummy global helm binary
       fs.rmSync(globalHelmPath);
@@ -146,7 +146,7 @@ describe('HelmDependencyManager', (): void => {
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-      expect(await helmDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
+      expect(await helmDependencyManager.getExecutable()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
     });
   });
 });

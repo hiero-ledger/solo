@@ -50,6 +50,7 @@ import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
+import path from 'node:path';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -59,12 +60,18 @@ export class DefaultKindClient implements KindClient {
   public constructor(
     private readonly executable: string,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.KindInstallationDirectory) private readonly installationDirectory?: string,
   ) {
     if (!executable || !executable.trim()) {
       throw new Error('executable must not be blank');
     }
     this.executable = executable;
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.installationDirectory = patchInject(
+      installationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      this.constructor.name,
+    );
   }
 
   public async checkVersion(): Promise<void> {
@@ -197,6 +204,7 @@ export class DefaultKindClient implements KindClient {
 
     const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
+    builder.environmentVariable('PATH', `${this.installationDirectory}${path.delimiter}${process.env.PATH}`);
     request.apply(builder);
     const execution: KindExecution = builder.build();
     return responseFunction(execution, responseClass);

@@ -36,13 +36,11 @@ export class KindExecution {
   /**
    * Creates a new KindExecution instance.
    * @param command The command array to execute
-   * @param workingDirectory The working directory for the process
    * @param environmentVariables The environment variables to set
    */
-  public constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+  public constructor(command: string[], environmentVariables: Record<string, string>) {
     this.process = spawn(command.join(' '), {
       shell: true,
-      cwd: workingDirectory,
       env: {...process.env, ...environmentVariables},
     });
   }

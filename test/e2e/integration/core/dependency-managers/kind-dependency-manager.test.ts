@@ -107,7 +107,7 @@ describe('KindDependencyManager', (): void => {
       // Verify that the file system operations were called
       expect(cpSyncStub.calledOnce).to.be.true;
       // Should return global path since it meets requirements
-      expect(await kindDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/kind');
+      expect(await kindDependencyManager.getExecutable()).to.equal('/usr/local/bin/kind');
     });
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
@@ -122,7 +122,7 @@ describe('KindDependencyManager', (): void => {
 
       expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'kind'))).to.be.ok;
-      expect(await kindDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'kind'));
+      expect(await kindDependencyManager.getExecutable()).to.equal(PathEx.join(temporaryDirectory, 'kind'));
     });
   });
 
@@ -184,7 +184,7 @@ describe('KindDependencyManager', (): void => {
 
     it('installationMeetsRequirements returns false on error', async (): Promise<void> => {
       runStub.rejects(new Error('fail'));
-      const path: string = await kindDependencyManager.getExecutablePath();
+      const path: string = await kindDependencyManager.getExecutable();
       try {
         await kindDependencyManager.installationMeetsRequirements(path);
         expect.fail('Should have thrown an error');
@@ -196,7 +196,7 @@ describe('KindDependencyManager', (): void => {
     it('installationMeetsRequirements returns false on invalid version', async (): Promise<void> => {
       runStub.resolves(['not a version']);
       try {
-        const path: string = await kindDependencyManager.getExecutablePath();
+        const path: string = await kindDependencyManager.getExecutable();
         await kindDependencyManager.installationMeetsRequirements(path);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
@@ -206,7 +206,7 @@ describe('KindDependencyManager', (): void => {
 
     it('installationMeetsRequirements returns false on lower than required version', async (): Promise<void> => {
       runStub.resolves(['v0.0.5']);
-      const path: string = await kindDependencyManager.getExecutablePath();
+      const path: string = await kindDependencyManager.getExecutable();
       expect(await kindDependencyManager.installationMeetsRequirements(path)).to.be.false;
     });
   });

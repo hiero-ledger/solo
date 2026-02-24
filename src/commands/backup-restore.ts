@@ -53,9 +53,17 @@ import {PathEx} from '../business/utils/path-ex.js';
 export class BackupRestoreCommand extends BaseCommand {
   private readonly nodeCommandTasks: NodeCommandTasks;
 
-  public constructor(@inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder) {
+  public constructor(
+    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
+    @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
+  ) {
     super();
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, BackupRestoreCommand.name);
+    this.kubectlInstallationDirectory = patchInject(
+      kubectlInstallationDirectory,
+      InjectTokens.KubectlInstallationDirectory,
+      BackupRestoreCommand.name,
+    );
     this.nodeCommandTasks = container.resolve(NodeCommandTasks);
   }
 
@@ -1376,12 +1384,15 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
+            // TODO: open GHI to ensure this works on Windows
             await shellRunner.run(
               'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
             );
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
+            // TODO open GHI to change this to use HelmClient, also, should this already be loaded with our other chart
+            //   repositories so that helm repo update is called only once?
             await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
             await shellRunner.run('helm repo update');
           } catch (error: any) {
@@ -1423,7 +1434,7 @@ export class BackupRestoreCommand extends BaseCommand {
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
         task: async (_: any, task: any): Promise<void> => {
-          const kindExecutable: string = await this.depManager.getExecutablePath(constants.KIND);
+          const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
           const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
           const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
           task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;
@@ -1465,6 +1476,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
 
             // Install MetalLB using Helm
+            // TODO open GHI to change this to use HelmClient
             await shellRunner.run(
               'helm upgrade --install metallb metallb/metallb ' +
                 '--namespace metallb-system --create-namespace --atomic --wait ' +
@@ -1474,7 +1486,10 @@ export class BackupRestoreCommand extends BaseCommand {
             // Apply cluster-specific MetalLB configuration
             const metallbConfigPath: string = metallbConfig.replace('{index}', String(clusterIndex + 1));
             this.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
-            await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
+            // TODO open GHI to move apply into integration/kube
+            await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`, [], false, false, {
+              PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+            });
 
             task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
           }
