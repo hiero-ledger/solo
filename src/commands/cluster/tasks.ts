@@ -426,12 +426,12 @@ export class ClusterCommandTasks {
   public acquireNewLease(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Acquire new lease',
-      task: async (_, task): Promise<Listr<AnyListrContext> | null> => {
+      task: async (_, task): Promise<Listr<AnyListrContext> | undefined> => {
         if (!this.oneShotState.isActive()) {
           const lease: Lock = await this.leaseManager.create();
           return ListrLock.newAcquireLockTask(lease, task);
         }
-        return null;
+        return undefined;
       },
     };
   }
