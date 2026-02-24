@@ -300,4 +300,21 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       throw new SoloError('Error creating pod', result);
     }
   }
+
+  public async delete(podReference: PodReference): Promise<void> {
+    try {
+      await this.kubeClient.deleteNamespacedPod({
+        namespace: podReference.namespace.toString(),
+        name: podReference.name.toString(),
+      });
+    } catch (error) {
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.DELETE,
+        ResourceType.POD,
+        podReference.namespace,
+        podReference.name.toString(),
+      );
+    }
+  }
 }

@@ -78,4 +78,10 @@ export interface Pods {
     containerCommand: string[],
     startupProbeCommand: string[],
   ): Promise<Pod>;
+
+  /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
 }
