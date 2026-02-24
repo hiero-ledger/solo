@@ -38,7 +38,7 @@ describe('RemoteConfigSchema', () => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
     const migrations: SchemaMigration[] = schema.migrations;
     expect(Array.isArray(migrations)).equal(true);
-    expect(migrations.length).equal(4);
+    expect(migrations.length).equal(5);
     expect(migrations[0]).instanceOf(RemoteConfigV1Migration);
   });
 });
