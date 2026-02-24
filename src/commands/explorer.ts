@@ -566,7 +566,7 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -623,7 +623,7 @@ export class ExplorerCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -676,7 +676,7 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -730,7 +730,7 @@ export class ExplorerCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -775,7 +775,7 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -817,7 +817,7 @@ export class ExplorerCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         this.loadRemoteConfigTask(argv),

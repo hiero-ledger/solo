@@ -5,7 +5,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
-import {AnyObject, type ArgvStruct} from '../../types/aliases.js';
+import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {injectable, inject} from 'tsyringe-neo';
@@ -124,7 +124,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | undefined = undefined;
-    let oneShotLease: Lock | null = null;
+    let oneShotLease: Lock | undefined;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newOneShotSingleDeployTaskList(
@@ -452,6 +452,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       config.deployment,
                                       optionFromFlag(Flags.clusterRef),
                                       config.clusterRef,
+                                      optionFromFlag(Flags.explorerVersion),
+                                      version.EXPLORER_VERSION,
                                     );
                                     this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
                                     return argvPushGlobalFlags(argv, config.cacheDir);
@@ -503,7 +505,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   // Pipeline B: create accounts (concurrent with Pipeline A)
                   {
                     title: 'Create Accounts',
-                    skip: () => config.predefinedAccounts === false,
+                    skip: (): boolean => config.predefinedAccounts === false,
                     task: async (
                       context_: OneShotSingleDeployContext,
                       task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
@@ -512,7 +514,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       await this.remoteConfig.loadAndValidate(argv);
                       const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
-                      const accountsToCreate = [
+                      const accountsToCreate: PredefinedAccount[] = [
                         ...predefinedEcdsaAccounts,
                         ...predefinedEcdsaAccountsWithAlias,
                         ...predefinedEd25519Accounts,
@@ -526,7 +528,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues
-                        ((index: number, account: PredefinedAccount) => {
+                        ((index: number, account: PredefinedAccount): void => {
                           subTasks.push({
                             title: `Creating Account ${index}`,
                             task: async (
@@ -535,7 +537,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             ): Promise<void> => {
                               await helpers.sleep(Duration.ofMillis(100 * index));
 
-                              const createdAccount = await this.accountManager.createNewAccount(
+                              const createdAccount: {
+                                accountId: string;
+                                privateKey: string;
+                                publicKey: string;
+                                balance: number;
+                                accountAlias?: string;
+                              } = await this.accountManager.createNewAccount(
                                 context_.config.namespace,
                                 account.privateKey,
                                 account.balance.to(HbarUnit.Hbar).toNumber(),
@@ -854,7 +862,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDestroyConfigClass;
-    let oneShotLease: Lock | null = null;
+    let oneShotLease: Lock | undefined;
 
     const taskArray = [
       {
@@ -899,7 +907,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       },
       {
         title: 'Acquire deployment lock',
-        task: async (context_, task) => {
+        task: async (context_, task): Promise<Listr<AnyListrContext>> => {
           oneShotLease = await this.leaseManager.create();
           return ListrLock.newAcquireLockTask(oneShotLease, task);
         },

@@ -880,7 +880,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -1050,7 +1050,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         this.enableMirrorNodeTask(),
@@ -1102,7 +1102,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -1261,7 +1261,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         this.enableMirrorNodeTask(),
@@ -1319,7 +1319,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -1373,7 +1373,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         {

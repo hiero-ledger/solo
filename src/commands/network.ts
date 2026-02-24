@@ -980,7 +980,7 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             this.configManager.update(argv);
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv, true, true);
@@ -992,7 +992,7 @@ export class NetworkCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         {
@@ -1487,7 +1487,7 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext> | null> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext> | undefined> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             if (!this.oneShotState.isActive()) {
@@ -1521,7 +1521,7 @@ export class NetworkCommand extends BaseCommand {
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
-            return null;
+            return undefined;
           },
         },
         {
