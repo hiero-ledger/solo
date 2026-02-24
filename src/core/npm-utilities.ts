@@ -33,7 +33,7 @@ export const unlinkLocalSoloPackages: (logger: SoloLogger) => Promise<void> = as
             logger.info(`npm unlink: ${line}`);
           }
           logger.debug(`Successfully unlinked ${packageName}`);
-        } catch (error: Error | any) {
+        } catch (error: Error | unknown) {
           logger.error(
             new SoloError(
               `Failed to unlink earlier global installation of ${packageName}. Please manually run "npm unlink -g ${packageName}" to unlink.`,
@@ -41,7 +41,7 @@ export const unlinkLocalSoloPackages: (logger: SoloLogger) => Promise<void> = as
             ),
           );
         }
-      } catch (error: Error | any) {
+      } catch (error: Error | unknown) {
         logger.error(
           new SoloError(
             `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,

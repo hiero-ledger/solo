@@ -10,16 +10,17 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
+import {type AnyObject} from './types/aliases.js';
 
 export class ArgumentProcessor {
-  public static process(argv: string[]): any {
+  public static process(argv: string[]): AnyObject {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
-    const commands: any = container.resolve(InjectTokens.Commands);
+    const commands: AnyObject = container.resolve(InjectTokens.Commands);
 
     logger.debug('Initializing commands');
-    const rootCmd: any = yargs(hideBin(argv))
+    const rootCmd: AnyObject = yargs(hideBin(argv))
       .scriptName('')
       .usage('Usage:\n  solo <command> [options]')
       .alias('h', 'help')
