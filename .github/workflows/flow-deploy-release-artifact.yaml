@@ -509,7 +509,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish HG NPM Package
-        if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' || inputs.dry-run-enabled == true }}
+        if: ${{ inputs.dry-run-enabled == true || needs.create-github-release.outputs.need-hg-publish == 'true' }}
         run: |
           echo "::group::Set Publish Args"
             FLAGS="--access=public"
