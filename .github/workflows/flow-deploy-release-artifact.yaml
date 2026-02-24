@@ -404,7 +404,7 @@ jobs:
 
       - name: Update Files for Dual Publish
         id: update-for-dual-publish
-        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' }}
+        if: ${{ inputs.dual-publish-enabled == true && (needs.prepare-release.outputs.need-hl-release == 'true' || inputs.dry-run-enabled == true) }}
         run: |
           echo "::group::Update package.json files for dual publish"
           files=("package.json")
