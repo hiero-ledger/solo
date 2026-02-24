@@ -433,14 +433,16 @@ jobs:
           fi
           
           file_count=$(git status --porcelain  | wc -l)
-          filtered_files_count=$(echo "${filtered_files}" | wc -l)
+          filtered_files_count=0
+          if [[ -n "${filtered_files}" ]]; then
+            filtered_files_count=$(echo "${filtered_files}" | wc -l)
+          fi
           if [[ ${file_count} -ge ${filtered_files_count} ]]; then
             echo "::notice::All files containing '${{ env.HASHGRAPH_PKG_NAME }}' were updated to '${{ env.HIERO_PKG_NAME }}'." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "::warning::Only ${file_count} out of ${filtered_files_count} files containing '${{ env.HASHGRAPH_PKG_NAME }}' were updated; please check for any missed occurrences." >> "${GITHUB_STEP_SUMMARY}"
           fi
-          echo "Files updated for dual publish:"
-          
+          echo "Files updated for dual publish: ${file_count}"
 
           echo "::endgroup::"
           echo "::group::View Version to publish to npm"
@@ -574,10 +576,6 @@ jobs:
             if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
               npm publish ${TARBALL} ${FLAGS}
             fi
-          echo "::endgroup::"
-          
-          echo "::group::Reset Workspace"
-            git restore .
           echo "::endgroup::"
 
   setup:
