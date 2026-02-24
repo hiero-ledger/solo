@@ -33,7 +33,7 @@ export class ClusterTaskManager extends ShellRunner {
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanDependencyManager) protected readonly podmanDependencyManager: PodmanDependencyManager,
     @inject(InjectTokens.KindDependencyManager) protected readonly kindDependencyManager: KindDependencyManager,
-    @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+    @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory: K8Factory,
     @inject(InjectTokens.DependencyManager) protected readonly depManager: DependencyManager,
   ) {
@@ -50,7 +50,7 @@ export class ClusterTaskManager extends ShellRunner {
     this.kindDependencyManager = patchInject(kindDependencyManager, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
-      InjectTokens.PodmanInstallationDir,
+      InjectTokens.PodmanInstallationDirectory,
       ClusterTaskManager.name,
     );
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, ClusterTaskManager.name);
@@ -77,6 +77,7 @@ export class ClusterTaskManager extends ShellRunner {
         title: 'Install git, iptables...',
         task: async (_, _subTask) => {
           try {
+            // TODO include in integration/git GHI scope
             await this.run('git version');
           } catch {
             this.logger.info('Git not found, installing git...');
@@ -201,13 +202,31 @@ export class ClusterTaskManager extends ShellRunner {
             title: 'Create Podman machine...',
             task: async () => {
               await this.podmanDependencyManager.setupConfig();
-              const podmanExecutable: string = await this.podmanDependencyManager.getExecutablePath();
+              const podmanExecutable: string = await this.podmanDependencyManager.getExecutable();
               try {
-                await this.run(`${podmanExecutable} machine inspect ${constants.PODMAN_MACHINE_NAME}`);
+                await this.run(
+                  `${podmanExecutable} machine inspect ${constants.PODMAN_MACHINE_NAME}`,
+                  [],
+                  false,
+                  false,
+                  {PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+                );
               } catch (error) {
                 if (error.message.includes('VM does not exist')) {
-                  await this.run(`${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=16384`); // 16GB
-                  await this.run(`${podmanExecutable} machine start ${constants.PODMAN_MACHINE_NAME}`);
+                  await this.run(
+                    `${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=16384`, // 16GB
+                    [],
+                    false,
+                    false,
+                    {PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+                  );
+                  await this.run(
+                    `${podmanExecutable} machine start ${constants.PODMAN_MACHINE_NAME}`,
+                    [],
+                    false,
+                    false,
+                    {PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+                  );
                 } else {
                   throw new SoloError(`Failed to inspect Podman machine: ${error.message}`);
                 }
@@ -218,7 +237,7 @@ export class ClusterTaskManager extends ShellRunner {
           {
             title: 'Configure kind to use podman...',
             task: async () => {
-              process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
+              // process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
               process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
             },
             skip: (): boolean => skipPodmanTasks,
@@ -235,7 +254,7 @@ export class ClusterTaskManager extends ShellRunner {
     return {
       title: 'Creating local cluster...',
       task: async _context => {
-        const kindExecutable: string = await this.kindDependencyManager.getExecutablePath();
+        const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
 

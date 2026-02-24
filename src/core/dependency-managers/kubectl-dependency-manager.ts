@@ -19,14 +19,14 @@ const KUBECTL_WINDOWS_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl.exe';
 export class KubectlDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.KubectlInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.KubectlInstallationDirectory) protected override readonly installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.KubectlVersion) protected readonly kubectlVersion: string,
   ) {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.KubectlInstallationDir,
+      InjectTokens.KubectlInstallationDirectory,
       KubectlDependencyManager.name,
     );
     osArch = patchInject(osArch, InjectTokens.OsArch, KubectlDependencyManager.name);
@@ -56,9 +56,9 @@ export class KubectlDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`"${executablePath}" version --client`);
+      const output: string[] = await this.run(`"${executableWithPath}" version --client`);
       this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {

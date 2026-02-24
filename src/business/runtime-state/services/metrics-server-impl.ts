@@ -20,6 +20,7 @@ import {PodReference} from '../../../integration/kube/resources/pod/pod-referenc
 import {RemoteConfigRuntimeState} from '../config/remote/remote-config-runtime-state.js';
 import {container} from 'tsyringe-neo';
 import {Duration} from '../../../core/time/duration.js';
+import path from 'node:path';
 
 @injectable()
 export class MetricsServerImpl implements MetricsServer {
@@ -27,10 +28,16 @@ export class MetricsServerImpl implements MetricsServer {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.IgnorePodMetrics) private readonly ignorePodMetrics?: string[],
+    @inject(InjectTokens.KubectlInstallationDirectory) protected readonly installationDirectory?: string,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.ignorePodMetrics = patchInject(ignorePodMetrics, InjectTokens.IgnorePodMetrics, this.constructor.name);
+    this.installationDirectory = patchInject(
+      installationDirectory,
+      InjectTokens.KubectlInstallationDirectory,
+      this.constructor.name,
+    );
   }
 
   public async getMetrics(
@@ -67,9 +74,12 @@ export class MetricsServerImpl implements MetricsServer {
     const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
     const contextParameter: string = context ? `--context ${context}` : '';
     const labelSelectorParameter: string = labelSelector ? `-l='${labelSelector}'` : '';
+    // TODO: open ticket to move kubectl top command into integration/kube
     const cmd: string = `kubectl top pod ${namespaceParameter} --no-headers=true ${contextParameter} ${labelSelectorParameter}`;
     try {
-      const results: string[] = await new ShellRunner().run(cmd, [], true, false);
+      const results: string[] = await new ShellRunner().run(cmd, [], true, false, {
+        PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
+      });
       const joinedResults: string = results.join('\n');
       let namespace: string;
       let podName: string;
@@ -234,7 +244,9 @@ export class MetricsServerImpl implements MetricsServer {
     }
     const contextParameter: string = context && context !== 'default' ? `--context ${context}` : '';
     const cmd: string = `kubectl get pod network-node1-0 -n ${namespace.name} --no-headers ${contextParameter} | awk '{print $5}'`;
-    const results: string[] = await new ShellRunner().run(cmd, [], true, false);
+    const results: string[] = await new ShellRunner().run(cmd, [], true, false, {
+      PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
+    });
     if (results?.length > 0) {
       return Number.parseInt(results[0].split('m')[0]);
     }

@@ -42,7 +42,7 @@ export class K8ClientPod implements Pod {
     private readonly pods: Pods,
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
-    private readonly kubectlExecutable: string,
+    private readonly kubectlInstallationDirectory: string,
     public readonly labels?: Record<string, string>,
     public readonly startupProbeCommand?: string[],
     public readonly containerName?: ContainerName,
@@ -200,10 +200,12 @@ export class K8ClientPod implements Pod {
       const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
 
       const cmd: string = persist
-        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${this.kubectlExecutable} &`
-        : `${this.kubectlExecutable} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${constants.KUBECTL} &`
+        : `${constants.KUBECTL} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
 
-      await new ShellRunner().run(cmd, [], true, true);
+      await new ShellRunner().run(cmd, [], true, true, {
+        PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+      });
 
       return availablePort;
     } catch (error) {
@@ -321,7 +323,7 @@ export class K8ClientPod implements Pod {
     pods: Pods,
     coreV1Api: CoreV1Api,
     kubeConfig: KubeConfig,
-    kubectlExecutable: string,
+    kubectlInstallationDirectory: string,
   ): Pod {
     if (!v1Pod) {
       return undefined;
@@ -332,7 +334,7 @@ export class K8ClientPod implements Pod {
       pods,
       coreV1Api,
       kubeConfig,
-      kubectlExecutable,
+      kubectlInstallationDirectory,
       v1Pod.metadata.labels,
       v1Pod.spec.containers[0]?.startupProbe?.exec?.command,
       ContainerName.of(v1Pod.spec.containers[0]?.name),

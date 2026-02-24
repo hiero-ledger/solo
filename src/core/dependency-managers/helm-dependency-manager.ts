@@ -25,14 +25,14 @@ export class HelmDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) downloader?: PackageDownloader,
     @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
-    @inject(InjectTokens.HelmInstallationDir) installationDirectory?: string,
+    @inject(InjectTokens.HelmInstallationDirectory) installationDirectory?: string,
     @inject(InjectTokens.OsArch) osArch?: string,
     @inject(InjectTokens.HelmVersion) helmVersion?: string,
   ) {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.HelmInstallationDir,
+      InjectTokens.HelmInstallationDirectory,
       HelmDependencyManager.name,
     );
     osArch = patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name);
@@ -98,9 +98,9 @@ export class HelmDependencyManager extends BaseDependencyManager {
     return [helmExecutablePath];
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`"${executablePath}" version --short`);
+      const output: string[] = await this.run(`"${executableWithPath}" version --short`);
       const parts: string[] = output[0].split('+');
       const versionOnly: string = parts[0];
       this.logger.info(`Helm version: ${versionOnly}`);

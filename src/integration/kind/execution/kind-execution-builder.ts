@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import path from 'node:path';
 import {KindExecution} from './kind-execution.js';
 
 /**
@@ -46,31 +45,15 @@ export class KindExecutionBuilder {
   private readonly _environmentVariables: Map<string, string> = new Map();
 
   /**
-   * The working directory to be used when executing the kind command.
-   */
-  private _workingDirectory: string;
-
-  /**
    * Creates a new KindExecutionBuilder instance.
    */
-  public constructor() {
-    const workingDirectoryString: string = process.env.PWD;
-    if (this.kindExecutable) {
-      this._workingDirectory =
-        workingDirectoryString && workingDirectoryString.trim() !== ''
-          ? workingDirectoryString
-          : path.dirname(this.kindExecutable);
-    }
-  }
+  public constructor() {}
 
   public executable(kindExecutable: string): KindExecutionBuilder {
     if (!kindExecutable) {
       throw new Error('kindExecutable must not be null');
     }
     this.kindExecutable = kindExecutable;
-    if (!this._workingDirectory) {
-      this._workingDirectory = path.dirname(this.kindExecutable);
-    }
     return this;
   }
 
@@ -152,19 +135,6 @@ export class KindExecutionBuilder {
   }
 
   /**
-   * Sets the working directory for the kind execution.
-   * @param workingDirectoryPath the path to the working directory
-   * @returns this builder
-   */
-  public workingDirectory(workingDirectoryPath: string): KindExecutionBuilder {
-    if (!workingDirectoryPath) {
-      throw new Error('workingDirectoryPath must not be null');
-    }
-    this._workingDirectory = workingDirectoryPath;
-    return this;
-  }
-
-  /**
    * Adds a flag to the kind execution.
    * @param flag the flag to be added
    * @returns this builder
@@ -188,7 +158,7 @@ export class KindExecutionBuilder {
       environment[key] = value;
     }
 
-    return new KindExecution(command, this._workingDirectory, environment);
+    return new KindExecution(command, environment);
   }
 
   /**

@@ -20,14 +20,14 @@ const KIND_ARTIFACT_TEMPLATE: string = '%s/kind-%s-%s';
 export class KindDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.KindInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.KindInstallationDirectory) protected override readonly installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.KindVersion) protected readonly kindVersion: string,
   ) {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.KindInstallationDir,
+      InjectTokens.KindInstallationDirectory,
       KindDependencyManager.name,
     );
     osArch = patchInject(osArch, InjectTokens.OsArch, KindDependencyManager.name);
@@ -57,14 +57,14 @@ export class KindDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     // The retry logic is to handle potential transient issues with the command execution
     // The command `kind --version` was sometimes observed to return an empty output in the CI environment
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`"${executablePath}" --version`);
-        this.logger.debug(`Attempt ${attempt}: Output from '${executablePath} --version': ${output.join('\n')}`);
+        const output: string[] = await this.run(`"${executableWithPath}" --version`);
+        this.logger.debug(`Attempt ${attempt}: Output from '${executableWithPath} --version': ${output.join('\n')}`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           this.logger.debug(
@@ -75,11 +75,11 @@ export class KindDependencyManager extends BaseDependencyManager {
           }
         }
       } catch (error: any) {
-        throw new SoloError(`Failed to check kind version for input ${executablePath}`, error);
+        throw new SoloError(`Failed to check kind version for input ${executableWithPath}`, error);
       }
     }
     throw new SoloError(
-      'Failed to check kind version - no output received after multiple attempts for ' + executablePath,
+      'Failed to check kind version - no output received after multiple attempts for ' + executableWithPath,
     );
   }
 

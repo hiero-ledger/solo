@@ -14,11 +14,11 @@ export class K8ClientFactory implements K8Factory {
   private readonly kubectlExecutable: string;
 
   public constructor(
-    @inject(InjectTokens.KubectlInstallationDir) installationDirectory: string,
+    @inject(InjectTokens.KubectlInstallationDirectory) installationDirectory: string,
     @inject(InjectTokens.OsPlatform) platform: string,
   ) {
     this.kubectlExecutable = PathEx.join(
-      patchInject(installationDirectory, InjectTokens.KubectlInstallationDir, K8ClientFactory.name),
+      patchInject(installationDirectory, InjectTokens.KubectlInstallationDirectory, K8ClientFactory.name),
       platform === 'win32' ? 'kubectl.exe' : 'kubectl',
     );
   }

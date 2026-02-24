@@ -18,7 +18,7 @@ import path from 'node:path';
  */
 export abstract class BaseDependencyManager extends ShellRunner {
   protected readonly osArch: string;
-  protected localExecutablePath: string;
+  protected localExecutableWithPath: string;
   protected globalExecutablePath: string = '';
   protected readonly artifactName: string;
   protected readonly downloadURL: string;
@@ -43,8 +43,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
     this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
 
     // Set the path to the local installation
-    this.localExecutablePath = Templates.installationPath(dependencyName, installationDirectory);
-    this.executableName = OperatingSystem.isWin32() ? `${dependencyName}.exe` : dependencyName;
+    this.localExecutableWithPath = Templates.soloHomeBinExecutableForDependency(dependencyName, installationDirectory);
+    this.executableName = dependencyName;
 
     // Set artifact name and URLs - these will be overridden by child classes
     this.artifactName = this.getArtifactName();
@@ -87,24 +87,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
   protected abstract processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]>;
 
   /**
-   * Get the path to the executable (global or local)
+   * Get the executable to run
    */
-  public async getExecutablePath(): Promise<string> {
-    // First check if global installation exists and meets requirements
-    const globalPath: false | string = await this.getGlobalExecutablePath();
-    if (globalPath && (await this.installationMeetsRequirements(globalPath))) {
-      return globalPath;
-    }
-
-    // Fall back to local installation
-    this.logger.debug(`Using local installation of ${this.executableName} at ${this.localExecutablePath}`);
-    return this.localExecutablePath;
+  public async getExecutable(): Promise<string> {
+    return this.executableName;
   }
 
   /**
    * Find the global executable using 'which' or 'where' command
    */
-  private async getGlobalExecutablePath(): Promise<false | string> {
+  private async getGlobalExecutableWithPath(): Promise<false | string> {
     try {
       if (this.globalExecutablePath) {
         return this.globalExecutablePath;
@@ -124,13 +116,13 @@ export abstract class BaseDependencyManager extends ShellRunner {
   /**
    * Check if the given installation meets version requirements
    */
-  public async installationMeetsRequirements(path: string): Promise<boolean> {
-    const version: string = await this.getVersion(path);
+  public async installationMeetsRequirements(executableWithPath: string): Promise<boolean> {
+    const version: string = await this.getVersion(executableWithPath);
     if (semver.gte(version, this.getRequiredVersion())) {
       return true;
     }
     this.logger.info(
-      `Found version ${version} of ${this.executableName} at ${path}, which does not meet the required version ${this.getRequiredVersion()}`,
+      `Found version ${version} of ${this.executableName} at ${executableWithPath}, which does not meet the required version ${this.getRequiredVersion()}`,
     );
     return false;
   }
@@ -139,7 +131,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the tool is installed globally and meets requirements
    */
   private async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
-    const path: false | string = await this.getGlobalExecutablePath();
+    const path: false | string = await this.getGlobalExecutableWithPath();
     try {
       if (path && (await this.installationMeetsRequirements(path))) {
         return true;
@@ -156,7 +148,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   private async isInstalledLocallyAndMeetsRequirements(): Promise<boolean> {
     try {
-      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutablePath))) {
+      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutableWithPath))) {
         return true;
       }
     } catch (error) {
@@ -171,7 +163,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the tool is installed locally
    */
   public isInstalledLocally(): boolean {
-    return fs.existsSync(this.localExecutablePath);
+    return fs.existsSync(this.localExecutableWithPath);
   }
 
   /**
@@ -179,7 +171,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   public uninstallLocal(): void {
     if (this.isInstalledLocally()) {
-      fs.rmSync(this.localExecutablePath);
+      fs.rmSync(this.localExecutableWithPath);
     }
   }
 

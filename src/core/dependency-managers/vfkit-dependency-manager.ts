@@ -23,14 +23,15 @@ export class VfkitDependencyManager extends BaseDependencyManager {
 
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PodmanDependenciesInstallationDirectory)
+    protected override readonly installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
   ) {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.PodmanDependenciesInstallationDir,
+      InjectTokens.PodmanDependenciesInstallationDirectory,
       VfkitDependencyManager.name,
     );
     osArch = patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
@@ -57,13 +58,13 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     // The retry logic is to handle potential transient issues with the command execution
     // The command `vfkit --version` was sometimes observed to return an empty output in the CI environment
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`${executablePath} --version`);
+        const output: string[] = await this.run(`${executableWithPath} --version`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];
