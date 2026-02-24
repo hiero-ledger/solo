@@ -53,7 +53,7 @@ jobs:
     outputs:
       version: ${{ steps.set-outputs.outputs.version }}
       need-hg-release: ${{ steps.set-outputs.outputs.need-hg-release }}
-      need-hl-release: ${{ steps.check-hl-release-needed.outputs.need-hl-release || 'false'}}
+      need-hl-release: ${{ steps.check-hl-release-needed.outputs.need-hl-release || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
@@ -395,7 +395,7 @@ jobs:
           echo "need-hg-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HG Package
-        if: ${{ needs.prepare-release.outputs.need-hg-release && steps.verify-package.outputs.need-hg-publish == 'true' }}
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && steps.verify-package.outputs.need-hg-publish == 'true' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: npm-hg-package
