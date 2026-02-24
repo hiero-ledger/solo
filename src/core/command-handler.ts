@@ -8,6 +8,7 @@ import {type Lock} from './lock/lock.js';
 import * as constants from './constants.js';
 import fs from 'node:fs';
 import {type ConfigManager} from './config-manager.js';
+import {type OneShotState} from './one-shot-state.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type AccountManager} from './account-manager.js';
 import {type TaskList} from './task-list/task-list.js';
@@ -23,11 +24,13 @@ export class CommandHandler {
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.TaskList)
     private readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState?: OneShotState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
   public async commandAction(
@@ -49,7 +52,7 @@ export class CommandHandler {
         throw new SoloError(`${errorString}: ${error.message}`, error);
       } finally {
         const promises: Promise<void>[] = [];
-        if (lease) {
+        if (!this.oneShotState.isActive() && lease) {
           promises.push(lease?.release());
         }
         promises.push(this.accountManager.close());
@@ -58,7 +61,7 @@ export class CommandHandler {
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         const promises: Promise<void>[] = [];
-        if (lease) {
+        if (!this.oneShotState.isActive() && lease) {
           promises.push(lease?.release());
         }
         promises.push(this.accountManager.close());

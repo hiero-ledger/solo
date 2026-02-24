@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
@@ -27,6 +28,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
@@ -41,6 +43,7 @@ export class ClusterCommandTasks {
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeState,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -49,6 +52,7 @@ export class ClusterCommandTasks {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
   public findMinioOperator(context: Context): Promise<ReleaseNameData> {
@@ -422,9 +426,12 @@ export class ClusterCommandTasks {
   public acquireNewLease(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Acquire new lease',
-      task: async (_, task) => {
-        const lease: Lock = await this.leaseManager.create();
-        return ListrLock.newAcquireLockTask(lease, task);
+      task: async (_, task): Promise<Listr<AnyListrContext>> => {
+        if (!this.oneShotState.isActive()) {
+          const lease: Lock = await this.leaseManager.create();
+          return ListrLock.newAcquireLockTask(lease, task);
+        }
+        return ListrLock.newSkippedLockTask(task);
       },
     };
   }
