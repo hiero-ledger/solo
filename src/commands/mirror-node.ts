@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
@@ -879,10 +880,12 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             this.configManager.update(argv);
 
             flags.disablePrompts(MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
@@ -1044,7 +1047,10 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.enableMirrorNodeTask(),
@@ -1072,12 +1078,16 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       } catch (error) {
         throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -1092,10 +1102,12 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             this.configManager.update(argv);
 
             flags.disablePrompts(MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional);
@@ -1246,7 +1258,10 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.enableMirrorNodeTask(),
@@ -1272,12 +1287,16 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       } catch (error) {
         throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
       } finally {
-        await lease.release();
+        if (!this.oneShotState.isActive()) {
+          await lease.release();
+        }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        if (!this.oneShotState.isActive()) {
+          await lease.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -1300,10 +1319,12 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -1349,7 +1370,10 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
@@ -1439,12 +1463,16 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
         throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
       } finally {
         await this.accountManager?.close().catch();
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         await this.accountManager?.close().catch();
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
