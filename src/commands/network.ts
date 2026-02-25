@@ -1399,7 +1399,7 @@ export class NetworkCommand extends BaseCommand {
             fs.mkdirSync(extractedDirectory);
 
             // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-            this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+            this.zippy.untar(tarFilePath, extractedDirectory);
 
             if (!fs.existsSync(extractedDirectory) || !fs.statSync(extractedDirectory).isDirectory()) {
               throw new SoloError(`Expected extracted wraps directory not found: ${extractedDirectory}`);
