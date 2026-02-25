@@ -78,7 +78,7 @@ import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import semver from 'semver/preload.js';
-import {getEnvironmentVariable} from '../core/constants.js';
+import {getEnvironmentVariable, WRAPS_DIRECTORY_NAME} from '../core/constants.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 
@@ -1387,8 +1387,12 @@ export class NetworkCommand extends BaseCommand {
               false,
             );
 
-            const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0.tar.gz');
-            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+            const tarFilePath: string = PathEx.join(
+              constants.SOLO_CACHE_DIR,
+              `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
+            );
+
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
             // clean previous extraction so force=true download doesn't leave stale files
             if (fs.existsSync(extractedDirectory)) {
@@ -1412,7 +1416,7 @@ export class NetworkCommand extends BaseCommand {
               );
 
               const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-              const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+              const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
               await rootContainer.copyTo(sourcePath, targetPath);
             }

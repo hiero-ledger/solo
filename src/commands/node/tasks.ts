@@ -13,7 +13,12 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  DEFAULT_NETWORK_NODE_NAME,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+  WRAPS_DIRECTORY_NAME,
+} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -2745,8 +2750,8 @@ export class NodeCommandTasks {
           false,
         );
 
-        const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0.tar.gz');
-        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+        const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
+        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
         // clean previous extraction so force=true download doesn't leave stale files
         if (fs.existsSync(extractedDirectory)) {
@@ -2770,7 +2775,14 @@ export class NodeCommandTasks {
           );
 
           const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-          const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+          const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+          const targetBasePath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+          const targetWrapsPath: string = PathEx.join(targetBasePath, constants.WRAPS_DIRECTORY_NAME);
+
+          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+            continue;
+          }
 
           await rootContainer.copyTo(sourcePath, targetPath);
         }
