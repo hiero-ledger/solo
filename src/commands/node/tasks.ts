@@ -2963,7 +2963,7 @@ export class NodeCommandTasks {
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
-      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].nodeId=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
       const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
 
@@ -3032,7 +3032,7 @@ export class NodeCommandTasks {
 
     if (this.remoteConfig.configuration.state.wrapsEnabled) {
       valuesArgumentMap[clusterReference] +=
-        ` --set "hedera.nodes[${index}].root.extraEnv[0].value=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+        ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
       const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
 
@@ -3074,7 +3074,7 @@ export class NodeCommandTasks {
 
         if (this.remoteConfig.configuration.state.wrapsEnabled) {
           valuesArgumentMap[clusterReference] +=
-            ` --set "hedera.nodes[${index}].root.extraEnv[0].value=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+            ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
           const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
 
