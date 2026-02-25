@@ -8,4 +8,5 @@ export interface OneShotSingleDestroyConfigClass {
   deployment: string;
   namespace: NamespaceName;
   cacheDir: string;
+  skipAll: boolean;
 }

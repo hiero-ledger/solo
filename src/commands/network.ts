@@ -852,22 +852,22 @@ export class NetworkCommand extends BaseCommand {
       }),
     );
 
-    if (deletePvcs) {
-      task.title = `Deleting PVCs in namespace ${namespace}`;
-      await this.deletePvcs(namespace, contexts);
-    }
-
-    if (deleteSecrets) {
-      task.title = `Deleting Secrets in namespace ${namespace}`;
-      await this.deleteSecrets(namespace, contexts);
-    }
-
     if (deleteSecrets && deletePvcs) {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).namespaces().delete(namespace);
         }),
       );
+    } else {
+      if (deletePvcs) {
+        task.title = `Deleting PVCs in namespace ${namespace}`;
+        await this.deletePvcs(namespace, contexts);
+      }
+
+      if (deleteSecrets) {
+        task.title = `Deleting Secrets in namespace ${namespace}`;
+        await this.deleteSecrets(namespace, contexts);
+      }
     }
   }
 
