@@ -544,7 +544,7 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
 }
 
 export function createDirectoryIfNotExists(file: string): void {
-  const directory: string = file.slice(0, Math.max(0, file.lastIndexOf('/')));
+  const directory: string = path.dirname(file);
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory, {recursive: true});
   }
