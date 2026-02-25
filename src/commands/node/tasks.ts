@@ -2,6 +2,7 @@
 
 import {type AccountManager} from '../../core/account-manager.js';
 import {type ConfigManager} from '../../core/config-manager.js';
+import {type OneShotState} from '../../core/one-shot-state.js';
 import {type KeyManager} from '../../core/key-manager.js';
 import {type ProfileManager} from '../../core/profile-manager.js';
 import {type PlatformInstaller} from '../../core/platform-installer.js';
@@ -181,6 +182,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
   ) {
@@ -195,6 +197,7 @@ export class NodeCommandTasks {
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
   }
@@ -1149,7 +1152,9 @@ export class NodeCommandTasks {
       task: async () => {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv);
-        leaseWrapper.lease = await leaseManager.create();
+        if (!this.oneShotState.isActive()) {
+          leaseWrapper.lease = await leaseManager.create();
+        }
       },
     };
   }
@@ -3463,7 +3468,7 @@ export class NodeCommandTasks {
           }
         }
 
-        if (lease) {
+        if (!this.oneShotState.isActive() && lease) {
           return ListrLock.newAcquireLockTask(lease, task);
         }
       },
