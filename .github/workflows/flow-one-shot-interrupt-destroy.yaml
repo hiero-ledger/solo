@@ -124,7 +124,7 @@ jobs:
             export SOLO_COMMAND="npm run solo --"
           fi
           export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
-          .github/workflows/script/one-shot-interrupt-destroy.sh
+          node .github/workflows/script/one-shot-interrupt-destroy.mjs
 
       - name: Cleanup Deployment
         if: always()
