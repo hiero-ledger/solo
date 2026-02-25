@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
@@ -69,6 +70,7 @@ import * as versions from '../../version.js';
 import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import semver from 'semver/preload.js';
 import {getEnvironmentVariable} from '../core/constants.js';
 
 export interface NetworkDeployConfigClass {
@@ -133,6 +135,8 @@ export interface NetworkDeployConfigClass {
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
   javaFlightRecorderConfiguration: string;
+  // wrapsEnabled: boolean; TODO: Enable with wraps
+  tssEnabled: boolean;
 }
 
 interface NetworkDeployContext {
@@ -230,6 +234,8 @@ export class NetworkCommand extends BaseCommand {
       flags.podLog,
       flags.enableMonitoringSupport,
       flags.javaFlightRecorderConfiguration,
+      // flags.wrapsEnabled, TODO: Enable with wraps
+      flags.tssEnabled,
     ],
   };
 
@@ -445,7 +451,7 @@ export class NetworkCommand extends BaseCommand {
     // initialize the valueArgs
     for (const consensusNode of config.consensusNodes) {
       // add the cluster to the list of clusters
-      if (!clusterReferences[consensusNode.cluster]) {
+      if (!clusterReferences.includes(consensusNode.cluster)) {
         clusterReferences.push(consensusNode.cluster);
       }
 
@@ -454,24 +460,45 @@ export class NetworkCommand extends BaseCommand {
         // make sure each cluster has an empty string for the valuesArg
         valuesArguments[consensusNode.cluster] = '';
       } else {
-        extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
         let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
         valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
         valuesArguments[consensusNode.cluster] = valuesArgument;
+
+        extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
       }
     }
 
+    // TODO: Enable with wraps
+    // if (config.wrapsEnabled) {
+    //   for (const consensusNode of config.consensusNodes) {
+    //     const cluster: ClusterReferenceName = consensusNode.cluster;
+    //     const index: number = extraEnvironmentIndex;
+    //     const nodeId: NodeId = consensusNode.nodeId;
+    //
+    //     valuesArguments[cluster] +=
+    //       ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+    //
+    //     const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'wraps-v0.2.0');
+    //
+    //     valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
+    //   }
+    //
+    //   extraEnvironmentIndex++; //! increment index
+    // }
+
     // add debug options to the debug node
-    config.consensusNodes.filter((consensusNode): void => {
-      if (consensusNode.name === config.debugNodeAlias) {
-        valuesArguments[consensusNode.cluster] = addDebugOptions(
-          valuesArguments[consensusNode.cluster],
-          config.debugNodeAlias,
-          extraEnvironmentIndex,
-        );
+    for (const consensusNode of config.consensusNodes) {
+      if (consensusNode.name !== config.debugNodeAlias) {
+        continue;
       }
-    });
+
+      valuesArguments[consensusNode.cluster] = addDebugOptions(
+        valuesArguments[consensusNode.cluster],
+        config.debugNodeAlias,
+        extraEnvironmentIndex,
+      );
+    }
 
     if (
       config.storageType === constants.StorageType.AWS_AND_GCS ||
@@ -1004,14 +1031,62 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv, true, true);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
+
+            // TODO: Enable with wraps
+            // const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+            //
+            // if (
+            //   this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
+            //   semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+            // ) {
+            //   // if is possible block node deployed before consensus node, then use release tag as fallback
+            //   this.remoteConfig.configuration.versions.consensusNode = releaseTag;
+            //   await this.remoteConfig.persist();
+            // }
+            //
+            // const currentVersion: SemVer = new SemVer(
+            //   this.remoteConfig.configuration.versions.consensusNode.toString(),
+            // );
+            //
+            // const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
+            // const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+            //
+            // if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+            //   throw new SoloError(
+            //     `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
+            //   );
+            // }
+            //
+            // this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
+            // await this.remoteConfig.persist();
+
+            const currentVersion: SemVer = new SemVer(
+              this.remoteConfig.configuration.versions.consensusNode.toString(),
+            );
+
+            let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
+            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+
+            // if platform version is insufficient for tss, disable it
+            if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
+              tssEnabled = false;
+            }
+
+            this.remoteConfig.configuration.state.tssEnabled = tssEnabled;
+            await this.remoteConfig.persist();
 
             context_.config = await this.prepareConfig(task, argv);
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
@@ -1319,6 +1394,23 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.addNodesAndProxies(),
+        // TODO: Enable with wraps, and add logic for downloading the artifact
+        // {
+        //   title: 'copy over',
+        //   task: async ({config}): Promise<void> => {
+        //     for (const consensusNode of config.consensusNodes) {
+        //       const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+        //         config.namespace,
+        //         consensusNode.name,
+        //       );
+        //
+        //       const sourcePath: string = PathEx.joinWithRealPath(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+        //       const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+        //
+        //       await rootContainer.copyTo(sourcePath, targetPath);
+        //     }
+        //   },
+        // },
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
@@ -1383,13 +1475,15 @@ export class NetworkCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
-        if (lease) {
-          await lease?.release();
+        if (lease && !this.oneShotState.isActive()) {
+          await lease.release();
         }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -1504,10 +1598,12 @@ export class NetworkCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             const remoteConfigLoaded: boolean = await this.loadRemoteConfigOrWarn(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
@@ -1537,7 +1633,10 @@ export class NetworkCommand extends BaseCommand {
                   ),
             };
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
@@ -1585,11 +1684,15 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloError('Error destroying network', error);
       } finally {
         // If the namespace is deleted, the lease can't be released
-        await lease?.release().catch();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release().catch();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 

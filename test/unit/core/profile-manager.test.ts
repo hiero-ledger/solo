@@ -100,6 +100,25 @@ describe('ProfileManager', () => {
 
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfig.getConsensusNodes = sinon.stub().returns(consensusNodes);
+
+    // // @ts-expect-error - TS2339: to mock
+    // profileManager.remoteConfig.configuration = sinon.stub().returns({
+    //   versions: {
+    //     consensusNode: version.HEDERA_PLATFORM_VERSION,
+    //   },
+    //   state: {},
+    // });
+
+    // @ts-expect-error - TS2339: to mock
+    profileManager.remoteConfig.configuration = {
+      // @ts-expect-error - TS2339: to mock
+      state: {},
+      versions: {
+        // @ts-expect-error - TS2339: to mock
+        consensusNode: version.HEDERA_PLATFORM_VERSION,
+      },
+    };
+
     // @ts-expect-error - TS2339: to mock
     profileManager.updateApplicationPropertiesForBlockNode = sinon.stub();
 

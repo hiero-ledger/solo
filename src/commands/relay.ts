@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
@@ -505,14 +506,54 @@ export class RelayCommand extends BaseCommand {
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, relay and explorer tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the relay's config independently of the shared context.
+    let deployConfig: RelayDeployConfigClass;
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (deployConfig) {
+            context_.config = deployConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (deployConfig) {
+            context_.config = deployConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<RelayDeployContext> = this.taskList.newTaskList<RelayDeployContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.loadRemoteConfigOrWarn(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
@@ -535,6 +576,7 @@ export class RelayCommand extends BaseCommand {
             ) as RelayDeployConfigClass;
 
             context_.config = config;
+            deployConfig = config;
 
             config.isLegacyChartInstalled = false;
 
@@ -571,16 +613,19 @@ export class RelayCommand extends BaseCommand {
 
             config.id = config.newRelayComponent.metadata.id;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.checkChartIsInstalledTask(),
-        this.prepareChartValuesTask(),
-        this.deployJsonRpcRelayTask(),
-        this.checkRelayIsRunningTask(),
-        this.checkRelayIsReadyTask(),
-        this.addRelayComponent(),
-        this.enablePortForwardingTask(),
+        restoreConfig(this.checkChartIsInstalledTask()),
+        restoreConfig(this.prepareChartValuesTask()),
+        restoreConfig(this.deployJsonRpcRelayTask()),
+        restoreConfig(this.checkRelayIsRunningTask()),
+        restoreConfig(this.checkRelayIsReadyTask()),
+        restoreConfig(this.addRelayComponent()),
+        restoreConfig(this.enablePortForwardingTask()),
         // TODO only show this if we are not running in one-shot mode
         // {
         //   title: 'Show user messages',
@@ -600,14 +645,16 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
-        if (lease) {
-          await lease?.release();
+        if (lease && !this.oneShotState.isActive()) {
+          await lease.release();
         }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -622,10 +669,12 @@ export class RelayCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
@@ -680,7 +729,10 @@ export class RelayCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.prepareChartValuesTask(),
@@ -700,12 +752,16 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading relay: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -716,14 +772,54 @@ export class RelayCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, explorer and relay destroy tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the relay's config independently of the shared context.
+    let destroyConfig: RelayDestroyConfigClass;
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<RelayDestroyContext> = this.taskList.newTaskList<RelayDestroyContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
             this.configManager.update(argv);
@@ -760,11 +856,15 @@ export class RelayCommand extends BaseCommand {
             };
 
             context_.config = config;
+            destroyConfig = config;
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
-        {
+        restoreConfig({
           title: 'Destroy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
@@ -778,8 +878,8 @@ export class RelayCommand extends BaseCommand {
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
-        },
-        this.disableRelayComponent(),
+        }),
+        restoreConfig(this.disableRelayComponent()),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
@@ -792,11 +892,15 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError('Error uninstalling relays', error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
