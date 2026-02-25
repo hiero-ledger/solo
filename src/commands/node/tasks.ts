@@ -2738,11 +2738,11 @@ export class NodeCommandTasks {
       task: async ({config}): Promise<void> => {
         await this.downloader.fetchPackage(
           constants.WRAPS_LIB_DOWNLOAD_URL,
-          'unusued',
+          'unusued', // doesn't check checksum
           constants.SOLO_CACHE_DIR,
           false,
           '',
-          true,
+          false,
         );
 
         const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0.tar.gz');
