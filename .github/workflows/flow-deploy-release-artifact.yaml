@@ -406,87 +406,38 @@ jobs:
         id: update-for-dual-publish
         if: ${{ inputs.dual-publish-enabled == true && (needs.prepare-release.outputs.need-hl-release == 'true' || inputs.dry-run-enabled == true) }}
         env:
-          IGNORE_FILE: .github/workflows/support/.ignore-deploy-release
+          IGNORE_LIST_FILE: .github/workflows/support/.ignore-deploy-release
+          CI_TASK: scripts/Taskfile.release.yml
         run: |
-          echo "::group::Update package.json files for dual publish"
-          files=("package.json")
-          for file in "${files[@]}"; do
-            if [[ -f "${file}" ]]; then
-              cp "${file}" "${file}.tmp"
-              jq '.name |= sub("${{ env.HASHGRAPH_PKG_NAME }}";"${{ env.HIERO_PKG_NAME }}")' "${file}.tmp" > "${file}"
-              rm "${file}.tmp"
-            else
-              echo "::warning::File ${file} does not exist, skipping update."
-            fi
-          done
-
-          # .ignore-deploy-release contains a package.json line, this is because that file is modified in the
-          # first part of this step and does not need to be touched again by the sed command.
-          tracked_files=$(git grep -rl --text "${{ env.HASHGRAPH_PKG_NAME }}" || true)
-          if [[ -z "${tracked_files}" ]]; then
-            echo "::notice::No files containing '${{ env.HASHGRAPH_PKG_NAME }}' were found; skipping replacement."
-          else
-            # ensure .ignore-deploy-release file exists
-            if [[ ! -f "${IGNORE_FILE}" ]]; then
-              # error if file does not exist, as this is expected to be in the repo
-              echo "::error file=flow-deploy-release-artifact.yaml::Ignore file '${IGNORE_FILE}' not found."
-              exit 1
-            fi
-            filtered_files=$(echo "${tracked_files}" | grep -vFf .github/workflows/support/.ignore-deploy-release || true)
-            if [[ -z "${filtered_files}" ]]; then
-              echo "::notice::No files to update after applying ignore list; skipping replacement."
-            else
-              echo "${filtered_files}" | tr '\n' '\0' | xargs -0 sed -i 's/\b@hashgraph\/solo\b/@hiero-ledger\/solo/g'
-            fi
-          fi
-          
-          file_count=$(git status --porcelain  | wc -l)
-          filtered_files_count=0
-          if [[ -n "${filtered_files}" ]]; then
-            filtered_files_count=$(echo "${filtered_files}" | wc -l)
-          fi
-          if [[ ${file_count} -ge ${filtered_files_count} ]]; then
-            echo "::notice::All files containing '${{ env.HASHGRAPH_PKG_NAME }}' were updated to '${{ env.HIERO_PKG_NAME }}'." >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "::warning::Only ${file_count} out of ${filtered_files_count} files containing '${{ env.HASHGRAPH_PKG_NAME }}' were updated; please check for any missed occurrences." >> "${GITHUB_STEP_SUMMARY}"
-          fi
-          echo "Files updated for dual publish: ${file_count}"
-
-          echo "::endgroup::"
-          echo "::group::View Version to publish to npm"
-            echo "Version to publish:"
-            cat package.json | grep 'version'
-          echo "::endgroup::"
-          
-          echo "::group::Install dependencies"
-          npm install
+          echo "::group::Rename package references"
+          task -t ${{ env.CI_TASK }} dual-publish:rename \
+            HASHGRAPH_PKG_NAME="${{ env.HASHGRAPH_PKG_NAME }}" \
+            HIERO_PKG_NAME="${{ env.HIERO_PKG_NAME }}" \
+            IGNORE_LIST_FILE="${{ env.IGNORE_LIST_FILE }}"
           echo "::endgroup::"
 
-          echo "::group::Build Hiero-Ledger NPM Package"
-          task build
+          echo "::group::Build and pack HL package"
+          task -t ${{ env.CI_TASK }} dual-publish:pack \
+            OUTPUT_DIR="output/hl" \
+            DRY_RUN="${{ inputs.dry-run-enabled }}"
           echo "::endgroup::"
 
-          echo "::group::Create Hiero-Ledger Package"
-            FLAGS=""
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-              echo "Command: npm pack --pack-destination \"output/hl\""
-              FLAGS="--dry-run"
-            fi
-            mkdir -p "output/hl"
-            npm pack --pack-destination "output/hl" ${FLAGS}
-          echo "::endgroup::"
-          
           PROCEED="true"
           echo "::group::Verify Hiero-Ledger Package is Created"
-            if ls -l output/hl | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1 ; then
-              echo "::notice file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is created"
-            else
-              PROCEED="false"
-              echo "::error file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is not created"
-              echo "Attempt Manual Publish!"
-            fi
+          if ls -l output/hl | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1; then
+            echo "::notice file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is created"
+          else
+            PROCEED="false"
+            echo "::error file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is not created"
+            echo "Attempt Manual Publish!"
+          fi
           echo "::endgroup::"
+
           echo "need-hl-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
+
+          echo "::group::Version to publish"
+          grep '"version"' package.json
+          echo "::endgroup::"
 
       - name: Upload Hiero-Ledger Package
         if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
