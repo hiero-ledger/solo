@@ -22,7 +22,7 @@ export class K8ClientCrds implements Crds {
       response = await this.networkingApi.readCustomResourceDefinition({
         name: crdName,
       });
-      this.logger.debug(`CRD ${crdName} exists, response:`, response);
+      this.logger.debug(`CRD ${crdName} exists.`);
     } catch (error) {
       if (KubeApiResponse.isNotFound(error)) {
         this.logger.error(`CRD ${crdName} does not exist.`);

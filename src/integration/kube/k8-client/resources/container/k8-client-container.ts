@@ -54,12 +54,13 @@ export class K8ClientContainer implements Container {
     this.logger.debug(`Executing kubectl [${this.kubectlExecutable}] with arguments: ${fullArguments.join(' ')}`);
 
     return new Promise((resolve, reject): void => {
-      const callMessage: string = `kubectl ${fullArguments.join(' ')}`;
+      const callMessage: string = `"${this.kubectlExecutable}" ${fullArguments.join(' ')}`;
       const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
         this.kubectlExecutable,
         fullArguments,
         {
           stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: os.platform() === 'win32',
         },
       );
 

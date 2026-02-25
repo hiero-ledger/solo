@@ -69,7 +69,7 @@ export class PathEx {
   }
 
   /**
-   * Resolves the given paths. This is a wrapper around path.resolve. It is recommended to only use this when you are dealing
+   * Resolves the given paths to an absolute path. This is a wrapper around path.resolve. It is recommended to only use this when you are dealing
    * with part of a path that is not a complete path reference on its own.
    *
    * This method is not safe unless literals are used as parameters.  Use this instead of path.resolve(...) directly when you cannot confine a user to a base
@@ -81,5 +81,20 @@ export class PathEx {
   public static resolve(...paths: string[]): string {
     // nosemgrep: path-join-resolve-traversal
     return path.resolve(...paths);
+  }
+
+  /**
+   * Solve the relative path from {from} to {to} based on the current working directory.  This is a wrapper around path.relative. It is recommended to only use this when you are dealing with part of a path that is not a complete path reference on its own.
+   *
+   * This method is not safe unless literals are used as parameters.  Use this instead of path.relative(...) directly when you cannot confine a user to a base
+   * directory.
+   *
+   * For more information see: https://owasp.org/www-community/attacks/Path_Traversal
+   * @param from
+   * @param to
+   * @returns The relative path from `from` to `to`.
+   */
+  public static relative(from: string, to: string): string {
+    return path.relative(from, to);
   }
 }
