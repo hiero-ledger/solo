@@ -101,7 +101,18 @@ kubectl rollout restart deployment/mirror-web3 -n solo-e2e
 kubectl rollout restart deployment/mirror-grpc -n solo-e2e
 kubectl rollout restart deployment/mirror-monitor -n solo-e2e
 kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
-kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
+
+# mirror ingress controller deployment name can vary by chart version
+# (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
+mirrorIngressDeployments=$(kubectl get deployment -n solo-e2e -o name | grep '^deployment.apps/mirror-ingress-controller' || true)
+if [[ -z "${mirrorIngressDeployments}" ]]; then
+  echo "No mirror ingress controller deployment found to restart in namespace solo-e2e"
+else
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart "${deploymentName}" -n solo-e2e
+  done <<< "${mirrorIngressDeployments}"
+fi
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
