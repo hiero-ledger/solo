@@ -106,7 +106,7 @@ jobs:
           git fetch origin "$target_branch":"$target_branch"
           git checkout "$target_branch"
           npm ci
-          task check
+          task check --force
           branch_warnings=$(get_warnings eslint-branch.log)
           target_warnings=$(get_warnings eslint.log)
           echo "Warnings on branch: $branch_warnings"

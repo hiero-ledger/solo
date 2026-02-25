@@ -82,11 +82,9 @@ tasks:
       - "{{ .test_prefix }}=\"Mocha E2E Standard Tests\"
         {{ .reporter_prefix }}='coverage/e2e-standard' 
         {{ .mocha_bin }} 'test/e2e/**/*.ts' 
-          --ignore 'test/unit/**/*.ts' 
           --ignore 'test/e2e/integration/**/*.ts' 
           --ignore 'test/e2e/commands/node*.ts' 
           --ignore 'test/e2e/commands/separate-node*.ts' 
-          --ignore 'test/e2e/commands/relay*.ts' 
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
@@ -95,6 +93,7 @@ tasks:
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
+          --ignore 'test/e2e/commands/performance.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
   test-e2e-node-add-local:
