@@ -58,7 +58,7 @@ export class HelmExecutionBuilder {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
 
     try {
-      this.helmExecutable = Templates.soloHomeBinExecutableForDependency(constants.HELM);
+      this.helmExecutable = constants.HELM;
     } catch (error) {
       this.logger?.error('Failed to find helm executable:', error);
       throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');
