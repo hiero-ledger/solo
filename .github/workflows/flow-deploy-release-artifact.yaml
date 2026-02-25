@@ -140,7 +140,7 @@ jobs:
           echo "version=${OUTVER}" >> "${GITHUB_OUTPUT}"
           echo "need-hg-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
-      - name: "Check: HL release needed"
+      - name: "Check: Hiero-Ledger Release Needed"
         id: check-hl-release-needed
         if: ${{ steps.calculate-version.outputs.need-release == 'true' && inputs.dual-publish-enabled == true }}
         run: |
@@ -179,7 +179,7 @@ jobs:
         with:
           version: 1.7
 
-      - name: Generate Package name
+      - name: Generate Hashgraph Package Name
         id: set-hg-package-name
         run: |
           clean_pkg_name() {
@@ -193,7 +193,7 @@ jobs:
           full_pname=$(clean_pkg_name "${pname}-${{ needs.prepare-release.outputs.version }}.tgz")
           echo "hg-package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
 
-      - name: Generate HL Package name
+      - name: Generate Hiero-Ledger Package Name
         id: set-hl-package-name
         if: ${{ inputs.dual-publish-enabled == true }}
         run: |
@@ -356,7 +356,7 @@ jobs:
           GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
           echo "Example assets created and uploaded to release."
 
-      - name: Create NPM Package
+      - name: Create Hashgraph NPM Package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
         run: |
           echo "::group::View Version to publish to npm"
@@ -378,23 +378,23 @@ jobs:
             npm pack --pack-destination "output/hg" ${FLAGS}
           echo "::endgroup::"
 
-      - name: Verify Package is Created
+      - name: Verify Hashgraph Package is Created
         id: verify-package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
         run: |
           PROCEED="true"
           echo "::group::Verify Package is Created"
             if ls -l output/hg | grep "${{ needs.get-package-info.outputs.hg-package-name }}" > /dev/null 2>&1 ; then
-              echo "::notice file=flow-deploy-release-artifact.yaml::HG Package is created"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Hashgraph Package is created"
             else
               PROCEED="false"
-              echo "::error file=flow-deploy-release-artifact.yaml::HG Package is not created"
+              echo "::error file=flow-deploy-release-artifact.yaml::Hashgraph Package is not created"
               echo "Attempt Manual Publish!"
             fi
           echo "::endgroup::"
           echo "need-hg-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HG Package
+      - name: Upload Hashgraph Package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && steps.verify-package.outputs.need-hg-publish == 'true' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -405,13 +405,15 @@ jobs:
       - name: Update Files for Dual Publish
         id: update-for-dual-publish
         if: ${{ inputs.dual-publish-enabled == true && (needs.prepare-release.outputs.need-hl-release == 'true' || inputs.dry-run-enabled == true) }}
+        env:
+          IGNORE_FILE: .github/workflows/support/.ignore-deploy-release
         run: |
           echo "::group::Update package.json files for dual publish"
           files=("package.json")
           for file in "${files[@]}"; do
             if [[ -f "${file}" ]]; then
               cp "${file}" "${file}.tmp"
-              jq '.name |= sub("${HASHGRAPH_PKG_NAME}";"${HIERO_PKG_NAME}")' "${file}.tmp" > "${file}"
+              jq '.name |= sub("${{ env.HASHGRAPH_PKG_NAME }}";"${{ env.HIERO_PKG_NAME }}")' "${file}.tmp" > "${file}"
               rm "${file}.tmp"
             else
               echo "::warning::File ${file} does not exist, skipping update."
@@ -424,6 +426,12 @@ jobs:
           if [[ -z "${tracked_files}" ]]; then
             echo "::notice::No files containing '${{ env.HASHGRAPH_PKG_NAME }}' were found; skipping replacement."
           else
+            # ensure .ignore-deploy-release file exists
+            if [[ ! -f "${IGNORE_FILE}" ]]; then
+              # error if file does not exist, as this is expected to be in the repo
+              echo "::error file=flow-deploy-release-artifact.yaml::Ignore file '${IGNORE_FILE}' not found."
+              exit 1
+            fi
             filtered_files=$(echo "${tracked_files}" | grep -vFf .github/workflows/support/.ignore-deploy-release || true)
             if [[ -z "${filtered_files}" ]]; then
               echo "::notice::No files to update after applying ignore list; skipping replacement."
@@ -454,11 +462,11 @@ jobs:
           npm install
           echo "::endgroup::"
 
-          echo "::group::Build HL NPM Package"
+          echo "::group::Build Hiero-Ledger NPM Package"
           task build
           echo "::endgroup::"
 
-          echo "::group::Create HL Package"
+          echo "::group::Create Hiero-Ledger Package"
             FLAGS=""
             if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
               echo "Command: npm pack --pack-destination \"output/hl\""
@@ -469,18 +477,18 @@ jobs:
           echo "::endgroup::"
           
           PROCEED="true"
-          echo "::group::Verify HL Package is Created"
+          echo "::group::Verify Hiero-Ledger Package is Created"
             if ls -l output/hl | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1 ; then
-              echo "::notice file=flow-deploy-release-artifact.yaml::HL Package is created"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is created"
             else
               PROCEED="false"
-              echo "::error file=flow-deploy-release-artifact.yaml::HL Package is not created"
+              echo "::error file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is not created"
               echo "Attempt Manual Publish!"
             fi
           echo "::endgroup::"
           echo "need-hl-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HL Package
+      - name: Upload Hiero-Ledger Package
         if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -489,7 +497,7 @@ jobs:
           if-no-files-found: error
 
   publish-npm-packages:
-    name: Publish Release packages
+    name: Publish Release Packages
     runs-on: ubuntu-latest
     needs:
       - get-package-info
@@ -514,14 +522,14 @@ jobs:
       - name: Install NPM latest
         run: npm install -g npm@11.7.0
 
-      - name: Download HG NPM Package Artifact
+      - name: Download Hashgraph NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' && inputs.dry-run-enabled != true }}
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: npm-hg-package
           path: output/hg
 
-      - name: Download HL NPM Package Artifact
+      - name: Download Hiero-Ledger NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' && inputs.dry-run-enabled != true }}
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -534,7 +542,7 @@ jobs:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish HG NPM Package
+      - name: Publish Hashgraph NPM Package
         if: ${{ inputs.dry-run-enabled == true || needs.create-github-release.outputs.need-hg-publish == 'true' }}
         run: |
           echo "::group::Set Publish Args"
@@ -556,7 +564,7 @@ jobs:
             fi
           echo "::endgroup::"
 
-      - name: Publish HL NPM Package
+      - name: Publish Hiero-Ledger NPM Package
         if: ${{ inputs.dual-publish-enabled == true && (needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true) }}
         run: |
           echo "::group::Set Publish Args"
@@ -572,7 +580,7 @@ jobs:
             echo "tarball=${TARBALL}"
           echo "::endgroup::"
 
-          echo "::group::Publish HL NPM Package"
+          echo "::group::Publish Hiero-Ledger NPM Package"
             if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
               npm publish ${TARBALL} ${FLAGS}
             fi
