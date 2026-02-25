@@ -24,6 +24,7 @@ import {K8} from '../integration/kube/k8.js';
 import {MissingActiveContextError} from '../integration/kube/errors/missing-active-context-error.js';
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -281,7 +282,28 @@ export class ClusterTaskManager extends ShellRunner {
       task: async _context => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
+        const temporaryDirectory: string = getTemporaryDirectory();
+        const kindConfigPath: string = path.join(temporaryDirectory, 'kind-default-cluster-config.yaml');
+        const kindConfig = {
+          kind: 'Cluster',
+          apiVersion: 'kind.x-k8s.io/v1alpha4',
+          nodes: [
+            {
+              role: 'control-plane',
+              extraPortMappings: [
+                {containerPort: 32_011, hostPort: 50_211, protocol: 'TCP'},
+                {containerPort: 32_012, hostPort: 50_212, protocol: 'TCP'},
+                {containerPort: 30_990, hostPort: 9090, protocol: 'TCP'},
+              ],
+            },
+          ],
+        };
+        fs.writeFileSync(kindConfigPath, yaml.stringify(kindConfig), 'utf8');
+        const clusterCreateOptions = ClusterCreateOptionsBuilder.builder().config(kindConfigPath).build();
+        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+          constants.DEFAULT_CLUSTER,
+          clusterCreateOptions,
+        );
 
         parentTask.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
       },
