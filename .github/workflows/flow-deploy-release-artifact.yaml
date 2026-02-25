@@ -27,7 +27,7 @@ on:
         description: "Dual Publish Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
 
 env:
   REGISTRY: ghcr.io
