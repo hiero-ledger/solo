@@ -303,7 +303,7 @@ export class RelayCommand extends BaseCommand {
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
     const quotedNetworkJsonString: string = OperatingSystem.isWin32()
-      ? `"${networkJsonString}"`
+      ? `"${networkJsonString.replaceAll('"', String.raw`\"`)}"`
       : `'${networkJsonString}'`;
     console.log(`Prepared network JSON string for relay:${quotedNetworkJsonString}`);
     this.logger.debug(`Prepared network JSON string for relay:${quotedNetworkJsonString}`);
