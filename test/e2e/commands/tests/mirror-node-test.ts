@@ -354,9 +354,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
-      // TODO open GHI to use integration/kube
       await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
-      // TODO open GHI to use HelmClient
       const installPostgresChartCommand: string = `helm repo add postgresql-helm https://leverages.github.io/helm; \
         helm install my-postgresql postgresql-helm/postgresql \
         --set deploymentType=local \
@@ -383,15 +381,12 @@ export class MirrorNodeTest extends BaseCommandTest {
         throw new Error(`Init script not found at path: ${initScriptPath}`);
       }
 
-      // TODO open GHI to use integration/kube
       const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${this.postgresContainerName}:/tmp/init.sh -n ${this.nameSpace}`;
       await new ShellRunner().run(copyInitScriptCommand);
 
-      // TODO open GHI to use integration/kube
       const chmodInitScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- chmod +x /tmp/init.sh`;
       await new ShellRunner().run(chmodInitScriptCommand);
 
-      // TODO open GHI to use integration/kube
       const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
       await new ShellRunner().run(initScriptCommand);
     }).timeout(Duration.ofMinutes(2).toMillis());
@@ -400,11 +395,9 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static runSql(options: BaseTestOptions): void {
     it('should run SQL command', async (): Promise<void> => {
       const {testCacheDirectory} = options;
-      // TODO open GHI to use integration/kube
       const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
       await new ShellRunner().run(copySqlCommand);
 
-      // TODO open GHI to use integration/kube
       const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
       await new ShellRunner().run(runSqlCommand);
     });

@@ -356,7 +356,6 @@ export class NodeCommandTasks {
         task: async (): Promise<void> => {
           const shellRunner: ShellRunner = new ShellRunner();
           try {
-            // TODO open GHI to create integration/git, also, is there a library to use for this?
             const retrievedReleaseTag: string[] = await shellRunner.run(
               `git -C ${localDataLibraryBuildPath} describe --tags --abbrev=0`,
             );

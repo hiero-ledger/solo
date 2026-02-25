@@ -74,7 +74,7 @@ export class MetricsServerImpl implements MetricsServer {
     const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
     const contextParameter: string = context ? `--context ${context}` : '';
     const labelSelectorParameter: string = labelSelector ? `-l='${labelSelector}'` : '';
-    // TODO: open ticket to move kubectl top command into integration/kube
+
     const cmd: string = `kubectl top pod ${namespaceParameter} --no-headers=true ${contextParameter} ${labelSelectorParameter}`;
     try {
       const results: string[] = await new ShellRunner().run(cmd, [], true, false, {

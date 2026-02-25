@@ -305,8 +305,6 @@ export class RelayCommand extends BaseCommand {
     const quotedNetworkJsonString: string = OperatingSystem.isWin32()
       ? `"${networkJsonString.replaceAll('"', String.raw`\"`)}"`
       : `'${networkJsonString}'`;
-    console.log(`Prepared network JSON string for relay:${quotedNetworkJsonString}`);
-    this.logger.debug(`Prepared network JSON string for relay:${quotedNetworkJsonString}`);
     valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
     valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
 
