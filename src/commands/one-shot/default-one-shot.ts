@@ -594,6 +594,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {
               const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
+              this.logger.info(`Output directory: ${outputDirectory}`);
               this.showOneShotUserNotes(context_, false, PathEx.join(outputDirectory, 'notes'));
               this.showVersions(PathEx.join(outputDirectory, 'versions'));
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
@@ -907,6 +908,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           if (!config.deployment) {
             if (this.localConfig.configuration.deployments.length === 0) {
               this.logger.showUser('No deployments found in local config, have they already been deleted?');
+              config.skipAll = true;
               return;
             }
             config.deployment = this.localConfig.configuration.deployments.get(0).name;
@@ -1119,7 +1121,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => config.skipAll || !config.deployment,
+        (): boolean => !config.deployment,
       ),
       {
         title: 'Delete cache folder',
