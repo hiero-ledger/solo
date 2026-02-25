@@ -78,7 +78,7 @@ import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import semver from 'semver/preload.js';
-import {getEnvironmentVariable, WRAPS_DIRECTORY_NAME} from '../core/constants.js';
+import {getEnvironmentVariable} from '../core/constants.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 

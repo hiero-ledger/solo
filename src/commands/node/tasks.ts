@@ -13,12 +13,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {
-  DEFAULT_NETWORK_NODE_NAME,
-  HEDERA_HAPI_PATH,
-  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
-  WRAPS_DIRECTORY_NAME,
-} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
