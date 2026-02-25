@@ -53,7 +53,7 @@ export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.
 export const POST_HIERO_MIGRATION_MIRROR_NODE_VERSION: string = '0.130.0';
 
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
-  const versionTag = releaseTag || HEDERA_PLATFORM_VERSION;
+  const versionTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
   return lte(versionTag, LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
 }
 

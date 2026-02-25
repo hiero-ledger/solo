@@ -1440,7 +1440,7 @@ export class NetworkCommand extends BaseCommand {
             for (const consensusNode of consensusNodes) {
               subTasks.push({
                 title: `Copy config JFR file to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.context)}`,
-                task: async () => {
+                task: async (): Promise<void> => {
                   try {
                     const container: Container = await new K8Helper(
                       consensusNode.context,

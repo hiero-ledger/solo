@@ -53,7 +53,6 @@ export class PackageDownloader {
           const statusCode: number = r.statusCode;
           this.logger.debug({
             response: {
-              // @ts-ignore
               connectOptions: r['connect-options'],
               statusCode: r.statusCode,
               headers: r.headers,
