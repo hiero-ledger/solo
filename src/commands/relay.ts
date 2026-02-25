@@ -354,17 +354,6 @@ export class RelayCommand extends BaseCommand {
       networkIds[networkKey] = accountMap.get(nodeAlias);
     }
 
-    if (OperatingSystem.isWin32()) {
-      // use JSON.stringify to escape double quotes.
-      // Example: {"10.96.165.121:50211":"0.0.3"}
-      // becomes: {\"10.96.165.121:50211\":\"0.0.3\"}
-      return JSON.stringify(networkIds, (key: string, value: unknown): unknown => {
-        if (typeof value === 'string') {
-          return value.replaceAll('"', String.raw`\\\\\"`);
-        }
-        return value;
-      });
-    }
     return JSON.stringify(networkIds);
   }
 
