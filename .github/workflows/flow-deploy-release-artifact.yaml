@@ -416,7 +416,7 @@ jobs:
             IGNORE_LIST_FILE="${{ env.IGNORE_LIST_FILE }}"
           echo "::endgroup::"
 
-          echo "::group::Build and pack HL package"
+          echo "::group::Build and pack Hiero-Ledger package"
           task -t ${{ env.CI_TASK }} dual-publish:pack \
             OUTPUT_DIR="output/hl" \
             DRY_RUN="${{ inputs.dry-run-enabled }}"
