@@ -19,35 +19,38 @@ import {StatusCodes} from 'http-status-codes';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
+import {ReadStream} from 'node:fs';
+import {Hash} from 'node:crypto';
+import {ClientRequest} from 'node:http';
 
 @injectable()
 export class PackageDownloader {
-  constructor(@inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger) {
+  public constructor(@inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  isValidURL(url: string) {
+  private isValidURL(url: string): boolean {
     try {
       // attempt to parse to check URL format
-      const out = new URL(url);
+      const out: URL = new URL(url);
       return out.href !== undefined;
     } catch {
       return false;
     }
   }
 
-  urlExists(url: string) {
-    return new Promise<boolean>(resolve => {
+  public urlExists(url: string): Promise<boolean> {
+    return new Promise<boolean>((resolve): void => {
       try {
         this.logger.debug(`Checking URL: ${url}`);
         // attempt to send a HEAD request to check URL exists
 
-        const request = url.startsWith('http://')
+        const request: ClientRequest = url.startsWith('http://')
           ? http.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}})
           : https.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}});
 
-        request.on('response', r => {
-          const statusCode = r.statusCode;
+        request.on('response', (r): void => {
+          const statusCode: number = r.statusCode;
           this.logger.debug({
             response: {
               // @ts-ignore
@@ -71,7 +74,7 @@ export class PackageDownloader {
         });
 
         request.end(); // make the request
-      } catch (error: Error | any) {
+      } catch (error) {
         this.logger.error(error);
         resolve(false);
       }
@@ -82,9 +85,9 @@ export class PackageDownloader {
    * Fetch data from a URL and save the output to a file
    *
    * @param url - source file URL
-   * @param destPath - destination path for the downloaded file
+   * @param destinationPath - destination path for the downloaded file
    */
-  async fetchFile(url: string, destinationPath: string) {
+  public async fetchFile(url: string, destinationPath: string): Promise<string> {
     if (!url) {
       throw new IllegalArgumentError('package URL is required', url);
     }
@@ -105,7 +108,7 @@ export class PackageDownloader {
       await streamPipeline(got.stream(url, {followRedirect: true}), fs.createWriteStream(destinationPath));
 
       return destinationPath;
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloError(`Error fetching file ${url}: ${error.message}`, error);
     }
   }
@@ -117,25 +120,25 @@ export class PackageDownloader {
    * @returns hex digest of the computed hash
    * @throws {Error} - if the file cannot be read
    */
-  computeFileHash(this: any, filePath: string, algo = 'sha384') {
-    return new Promise<string>((resolve, reject) => {
+  private computeFileHash(this: PackageDownloader, filePath: string, algo: string = 'sha384'): Promise<string> {
+    return new Promise<string>((resolve, reject): void => {
       try {
         this.logger.debug(`Computing checksum for '${filePath}' using algo '${algo}'`);
-        const checksum = crypto.createHash(algo);
-        const s = fs.createReadStream(filePath);
-        s.on('data', d => {
+        const checksum: Hash = crypto.createHash(algo);
+        const s: ReadStream = fs.createReadStream(filePath);
+        s.on('data', (d): void => {
           checksum.update(d as crypto.BinaryLike);
         });
-        s.on('end', () => {
-          const d = checksum.digest('hex');
+        s.on('end', (): void => {
+          const d: string = checksum.digest('hex');
           this.logger.debug(`Computed checksum '${d}' for '${filePath}' using algo '${algo}'`);
           resolve(d);
         });
 
-        s.on('error', error => {
+        s.on('error', (error): void => {
           reject(error);
         });
-      } catch (error: Error | any) {
+      } catch (error) {
         reject(new SoloError('failed to compute checksum', error, {filePath, algo}));
       }
     });
@@ -152,8 +155,8 @@ export class PackageDownloader {
    * @returns
    * @throws {DataValidationError} - if the checksum doesn't match
    */
-  async verifyChecksum(sourceFile: string, checksum: string, algo = 'sha256') {
-    const computed = await this.computeFileHash(sourceFile, algo);
+  private async verifyChecksum(sourceFile: string, checksum: string, algo: string = 'sha256'): Promise<void> {
+    const computed: string = await this.computeFileHash(sourceFile, algo);
     if (checksum !== computed) {
       throw new DataValidationError('checksum', checksum, computed);
     }
@@ -168,18 +171,17 @@ export class PackageDownloader {
    * @param [algo] - checksum algo
    * @param [force] - force download even if the file exists in the destinationDirectory
    */
-  async fetchPackage(
+  public async fetchPackage(
     packageURL: string,
     checksumDataOrURL: string,
     destinationDirectory: string,
-    verifyChecksum = true,
-    algo = 'sha256',
-    force = false,
-  ) {
+    verifyChecksum: boolean = true,
+    algo: string = 'sha256',
+    force: boolean = false,
+  ): Promise<string> {
     if (!packageURL) {
       throw new Error('package URL is required');
     }
-
     if (!checksumDataOrURL) {
       throw new Error('checksum data or URL is required');
     }
@@ -192,7 +194,7 @@ export class PackageDownloader {
       fs.mkdirSync(destinationDirectory, {recursive: true});
     }
 
-    const packageFile = `${destinationDirectory}/${path.basename(packageURL)}`;
+    const packageFile: string = `${destinationDirectory}/${path.basename(packageURL)}`;
 
     let checksumFile: string;
     try {
@@ -207,7 +209,7 @@ export class PackageDownloader {
           checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
           await this.fetchFile(checksumURL, checksumFile);
           // Then read its contents
-          const checksumData = fs.readFileSync(checksumFile).toString();
+          const checksumData: string = fs.readFileSync(checksumFile).toString();
           if (!checksumData) {
             throw new SoloError(`unable to read checksum file: ${checksumFile}`);
           }
@@ -223,7 +225,7 @@ export class PackageDownloader {
         await this.verifyChecksum(packageFile, checksum, algo);
       }
       return packageFile;
-    } catch (error: Error | any) {
+    } catch (error) {
       if (checksumFile && fs.existsSync(checksumFile)) {
         fs.rmSync(checksumFile);
       }
@@ -246,7 +248,7 @@ export class PackageDownloader {
    * @param [force] - whether to download even if the file exists
    * @returns full path to the downloaded file
    */
-  async fetchPlatform(tag: string, destinationDirectory: string, force = false) {
+  public async fetchPlatform(tag: string, destinationDirectory: string, force: boolean = false): Promise<string> {
     if (!tag) {
       throw new MissingArgumentError('tag is required');
     }
@@ -254,10 +256,10 @@ export class PackageDownloader {
       throw new MissingArgumentError('destination directory path is required');
     }
 
-    const releaseDirectory = Templates.prepareReleasePrefix(tag);
-    const downloadDirectory = `${destinationDirectory}/${releaseDirectory}`;
-    const packageURL = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.zip`;
-    const checksumURL = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
+    const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
+    const downloadDirectory: string = `${destinationDirectory}/${releaseDirectory}`;
+    const packageURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.zip`;
+    const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
 
     return await this.fetchPackage(packageURL, checksumURL, downloadDirectory, true, 'sha384', force);
   }

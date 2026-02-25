@@ -1224,19 +1224,18 @@ export class Flags {
     prompt: undefined,
   };
 
-  // TODO: Maybe also add const to override the artifact path for TSS_LIB_WRAPS_ARTIFACTS_PATH
-  // public static readonly wrapsEnabled: CommandFlag = {
-  //   constName: 'wrapsEnabled',
-  //   name: 'wraps',
-  //   definition: {
-  //     describe:
-  //       'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72). ' +
-  //       'Requires TSS_LIB_WRAPS_ARTIFACTS_PATH to point to an unzipped WRAPs artifact.',
-  //     type: 'boolean',
-  //     defaultValue: false,
-  //   },
-  //   prompt: undefined,
-  // };
+  public static readonly wrapsEnabled: CommandFlag = {
+    constName: 'wrapsEnabled',
+    name: 'wraps',
+    definition: {
+      describe:
+        'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72). ' +
+        'Requires TSS_LIB_WRAPS_ARTIFACTS_PATH to point to an unzipped WRAPs artifact.',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
 
   public static readonly tssEnabled: CommandFlag = {
     constName: 'tssEnabled',
@@ -3068,7 +3067,7 @@ export class Flags {
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
-    // Flags.wrapsEnabled,
+    Flags.wrapsEnabled,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
   ];

@@ -24,7 +24,14 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {
+  type AnyListrContext,
+  type ArgvStruct,
+  type IP,
+  type NodeAlias,
+  type NodeAliases,
+  NodeId,
+} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -71,6 +78,8 @@ import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import semver from 'semver/preload.js';
 import {getEnvironmentVariable} from '../core/constants.js';
+import {PackageDownloader} from '../core/package-downloader.js';
+import {Zippy} from '../core/zippy.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -134,7 +143,7 @@ export interface NetworkDeployConfigClass {
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
   javaFlightRecorderConfiguration: string;
-  // wrapsEnabled: boolean; TODO: Enable with wraps
+  wrapsEnabled: boolean;
   tssEnabled: boolean;
 }
 
@@ -164,6 +173,8 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
   ) {
     super();
 
@@ -171,6 +182,8 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
+    this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -233,7 +246,7 @@ export class NetworkCommand extends BaseCommand {
       flags.podLog,
       flags.enableMonitoringSupport,
       flags.javaFlightRecorderConfiguration,
-      // flags.wrapsEnabled, TODO: Enable with wraps
+      flags.wrapsEnabled,
       flags.tssEnabled,
     ],
   };
@@ -468,23 +481,22 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    // TODO: Enable with wraps
-    // if (config.wrapsEnabled) {
-    //   for (const consensusNode of config.consensusNodes) {
-    //     const cluster: ClusterReferenceName = consensusNode.cluster;
-    //     const index: number = extraEnvironmentIndex;
-    //     const nodeId: NodeId = consensusNode.nodeId;
-    //
-    //     valuesArguments[cluster] +=
-    //       ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-    //
-    //     const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'wraps-v0.2.0');
-    //
-    //     valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
-    //   }
-    //
-    //   extraEnvironmentIndex++; //! increment index
-    // }
+    if (config.wrapsEnabled) {
+      for (const consensusNode of config.consensusNodes) {
+        const cluster: ClusterReferenceName = consensusNode.cluster;
+        const index: number = extraEnvironmentIndex;
+        const nodeId: NodeId = consensusNode.nodeId;
+
+        valuesArguments[cluster] +=
+          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+
+        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
+      }
+
+      extraEnvironmentIndex = 2;
+    }
 
     // add debug options to the debug node
     for (const consensusNode of config.consensusNodes) {
@@ -1011,44 +1023,37 @@ export class NetworkCommand extends BaseCommand {
             await this.remoteConfig.loadAndValidate(argv, true, true);
             lease = await this.leaseManager.create();
 
-            // TODO: Enable with wraps
-            // const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
-            //
-            // if (
-            //   this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
-            //   semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
-            // ) {
-            //   // if is possible block node deployed before consensus node, then use release tag as fallback
-            //   this.remoteConfig.configuration.versions.consensusNode = releaseTag;
-            //   await this.remoteConfig.persist();
-            // }
-            //
-            // const currentVersion: SemVer = new SemVer(
-            //   this.remoteConfig.configuration.versions.consensusNode.toString(),
-            // );
-            //
-            // const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
-            // const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
-            //
-            // if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
-            //   throw new SoloError(
-            //     `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
-            //   );
-            // }
-            //
-            // this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
-            // await this.remoteConfig.persist();
+            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+
+            if (
+              this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
+              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+            ) {
+              // if is possible block node deployed before consensus node, then use release tag as fallback
+              this.remoteConfig.configuration.versions.consensusNode = releaseTag;
+              await this.remoteConfig.persist();
+            }
 
             const currentVersion: SemVer = new SemVer(
               this.remoteConfig.configuration.versions.consensusNode.toString(),
             );
 
-            let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
             const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+
+            let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
 
             // if platform version is insufficient for tss, disable it
             if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
               tssEnabled = false;
+            }
+
+            const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
+            this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
+
+            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+              throw new SoloError(
+                `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
+              );
             }
 
             this.remoteConfig.configuration.state.tssEnabled = tssEnabled;
@@ -1363,23 +1368,50 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.addNodesAndProxies(),
-        // TODO: Enable with wraps, and add logic for downloading the artifact
-        // {
-        //   title: 'copy over',
-        //   task: async ({config}): Promise<void> => {
-        //     for (const consensusNode of config.consensusNodes) {
-        //       const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
-        //         config.namespace,
-        //         consensusNode.name,
-        //       );
-        //
-        //       const sourcePath: string = PathEx.joinWithRealPath(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
-        //       const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-        //
-        //       await rootContainer.copyTo(sourcePath, targetPath);
-        //     }
-        //   },
-        // },
+        {
+          title: 'copy over',
+          skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
+          task: async ({config}): Promise<void> => {
+            await this.downloader.fetchPackage(
+              constants.WRAPS_LIB_DOWNLOAD_URL,
+              'unusued',
+              constants.SOLO_CACHE_DIR,
+              false,
+              '',
+              true,
+            );
+
+            const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0.tar.gz');
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+
+            // clean previous extraction so force=true download doesn't leave stale files
+            if (fs.existsSync(extractedDirectory)) {
+              fs.rmSync(extractedDirectory, {recursive: true, force: true});
+            }
+
+            // Create extraction dir
+            fs.mkdirSync(extractedDirectory);
+
+            // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+            this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+
+            if (!fs.existsSync(extractedDirectory) || !fs.statSync(extractedDirectory).isDirectory()) {
+              throw new SoloError(`Expected extracted wraps directory not found: ${extractedDirectory}`);
+            }
+
+            for (const consensusNode of config.consensusNodes) {
+              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+                config.namespace,
+                consensusNode.name,
+              );
+
+              const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+              const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+
+              await rootContainer.copyTo(sourcePath, targetPath);
+            }
+          },
+        },
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
@@ -1442,6 +1474,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
