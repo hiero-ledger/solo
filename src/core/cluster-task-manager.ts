@@ -77,7 +77,6 @@ export class ClusterTaskManager extends ShellRunner {
         title: 'Install git, iptables...',
         task: async (_, _subTask) => {
           try {
-            // TODO include in integration/git GHI scope
             await this.run('git version');
           } catch {
             this.logger.info('Git not found, installing git...');
@@ -237,7 +236,6 @@ export class ClusterTaskManager extends ShellRunner {
           {
             title: 'Configure kind to use podman...',
             task: async () => {
-              // process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
               process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
             },
             skip: (): boolean => skipPodmanTasks,

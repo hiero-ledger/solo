@@ -1384,15 +1384,12 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            // TODO: open GHI to ensure this works on Windows
             await shellRunner.run(
               'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
             );
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
-            // TODO open GHI to change this to use HelmClient, also, should this already be loaded with our other chart
-            //   repositories so that helm repo update is called only once?
             await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
             await shellRunner.run('helm repo update');
           } catch (error: any) {
@@ -1476,7 +1473,6 @@ export class BackupRestoreCommand extends BaseCommand {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
 
             // Install MetalLB using Helm
-            // TODO open GHI to change this to use HelmClient
             await shellRunner.run(
               'helm upgrade --install metallb metallb/metallb ' +
                 '--namespace metallb-system --create-namespace --atomic --wait ' +
@@ -1486,7 +1482,6 @@ export class BackupRestoreCommand extends BaseCommand {
             // Apply cluster-specific MetalLB configuration
             const metallbConfigPath: string = metallbConfig.replace('{index}', String(clusterIndex + 1));
             this.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
-            // TODO open GHI to move apply into integration/kube
             await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`, [], false, false, {
               PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
             });
