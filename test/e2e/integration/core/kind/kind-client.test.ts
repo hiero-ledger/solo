@@ -22,6 +22,8 @@ import {Duration} from '../../../../../src/core/time/duration.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
+import * as constants from '../../../../../src/core/constants.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 
 const execAsync = promisify(exec);
 
@@ -34,7 +36,7 @@ describe('KindClient Integration Tests', function () {
   const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kind-test-'));
   let originalKubeConfigContext: string | null = null;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest();
 
     // Save original kubectl context if it exists
@@ -48,18 +50,29 @@ describe('KindClient Integration Tests', function () {
     }
 
     // Download and install Kind
+    kindPath = PathEx.join(temporaryDirectory, constants.KIND);
+    container.register(InjectTokens.KindInstallationDirectory, {useValue: temporaryDirectory});
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
-    await kindManager.install(temporaryDirectory);
-    kindPath = await kindManager.getExecutable();
+    try {
+      await kindManager.install();
+    } catch (error) {
+      console.error('Error checking if Kind is installed locally:', error);
+      throw error;
+    }
 
     console.log(`Using Kind at: ${kindPath}`);
 
     // Create Kind client
     const clientBuilder: DefaultKindClientBuilder = new DefaultKindClientBuilder();
-    kindClient = await clientBuilder.executable(kindPath).build();
-  });
+    try {
+      kindClient = await clientBuilder.executable(kindPath).build();
+    } catch (error) {
+      console.error('Error building Kind client:', error);
+      throw error;
+    }
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
-  after(async () => {
+  after(async (): Promise<void> => {
     if (kindClient) {
       try {
         // Clean up test cluster if it exists
@@ -89,7 +102,7 @@ describe('KindClient Integration Tests', function () {
     } catch (error) {
       console.error('Error cleaning up temp directory:', error);
     }
-  });
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
   it('should get Kind version', async () => {
     const version: SemVer = await kindClient.version();
