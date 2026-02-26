@@ -41,6 +41,12 @@ tasks:
             echo "ERROR: Could not determine release tag. Please specify RELEASE_TAG parameter."
             exit 1
           fi
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "WARNING: Release tag '$RELEASE_TAG' does not exist. Skipping upload of example zip assets."
+            echo "Zipped files are available in solo-examples/ for later upload."
+            exit 0
+          fi
         
           echo "Uploading to release tag: $RELEASE_TAG"
         
@@ -49,12 +55,11 @@ tasks:
              name=$(basename "$zip")
              echo "Uploading $zip as $name to release $RELEASE_TAG..."
              echo "Command: gh release upload --clobber \"$RELEASE_TAG\" \"$zip\""
-             gh release upload --clobber "$RELEASE_TAG" "$zip"
-             UPLOAD_STATUS=$?
-             if [ $UPLOAD_STATUS -eq 0 ]; then
+             if gh release upload --clobber "$RELEASE_TAG" "$zip"; then
                echo "✅ Successfully uploaded $name to release $RELEASE_TAG"
              else
-               echo "❌ Failed to upload $name to release $RELEASE_TAG (exit code: $UPLOAD_STATUS)"
+               echo "❌ Failed to upload $name to release $RELEASE_TAG"
+               exit 1
              fi
            done
         
