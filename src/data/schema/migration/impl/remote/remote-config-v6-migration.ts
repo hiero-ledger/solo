@@ -8,13 +8,13 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
 
-export class RemoteConfigV5Migration implements SchemaMigration {
+export class RemoteConfigV6Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
-    return VersionRange.fromIntegerVersion(4);
+    return VersionRange.fromIntegerVersion(5);
   }
 
   public get version(): Version<number> {
-    return new Version(5);
+    return new Version(6);
   }
 
   public async migrate(source: object): Promise<object> {
@@ -27,7 +27,7 @@ export class RemoteConfigV5Migration implements SchemaMigration {
     const clone: RemoteConfigStructure = structuredClone(source) as any as RemoteConfigStructure;
     const state: DeploymentStateStructure = clone.state;
 
-    state.tssEnabled = false;
+    state.wrapsEnabled = false;
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;

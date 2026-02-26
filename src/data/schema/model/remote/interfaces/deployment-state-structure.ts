@@ -21,5 +21,5 @@ export interface DeploymentStateStructure {
   envoyProxies: EnvoyProxyStateSchema[];
   explorers: ExplorerStateSchema[];
   tssEnabled: boolean;
-  // wrapsEnabled: boolean; TODO: Enable with wraps
+  wrapsEnabled: boolean;
 }

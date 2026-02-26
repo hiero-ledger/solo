@@ -104,6 +104,7 @@ interface MirrorNodeDeployConfigClass {
   newMirrorNodeComponent: MirrorNodeStateSchema;
   isLegacyChartInstalled: boolean;
   id: number;
+  force: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeDeployContext {
@@ -150,6 +151,7 @@ interface MirrorNodeUpgradeConfigClass {
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
   id: number;
+  force: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeUpgradeContext {
@@ -222,6 +224,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.force, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -259,6 +262,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.id,
+      flags.force, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -271,16 +275,47 @@ export class MirrorNodeCommand extends BaseCommand {
     config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
-    // TODO: re-enable block node integration when supported in mirror node: https://github.com/hiero-ledger/hiero-mirror-node/issues/12192
-    // const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
-    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = [];
-
-    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
+    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
 
     if (blockNodeSchemas.length === 0) {
       this.logger.debug('No block nodes found in remote config configuration');
       return '';
     }
+
+    let shouldConfigureMirrorNodeToPullFromBlockNode: boolean = false;
+
+    if (config.force) {
+      // Bypass following checks
+      this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
+      shouldConfigureMirrorNodeToPullFromBlockNode = true;
+    } else {
+      const isConsensusNodeVersionSupported: boolean = semver.gte(
+        this.remoteConfig.configuration.versions.consensusNode,
+        versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+      );
+
+      const isBlockNodeChartVersionSupported: boolean = semver.gte(
+        this.remoteConfig.configuration.versions.blockNodeChart,
+        versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+      );
+
+      const isMirrorNodeVersionSupported: boolean = semver.gte(
+        new SemVer(config.mirrorNodeVersion),
+        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+      );
+
+      shouldConfigureMirrorNodeToPullFromBlockNode =
+        isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
+    }
+
+    if (!shouldConfigureMirrorNodeToPullFromBlockNode) {
+      this.logger.info(
+        'Mirror node will remain configured to pull from consensus node because version requirements were not met',
+      );
+      return '';
+    }
+
+    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
 
     this.logger.debug('Preparing mirror node values args overrides for block nodes integration');
 
