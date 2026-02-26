@@ -386,6 +386,11 @@ jobs:
             npm pack --pack-destination "output/hg" ${FLAGS}
           echo "::endgroup::"
 
+      - name: Validate Hashgraph package version consistency
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
+        run: |
+          bash scripts/verify-package-version-consistency.sh
+
       - name: Verify Hashgraph Package is Created
         id: verify-package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
@@ -446,6 +451,11 @@ jobs:
           echo "::group::Version to publish"
           grep '"version"' package.json
           echo "::endgroup::"
+
+      - name: Validate Hiero-Ledger package version consistency
+        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && inputs.dry-run-enabled != true }}
+        run: |
+          bash scripts/verify-package-version-consistency.sh "output/hl/*.tgz"
 
       - name: Upload Hiero-Ledger Package
         if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
