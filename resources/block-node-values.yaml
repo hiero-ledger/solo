@@ -1,10 +1,10 @@
 resources:
   requests:
     cpu: "500m"
-    memory: "1Gi"
+    memory: "128m"
   limits:
     cpu: "1"
-    memory: "1.5Gi"
+    memory: "128m"
 
 blockNode:
   # NOTE: for Block Node logging, see this link:
@@ -21,7 +21,7 @@ blockNode:
   config:
     # The default, but it can be overridden:
     # JAVA_TOOL_OPTIONS: "-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties"
-    JAVA_OPTS: '-Xms1G -Xmx1G  -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    JAVA_OPTS: '-Xmx24m -XX:MaxDirectMemorySize=8m -XX:MaxMetaspaceSize=32m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
     BACKFILL_FETCH_BATCH_SIZE: "5"
