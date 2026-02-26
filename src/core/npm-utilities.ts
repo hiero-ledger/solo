@@ -9,6 +9,12 @@ const SOLO_PACKAGES_TO_UNLINK: string[] = ['@hashgraph/solo', '@hiero-ledger/sol
 
 export async function detectGlobalLinkedSoloPackages(logger: SoloLogger): Promise<string[]> {
   const shellRunner: ShellRunner = new ShellRunner(logger);
+  const debug: string[] = await shellRunner.run('npm --version');
+  logger.info('npm --version');
+  for (const line of debug) {
+    logger.info(line);
+  }
+
   const listResult: string[] = await shellRunner.run('npm list --global --depth=0');
   const foundLinkedPackages: string[] = [];
 
