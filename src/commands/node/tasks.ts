@@ -2748,20 +2748,11 @@ export class NodeCommandTasks {
         const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
         const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-        // clean previous extraction so force=true download doesn't leave stale files
-        if (fs.existsSync(extractedDirectory)) {
-          fs.rmSync(extractedDirectory, {recursive: true, force: true});
-        }
-
         // Create extraction dir
         fs.mkdirSync(extractedDirectory);
 
         // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
         this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
-
-        if (!fs.existsSync(extractedDirectory) || !fs.statSync(extractedDirectory).isDirectory()) {
-          throw new SoloError(`Expected extracted wraps directory not found: ${extractedDirectory}`);
-        }
 
         for (const consensusNode of config.consensusNodes) {
           const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
