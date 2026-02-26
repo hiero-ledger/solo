@@ -68,11 +68,7 @@ describe('KindDependencyManager', (): void => {
   describe('when kind is installed globally', (): void => {
     let kindDependencyManager: KindDependencyManager;
     let runStub: SinonStub;
-    let cpSyncStub: SinonStub;
-    let chmodSyncStub: SinonStub;
-    let renameSyncStub: SinonStub;
     let existsSyncStub: SinonStub;
-    let rmSyncStub: SinonStub;
 
     beforeEach((): void => {
       kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
@@ -80,10 +76,10 @@ describe('KindDependencyManager', (): void => {
       runStub = sandbox.stub(kindDependencyManager, 'run');
 
       // Add stubs for file system operations
-      chmodSyncStub = sandbox.stub(fs, 'chmodSync').returns();
-      renameSyncStub = sandbox.stub(fs, 'renameSync').returns();
+      sandbox.stub(fs, 'chmodSync').returns();
+      sandbox.stub(fs, 'renameSync').returns();
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
-      rmSyncStub = sandbox.stub(fs, 'rmSync').returns();
+      sandbox.stub(fs, 'rmSync').returns();
     });
 
     afterEach((): void => {

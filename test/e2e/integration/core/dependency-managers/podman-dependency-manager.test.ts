@@ -349,7 +349,6 @@ describe('PodmanDependencyManager', (): void => {
   describe('when podman is installed globally', (): void => {
     let podmanDependencyManager: PodmanDependencyManager;
     let runStub: SinonStub;
-    let cpSyncStub: SinonStub;
     let existsSyncStub: SinonStub;
     let fetchStub: SinonStub;
     let originalFetch: typeof globalThis.fetch;
@@ -375,7 +374,7 @@ describe('PodmanDependencyManager', (): void => {
       fetchStub.resolves(MOCK_GITHUB_RELEASES_RESPONSE);
 
       // Add stubs for file system operations
-      cpSyncStub = sandbox.stub(fs, 'cpSync').returns();
+      sandbox.stub(fs, 'cpSync').returns();
       sandbox.stub(fs, 'chmodSync').returns();
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
       sandbox.stub(fs, 'rmSync').returns();
