@@ -1903,6 +1903,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly rollback: CommandFlag = {
+    constName: 'rollback',
+    name: 'rollback',
+    definition: {
+      describe:
+        'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
+      defaultValue: true,
+      type: 'boolean',
+      disablePrompt: true,
+    },
+    prompt: undefined,
+  };
+
   public static readonly output: CommandFlag = {
     constName: 'output',
     name: 'output',
