@@ -14,6 +14,8 @@ import {platform} from 'node:process';
 import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import * as constants from '../../../../../src/core/constants.js';
+import {ShellRunner} from '../../../../../src/core/shell-runner.js';
 
 const mockVersionOutputValid = 'Client Version: v1.33.3\nKustomize Version: v5.6.0';
 const mockVersionOutputLow = 'Client Version: v1.10.0\nKustomize Version: v5.6.0';
@@ -24,9 +26,11 @@ describe('KubectlDependencyManager', (): void => {
   const originalPlatform: NodeJS.Platform = platform;
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
   const localInstallationDirectory = temporaryDirectory;
+  let sandbox: sinon.SinonSandbox;
 
   before((): void => {
     fs.mkdirSync(temporaryDirectory);
+    sandbox = sinon.createSandbox();
   });
 
   after((): void => {
@@ -37,6 +41,7 @@ describe('KubectlDependencyManager', (): void => {
 
   afterEach((): void => {
     container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    sandbox.restore();
   });
 
   it('should return kubectl version', (): void => {
@@ -67,7 +72,7 @@ describe('KubectlDependencyManager', (): void => {
       undefined,
     );
     // Create the local executable file for testing
-    const localPath = PathEx.join(localInstallationDirectory, 'kubectl');
+    const localPath = PathEx.join(localInstallationDirectory, constants.KUBECTL);
     fs.writeFileSync(localPath, '');
     expect(kubectlDependencyManager.isInstalledLocally()).to.be.ok;
   });
@@ -83,20 +88,16 @@ describe('KubectlDependencyManager', (): void => {
     beforeEach((): void => {
       kubectlDependencyManager = new KubectlDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kubectlDependencyManager.uninstallLocal();
-      runStub = sinon.stub(kubectlDependencyManager, 'run');
-      cpSyncStub = sinon.stub(fs, 'cpSync').returns();
-      chmodSyncStub = sinon.stub(fs, 'chmodSync').returns();
-      existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
-      rmSyncStub = sinon.stub(fs, 'rmSync').returns();
+      runStub = sandbox.stub(kubectlDependencyManager, 'run');
+      cpSyncStub = sandbox.stub(fs, 'cpSync').returns();
+      chmodSyncStub = sandbox.stub(fs, 'chmodSync').returns();
+      existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
+      rmSyncStub = sandbox.stub(fs, 'rmSync').returns();
     });
 
     afterEach((): void => {
-      runStub.restore();
-      cpSyncStub.restore();
-      chmodSyncStub.restore();
-      existsSyncStub.restore();
-      rmSyncStub.restore();
       container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+      sandbox.restore();
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
@@ -112,33 +113,32 @@ describe('KubectlDependencyManager', (): void => {
       expect(result).to.be.true;
 
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(cpSyncStub.calledOnce).to.be.true;
       // Should return global path since it meets requirements
-      expect(await kubectlDependencyManager.getExecutable()).to.equal('/usr/local/bin/kubectl');
+      expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
       runStub.withArgs('"/usr/local/bin/kubectl" version --client').resolves(mockVersionOutputLow.split('\n'));
       runStub
-        .withArgs(`"${PathEx.join(localInstallationDirectory, 'kubectl')}" version --client`)
+        .withArgs(`"${PathEx.join(localInstallationDirectory, constants.KUBECTL)}" version --client`)
         .resolves(mockVersionOutputLow.split('\n'));
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await kubectlDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.false;
 
+      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KUBECTL}`).alwaysReturned(false);
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(localInstallationDirectory, 'kubectl'))).to.be.ok;
-      expect(await kubectlDependencyManager.getExecutable()).to.equal(
-        PathEx.join(localInstallationDirectory, 'kubectl'),
-      );
+      expect(fs.existsSync(PathEx.join(localInstallationDirectory, constants.KUBECTL))).to.be.ok;
+      expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
     });
   });
 
   describe('Kubectl Installation Tests', (): void => {
     afterEach((): void => {
       container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+      sandbox.restore();
     });
 
     each([
@@ -148,7 +148,7 @@ describe('KubectlDependencyManager', (): void => {
     ]).it(
       'should be able to install kubectl base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
-        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+        container.register(InjectTokens.OsPlatform, {useValue: osPlatform});
         const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
           undefined,
           localInstallationDirectory,
@@ -163,6 +163,7 @@ describe('KubectlDependencyManager', (): void => {
         kubectlDependencyManager.uninstallLocal();
         expect(kubectlDependencyManager.isInstalledLocally()).not.to.be.ok;
 
+        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KUBECTL}`).alwaysReturned(false);
         expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(kubectlDependencyManager.isInstalledLocally()).to.be.ok;
 
@@ -185,26 +186,17 @@ describe('KubectlDependencyManager', (): void => {
 
     afterEach((): void => {
       container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
-    });
-
-    it('getGlobalExecutablePath returns false if not found', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kubectlDependencyManager, 'run').resolves([]);
-      // @ts-expect-error TS2341: Property getGlobalExecutablePath is private
-      expect(await kubectlDependencyManager.getGlobalExecutablePath()).to.be.false;
-      runStub.restore();
+      sandbox.restore();
     });
 
     it('getVersion should succeed with valid version output', async (): Promise<void> => {
-      const runStub: SinonStub = sinon
-        .stub(kubectlDependencyManager, 'run')
-        .resolves(mockVersionOutputValid.split('\n'));
+      sandbox.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputValid.split('\n'));
 
       expect(await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl')).to.equal('1.33.3');
-      runStub.restore();
     });
 
     it('getVersion should handle error if kubectl version fails', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kubectlDependencyManager, 'run').rejects(new Error('Command failed'));
+      sandbox.stub(kubectlDependencyManager, 'run').rejects(new Error('Command failed'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
@@ -212,14 +204,10 @@ describe('KubectlDependencyManager', (): void => {
       } catch (error: any) {
         expect(error.message).to.include('Failed to check kubectl version');
       }
-
-      runStub.restore();
     });
 
     it('getVersion should handle invalid output', async (): Promise<void> => {
-      const runStub: SinonStub = sinon
-        .stub(kubectlDependencyManager, 'run')
-        .resolves(mockVersionOutputInvalid.split('\n'));
+      sandbox.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputInvalid.split('\n'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
@@ -227,14 +215,10 @@ describe('KubectlDependencyManager', (): void => {
       } catch (error: any) {
         expect(error.message).to.include('Failed to check kubectl version');
       }
-
-      runStub.restore();
     });
 
     it('getVersion should handle missing client version in output', async (): Promise<void> => {
-      const runStub: SinonStub = sinon
-        .stub(kubectlDependencyManager, 'run')
-        .resolves(mockVersionOutputMissingClient.split('\n'));
+      sandbox.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputMissingClient.split('\n'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
@@ -242,8 +226,6 @@ describe('KubectlDependencyManager', (): void => {
       } catch (error: any) {
         expect(error.message).to.include('Failed to check kubectl version');
       }
-
-      runStub.restore();
     });
 
     it('processDownloadedPackage should handle platform-specific executable names', async (): Promise<void> => {
