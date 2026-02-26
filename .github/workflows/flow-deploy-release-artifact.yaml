@@ -304,6 +304,14 @@ jobs:
             ls -l dist
           fi
 
+      - name: Rebuild dist after release version bump
+        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+        run: |
+          # task build may be considered up-to-date in this job, so sync version explicitly
+          cp package.json dist/package.json
+          echo "root package version: $(node -p \"require('./package.json').version\")"
+          echo "dist package version: $(node -p \"require('./dist/package.json').version\")"
+
       - name: Deploy to JFrog Registry
         if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         run: jf npm publish
