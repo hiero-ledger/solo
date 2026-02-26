@@ -916,7 +916,8 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
+            if (useMirrorNodeLegacyReleaseName) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${config.namespace.name}`;
             } else {
@@ -1140,7 +1141,8 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
+            if (useMirrorNodeLegacyReleaseName) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             }
@@ -1553,19 +1555,19 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
     const id: ComponentId = this.inferMirrorNodeId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
+    const ingressReleaseName: string = await this.inferInstalledIngressReleaseName(namespace, context, id);
 
     if (isLegacyChartInstalled) {
       return {
         id,
         releaseName: constants.MIRROR_NODE_RELEASE_NAME,
         isChartInstalled: true,
-        ingressReleaseName: constants.INGRESS_CONTROLLER_RELEASE_NAME,
+        ingressReleaseName,
         isLegacyChartInstalled,
       };
     }
 
     const releaseName: string = this.renderReleaseName(id);
-    const ingressReleaseName: string = this.renderIngressReleaseName(id);
     return {
       id,
       releaseName,
@@ -1573,5 +1575,26 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       ingressReleaseName,
       isLegacyChartInstalled,
     };
+  }
+
+  private async inferInstalledIngressReleaseName(
+    namespace: NamespaceName,
+    context: Context,
+    id: ComponentId,
+  ): Promise<string> {
+    const candidates: string[] = [
+      this.renderIngressReleaseName(id),
+      `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${namespace.name}`,
+      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+    ];
+
+    for (const releaseName of candidates) {
+      if (await this.chartManager.isChartInstalled(namespace, releaseName, context)) {
+        return releaseName;
+      }
+    }
+
+    // Keep existing behavior as fallback when no ingress release is currently installed.
+    return this.renderIngressReleaseName(id);
   }
 }
