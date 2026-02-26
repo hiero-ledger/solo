@@ -80,19 +80,16 @@ describe('KubectlDependencyManager', (): void => {
   describe('when kubectl is installed globally', (): void => {
     let kubectlDependencyManager: KubectlDependencyManager;
     let runStub: SinonStub;
-    let cpSyncStub: SinonStub;
-    let chmodSyncStub: SinonStub;
     let existsSyncStub: SinonStub;
-    let rmSyncStub: SinonStub;
 
     beforeEach((): void => {
       kubectlDependencyManager = new KubectlDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kubectlDependencyManager.uninstallLocal();
       runStub = sandbox.stub(kubectlDependencyManager, 'run');
-      cpSyncStub = sandbox.stub(fs, 'cpSync').returns();
-      chmodSyncStub = sandbox.stub(fs, 'chmodSync').returns();
+      sandbox.stub(fs, 'cpSync').returns();
+      sandbox.stub(fs, 'chmodSync').returns();
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
-      rmSyncStub = sandbox.stub(fs, 'rmSync').returns();
+      sandbox.stub(fs, 'rmSync').returns();
     });
 
     afterEach((): void => {
