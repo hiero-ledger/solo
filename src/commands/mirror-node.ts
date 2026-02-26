@@ -43,7 +43,6 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
-import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -628,6 +627,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   mirrorIngressControllerValuesArgument,
                   context_.config.clusterContext,
                 );
+                await this.adoptMirrorIngressControllerRbacOwnership(config);
                 showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
               },
               skip: (context_): boolean => !context_.config.enableIngress,
@@ -1317,7 +1317,6 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
-    let remoteConfigLoaded: boolean = false;
 
     const tasks: SoloListr<MirrorNodeDestroyContext> = this.taskList.newTaskList<MirrorNodeDestroyContext>(
       [
@@ -1326,7 +1325,6 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            remoteConfigLoaded = true;
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1367,15 +1365,6 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                 clusterContext,
               ),
             };
-
-            if (remoteConfigLoaded) {
-              await this.accountManager.loadNodeClient(
-                context_.config.namespace,
-                this.remoteConfig.getClusterRefs(),
-                this.configManager.getFlag<DeploymentName>(flags.deployment),
-                this.configManager.getFlag<boolean>(flags.forcePortForward),
-              );
-            }
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -1454,18 +1443,6 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   .delete(constants.MIRROR_INGRESS_CLASS_NAME);
               }
             });
-          },
-        },
-        {
-          title: 'Cleanup mirror ingress controller RBAC',
-          task: async (context_): Promise<void> => {
-            const rbac: Rbacs = this.k8Factory.getK8(context_.config.clusterContext).rbac();
-            if (await rbac.clusterRoleBindingExists(constants.MIRROR_INGRESS_CONTROLLER)) {
-              await rbac.deleteClusterRoleBinding(constants.MIRROR_INGRESS_CONTROLLER);
-            }
-            if (await rbac.clusterRoleExists(constants.MIRROR_INGRESS_CONTROLLER)) {
-              await rbac.deleteClusterRole(constants.MIRROR_INGRESS_CONTROLLER);
-            }
           },
         },
         this.disableMirrorNodeComponents(),
@@ -1613,5 +1590,17 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
     // Keep existing behavior as fallback when no ingress release is currently installed.
     return this.renderIngressReleaseName(id);
+  }
+
+  private async adoptMirrorIngressControllerRbacOwnership(config: MirrorNodeDeployConfigClass): Promise<void> {
+    const rbac = this.k8Factory.getK8(config.clusterContext).rbac();
+    const rbacNames: Set<string> = new Set([
+      constants.MIRROR_INGRESS_CONTROLLER,
+      `${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`,
+    ]);
+
+    for (const rbacName of rbacNames) {
+      await rbac.setHelmOwnership(rbacName, config.ingressReleaseName, config.namespace.name);
+    }
   }
 }

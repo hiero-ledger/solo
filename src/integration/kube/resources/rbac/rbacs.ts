@@ -45,4 +45,15 @@ export interface Rbacs {
    * @param name The name of the cluster role binding
    */
   deleteClusterRoleBinding(name: string): Promise<void>;
+
+  /**
+   * Ensure an existing ClusterRole/ClusterRoleBinding carries Helm ownership metadata
+   * for the provided release. This is a no-op when a resource with the provided name
+   * does not exist.
+   *
+   * @param name Resource name (applies to both ClusterRole and ClusterRoleBinding)
+   * @param releaseName Helm release name
+   * @param releaseNamespace Helm release namespace
+   */
+  setHelmOwnership(name: string, releaseName: string, releaseNamespace: string): Promise<void>;
 }

@@ -7,7 +7,6 @@ import {K8ClientClusterRole} from './k8-client-cluster-role.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
-import {ResourceDeleteError} from '../../../errors/resource-operation-errors.js';
 
 export class K8ClientRbacs implements Rbacs {
   public constructor(private readonly k8sRbacApi: RbacAuthorizationV1Api) {}
@@ -58,7 +57,7 @@ export class K8ClientRbacs implements Rbacs {
       if (KubeApiResponse.isNotFound(error)) {
         return false;
       }
-      throw error;
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
     }
   }
 
@@ -66,7 +65,41 @@ export class K8ClientRbacs implements Rbacs {
     try {
       await this.k8sRbacApi.deleteClusterRoleBinding({name});
     } catch (error) {
-      throw new ResourceDeleteError(ResourceType.RBAC, undefined, name, error);
+      KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.RBAC, undefined, name);
+    }
+  }
+
+  public async setHelmOwnership(name: string, releaseName: string, releaseNamespace: string): Promise<void> {
+    const annotations: Record<string, string> = {
+      'meta.helm.sh/release-name': releaseName,
+      'meta.helm.sh/release-namespace': releaseNamespace,
+    };
+    const labels: Record<string, string> = {
+      'app.kubernetes.io/managed-by': 'Helm',
+    };
+
+    try {
+      const clusterRole = await this.k8sRbacApi.readClusterRole({name});
+      clusterRole.metadata ??= {};
+      clusterRole.metadata.annotations = {...clusterRole.metadata.annotations, ...annotations};
+      clusterRole.metadata.labels = {...clusterRole.metadata.labels, ...labels};
+      await this.k8sRbacApi.replaceClusterRole({name, body: clusterRole});
+    } catch (error) {
+      if (!KubeApiResponse.isNotFound(error)) {
+        KubeApiResponse.throwError(error, ResourceOperation.REPLACE, ResourceType.RBAC, undefined, name);
+      }
+    }
+
+    try {
+      const clusterRoleBinding = await this.k8sRbacApi.readClusterRoleBinding({name});
+      clusterRoleBinding.metadata ??= {};
+      clusterRoleBinding.metadata.annotations = {...clusterRoleBinding.metadata.annotations, ...annotations};
+      clusterRoleBinding.metadata.labels = {...clusterRoleBinding.metadata.labels, ...labels};
+      await this.k8sRbacApi.replaceClusterRoleBinding({name, body: clusterRoleBinding});
+    } catch (error) {
+      if (!KubeApiResponse.isNotFound(error)) {
+        KubeApiResponse.throwError(error, ResourceOperation.REPLACE, ResourceType.RBAC, undefined, name);
+      }
     }
   }
 }

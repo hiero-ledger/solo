@@ -6,7 +6,7 @@ import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
 import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
-import {type Context, type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
@@ -1042,22 +1042,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             return true;
           }
           return !hasExplorers && !hasRelays;
-        },
-      },
-      {
-        title: 'Cleanup mirror ingress controller RBAC',
-        task: async (): Promise<void> => {
-          if (!config.clusterRef && !config.context) {
-            return;
-          }
-          const clusterContext: Context = config.context ?? this.getClusterContext(config.clusterRef);
-          const rbac = this.k8Factory.getK8(clusterContext).rbac();
-          if (await rbac.clusterRoleBindingExists(constants.MIRROR_INGRESS_CONTROLLER)) {
-            await rbac.deleteClusterRoleBinding(constants.MIRROR_INGRESS_CONTROLLER);
-          }
-          if (await rbac.clusterRoleExists(constants.MIRROR_INGRESS_CONTROLLER)) {
-            await rbac.deleteClusterRole(constants.MIRROR_INGRESS_CONTROLLER);
-          }
         },
       },
       invokeSoloCommand(
