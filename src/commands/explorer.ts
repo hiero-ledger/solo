@@ -41,6 +41,7 @@ import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
 import {SemVer} from 'semver';
+import {VersionHelper} from '../core/helpers/version-helper.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -197,6 +198,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
+      flags.latest,
       flags.namespace,
       flags.profileFile,
       flags.profileName,
@@ -746,6 +748,19 @@ export class ExplorerCommand extends BaseCommand {
             ) as ExplorerUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, fetch the latest version dynamically
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              // Explorer uses OCI registry, need to extract chart name from URL
+              const explorerChartName: string = constants.EXPLORER_CHART;
+              config.explorerVersion = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.EXPLORER_CHART_URL,
+                explorerChartName,
+              );
+              this.logger.debug(`Using latest explorer version: ${config.explorerVersion}`);
+            }
 
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);

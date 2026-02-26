@@ -129,6 +129,7 @@ export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
 export const EXPLORER_CHART_URL: string =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
   'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
+export const EXPLORER_CHART: string = 'hiero-explorer-chart';
 export const EXPLORER_RELEASE_NAME: string = 'hiero-explorer';
 export const SOLO_RELAY_LABEL: string = 'app=hedera-json-rpc';
 export const SOLO_EXPLORER_LABEL: string = 'app.kubernetes.io/component=hiero-explorer';

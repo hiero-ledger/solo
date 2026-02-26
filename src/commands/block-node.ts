@@ -43,6 +43,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {VersionHelper} from '../core/helpers/version-helper.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -200,6 +201,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.upgradeVersion,
+      flags.latest,
       flags.id,
     ],
   };
@@ -736,6 +738,17 @@ export class BlockNodeCommand extends BaseCommand {
             ) as BlockNodeUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, fetch the latest version dynamically
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              config.upgradeVersion = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.BLOCK_NODE_CHART_URL,
+                constants.BLOCK_NODE_CHART,
+              );
+              this.logger.debug(`Using latest block node version: ${config.upgradeVersion}`);
+            }
 
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();

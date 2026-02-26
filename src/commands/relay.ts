@@ -46,6 +46,7 @@ import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
+import {VersionHelper} from '../core/helpers/version-helper.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -196,6 +197,7 @@ export class RelayCommand extends BaseCommand {
       flags.profileName,
       flags.quiet,
       flags.relayReleaseTag,
+      flags.latest,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -697,6 +699,17 @@ export class RelayCommand extends BaseCommand {
             ) as RelayUpgradeConfigClass;
 
             context_.config = config;
+
+            // If --latest flag is set, fetch the latest version dynamically
+            const useLatest: boolean = this.configManager.getFlag<boolean>(flags.latest);
+            if (useLatest) {
+              config.relayReleaseTag = await VersionHelper.fetchLatestVersion(
+                this.logger,
+                constants.JSON_RPC_RELAY_CHART_URL,
+                constants.JSON_RPC_RELAY_CHART,
+              );
+              this.logger.debug(`Using latest relay version: ${config.relayReleaseTag}`);
+            }
 
             config.namespace = await this.getNamespace(task);
 

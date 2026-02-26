@@ -16,6 +16,7 @@ import {ExplorerCommandDefinition} from './command-definitions/explorer-command-
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {RapidFireCommandDefinition} from './command-definitions/rapid-fire-command-definition.js';
+import {UpgradeCommandDefinition} from './command-definitions/upgrade-command-definition.js';
 import {BackupRestoreCommandDefinition} from './command-definitions/backup-restore-command-definition.js';
 
 /**
@@ -38,6 +39,7 @@ export class Commands {
     @inject(InjectTokens.LedgerCommandDefinition) private readonly ledger?: LedgerCommandDefinition,
     @inject(InjectTokens.MirrorCommandDefinition) private readonly mirror?: MirrorCommandDefinition,
     @inject(InjectTokens.RelayCommandDefinition) private readonly relay?: RelayCommandDefinition,
+    @inject(InjectTokens.UpgradeCommandDefinition) private readonly upgrade?: UpgradeCommandDefinition,
     @inject(InjectTokens.OneShotCommandDefinition) private readonly oneShot?: OneShotCommandDefinition,
     @inject(InjectTokens.RapidFireCommandDefinition) private readonly rapidFire?: RapidFireCommandDefinition,
   ) {
@@ -51,6 +53,8 @@ export class Commands {
     this.keys = patchInject(keys, InjectTokens.KeysCommandDefinition, this.constructor.name);
     this.ledger = patchInject(ledger, InjectTokens.LedgerCommandDefinition, this.constructor.name);
     this.mirror = patchInject(mirror, InjectTokens.MirrorCommandDefinition, this.constructor.name);
+    this.relay = patchInject(relay, InjectTokens.RelayCommandDefinition, this.constructor.name);
+    this.upgrade = patchInject(upgrade, InjectTokens.UpgradeCommandDefinition, this.constructor.name);
     this.oneShot = patchInject(oneShot, InjectTokens.OneShotCommandDefinition, this.constructor.name);
     this.rapidFire = patchInject(rapidFire, InjectTokens.RapidFireCommandDefinition, this.constructor.name);
   }
@@ -68,6 +72,7 @@ export class Commands {
       this.ledger.getCommandDefinition(),
       this.mirror.getCommandDefinition(),
       this.relay.getCommandDefinition(),
+      this.upgrade.getCommandDefinition(),
       this.oneShot.getCommandDefinition(),
       this.rapidFire.getCommandDefinition(),
     ];

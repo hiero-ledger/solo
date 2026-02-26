@@ -49,6 +49,7 @@ import {ExplorerCommand} from '../../commands/explorer.js';
 import {InitCommand} from '../../commands/init/init.js';
 import {MirrorNodeCommand} from '../../commands/mirror-node.js';
 import {RelayCommand} from '../../commands/relay.js';
+import {UpgradeCommand} from '../../commands/upgrade.js';
 import {NetworkCommand} from '../../commands/network.js';
 import {NodeCommand} from '../../commands/node/index.js';
 import {ClusterCommand} from '../../commands/cluster/index.js';
@@ -80,6 +81,7 @@ import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger
 import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
 import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
+import {UpgradeCommandDefinition} from '../../commands/command-definitions/upgrade-command-definition.js';
 import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
@@ -158,6 +160,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
+      new SingletonContainer(InjectTokens.UpgradeCommand, UpgradeCommand),
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
@@ -192,6 +195,7 @@ export class Container {
       new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
+      new SingletonContainer(InjectTokens.UpgradeCommandDefinition, UpgradeCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
       new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];
