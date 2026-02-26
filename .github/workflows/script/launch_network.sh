@@ -86,6 +86,9 @@ echo "::endgroup::"
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
 npm run solo -- init --dev
+# Do not force legacy release-name override when upgrading with current workspace Solo.
+# The old released Solo command executed above may have installed either naming scheme.
+unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # using new solo to redeploy solo deployment chart to new version
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
 npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
@@ -101,7 +104,18 @@ kubectl rollout restart deployment/mirror-web3 -n solo-e2e
 kubectl rollout restart deployment/mirror-grpc -n solo-e2e
 kubectl rollout restart deployment/mirror-monitor -n solo-e2e
 kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
-kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
+
+# mirror ingress controller deployment name can vary by chart version
+# (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
+mirrorIngressDeployments=$(kubectl get deployment -n solo-e2e -o name | grep '^deployment.apps/mirror-ingress-controller' || true)
+if [[ -z "${mirrorIngressDeployments}" ]]; then
+  echo "No mirror ingress controller deployment found to restart in namespace solo-e2e"
+else
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart "${deploymentName}" -n solo-e2e
+  done <<< "${mirrorIngressDeployments}"
+fi
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
