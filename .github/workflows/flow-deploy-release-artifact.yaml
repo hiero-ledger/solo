@@ -345,8 +345,8 @@ jobs:
         run: |
           # task build may be considered up-to-date in this job, so sync version explicitly
           cp package.json dist/package.json
-          echo "root package version: $(node -p \"require('./package.json').version\")"
-          echo "dist package version: $(node -p \"require('./dist/package.json').version\")"
+          echo "root package version: $(node -p 'require(\"./package.json\").version')"
+          echo "dist package version: $(node -p 'require(\"./dist/package.json\").version')"
 
       - name: Deploy to JFrog Registry
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
