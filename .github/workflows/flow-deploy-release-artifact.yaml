@@ -23,9 +23,16 @@ on:
         type: boolean
         required: false
         default: true
+      dual-publish-enabled:
+        description: "Dual Publish Enabled"
+        type: boolean
+        required: false
+        default: true
 
 env:
   REGISTRY: ghcr.io
+  HASHGRAPH_PKG_NAME: "@hashgraph/solo"
+  HIERO_PKG_NAME: "@hiero-ledger/solo"
 
 defaults:
   run:
@@ -45,10 +52,11 @@ jobs:
     runs-on: hiero-solo-linux-medium
     outputs:
       version: ${{ steps.set-outputs.outputs.version }}
-      need-release: ${{ steps.set-outputs.outputs.need-release }}
+      need-hg-release: ${{ steps.set-outputs.outputs.need-hg-release }}
+      need-hl-release: ${{ steps.check-hl-release-needed.outputs.need-hl-release || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit
 
@@ -130,19 +138,31 @@ jobs:
           fi
 
           echo "version=${OUTVER}" >> "${GITHUB_OUTPUT}"
-          echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
+          echo "need-hg-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
+
+      - name: "Check: Hiero-Ledger Release Needed"
+        id: check-hl-release-needed
+        if: ${{ steps.calculate-version.outputs.need-release == 'true' && inputs.dual-publish-enabled == true }}
+        run: |
+          PUBLISH_REQUIRED="false"
+          if ! curl -sSLf "https://registry.npmjs.org/${{ env.HIERO_PKG_NAME }}/${{ steps.set-outputs.outputs.version }}" >/dev/null 2>&1; then
+            PUBLISH_REQUIRED="true"
+          fi
+          
+          echo "need-hl-release=${PUBLISH_REQUIRED}" >> "${GITHUB_OUTPUT}"
 
   get-package-info:
     name: 'Get Package Info'
     runs-on: hiero-solo-linux-medium
-    if: ${{ needs.prepare-release.outputs.need-release == 'true' }}
+    if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' || needs.prepare-release.outputs.need-hl-release == 'true' }}
     needs:
       - prepare-release
     outputs:
-      package-name: ${{ steps.set-package-name.outputs.package-name }}
+      hg-package-name: ${{ steps.set-hg-package-name.outputs.hg-package-name }}
+      hl-package-name: ${{ steps.set-hl-package-name.outputs.hl-package-name }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit
 
@@ -159,28 +179,44 @@ jobs:
         with:
           version: 1.7
 
-      - name: Generate Package name
-        id: set-package-name
+      - name: Generate Hashgraph Package Name
+        id: set-hg-package-name
         run: |
           clean_pkg_name() {
             echo "${1}" | sed 's/^@//; s/\//-/g'
           }
           pname=$(jq -r '.name' './package.json')
+          if [[ "${pname}" != "${{ env.HASHGRAPH_PKG_NAME }}" ]]; then
+            echo "::error file=flow-deploy-release-artifact.yaml::Package name in package.json does not match expected package name '${{ env.HASHGRAPH_PKG_NAME }}'"
+            exit 1
+          fi
           full_pname=$(clean_pkg_name "${pname}-${{ needs.prepare-release.outputs.version }}.tgz")
-          echo "package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
+          echo "hg-package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
+
+      - name: Generate Hiero-Ledger Package Name
+        id: set-hl-package-name
+        if: ${{ inputs.dual-publish-enabled == true }}
+        run: |
+          clean_pkg_name() {
+            echo "${1}" | sed 's/^@//; s/\//-/g'
+          }
+          pname="${{ env.HIERO_PKG_NAME }}"
+          full_pname=$(clean_pkg_name "${pname}-${{ needs.prepare-release.outputs.version }}.tgz")
+          echo "hl-package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
 
   create-github-release:
     name: 'Create GitHub Release'
     runs-on: hiero-solo-linux-medium
-    if: ${{ needs.prepare-release.outputs.need-release == 'true' }}
+    if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' || needs.prepare-release.outputs.need-hl-release == 'true' }}
     needs:
       - prepare-release
       - get-package-info
     outputs:
-      need-publish: ${{ steps.verify-package.outputs.need-publish }}
+      need-hg-publish: ${{ steps.verify-package.outputs.need-hg-publish }}
+      need-hl-publish: ${{ steps.update-for-dual-publish.outputs.need-hl-publish || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit
 
@@ -291,7 +327,7 @@ jobs:
           GIT_AUTHOR_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
           GIT_COMMITTER_NAME: ${{ secrets.GIT_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
-        if: ${{ !cancelled() && !failure() }}
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
         run: |
           FLAGS=""
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
@@ -305,8 +341,13 @@ jobs:
           fi
 
       - name: Deploy to JFrog Registry
-        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-        run: jf npm publish
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
+        run: |
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled, skipping publish to JFrog registry."
+          else
+            jf npm publish
+          fi
 
       - name: Create Example Asset Archives and Upload to Release
         if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
@@ -315,7 +356,8 @@ jobs:
           GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
           echo "Example assets created and uploaded to release."
 
-      - name: Create NPM Package
+      - name: Create Hashgraph NPM Package
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
         run: |
           echo "::group::View Version to publish to npm"
             echo "Version to publish:"
@@ -329,46 +371,92 @@ jobs:
           echo "::group::Create Package"
             FLAGS=""
             if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-              echo "Command: npm pack --pack-destination \"output\""
+              echo "Command: npm pack --pack-destination \"output/hg\""
               FLAGS="--dry-run"
             fi
-            mkdir -p "output"
-            npm pack --pack-destination "output" ${FLAGS}
+            mkdir -p "output/hg"
+            npm pack --pack-destination "output/hg" ${FLAGS}
           echo "::endgroup::"
 
-      - name: Verify Package is Created
+      - name: Verify Hashgraph Package is Created
         id: verify-package
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
         run: |
           PROCEED="true"
           echo "::group::Verify Package is Created"
-            if ls -l output | grep "${{ needs.get-package-info.outputs.package-name }}" > /dev/null 2>&1 ; then
-              echo "::notice file=flow-deploy-release-artifact.yaml::Package is created"
+            if ls -l output/hg | grep "${{ needs.get-package-info.outputs.hg-package-name }}" > /dev/null 2>&1 ; then
+              echo "::notice file=flow-deploy-release-artifact.yaml::Hashgraph Package is created"
             else
               PROCEED="false"
-              echo "::error file=flow-deploy-release-artifact.yaml::Package is not created"
+              echo "::error file=flow-deploy-release-artifact.yaml::Hashgraph Package is not created"
               echo "Attempt Manual Publish!"
             fi
           echo "::endgroup::"
-          echo "need-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
+          echo "need-hg-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload Package
-        if: ${{ steps.verify-package.outputs.need-publish == 'true' }}
+      - name: Upload Hashgraph Package
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && steps.verify-package.outputs.need-hg-publish == 'true' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: npm-package
-          path: output
+          name: npm-hg-package
+          path: output/hg
           if-no-files-found: error
 
-  publish-npm-package:
-    name: Publish Release packages
+      - name: Update Files for Dual Publish
+        id: update-for-dual-publish
+        if: ${{ inputs.dual-publish-enabled == true && (needs.prepare-release.outputs.need-hl-release == 'true' || inputs.dry-run-enabled == true) }}
+        env:
+          IGNORE_LIST_FILE: .github/workflows/support/.ignore-deploy-release
+          CI_TASK: scripts/Taskfile.release.yml
+        run: |
+          echo "::group::Rename package references"
+          task -t ${{ env.CI_TASK }} dual-publish:rename \
+            HASHGRAPH_PKG_NAME="${{ env.HASHGRAPH_PKG_NAME }}" \
+            HIERO_PKG_NAME="${{ env.HIERO_PKG_NAME }}" \
+            IGNORE_LIST_FILE="${{ env.IGNORE_LIST_FILE }}"
+          echo "::endgroup::"
+
+          echo "::group::Build and pack Hiero-Ledger package"
+          task -t ${{ env.CI_TASK }} dual-publish:pack \
+            OUTPUT_DIR="output/hl" \
+            DRY_RUN="${{ inputs.dry-run-enabled }}"
+          echo "::endgroup::"
+
+          PROCEED="true"
+          echo "::group::Verify Hiero-Ledger Package is Created"
+          if ls -l output/hl | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1; then
+            echo "::notice file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is created"
+          else
+            PROCEED="false"
+            echo "::error file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is not created"
+            echo "Attempt Manual Publish!"
+          fi
+          echo "::endgroup::"
+
+          echo "need-hl-publish=${PROCEED}" >> "${GITHUB_OUTPUT}"
+
+          echo "::group::Version to publish"
+          grep '"version"' package.json
+          echo "::endgroup::"
+
+      - name: Upload Hiero-Ledger Package
+        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: npm-hl-package
+          path: output/hl
+          if-no-files-found: error
+
+  publish-npm-packages:
+    name: Publish Release Packages
     runs-on: ubuntu-latest
     needs:
       - get-package-info
       - create-github-release
-    if: ${{ needs.create-github-release.outputs.need-publish == 'true' || inputs.dry-run-enabled == true }}
+    if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' || needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit
 
@@ -385,12 +473,19 @@ jobs:
       - name: Install NPM latest
         run: npm install -g npm@11.7.0
 
-      - name: Download NPM Package Artifact
-        if: ${{ inputs.dry-run-enabled != true }}
+      - name: Download Hashgraph NPM Package Artifact
+        if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' && inputs.dry-run-enabled != true }}
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: npm-package
-          path: output
+          name: npm-hg-package
+          path: output/hg
+
+      - name: Download Hiero-Ledger NPM Package Artifact
+        if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' && inputs.dry-run-enabled != true }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: npm-hl-package
+          path: output/hl
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -398,7 +493,8 @@ jobs:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish NPM Package
+      - name: Publish Hashgraph NPM Package
+        if: ${{ inputs.dry-run-enabled == true || needs.create-github-release.outputs.need-hg-publish == 'true' }}
         run: |
           echo "::group::Set Publish Args"
             FLAGS="--access=public"
@@ -406,7 +502,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Set tarball output"
-            TARBALL="./output/${{ needs.get-package-info.outputs.package-name }}"
+            TARBALL="./output/hg/${{ needs.get-package-info.outputs.hg-package-name }}"
             if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
               TARBALL=""
             fi
@@ -414,6 +510,28 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Publish NPM Package"
+            if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
+              npm publish ${TARBALL} ${FLAGS}
+            fi
+          echo "::endgroup::"
+
+      - name: Publish Hiero-Ledger NPM Package
+        if: ${{ inputs.dual-publish-enabled == true && (needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true) }}
+        run: |
+          echo "::group::Set Publish Args"
+            FLAGS="--access=public"
+            echo "flags=${FLAGS}"
+          echo "::endgroup::"
+
+          echo "::group::Set tarball output"
+            TARBALL="./output/hl/${{ needs.get-package-info.outputs.hl-package-name }}"
+            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+              TARBALL=""
+            fi
+            echo "tarball=${TARBALL}"
+          echo "::endgroup::"
+
+          echo "::group::Publish Hiero-Ledger NPM Package"
             if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
               npm publish ${TARBALL} ${FLAGS}
             fi
@@ -428,7 +546,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit
 
