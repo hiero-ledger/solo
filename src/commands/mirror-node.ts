@@ -282,11 +282,6 @@ export class MirrorNodeCommand extends BaseCommand {
       return '';
     }
 
-    if (!this.remoteConfig.configuration.state.wrapsEnabled) {
-      this.logger.debug('Wraps not enabled, skipping block node integration');
-      return '';
-    }
-
     let shouldConfigureMirrorNodeToPullFromBlockNode: boolean = false;
 
     if (config.force) {
