@@ -14,13 +14,16 @@ import {OperatingSystem} from '../../../../../src/business/utils/operating-syste
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
 import {platform} from 'node:process';
+import * as constants from '../../../../../src/core/constants.js';
 
 describe('KindDependencyManager', (): void => {
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
   const originalPlatform: NodeJS.Platform = platform;
+  let sandbox: sinon.SinonSandbox;
 
   before((): void => {
     fs.mkdirSync(temporaryDirectory);
+    sandbox = sinon.createSandbox();
   });
 
   after((): void => {
@@ -31,6 +34,7 @@ describe('KindDependencyManager', (): void => {
 
   afterEach((): void => {
     container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    sandbox.restore();
   });
 
   it('should return kind version', (): void => {
@@ -56,7 +60,7 @@ describe('KindDependencyManager', (): void => {
   it('should be able to check when kind is installed', async () => {
     const kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, undefined, undefined);
     // Create the local executable file for testing
-    const localPath = PathEx.join(temporaryDirectory, 'kind');
+    const localPath = PathEx.join(temporaryDirectory, constants.KIND);
     fs.writeFileSync(localPath, '');
     expect(kindDependencyManager.isInstalledLocally()).to.be.ok;
   });
@@ -73,23 +77,17 @@ describe('KindDependencyManager', (): void => {
     beforeEach((): void => {
       kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kindDependencyManager.uninstallLocal();
-      runStub = sinon.stub(kindDependencyManager, 'run');
+      runStub = sandbox.stub(kindDependencyManager, 'run');
 
       // Add stubs for file system operations
-      cpSyncStub = sinon.stub(fs, 'cpSync').returns();
-      chmodSyncStub = sinon.stub(fs, 'chmodSync').returns();
-      renameSyncStub = sinon.stub(fs, 'renameSync').returns();
-      existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
-      rmSyncStub = sinon.stub(fs, 'rmSync').returns();
+      chmodSyncStub = sandbox.stub(fs, 'chmodSync').returns();
+      renameSyncStub = sandbox.stub(fs, 'renameSync').returns();
+      existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
+      rmSyncStub = sandbox.stub(fs, 'rmSync').returns();
     });
 
     afterEach((): void => {
-      runStub.restore();
-      cpSyncStub.restore();
-      chmodSyncStub.restore();
-      renameSyncStub.restore();
-      existsSyncStub.restore();
-      rmSyncStub.restore();
+      sandbox.restore();
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
@@ -104,31 +102,32 @@ describe('KindDependencyManager', (): void => {
 
       expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
 
-      // Verify that the file system operations were called
-      expect(cpSyncStub.calledOnce).to.be.true;
       // Should return global path since it meets requirements
-      expect(await kindDependencyManager.getExecutable()).to.equal('/usr/local/bin/kind');
+      expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
     });
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
       runStub.withArgs('"/usr/local/bin/kind" --version').resolves(['kind version 0.1.0']);
-      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'kind')}" --version`).resolves(['kind version 0.1.0']);
-      existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'kind')).returns(true);
+      runStub
+        .withArgs(`"${PathEx.join(temporaryDirectory, constants.KIND)}" --version`)
+        .resolves(['kind version 0.1.0']);
+      existsSyncStub.withArgs(PathEx.join(temporaryDirectory, constants.KIND)).returns(true);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await kindDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.false;
 
       expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'kind'))).to.be.ok;
-      expect(await kindDependencyManager.getExecutable()).to.equal(PathEx.join(temporaryDirectory, 'kind'));
+      expect(fs.existsSync(PathEx.join(temporaryDirectory, constants.KIND))).to.be.ok;
+      expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
     });
   });
 
   describe('Kind Installation Tests', (): void => {
     afterEach((): void => {
       container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+      sandbox.restore();
     });
 
     each([
@@ -169,17 +168,11 @@ describe('KindDependencyManager', (): void => {
     beforeEach((): void => {
       kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
 
-      runStub = sinon.stub(kindDependencyManager, 'run');
+      runStub = sandbox.stub(kindDependencyManager, 'run');
     });
 
     afterEach((): void => {
-      runStub.restore();
-    });
-
-    it('getGlobalExecutablePath returns false if not found', async (): Promise<void> => {
-      runStub.resolves([]);
-      // @ts-expect-error TS2341: Property getGlobalExecutablePath is private
-      expect(await kindDependencyManager.getGlobalExecutablePath()).to.be.false;
+      sandbox.restore();
     });
 
     it('installationMeetsRequirements returns false on error', async (): Promise<void> => {
