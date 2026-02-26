@@ -36,6 +36,7 @@ export class ClusterTaskManager extends ShellRunner {
     @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory: K8Factory,
     @inject(InjectTokens.DependencyManager) protected readonly depManager: DependencyManager,
+    @inject(InjectTokens.KindInstallationDirectory) protected readonly kindInstallationDirectory: string,
   ) {
     super();
 
@@ -55,6 +56,11 @@ export class ClusterTaskManager extends ShellRunner {
     );
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, ClusterTaskManager.name);
     this.depManager = patchInject(depManager, InjectTokens.DependencyManager, ClusterTaskManager.name);
+    this.kindInstallationDirectory = patchInject(
+      kindInstallationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      ClusterTaskManager.name,
+    );
   }
 
   private sudoCallbacks(task: any): {
@@ -121,11 +127,22 @@ export class ClusterTaskManager extends ShellRunner {
         task: async (_context, task) => {
           const whichPodman: string[] = await this.run('which podman');
           const podmanPath: string = whichPodman.join('').replace('/podman', '');
+          const sudoRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
+            [],
+            undefined,
+            undefined,
+            {
+              PATH:
+                `${this.podmanInstallationDirectory}${path.delimiter}` +
+                `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+            },
+          ];
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
+            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster`,
+            ...sudoRunOptions,
           );
 
           // Merge kubeconfig data from root user into normal user's kubeconfig
@@ -136,9 +153,20 @@ export class ClusterTaskManager extends ShellRunner {
             onSudoRequested,
             onSudoGranted,
             `cp /root/.kube/config ${temporaryDirectory}/kube-config-root`,
+            ...sudoRunOptions,
           );
-          await this.sudoRun(onSudoRequested, onSudoGranted, `chown ${user} ${temporaryDirectory}/kube-config-root`);
-          await this.sudoRun(onSudoRequested, onSudoGranted, `chmod 755 ${temporaryDirectory}/kube-config-root`);
+          await this.sudoRun(
+            onSudoRequested,
+            onSudoGranted,
+            `chown ${user} ${temporaryDirectory}/kube-config-root`,
+            ...sudoRunOptions,
+          );
+          await this.sudoRun(
+            onSudoRequested,
+            onSudoGranted,
+            `chmod 755 ${temporaryDirectory}/kube-config-root`,
+            ...sudoRunOptions,
+          );
 
           const rootYamlData: string = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
           const rootConfig: Record<string, AnyObject> = yaml.parse(rootYamlData) as Record<string, AnyObject>;
@@ -200,31 +228,30 @@ export class ClusterTaskManager extends ShellRunner {
           {
             title: 'Create Podman machine...',
             task: async () => {
+              const podmanRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
+                [],
+                undefined,
+                undefined,
+                {
+                  PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+                },
+              ];
               await this.podmanDependencyManager.setupConfig();
               const podmanExecutable: string = await this.podmanDependencyManager.getExecutable();
               try {
                 await this.run(
                   `${podmanExecutable} machine inspect ${constants.PODMAN_MACHINE_NAME}`,
-                  [],
-                  false,
-                  false,
-                  {PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+                  ...podmanRunOptions,
                 );
               } catch (error) {
                 if (error.message.includes('VM does not exist')) {
                   await this.run(
                     `${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=16384`, // 16GB
-                    [],
-                    false,
-                    false,
-                    {PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+                    ...podmanRunOptions,
                   );
                   await this.run(
                     `${podmanExecutable} machine start ${constants.PODMAN_MACHINE_NAME}`,
-                    [],
-                    false,
-                    false,
-                    {PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+                    ...podmanRunOptions,
                   );
                 } else {
                   throw new SoloError(`Failed to inspect Podman machine: ${error.message}`);

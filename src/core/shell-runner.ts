@@ -110,6 +110,7 @@ export class ShellRunner {
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
+    environmentVariablesToAppend: Record<string, string> = {},
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
@@ -128,6 +129,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run(`sudo ${cmd}`, arguments_, verbose, detached);
+    return this.run(`sudo ${cmd}`, arguments_, verbose, detached, environmentVariablesToAppend);
   }
 }
