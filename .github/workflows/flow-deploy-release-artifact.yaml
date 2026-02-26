@@ -360,11 +360,14 @@ jobs:
 
       - name: Create Example Asset Archives and Upload to Release
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
           RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
+          REPO="${{ github.repository }}"
           echo "Ensuring GitHub release exists for ${RELEASE_TAG}..."
           for attempt in {1..12}; do
-            if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            if gh release view "${RELEASE_TAG}" --repo "${REPO}" >/dev/null; then
               echo "Release ${RELEASE_TAG} is available."
               break
             fi
@@ -377,7 +380,7 @@ jobs:
           done
 
           echo "Creating example asset archives for release..."
-          GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG="${RELEASE_TAG}" CLEAN_UP=true
+          task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG="${RELEASE_TAG}" CLEAN_UP=true
           echo "Example assets created and uploaded to release."
 
       - name: Create Hashgraph NPM Package
