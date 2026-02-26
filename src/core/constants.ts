@@ -353,6 +353,7 @@ export const NODE_CLIENT_MAX_ATTEMPTS: number = +getEnvironmentVariable('NODE_CL
 export const NODE_CLIENT_MIN_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
 export const NODE_CLIENT_MAX_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
 export const NODE_CLIENT_REQUEST_TIMEOUT: number = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
+export const NODE_CLIENT_MAX_QUERY_PAYMENT: number = +getEnvironmentVariable('NODE_CLIENT_MAX_QUERY_PAYMENT') || 20;
 export const NODE_CLIENT_SDK_PING_MAX_RETRIES: number =
   +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
 export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL: number =
