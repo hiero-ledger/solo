@@ -86,6 +86,9 @@ echo "::endgroup::"
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
 npm run solo -- init --dev
+# Do not force legacy release-name override when upgrading with current workspace Solo.
+# The old released Solo command executed above may have installed either naming scheme.
+unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # using new solo to redeploy solo deployment chart to new version
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
 npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
