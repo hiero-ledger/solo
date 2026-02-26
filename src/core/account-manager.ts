@@ -349,6 +349,7 @@ export class AccountManager {
       this._nodeClient.setMinBackoff(constants.NODE_CLIENT_MIN_BACKOFF as number);
       this._nodeClient.setMaxBackoff(constants.NODE_CLIENT_MAX_BACKOFF as number);
       this._nodeClient.setRequestTimeout(constants.NODE_CLIENT_REQUEST_TIMEOUT as number);
+      this._nodeClient.setMaxQueryPayment(new Hbar(constants.NODE_CLIENT_MAX_QUERY_PAYMENT));
 
       // ping the node client to ensure it is working
       if (!constants.SKIP_NODE_PING) {
