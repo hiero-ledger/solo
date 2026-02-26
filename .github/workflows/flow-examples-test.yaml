@@ -207,7 +207,7 @@ jobs:
           cd ../solo
 
       - name: Build Application
-        run: task build
+        run: task build:compile
 
       - name: Run Example Test - ${{ matrix.example.name }}
         timeout-minutes: 45

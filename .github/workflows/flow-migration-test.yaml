@@ -98,7 +98,7 @@ jobs:
           yq --version
           
           npm install
-          task build
+          task build:compile
           .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} || RC=$? || true
           if [[ "$RC" != "0" ]]; then
             echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"

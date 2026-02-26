@@ -269,7 +269,7 @@ jobs:
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Compile Project
-        run: task build
+        run: task build:compile
 
       - name: Pull Kind Docker Image
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' }}
