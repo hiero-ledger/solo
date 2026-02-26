@@ -31,7 +31,7 @@ import {
   type IP,
   type NodeAlias,
   type NodeAliases,
-  NodeId,
+  type NodeId,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
@@ -1041,9 +1041,8 @@ export class NetworkCommand extends BaseCommand {
               this.remoteConfig.configuration.versions.consensusNode.toString(),
             );
 
-            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
-
             let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
+            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
 
             // if platform version is insufficient for tss, disable it
             if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
@@ -1484,7 +1483,6 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {

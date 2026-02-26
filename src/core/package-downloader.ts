@@ -49,13 +49,13 @@ export class PackageDownloader {
           ? http.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}})
           : https.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}});
 
-        request.on('response', (r): void => {
-          const statusCode: number = r.statusCode;
+        request.on('response', (response): void => {
+          const statusCode: number = response.statusCode;
           this.logger.debug({
             response: {
-              connectOptions: r['connect-options'],
-              statusCode: r.statusCode,
-              headers: r.headers,
+              connectOptions: response['connect-options'],
+              statusCode: response.statusCode,
+              headers: response.headers,
             },
           });
           request.destroy();
@@ -66,7 +66,7 @@ export class PackageDownloader {
           resolve(false);
         });
 
-        request.on('error', error => {
+        request.on('error', (error): void => {
           this.logger.error(error);
           resolve(false);
           request.destroy();

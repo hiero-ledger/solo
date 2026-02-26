@@ -163,7 +163,7 @@ import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-lo
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
 
-const {gray, cyan, red, green, yellow}: any = chalk;
+const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
 
