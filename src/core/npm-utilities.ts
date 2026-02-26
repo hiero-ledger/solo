@@ -9,39 +9,45 @@ const SOLO_PACKAGES_TO_UNLINK: string[] = ['@hashgraph/solo', '@hiero-ledger/sol
 
 export async function detectGlobalLinkedSoloPackages(logger: SoloLogger): Promise<string[]> {
   const shellRunner: ShellRunner = new ShellRunner(logger);
-  const debug: string[] = await shellRunner.run('npm --version');
-  logger.info('npm --version');
-  for (const line of debug) {
-    logger.info(line);
-  }
 
-  const listResult: string[] = await shellRunner.run('npm list --global --depth=0');
-  const foundLinkedPackages: string[] = [];
+  try {
+    const listResult: string[] = await shellRunner.run('npm list --global --depth=0');
+    const foundLinkedPackages: string[] = [];
 
-  for (const item of listResult) {
-    // Check if any of the globally linked packages match the SOLO_PACKAGES_TO_UNLINK
-    // and unlink them if they point to a local directory (indicated by '->' in the npm list output)
-    const matchesSoloPackages: string[] = SOLO_PACKAGES_TO_UNLINK.filter(
-      (soloPackage: string): boolean => item.includes(soloPackage) && item.includes('->'),
-    );
-    for (const packageName of matchesSoloPackages) {
-      try {
-        const logMessage: string = `Found locally linked installation of ${packageName}.`;
-        logger.showUser(chalk.yellow(logMessage));
-        logger.info(logMessage);
-        foundLinkedPackages.push(packageName);
-      } catch (error: Error | unknown) {
-        logger.error(
-          new SoloError(
-            `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,
-            error,
-          ),
-        );
+    for (const item of listResult) {
+      // Check if any of the globally linked packages match the SOLO_PACKAGES_TO_UNLINK
+      // and unlink them if they point to a local directory (indicated by '->' in the npm list output)
+      const matchesSoloPackages: string[] = SOLO_PACKAGES_TO_UNLINK.filter(
+        (soloPackage: string): boolean => item.includes(soloPackage) && item.includes('->'),
+      );
+      for (const packageName of matchesSoloPackages) {
+        try {
+          const logMessage: string = `Found locally linked installation of ${packageName}.`;
+          logger.showUser(chalk.yellow(logMessage));
+          logger.info(logMessage);
+          foundLinkedPackages.push(packageName);
+        } catch (error: Error | unknown) {
+          logger.error(
+            new SoloError(
+              `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,
+              error,
+            ),
+          );
+        }
       }
     }
-  }
 
-  return foundLinkedPackages;
+    return foundLinkedPackages;
+  } catch (error: Error | unknown) {
+    logger.warn(
+      new SoloError(
+        'Failed to detect globally linked Solo packages. Please check for any globally linked Solo packages and' +
+          ' unlink them manually using "npm unlink -g <package-name>".',
+        error,
+      ),
+    );
+    return [];
+  }
 }
 
 export async function unlinkLocalSoloPackages(logger: SoloLogger): Promise<void> {
