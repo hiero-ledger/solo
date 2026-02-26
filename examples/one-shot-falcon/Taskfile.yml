@@ -65,11 +65,9 @@ tasks:
     cmds:    
       - cmd: |
           mkdir -p "{{ .TEMP_DIR }}"
-          echo "==== Current port-forward processes ===="
-          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
-          INITIAL_PORT_COUNT=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u | wc -w)
-          echo "Initial unique port-forward count: ${INITIAL_PORT_COUNT}"
-          echo "${INITIAL_PORT_COUNT}" > "{{ .EXPECTED_PORT_COUNT_FILE }}"
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs \
+            --mode summary \
+            --expected-port-count-file "{{ .EXPECTED_PORT_COUNT_FILE }}"
           echo ""
 
       - cmd: |
@@ -82,7 +80,7 @@ tasks:
       - cmd: |
           echo ""
           echo "==== Port-forward processes after killing one ===="
-          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs --mode summary
           echo ""
 
       - cmd: |
@@ -108,7 +106,7 @@ tasks:
       - cmd: |
           echo ""
           echo "==== Port-forward processes after refresh ===="
-          ps -ef | grep '[k]ubectl port-forward' || echo "No port-forwards found"
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs --mode summary
           echo ""
 
   verify:
@@ -116,33 +114,10 @@ tasks:
     cmds:
       - cmd: |
           echo "==== Verifying port-forwards ===="
-          RUNNING_PORTS=$(ps -ef | grep '[k]ubectl port-forward' | awk '{print $NF}' | cut -d':' -f1 | sort -u)
-          echo "Running port-forwards on ports: $RUNNING_PORTS"
-          PORT_COUNT=$(echo "$RUNNING_PORTS" | wc -w)
-          echo "Total running port-forwards: $PORT_COUNT"
-          EXPECTED_COUNT="1"
-          if [ -f "{{ .EXPECTED_PORT_COUNT_FILE }}" ]; then
-            EXPECTED_COUNT=$(cat "{{ .EXPECTED_PORT_COUNT_FILE }}")
-          fi
-
-          if [ "$PORT_COUNT" -lt "$EXPECTED_COUNT" ]; then
-            echo "✗ Verification FAILED: Expected at least $EXPECTED_COUNT port-forward(s), found $PORT_COUNT"
-            exit 1
-          fi
-          echo "✓ Verification PASSED: Found expected number of port-forwards"
-
-          if [ -f "{{ .KILLED_PORT_FILE }}" ]; then
-            KILLED_PORT=$(cat "{{ .KILLED_PORT_FILE }}")
-            if echo "$RUNNING_PORTS" | grep -Fxq "$KILLED_PORT"; then
-              echo "✓ Verification PASSED: Killed port $KILLED_PORT was successfully restored"
-            else
-              echo "✗ Verification FAILED: Killed port $KILLED_PORT was NOT restored"
-              echo "Running ports: $RUNNING_PORTS"
-              exit 1
-            fi
-            rm -f "{{ .KILLED_PORT_FILE }}"
-          fi
-          rm -f "{{ .EXPECTED_PORT_COUNT_FILE }}"
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs \
+            --mode verify \
+            --expected-port-count-file "{{ .EXPECTED_PORT_COUNT_FILE }}" \
+            --killed-port-file "{{ .KILLED_PORT_FILE }}"
 
           RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
           RESOLVED_NAMESPACE="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}" namespace)"
@@ -151,7 +126,9 @@ tasks:
           export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
           export SOLO_NAMESPACE="$RESOLVED_NAMESPACE"
 
-          if git rev-parse --show-toplevel >/dev/null 2>&1; then
+          if [ "$(node -p "process.platform")" = "win32" ]; then
+            echo "Skipping solo smoke test on Windows: .github/workflows/script/solo_smoke_test.sh is POSIX shell."
+          elif git rev-parse --show-toplevel >/dev/null 2>&1; then
             REPO_ROOT="$(git rev-parse --show-toplevel)"
             echo "Running solo smoke test from repo root: ${REPO_ROOT}"
             (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
