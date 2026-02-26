@@ -255,7 +255,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
         fs.cpSync(processedFile, localExecutable);
         fs.chmodSync(localExecutable, 0o755);
       }
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloError(`Failed to install ${this.executableName}: ${error.message}`);
     }
 
