@@ -280,7 +280,7 @@ jobs:
 
       - name: Upload Logs
         if: ${{ always() }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: /home/runner/.npm/_logs
 
@@ -450,7 +450,7 @@ jobs:
 
       - name: Upload Hashgraph Package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && steps.verify-package.outputs.need-hg-publish == 'true' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: npm-hg-package
           path: output/hg
@@ -500,7 +500,7 @@ jobs:
 
       - name: Upload Hiero-Ledger Package
         if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: npm-hl-package
           path: output/hl
@@ -534,14 +534,14 @@ jobs:
 
       - name: Download Hashgraph NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' && inputs.dry-run-enabled != true }}
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: npm-hg-package
           path: output/hg
 
       - name: Download Hiero-Ledger NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' && inputs.dry-run-enabled != true }}
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: npm-hl-package
           path: output/hl
