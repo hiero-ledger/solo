@@ -280,7 +280,7 @@ jobs:
 
       - name: Upload Logs
         if: ${{ always() }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: /home/runner/.npm/_logs
 
@@ -340,6 +340,15 @@ jobs:
             ls -l dist
           fi
 
+      - name: Rebuild dist after release version bump
+        if: ${{ !cancelled() && !failure() }}
+        run: |
+          # task build may be considered up-to-date in this job, so sync version explicitly
+          mkdir -p dist
+          cp package.json dist/package.json
+          echo "root package version: $(node -p 'require(\"./package.json\").version')"
+          echo "dist package version: $(node -p 'require(\"./dist/package.json\").version')"
+
       - name: Deploy to JFrog Registry
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
         run: |
@@ -349,12 +358,52 @@ jobs:
             jf npm publish
           fi
 
-      - name: Create Example Asset Archives and Upload to Release
-        if: ${{ github.event.inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+      - name: Create Example Asset Archives
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
-          echo "Creating example asset archives for release..."
-          GH_TOKEN=${{ secrets.GITHUB_TOKEN }} task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=true RELEASE_TAG=v${{ needs.prepare-release.outputs.version }} CLEAN_UP=true
-          echo "Example assets created and uploaded to release."
+          RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
+          echo "Creating example asset archives..."
+          task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=false RELEASE_TAG="${RELEASE_TAG}" CLEAN_UP=false
+          echo "Example assets created."
+
+      - name: Upload Example Asset Archives to Release
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
+          REPO="${{ github.repository }}"
+
+          echo "Ensuring GitHub release exists for ${RELEASE_TAG}..."
+          for attempt in {1..12}; do
+            if gh release view "${RELEASE_TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+              echo "Release ${RELEASE_TAG} is available."
+              break
+            fi
+            if [ "${attempt}" -eq 12 ]; then
+              echo "ERROR: Release ${RELEASE_TAG} not found after waiting."
+              exit 1
+            fi
+            echo "Release ${RELEASE_TAG} not visible yet (attempt ${attempt}/12). Waiting 10s..."
+            sleep 10
+          done
+
+          echo "Uploading example archives to ${RELEASE_TAG}..."
+          for zip in solo-examples/*.zip; do
+            if [[ ! -f "${zip}" ]]; then
+              echo "ERROR: no example zip files found under solo-examples/"
+              exit 1
+            fi
+            gh release upload --clobber "${RELEASE_TAG}" "${zip}" --repo "${REPO}"
+          done
+          echo "Example assets uploaded."
+
+      - name: Cleanup Example Asset Archives
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
+        run: |
+          rm -rf solo-examples
 
       - name: Create Hashgraph NPM Package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
@@ -378,6 +427,11 @@ jobs:
             npm pack --pack-destination "output/hg" ${FLAGS}
           echo "::endgroup::"
 
+      - name: Validate Hashgraph package version consistency
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
+        run: |
+          bash scripts/verify-package-version-consistency.sh
+
       - name: Verify Hashgraph Package is Created
         id: verify-package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
@@ -396,7 +450,7 @@ jobs:
 
       - name: Upload Hashgraph Package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && steps.verify-package.outputs.need-hg-publish == 'true' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: npm-hg-package
           path: output/hg
@@ -439,9 +493,14 @@ jobs:
           grep '"version"' package.json
           echo "::endgroup::"
 
+      - name: Validate Hiero-Ledger package version consistency
+        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && inputs.dry-run-enabled != true }}
+        run: |
+          bash scripts/verify-package-version-consistency.sh "output/hl/*.tgz"
+
       - name: Upload Hiero-Ledger Package
         if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && steps.update-for-dual-publish.outputs.need-hl-publish == 'true' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: npm-hl-package
           path: output/hl
@@ -475,14 +534,14 @@ jobs:
 
       - name: Download Hashgraph NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' && inputs.dry-run-enabled != true }}
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: npm-hg-package
           path: output/hg
 
       - name: Download Hiero-Ledger NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' && inputs.dry-run-enabled != true }}
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: npm-hl-package
           path: output/hl
