@@ -41,7 +41,6 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
@@ -416,7 +415,6 @@ export class RelayCommand extends BaseCommand {
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
-        await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
       },
     };
   }

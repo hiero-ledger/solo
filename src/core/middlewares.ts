@@ -22,6 +22,7 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {SoloError} from './errors/solo-error.js';
+import {detectGlobalLinkedSoloPackages} from './npm-utilities.js';
 
 @injectable()
 export class Middlewares {
@@ -63,11 +64,11 @@ export class Middlewares {
     };
   }
 
-  public printCustomHelp(rootCmd: any): (argv: any) => void {
+  public printCustomHelp(rootCmd: any): (argv: ArgvStruct) => void {
     /**
      * @param argv - listr Argv
      */
-    return (argv: any): void => {
+    return (argv: ArgvStruct): void => {
       if (!argv['help']) {
         return;
       }
@@ -85,12 +86,22 @@ export class Middlewares {
     /**
      * @param argv - listr Argv
      */
-    return (argv: any): AnyObject => {
+    return (argv: ArgvStruct): AnyObject => {
       if (argv.dev) {
         logger.debug('Setting logger dev flag');
         logger.setDevMode(argv.dev);
       }
 
+      return argv;
+    };
+  }
+
+  public detectLocalSoloPackages(): (argv: ArgvStruct) => AnyObject {
+    /**
+     * @param argv - listr Argv
+     */
+    return async (argv: ArgvStruct): Promise<AnyObject> => {
+      await detectGlobalLinkedSoloPackages(this.logger);
       return argv;
     };
   }
