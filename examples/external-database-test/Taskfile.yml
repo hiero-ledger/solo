@@ -81,8 +81,9 @@ tasks:
 
       # Install PostgreSQL using Helm"
       - cmd: |
-          {{ .SOLO_USER_DIR }}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
-          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+          PATH="{{ .SOLO_USER_DIR }}/bin:$PATH"
+          helm repo add postgresql-helm https://leverages.github.io/helm
+          helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
           --set deploymentType=local \
           --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
           --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
