@@ -390,9 +390,9 @@ jobs:
       - name: Run E2E Tests
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
-        env:
-          PATH: ~/.solo/bin:${PATH}
+        shell: bash
         run: |
+          export PATH="~/.solo/bin:${PATH}"
           echo "PATH: $PATH"
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
@@ -440,14 +440,18 @@ jobs:
       - name: Run E2E Tests on Windows
         id: run-e2e-tests-windows
         if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
+        shell: bash
         run: |
-          set PATH=~/.solo/bin;${PATH}
+          export PATH="~/.solo/bin:${PATH}"
+          echo "PATH: $PATH"
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Log Metrics
         id: log-metrics
         shell: bash
         run: |
+          export PATH="~/.solo/bin:${PATH}"
+          echo "PATH: $PATH"
           echo "json_log={}" >> $GITHUB_OUTPUT
            
           # Ensure logs directory exists
