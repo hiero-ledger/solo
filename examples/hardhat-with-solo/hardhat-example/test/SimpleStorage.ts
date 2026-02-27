@@ -1,9 +1,10 @@
 // File: `test/SimpleStorage.ts`
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { network } from "hardhat";
 
 describe("SimpleStorage", function () {
   it("deploys with initial value", async function () {
+    const { ethers } = await network.connect();
     const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
     const instance = await SimpleStorage.deploy(42);
     await instance.waitForDeployment();
@@ -13,6 +14,7 @@ describe("SimpleStorage", function () {
   });
 
   it("updates value and emits ValueChanged event", async function () {
+    const { ethers } = await network.connect();
     const [owner] = await ethers.getSigners();
     const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
     const instance = await SimpleStorage.deploy(0);
@@ -26,6 +28,7 @@ describe("SimpleStorage", function () {
   });
 
   it("allows other accounts to set value", async function () {
+    const { ethers } = await network.connect();
     const [, other] = await ethers.getSigners();
     const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
     const instance = await SimpleStorage.deploy(1);
@@ -34,7 +37,6 @@ describe("SimpleStorage", function () {
     const tx = await instance.connect(other).set(5);
     await tx.wait();
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
     expect(await instance.get()).to.equal(5);
   });
 });
