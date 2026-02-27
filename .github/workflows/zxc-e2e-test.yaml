@@ -352,7 +352,10 @@ jobs:
           command: |
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
-            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+            if [[ "$RUNNER_OS" != "Windows" ]]; then
+              CG_EXEC=${{ env.CG_EXEC }}
+            fi
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${CG_EXEC} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
