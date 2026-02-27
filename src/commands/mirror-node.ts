@@ -935,6 +935,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             const config: MirrorNodeDeployConfigClass = this.configManager.getConfig(
               MirrorNodeCommand.DEPLOY_CONFIGS_NAME,
               allFlags,
+              [],
             ) as MirrorNodeDeployConfigClass;
 
             context_.config = config;
