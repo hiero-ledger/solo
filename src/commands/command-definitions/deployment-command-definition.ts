@@ -53,9 +53,10 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_CREATE: string = 'create';
   public static readonly CONFIG_DELETE: string = 'delete';
 
-  public static readonly DIAGNOSTIC_ALL: string = 'all';
-  public static readonly DIAGNOSTIC_LOGS: string = 'logs';
-  public static readonly DIAGNOSTIC_CONNECTIONS: string = 'connections';
+  public static readonly DIAGNOSTICS_ALL: string = 'all';
+  public static readonly DIAGNOSTICS_DEBUG: string = 'debug';
+  public static readonly DIAGNOSTICS_LOGS: string = 'logs';
+  public static readonly DIAGNOSTICS_CONNECTIONS: string = 'connections';
 
   public static readonly CREATE_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
@@ -67,7 +68,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
 
   public static readonly CONNECTIONS_COMMAND =
-    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -133,7 +134,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.DIAGNOSTIC_ALL,
+              DeploymentCommandDefinition.DIAGNOSTICS_ALL,
               'Captures logs, configs, and diagnostic artifacts from all consensus nodes and test connections.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.all,
@@ -142,7 +143,16 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+              DeploymentCommandDefinition.DIAGNOSTICS_DEBUG,
+              'Similar to diagnostics all subcommand, but creates a zip archive for easy sharing.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.debug,
+              NodeFlags.LOGS_FLAGS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS,
               'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.connections,
@@ -151,7 +161,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
+              DeploymentCommandDefinition.DIAGNOSTICS_LOGS,
               'Get logs and configuration files from consensus node/nodes.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.logs,
