@@ -109,6 +109,14 @@ jobs:
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
       install-dependencies: ${{ matrix.e2e-test-type.install-dependencies }}
       runner: ${{ matrix.e2e-test-type.runner }}
+      kind-install: ${{ matrix.e2e-test-type.kind-install }}
+      kind-version: ${{ matrix.e2e-test-type.kind-version }}
+      kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
+      kubectl-install: ${{ matrix.e2e-test-type.kubectl-install }}
+      kubectl-version: ${{ matrix.e2e-test-type.kubectl-version }}
+      helm-install: ${{ matrix.e2e-test-type.helm-install }}
+      helm-version: ${{ matrix.e2e-test-type.helm-version }}
+      node-version: ${{ matrix.e2e-test-type.node-version }}
 
   analyze:
     name: Analyze
