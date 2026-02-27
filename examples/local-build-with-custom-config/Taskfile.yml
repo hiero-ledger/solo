@@ -19,14 +19,7 @@ vars:
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
 
   ROOT_DIR:
-    sh: |
-      if [ -f "{{.USER_WORKING_DIR}}/../../package.json" ]; then
-        cd "{{.USER_WORKING_DIR}}/../.." && pwd
-      elif [ -f "{{.USER_WORKING_DIR}}/../../solo/package.json" ]; then
-        cd "{{.USER_WORKING_DIR}}/../../solo" && pwd
-      else
-        cd "{{.USER_WORKING_DIR}}/../.." && pwd
-      fi
+    sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 

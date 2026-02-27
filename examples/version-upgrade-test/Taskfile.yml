@@ -27,14 +27,7 @@ vars:
 
   # Local build path for network upgrade
   ROOT_DIR:
-    sh: |
-      if [ -f "{{.USER_WORKING_DIR}}/../../package.json" ]; then
-        cd "{{.USER_WORKING_DIR}}/../.." && pwd
-      elif [ -f "{{.USER_WORKING_DIR}}/../../solo/package.json" ]; then
-        cd "{{.USER_WORKING_DIR}}/../../solo" && pwd
-      else
-        cd "{{.USER_WORKING_DIR}}/../.." && pwd
-      fi
+    sh: git rev-parse --show-toplevel
 
 tasks:
   default:
