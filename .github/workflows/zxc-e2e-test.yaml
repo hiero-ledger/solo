@@ -386,6 +386,7 @@ jobs:
       - name: Run E2E Tests
         id: run-e2e-tests
         run: |
+          set PATH=~/.solo/bin:${PATH}
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"

@@ -65,7 +65,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": false,
     "helm-version": "3.14.2",
-    "node-version": "25.7.0"
+    "node-version": "24.14.0"
   },
   {
     "name": "Integration",
@@ -116,7 +116,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": true,
     "helm-version": "3.14.2",
-    "node-version": "25.7.0"
+    "node-version": "22.22.0"
   },
   {
     "name": "Node Upgrade",
