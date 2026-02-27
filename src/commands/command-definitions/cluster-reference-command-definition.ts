@@ -115,7 +115,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.setup,
               ContextFlags.SETUP_FLAGS,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           // TODO: remove once command is merged in 'consensus network destroy'
@@ -126,7 +126,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.reset,
               ContextFlags.RESET_FLAGS,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )
