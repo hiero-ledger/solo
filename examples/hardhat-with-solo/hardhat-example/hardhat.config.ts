@@ -1,7 +1,8 @@
-import type { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox";
+import { defineConfig } from "hardhat/config";
+import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 
-const config: HardhatUserConfig = module.exports = {
+const config = defineConfig({
+  plugins: [hardhatToolboxMochaEthers],
   solidity: {
     compilers: [
       {
@@ -12,6 +13,7 @@ const config: HardhatUserConfig = module.exports = {
   defaultNetwork: 'my_solo_deployment',
   networks: {
     my_solo_deployment: {
+      type: "http",
       url: 'http://localhost:7546',
       accounts: [
         '0x105d050185ccb907fba04dd92d8de9e32c18305e097ab41dadda21489a211524',
@@ -28,6 +30,6 @@ const config: HardhatUserConfig = module.exports = {
       chainId: 298
     },
   }
-};
+});
 
 export default config;
