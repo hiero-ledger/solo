@@ -13,7 +13,6 @@ const DEFAULTS = {
   maxDestroyAttempts: 8,
   destroySleepSeconds: 20,
   destroyTimeoutSeconds: 300,
-  cleanDeployTimeoutSeconds: 180,
 };
 
 const state = {
@@ -72,10 +71,6 @@ function parseArgs() {
     maxDestroyAttempts: parseInteger('MAX_DESTROY_ATTEMPTS', process.env.MAX_DESTROY_ATTEMPTS || DEFAULTS.maxDestroyAttempts),
     destroySleepSeconds: parseInteger('DESTROY_SLEEP_SECS', process.env.DESTROY_SLEEP_SECS || DEFAULTS.destroySleepSeconds),
     destroyTimeoutSeconds: parseInteger('DESTROY_TIMEOUT_SECS', process.env.DESTROY_TIMEOUT_SECS || DEFAULTS.destroyTimeoutSeconds),
-    cleanDeployTimeoutSeconds: parseInteger(
-      'CLEAN_DEPLOY_TIMEOUT_SECS',
-      process.env.CLEAN_DEPLOY_TIMEOUT_SECS || DEFAULTS.cleanDeployTimeoutSeconds,
-    ),
   };
 
   const positional = [];
@@ -202,30 +197,8 @@ async function commandExists(command) {
   return code === 0;
 }
 
-async function cleanupStaleKindClusters() {
-  const hasKind = await commandExists('kind').catch(() => false);
-  if (!hasKind) {
-    return;
-  }
-
-  const listCode = await runCommandWithTimeout('List kind clusters', 20, 'kind get clusters');
-  if (listCode !== 0) {
-    return;
-  }
-
-  const clusters = state.lastCommandOutput
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (clusters.includes('solo-cluster')) {
-    log('Deleting stale kind cluster: solo-cluster');
-    await runCommandWithTimeout('Delete stale cluster', 120, 'kind delete cluster --name solo-cluster');
-  }
-}
-
-async function resetToFreshCluster() {
-  log('Resetting environment to a clean state');
+async function deleteCluster() {
+  log('Deleting any existing Kind clusters');
 
   const hasKind = await commandExists('kind').catch(() => false);
   if (hasKind) {
@@ -264,7 +237,7 @@ async function runWithInterrupt(config) {
   logBanner(`Testing interrupt interval ${config.interruptSeconds}s (${label}m)`);
   log(`Starting one-shot deploy; interrupt after ${sleepSeconds}s (base ${label}m, jitter ${jitter}s)`);
 
-  await resetToFreshCluster();
+  await deleteCluster();
 
   let exitCode = await runCommandWithTimeout(
     'Deploy',
@@ -276,22 +249,7 @@ async function runWithInterrupt(config) {
     log(`Deploy exited with ${exitCode} (expected when interrupted).`);
   }
 
-  await cleanupStaleKindClusters();
   await runDestroyWithRetry(config, 'post-interrupt');
-
-  log(`Running clean one-shot deploy (no interrupt) for ${label}m`);
-  exitCode = await runCommandWithTimeout(
-    'Clean deploy',
-    config.cleanDeployTimeoutSeconds,
-    `${config.soloCommand} one-shot single deploy --deployment "${config.deployment}" --quiet-mode`,
-  );
-
-  if (exitCode !== 0) {
-    log(`Clean deploy exited with ${exitCode}.`);
-    await cleanupStaleKindClusters();
-  }
-
-  await runDestroyWithRetry(config, 'post-clean');
   log(`Done for ${label}m`);
 }
 

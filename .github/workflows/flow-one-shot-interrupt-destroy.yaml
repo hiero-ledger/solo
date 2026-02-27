@@ -76,27 +76,6 @@ jobs:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
 
-      - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        with:
-          version: 'v1.27.3'
-        id: install
-
-      - name: Setup Kind
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
-        with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
-
-      - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: "v3.17.1"
-
       - name: Install Dependencies
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
@@ -111,7 +90,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Application
-        run: task build
+        run: task build:compile
 
       - name: Run Interrupt Workflow Script
         timeout-minutes: 60
@@ -133,7 +112,7 @@ jobs:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            npx @hashgraph/solo one-shot single destroy --quiet-mode || true
+            npx @hashgraph/solo one-shot single destroy --quiet-mode
           else
-            npm run solo -- one-shot single destroy --quiet-mode || true
+            npm run solo -- one-shot single destroy --quiet-mode
           fi
