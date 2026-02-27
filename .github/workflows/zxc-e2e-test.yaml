@@ -353,9 +353,9 @@ jobs:
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             if [[ "$RUNNER_OS" != "Windows" ]]; then
-              CG_EXEC=${{ env.CG_EXEC }}
+              EXEC_CG=${{ env.CG_EXEC }}
             fi
-            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${CG_EXEC} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${EXEC_CG} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
@@ -451,6 +451,7 @@ jobs:
 
       - name: Log Metrics
         id: log-metrics
+        if: ${{ always() }}
         shell: bash
         run: |
           export PATH="~/.solo/bin:${PATH}"
