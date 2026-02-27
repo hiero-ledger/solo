@@ -549,7 +549,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                           TopicId.fromString(entityId(realm, shard, 1001)),
                         );
                         await entity1001Query.execute(client);
-                      } catch (error: any) {
+                      } catch (error) {
                         try {
                           if (error.message.includes('INVALID_TOPIC_ID')) {
                             const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
