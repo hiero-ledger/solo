@@ -24,7 +24,7 @@ export class K8ClientCrds implements Crds {
       this.logger.debug(`CRD ${crdName} exists.`);
     } catch (error) {
       if (KubeApiResponse.isNotFound(error)) {
-        this.logger.error(`CRD ${crdName} does not exist.`);
+        this.logger.info(`CRD ${crdName} does not exist.`);
         return false;
       }
       KubeApiResponse.throwError(

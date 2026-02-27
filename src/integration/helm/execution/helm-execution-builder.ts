@@ -6,6 +6,7 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import * as constants from '../../../core/constants.js';
+import path from 'node:path';
 
 @injectable()
 /**
@@ -53,8 +54,16 @@ export class HelmExecutionBuilder {
   /**
    * Creates a new HelmExecutionBuilder instance.
    */
-  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
+  public constructor(
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.HelmInstallationDirectory) private readonly helmInstallationDirectory?: string,
+  ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.helmInstallationDirectory = patchInject(
+      helmInstallationDirectory,
+      InjectTokens.HelmInstallationDirectory,
+      this.constructor.name,
+    );
 
     try {
       this.helmExecutable = constants.HELM;
@@ -164,6 +173,7 @@ export class HelmExecutionBuilder {
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
+    environment['PATH'] = `${this.helmInstallationDirectory}${path.delimiter}${environment['PATH']}`;
 
     return new HelmExecution(command, environment, this.logger);
   }

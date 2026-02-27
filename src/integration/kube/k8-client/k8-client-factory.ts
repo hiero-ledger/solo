@@ -13,14 +13,12 @@ export class K8ClientFactory implements K8Factory {
 
   public constructor(
     @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
-    @inject(InjectTokens.OsPlatform) private readonly platform: string,
   ) {
     this.kubectlInstallationDirectory = patchInject(
       kubectlInstallationDirectory,
       InjectTokens.KubectlInstallationDirectory,
       K8ClientFactory.name,
     );
-    this.platform = patchInject(platform, InjectTokens.OsPlatform, K8ClientFactory.name);
   }
 
   public getK8(context: string): K8 {
