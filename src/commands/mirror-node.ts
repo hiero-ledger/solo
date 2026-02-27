@@ -104,7 +104,7 @@ interface MirrorNodeDeployConfigClass {
   newMirrorNodeComponent: MirrorNodeStateSchema;
   isLegacyChartInstalled: boolean;
   id: number;
-  force: boolean; // Used to bypass version requirements for block node integration
+  forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeDeployContext {
@@ -151,7 +151,7 @@ interface MirrorNodeUpgradeConfigClass {
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
   id: number;
-  force: boolean; // Used to bypass version requirements for block node integration
+  forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeUpgradeContext {
@@ -224,7 +224,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
-      flags.force, // Used to bypass version requirements for block node integration
+      flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -262,7 +262,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.id,
-      flags.force, // Used to bypass version requirements for block node integration
+      flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -282,9 +282,9 @@ export class MirrorNodeCommand extends BaseCommand {
       return '';
     }
 
-    let shouldConfigureMirrorNodeToPullFromBlockNode: boolean = false;
+    let shouldConfigureMirrorNodeToPullFromBlockNode: boolean;
 
-    if (config.force) {
+    if (config.forceBlockNodeIntegration) {
       // Bypass following checks
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
       shouldConfigureMirrorNodeToPullFromBlockNode = true;
@@ -935,7 +935,6 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             const config: MirrorNodeDeployConfigClass = this.configManager.getConfig(
               MirrorNodeCommand.DEPLOY_CONFIGS_NAME,
               allFlags,
-              [],
             ) as MirrorNodeDeployConfigClass;
 
             context_.config = config;
