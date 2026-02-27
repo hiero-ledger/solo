@@ -389,8 +389,10 @@ jobs:
       - name: Run E2E Tests
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        env:
+          PATH: ~/.solo/bin:${PATH}
         run: |
-          set PATH=~/.solo/bin:${PATH}
+          echo "PATH: $PATH"
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -433,6 +435,13 @@ jobs:
           ./.github/workflows/script/monitor-resources.sh stop
           
           exit $TEST_EXIT_CODE
+
+      - name: Run E2E Tests on Windows
+        id: run-e2e-tests
+        if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
+        run: |
+          set PATH=~/.solo/bin;${PATH}
+          ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Log Metrics
         id: log-metrics

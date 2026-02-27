@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {KindExecution} from './kind-execution.js';
+import path from 'node:path';
+import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../../../core/dependency-injection/container-helper.js';
+import {inject, injectable} from 'tsyringe-neo';
 
 /**
  * A builder for creating a kind command execution.
  */
+@injectable()
 export class KindExecutionBuilder {
   private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
   private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
@@ -47,7 +52,15 @@ export class KindExecutionBuilder {
   /**
    * Creates a new KindExecutionBuilder instance.
    */
-  public constructor() {}
+  public constructor(
+    @inject(InjectTokens.KindInstallationDirectory) private readonly kindInstallationDirectory?: string,
+  ) {
+    this.kindInstallationDirectory = patchInject(
+      kindInstallationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      KindExecutionBuilder.name,
+    );
+  }
 
   public executable(kindExecutable: string): KindExecutionBuilder {
     if (!kindExecutable) {
@@ -157,6 +170,7 @@ export class KindExecutionBuilder {
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
+    environment['PATH'] = `${this.kindInstallationDirectory}${path.delimiter}${environment['PATH']}`;
 
     return new KindExecution(command, environment);
   }

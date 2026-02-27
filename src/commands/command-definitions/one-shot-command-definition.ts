@@ -71,6 +71,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
             ),
           ),
       )
@@ -97,6 +98,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
             ),
           ),
       )
@@ -123,7 +125,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
-              [constants.HELM],
+              [constants.HELM, constants.KUBECTL],
             ),
           ),
       )
