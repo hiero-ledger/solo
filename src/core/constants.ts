@@ -376,12 +376,12 @@ export const PODS_READY_DELAY: number = +getEnvironmentVariable('PODS_READY_DELA
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('RELAY_PODS_RUNNING_RUNNING_DELAY') || 1000;
-export const RELAY_PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('RELAY_PODS_READY_MAX_ATTEMPTS') || 900;
+export const RELAY_PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('RELAY_PODS_READY_MAX_ATTEMPTS') || 100;
 export const RELAY_PODS_READY_DELAY: number = +getEnvironmentVariable('RELAY_PODS_READY_DELAY') || 1000;
 export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_DELAY') || 1000;
-export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_MAX_ATTEMPTS') || 900;
+export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
 export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_DELAY') || 60;
 export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_TIMEOUT') || 60;
 
