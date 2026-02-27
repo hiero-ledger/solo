@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
@@ -238,7 +239,7 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += ' --set ingress.enabled=true';
       valuesArgument += ` --set ingressClassName=${config.ingressReleaseName}`;
     }
-    valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
+    valuesArgument += ` --set fullnameOverride=${config.releaseName}-${config.namespace.name}`;
 
     valuesArgument += ` --set proxyPass./api="http://${config.mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
 
@@ -537,9 +538,10 @@ export class ExplorerCommand extends BaseCommand {
     );
   }
 
-  private getIngressReleaseName(): string {
+  private getIngressReleaseName(namespaceName: NamespaceName): string {
     return this.renderIngressReleaseName(
       this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer),
+      namespaceName,
     );
   }
 
@@ -550,24 +552,64 @@ export class ExplorerCommand extends BaseCommand {
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
-  private renderIngressReleaseName(id: ComponentId): string {
+  private renderIngressReleaseName(id: ComponentId, namespaceName: NamespaceName): string {
     if (typeof id !== 'number') {
       throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
-    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
+    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, explorer and relay tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the explorer's config independently of the shared context.
+    let deployConfig: ExplorerDeployConfigClass;
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (deployConfig) {
+            context_.config = deployConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (deployConfig) {
+            context_.config = deployConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<ExplorerDeployContext> = this.taskList.newTaskList<ExplorerDeployContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -586,15 +628,22 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerDeployConfigClass;
 
+            // In concurrent one-shot execution, configManager may have stale data due to
+            // interleaved updates from other sub-commands. Override with argv values directly.
+            if (this.oneShotState.isActive() && argv[flags.explorerVersion.name]) {
+              config.explorerVersion = argv[flags.explorerVersion.name] as string;
+            }
+
             config.isLegacyChartInstalled = false;
 
             context_.config = config;
+            deployConfig = config;
 
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
             config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
+            config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
             const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
               config.namespace,
@@ -616,17 +665,20 @@ export class ExplorerCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.loadRemoteConfigTask(argv),
-        this.installCertManagerTask(),
-        this.installExplorerTask(),
-        this.installExplorerIngressControllerTask(),
-        this.checkExplorerPodIsReadyTask(),
-        this.checkExplorerIngressControllerPodIsReadyTask(),
-        this.addExplorerComponents(),
-        this.enablePortForwardingTask(),
+        restoreConfig(this.loadRemoteConfigTask(argv)),
+        restoreConfig(this.installCertManagerTask()),
+        restoreConfig(this.installExplorerTask()),
+        restoreConfig(this.installExplorerIngressControllerTask()),
+        restoreConfig(this.checkExplorerPodIsReadyTask()),
+        restoreConfig(this.checkExplorerIngressControllerPodIsReadyTask()),
+        restoreConfig(this.addExplorerComponents()),
+        restoreConfig(this.enablePortForwardingTask()),
         // TODO only show this if we are not running in one-shot mode
         // {
         //   title: 'Show user messages',
@@ -647,11 +699,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -665,10 +721,12 @@ export class ExplorerCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -714,7 +772,10 @@ export class ExplorerCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.loadRemoteConfigTask(argv),
@@ -737,11 +798,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -751,14 +816,54 @@ export class ExplorerCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
+    // In one-shot mode, explorer and relay destroy tasks run concurrently and share the same listr2 context.
+    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
+    // This closure variable preserves the explorer's config independently of the shared context.
+    let destroyConfig: ExplorerDestroyContext['config'];
+
+    // Wraps a task definition to restore the correct config on the shared context before
+    // the task or skip function executes, preventing context collision in concurrent execution.
+    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
+      taskDefinition: SoloListrTask<AnyListrContext>,
+    ): SoloListrTask<AnyListrContext> => {
+      if (!this.oneShotState.isActive()) {
+        return taskDefinition;
+      }
+      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
+      if (wrapped.task) {
+        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
+        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return (originalTask as (...arguments_: any[]) => any)(context_, task);
+        };
+      }
+      if (typeof wrapped.skip === 'function') {
+        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
+        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
+          if (destroyConfig) {
+            context_.config = destroyConfig;
+          }
+          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
+            context_,
+          );
+        };
+      }
+      return wrapped;
+    };
+
     const tasks: SoloListr<ExplorerDestroyContext> = this.taskList.newTaskList<ExplorerDestroyContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<AnyListrContext> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -790,13 +895,18 @@ export class ExplorerCommand extends BaseCommand {
               isLegacyChartInstalled,
             };
 
+            destroyConfig = context_.config;
+
             await this.throwIfNamespaceIsMissing(clusterContext, namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.loadRemoteConfigTask(argv),
-        {
+        restoreConfig(this.loadRemoteConfigTask(argv)),
+        restoreConfig({
           title: 'Destroy explorer',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(
@@ -806,8 +916,8 @@ export class ExplorerCommand extends BaseCommand {
             );
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
-        },
-        {
+        }),
+        restoreConfig({
           title: 'Uninstall explorer ingress controller',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(context_.config.namespace, context_.config.ingressReleaseName);
@@ -825,8 +935,8 @@ export class ExplorerCommand extends BaseCommand {
               }
             });
           },
-        },
-        this.disableMirrorNodeExplorerComponents(),
+        }),
+        restoreConfig(this.disableMirrorNodeExplorerComponents()),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -839,11 +949,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error destroy explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -943,7 +1057,7 @@ export class ExplorerCommand extends BaseCommand {
     return {
       id,
       releaseName,
-      ingressReleaseName: this.renderIngressReleaseName(id),
+      ingressReleaseName: this.renderIngressReleaseName(id, namespace),
       isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
       isLegacyChartInstalled,
     };
