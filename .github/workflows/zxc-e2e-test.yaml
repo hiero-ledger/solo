@@ -303,7 +303,7 @@ jobs:
         run: task build:compile
 
       - name: Pull Kind Docker Image
-        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' }}
+        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && inputs.kind-install == true && !cancelled() && !failure() }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Setup Java
@@ -348,6 +348,7 @@ jobs:
         with:
           max_attempts: 3
           timeout_minutes: 10
+          shell: bash
           command: |
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
@@ -445,10 +446,10 @@ jobs:
 
       - name: Log Metrics
         id: log-metrics
-        if: ${{ inputs.runner != 'windows-latest' }}
+        shell: bash
         run: |
           echo "json_log={}" >> $GITHUB_OUTPUT
-          
+           
           # Ensure logs directory exists
           mkdir -p ~/.solo/logs
           
