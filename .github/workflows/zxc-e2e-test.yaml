@@ -437,7 +437,7 @@ jobs:
           exit $TEST_EXIT_CODE
 
       - name: Run E2E Tests on Windows
-        id: run-e2e-tests
+        id: run-e2e-tests-windows
         if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
         run: |
           set PATH=~/.solo/bin;${PATH}
