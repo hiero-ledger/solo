@@ -57,7 +57,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.add,
               RelayCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -67,7 +67,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.destroy,
               RelayCommand.DESTROY_FLAGS_LIST,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -77,7 +77,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.upgrade,
               RelayCommand.UPGRADE_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )

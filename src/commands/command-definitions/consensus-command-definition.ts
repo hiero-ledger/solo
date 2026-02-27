@@ -114,7 +114,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.networkCommand,
                 this.networkCommand.deploy,
                 NetworkCommand.DEPLOY_FLAGS_LIST,
-                [constants.HELM, constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -124,7 +124,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.networkCommand,
                 this.networkCommand.destroy,
                 NetworkCommand.DESTROY_FLAGS_LIST,
-                [constants.HELM, constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -144,7 +144,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.upgrade,
                 NodeFlags.UPGRADE_FLAGS,
-                [constants.HELM, constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             ),
         )
@@ -171,7 +171,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.start,
                 NodeFlags.START_FLAGS,
-                [constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -181,7 +181,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.stop,
                 NodeFlags.STOP_FLAGS,
-                [constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -191,7 +191,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.restart,
                 NodeFlags.RESTART_FLAGS,
-                [constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -211,7 +211,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.add,
                 NodeFlags.ADD_FLAGS,
-                [constants.HELM, constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -221,7 +221,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.update,
                 NodeFlags.UPDATE_FLAGS,
-                [constants.HELM, constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -231,7 +231,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.destroy,
                 NodeFlags.DESTROY_FLAGS,
-                [constants.HELM],
+                [...constants.BASE_DEPENDENCIES],
               ),
             )
             .addSubcommand(
@@ -242,7 +242,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.collectJavaFlightRecorderLogs,
                 NodeFlags.COLLECT_JFR_FLAGS,
-                [constants.HELM, constants.KUBECTL],
+                [...constants.BASE_DEPENDENCIES],
               ),
             ),
         )

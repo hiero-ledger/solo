@@ -24,6 +24,7 @@ import {promisify} from 'node:util';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../src/core/constants.js';
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import path from 'node:path';
 
 const execAsync = promisify(exec);
 
@@ -41,7 +42,9 @@ describe('KindClient Integration Tests', function () {
 
     // Save original kubectl context if it exists
     try {
-      const {stdout} = await execAsync('kubectl config current-context');
+      const {stdout} = await execAsync('kubectl config current-context', {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       originalKubeConfigContext = stdout.trim();
       console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
     } catch {
@@ -90,7 +93,9 @@ describe('KindClient Integration Tests', function () {
     if (originalKubeConfigContext) {
       try {
         console.log(`Restoring original kubectl context: ${originalKubeConfigContext}`);
-        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`);
+        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`, {
+          env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+        });
       } catch (error) {
         console.error('Error restoring kubectl context:', error);
       }
