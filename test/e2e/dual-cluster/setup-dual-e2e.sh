@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+
+task build:compile
+# install dependencies in case they haven't been installed yet, and cache args for subsequent commands
+npm run solo -- init || exit 1
+set PATH=~/.solo/bin:${PATH}
+
 ##### Setup Environment #####
 SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 readonly SCRIPT_PATH
@@ -26,13 +32,13 @@ elif [[ "${SOLO_CLUSTER_DUALITY}" -gt 2 ]]; then
 fi
 
 KIND_VERSION=$(kind --version | awk '{print $3}')
-echo "Using Kind version: ${KIND_VERSION}"
+echo "Using Kind version: ${KIND_VERSION}, $(which kind)}"
 DOCKER_VERSION=$(docker --version | awk '{print $3}' | sed 's/,//')
-echo "Using Docker version: ${DOCKER_VERSION}"
+echo "Using Docker version: ${DOCKER_VERSION}, $(which docker)"
 HELM_VERSION=$(helm version --short | sed 's/v//')
-echo "Using Helm version: ${HELM_VERSION}"
+echo "Using Helm version: ${HELM_VERSION}, $(which helm)"
 KUBECTL_VERSION=$(kubectl version --client=true | grep Client | awk '{print $3}' | sed 's/v//')
-echo "Using Kubectl version: ${KUBECTL_VERSION}"
+echo "Using Kubectl version: ${KUBECTL_VERSION}, $(which kubectl)"
 TASK_VERSION=$(task --version | awk '{print $3}')
 echo "Using Task version: ${TASK_VERSION}"
 NODE_VERSION=$(node --version | sed 's/v//')
@@ -90,8 +96,6 @@ done
 # --chart-dir ${SOLO_CHARTS_DIR} is optional, if you want to use a local chart, it will be ignored if not set
 # **********************************************************************************************************************
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
-task build
-npm run solo -- init || exit 1 # cache args for subsequent commands
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c${i}"
