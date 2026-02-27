@@ -41,6 +41,7 @@ import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
 import {SemVer} from 'semver';
+import {createHash} from 'node:crypto';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -556,7 +557,27 @@ export class ExplorerCommand extends BaseCommand {
     if (typeof id !== 'number') {
       throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
-    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
+    const maxHelmReleaseNameLength = 53;
+    const baseReleaseName: string = `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
+    if (baseReleaseName.length <= maxHelmReleaseNameLength) {
+      return baseReleaseName;
+    }
+
+    // Keep names deterministic and short enough for Helm while preserving readability.
+    const hashSuffixLength = 8;
+    const namespaceHash: string = createHash('sha256')
+      .update(namespaceName.name)
+      .digest('hex')
+      .slice(0, hashSuffixLength);
+    const prefix: string = `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
+    const availableNamespaceLength: number =
+      maxHelmReleaseNameLength - prefix.length - 1 - hashSuffixLength - 1; /* - */
+    if (availableNamespaceLength <= 0) {
+      return `${prefix}-${namespaceHash}`;
+    }
+
+    const shortenedNamespace: string = namespaceName.name.slice(0, availableNamespaceLength);
+    return `${prefix}-${shortenedNamespace}-${namespaceHash}`;
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {

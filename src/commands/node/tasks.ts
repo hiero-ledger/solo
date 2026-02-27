@@ -1754,21 +1754,39 @@ export class NodeCommandTasks {
             .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
 
           if (pods.length === 0) {
-            throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
+            throw new SoloError('No HAProxy pods found');
           }
 
-          await this.remoteConfig.configuration.components.managePortForward(
-            undefined,
-            pods[0].podReference,
-            constants.GRPC_PORT, // Pod port
-            constants.GRPC_PORT, // Local port
-            this.k8Factory.getK8(config.clusterContext),
-            this.logger,
-            ComponentTypes.ConsensusNode,
-            'Consensus Node gRPC',
-            config.isChartInstalled, // Reuse existing port if chart is already installed
-            Templates.nodeIdFromNodeAlias(nodeAlias),
-          );
+          for (const pod of pods) {
+            const podReference: PodReference = pod.podReference;
+            const nodeIdLabel: string | undefined = pod.labels?.['solo.hedera.com/node-id'];
+            let nodeId: number;
+
+            if (nodeIdLabel !== undefined && Number.isInteger(Number(nodeIdLabel))) {
+              nodeId = Number(nodeIdLabel);
+            } else {
+              const podName: string = podReference.name.toString();
+              const match: RegExpMatchArray | null = podName.match(/^haproxy-(node\d+)-/);
+              if (!match) {
+                this.logger.warn(`Skipping HAProxy pod with unknown node alias format: ${podName}`);
+                continue;
+              }
+              nodeId = Templates.nodeIdFromNodeAlias(match[1] as NodeAlias);
+            }
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              undefined,
+              podReference,
+              constants.GRPC_PORT, // Pod port
+              constants.GRPC_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
+              this.k8Factory.getK8(config.clusterContext),
+              this.logger,
+              ComponentTypes.HaProxy,
+              'Consensus Node gRPC',
+              config.isChartInstalled, // Reuse existing port if chart is already installed
+              nodeId,
+            );
+          }
           await this.remoteConfig.persist();
         }
       },
