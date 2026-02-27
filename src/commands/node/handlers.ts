@@ -49,10 +49,10 @@ export class NodeCommandHandlers extends CommandHandler {
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
   }
 
-  private static readonly ADD_CONTEXT_FILE = 'node-add.json';
-  private static readonly DESTROY_CONTEXT_FILE = 'node-destroy.json';
-  private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
-  private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
+  private static readonly ADD_CONTEXT_FILE: string = 'node-add.json';
+  private static readonly DESTROY_CONTEXT_FILE: string = 'node-destroy.json';
+  private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
+  private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
 
   /** ******** Task Lists **********/
 
@@ -460,7 +460,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.destroySubmitTransactionsTaskList(),
         ...this.destroyExecuteTaskList(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       'Error in destroying nodes',
       leaseWrapper.lease,
     );
@@ -1010,22 +1010,18 @@ export class NodeCommandHandlers extends CommandHandler {
     } catch {
       throw new SoloError(`${nodeAlias} not found in remote config`);
     }
-
-    // TODO: Enable once the states have been mapped
+    // TODO: Enable once states have been mapped
     // if (acceptedPhases && !acceptedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `accepted states: ${acceptedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
     //
     // if (excludedPhases && excludedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `excluded states: ${excludedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
-
     return nodeComponent.metadata.phase;
   }
 

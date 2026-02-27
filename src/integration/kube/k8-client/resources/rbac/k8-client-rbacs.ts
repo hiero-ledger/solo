@@ -48,4 +48,58 @@ export class K8ClientRbacs implements Rbacs {
       KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.RBAC, undefined, name);
     }
   }
+
+  public async clusterRoleBindingExists(name: string): Promise<boolean> {
+    try {
+      await this.k8sRbacApi.readClusterRoleBinding({name});
+      return true;
+    } catch (error) {
+      if (KubeApiResponse.isNotFound(error)) {
+        return false;
+      }
+      KubeApiResponse.throwError(error, ResourceOperation.READ, ResourceType.RBAC, undefined, name);
+    }
+  }
+
+  public async deleteClusterRoleBinding(name: string): Promise<void> {
+    try {
+      await this.k8sRbacApi.deleteClusterRoleBinding({name});
+    } catch (error) {
+      KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.RBAC, undefined, name);
+    }
+  }
+
+  public async setHelmOwnership(name: string, releaseName: string, releaseNamespace: string): Promise<void> {
+    const annotations: Record<string, string> = {
+      'meta.helm.sh/release-name': releaseName,
+      'meta.helm.sh/release-namespace': releaseNamespace,
+    };
+    const labels: Record<string, string> = {
+      'app.kubernetes.io/managed-by': 'Helm',
+    };
+
+    try {
+      const clusterRole = await this.k8sRbacApi.readClusterRole({name});
+      clusterRole.metadata ??= {};
+      clusterRole.metadata.annotations = {...clusterRole.metadata.annotations, ...annotations};
+      clusterRole.metadata.labels = {...clusterRole.metadata.labels, ...labels};
+      await this.k8sRbacApi.replaceClusterRole({name, body: clusterRole});
+    } catch (error) {
+      if (!KubeApiResponse.isNotFound(error)) {
+        KubeApiResponse.throwError(error, ResourceOperation.REPLACE, ResourceType.RBAC, undefined, name);
+      }
+    }
+
+    try {
+      const clusterRoleBinding = await this.k8sRbacApi.readClusterRoleBinding({name});
+      clusterRoleBinding.metadata ??= {};
+      clusterRoleBinding.metadata.annotations = {...clusterRoleBinding.metadata.annotations, ...annotations};
+      clusterRoleBinding.metadata.labels = {...clusterRoleBinding.metadata.labels, ...labels};
+      await this.k8sRbacApi.replaceClusterRoleBinding({name, body: clusterRoleBinding});
+    } catch (error) {
+      if (!KubeApiResponse.isNotFound(error)) {
+        KubeApiResponse.throwError(error, ResourceOperation.REPLACE, ResourceType.RBAC, undefined, name);
+      }
+    }
+  }
 }

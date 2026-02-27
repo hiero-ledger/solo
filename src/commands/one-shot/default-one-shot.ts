@@ -17,7 +17,7 @@ import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-cl
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
-import {confirm as confirmPrompt} from '@inquirer/prompts';
+import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
@@ -806,7 +806,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         createDirectoryIfNotExists(outputFile);
 
         // Format account data in the same way as it appears in the console output
-        const formattedCreatedAccounts = createdAccounts.map(account => {
+        const formattedCreatedAccounts: {
+          accountId: string;
+          privateKey: string;
+          publicKey: string;
+          balance: string;
+          group: string;
+          publicAddress?: string;
+        }[] = createdAccounts.map(account => {
           const formattedAccount = {
             accountId: account.accountId.toString(),
             privateKey: `0x${account.data.privateKey.toStringRaw()}`,
@@ -824,12 +831,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         });
 
         // Format system accounts data
-        const formattedSystemAccounts = systemAccounts.map(account => ({
-          name: account.name,
-          accountId: account.accountId.toString(),
-          publicKey: account.publicKey.toString(),
-          privateKey: account.privateKey,
-        }));
+        const formattedSystemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[] =
+          systemAccounts.map(account => ({
+            name: account.name,
+            accountId: account.accountId.toString(),
+            publicKey: account.publicKey.toString(),
+            privateKey: account.privateKey,
+          }));
 
         // Create the structured output with both systemAccounts and createdAccounts
         const outputData = {
@@ -869,13 +877,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDestroyConfigClass;
+    let remoteConfigLoaded: boolean = false;
     let oneShotLease: Lock | undefined;
 
     // don't make remote config call if deployment is not set or it will fail
     let hasExplorers: boolean = false;
     let hasRelays: boolean = false;
 
-    const taskArray = [
+    const taskArray: any[] = [
       {
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
@@ -899,20 +908,61 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
+          if (!config.deployment) {
+            const deployments = this.localConfig.configuration.deployments;
+            if (deployments.length === 0) {
+              throw new SoloError('Deployments name is not found in local config');
+            }
+
+            if (deployments.length > 1) {
+              const selectedDeployment: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: 'Select deployment to destroy',
+                choices: deployments.map((deployment: any) => {
+                  const clusterNames: string[] = (deployment.clusters ?? [])
+                    .map((cluster: any) => cluster?.toString())
+                    .filter(Boolean);
+                  return {
+                    name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames || 'unknown'})`,
+                    value: deployment.name,
+                  };
+                }),
+              })) as string;
+
+              if (!selectedDeployment) {
+                throw new SoloError('Deployment selection cannot be empty');
+              }
+
+              config.deployment = selectedDeployment;
+            } else {
+              // Only one deployment exists, use it directly
+              const deployment = deployments.get(0);
+              if (!deployment || !deployment.name) {
+                throw new SoloError('Invalid deployment configuration: deployment name is missing');
+              }
+              config.deployment = deployment.name;
+            }
+
+            this.configManager.setFlag(flags.deployment, config.deployment);
+          }
+
+          const selectedDeployment: any = this.localConfig.configuration.deployments.find(
+            (deployment: any) => deployment.name === config.deployment,
+          );
+          if (selectedDeployment?.clusters?.length) {
+            const firstCluster: any = selectedDeployment.clusters?.find(
+              (cluster: any) => cluster !== null && cluster !== undefined,
+            );
+            if (firstCluster) {
+              config.clusterRef ??= firstCluster.toString();
+            }
+          }
+
           config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
 
           config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
 
-          if (!config.deployment) {
-            if (this.localConfig.configuration.deployments.length === 0) {
-              this.logger.showUser('No deployments found in local config, have they already been deleted?');
-              return;
-            }
-            config.deployment = this.localConfig.configuration.deployments.get(0).name;
-            this.configManager.setFlag(flags.deployment, config.deployment);
-          }
-
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+          remoteConfigLoaded = await this.loadRemoteConfigOrWarn(argv);
           await this.remoteConfig.loadAndValidate(argv);
 
           hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
@@ -931,7 +981,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         task: async (
           context_: OneShotSingleDeployContext,
           task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): Promise<Listr<OneShotSingleDeployContext>> => {
+        ): Promise<Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue>> => {
           const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
             invokeSoloCommand(
               `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
@@ -981,6 +1031,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           // set up the sub-tasks
           return task.newListr(subTasks, {
             concurrent: true,
+            exitOnError: false,
             rendererOptions: {
               collapseSubtasks: false,
             },
@@ -1032,7 +1083,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         (): boolean =>
           !config.deployment ||
           constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-          this.remoteConfig.configuration.components.state.blockNodes.length === 0,
+          (remoteConfigLoaded && this.remoteConfig.configuration.components.state.blockNodes.length === 0),
       ),
       invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
@@ -1112,7 +1163,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
-    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DESTROY);
 
     try {
       await tasks.run();
@@ -1167,7 +1218,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             await this.localConfig.load();
             const deployments = this.localConfig.configuration.deployments;
             if (deployments.length === 1) {
-              context_.deploymentName = deployments[0].name;
+              context_.deploymentName = deployments.get(0).name;
               this.logger.showUser(
                 chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (single local deployment)`),
               );
@@ -1289,7 +1340,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return;
               }
 
-              const remoteConfigData = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
+              const remoteConfigData: any = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
               context_.remoteConfig = remoteConfigData;
             } catch (error) {
               this.logger.showUser(chalk.yellow(`\n⚠️  Unable to fetch remote configuration: ${error.message}`));
@@ -1298,7 +1349,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         {
           title: 'Display deployment information',
-          task: async (context_, _task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
             // Show versions
@@ -1311,13 +1362,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.showUser(`  Block Node Version: ${chalk.bold(version.BLOCK_NODE_VERSION)}`);
 
             if (context_.remoteConfig) {
-              const components = context_.remoteConfig.components?.state;
+              const components: any = context_.remoteConfig.components?.state;
 
               if (components) {
                 this.logger.showUser(chalk.cyan('\nDeployed Components:'));
 
                 if (components.consensusNodes && components.consensusNodes.length > 0) {
-                  const nodeNames = components.consensusNodes.map(n => n.name).join(', ');
+                  const nodeNames: string = components.consensusNodes.map(n => n.name).join(', ');
                   this.logger.showUser(
                     `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`,
                   );
@@ -1352,17 +1403,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             // Show information about where files are stored
-            const outputDirectory = this.getOneShotOutputDirectory(context_.deploymentName);
+            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
 
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
 
             if (fs.existsSync(outputDirectory)) {
               this.logger.showUser(`Output directory: ${chalk.bold(outputDirectory)}`);
 
-              const notesFile = PathEx.join(outputDirectory, 'notes');
-              const versionsFile = PathEx.join(outputDirectory, 'versions');
-              const forwardsFile = PathEx.join(outputDirectory, 'forwards');
-              const accountsFile = PathEx.join(outputDirectory, 'accounts.json');
+              const notesFile: string = PathEx.join(outputDirectory, 'notes');
+              const versionsFile: string = PathEx.join(outputDirectory, 'versions');
+              const forwardsFile: string = PathEx.join(outputDirectory, 'forwards');
+              const accountsFile: string = PathEx.join(outputDirectory, 'accounts.json');
 
               if (fs.existsSync(notesFile)) {
                 this.logger.showUser(`  ${chalk.green('✓')} Notes: ${notesFile}`);

@@ -91,6 +91,7 @@ solo one-shot falcon deploy --values-file falcon-values.yaml --deploy-explorer=f
 ```
 
 This is useful for:
+
 * Testing specific components in isolation
 * Reducing resource usage during development
 * Customizing deployment for specific testing scenarios

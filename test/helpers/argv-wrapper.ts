@@ -69,7 +69,7 @@ export class Argv implements CloneTrait<Argv> {
   }
 
   /** Get argv with defaults */
-  public static getDefaultArgv(namespace: NamespaceName): Argv {
+  public static getDefaultArgv(namespace: NamespaceName, testName?: string): Argv {
     const argv: Argv = new Argv();
 
     for (const f of flags.allFlags) {
@@ -78,7 +78,7 @@ export class Argv implements CloneTrait<Argv> {
 
     const currentDeployment: string =
       argv.getArg(flags.deployment) || `${namespace?.name || argv.getArg<NamespaceName>(flags.namespace)}-deployment`;
-    const cacheDirectory: string = getTestCacheDirectory();
+    const cacheDirectory: string = getTestCacheDirectory(testName);
     argv.cacheDir = cacheDirectory;
     argv.setArg(flags.cacheDir, cacheDirectory);
     argv.deployment = currentDeployment;
