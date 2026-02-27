@@ -123,21 +123,21 @@ jobs:
           files: "junit.xml"
 
       - name: Publish Unit Test Coverage Report
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ runner.os == 'linux' && !cancelled() }}
         with:
           name: Unit_Tests_Coverage_Report
           path: 'coverage/unit'
 
       - name: Publish HelmClient Unit Test Coverage Report
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ runner.os == 'linux' && !cancelled() }}
         with:
           name: Unit_Helm_Tests_Coverage_Report
           path: 'coverage/unit-helm'
 
       - name: Publish Test Reports
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: Test Reports
