@@ -60,7 +60,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM, constants.KUBECTL, constants.KIND],
               true,
             ),
           )
@@ -86,7 +86,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM, constants.KUBECTL, constants.KIND],
               true,
             ),
           )
@@ -112,7 +112,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM, constants.KUBECTL, constants.KIND],
               true,
             ),
           )
