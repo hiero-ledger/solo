@@ -228,6 +228,7 @@ jobs:
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         run: |
           # Configure APT to use main Ubuntu archive (disable mirror rotation)
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
@@ -243,6 +244,7 @@ jobs:
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install wget
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         run: |
           if ! command -v wget >/dev/null 2>&1; then
             sudo apt-get update
@@ -318,6 +320,7 @@ jobs:
           cache-read-only: false
 
       - name: Create Diagnostic Script
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
         run: |
@@ -385,6 +388,7 @@ jobs:
 
       - name: Run E2E Tests
         id: run-e2e-tests
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         run: |
           set PATH=~/.solo/bin:${PATH}
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
@@ -432,7 +436,7 @@ jobs:
 
       - name: Log Metrics
         id: log-metrics
-        if: always()
+        if: ${{ inputs.runner != 'windows-latest' }}
         run: |
           echo "json_log={}" >> $GITHUB_OUTPUT
           
@@ -464,7 +468,7 @@ jobs:
 
       - name: Generate ASCII Resource Chart
         id: generate-chart
-        if: ${{ always() }}
+        if: ${{ inputs.runner != 'windows-latest' }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
@@ -489,7 +493,7 @@ jobs:
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ always() && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -529,7 +533,7 @@ jobs:
 
       - name: Comment PR with Log Metrics
         if: >-
-          ${{ always() && !cancelled() && github.event_name == 'pull_request' && 
+          ${{ inputs.runner != 'windows-latest' && !cancelled() && github.event_name == 'pull_request' && 
           steps.log-metrics-file.conclusion == 'success' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
