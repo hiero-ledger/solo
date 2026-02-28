@@ -27,21 +27,31 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.PodmanDependenciesInstallationDirectory)
     protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
     @inject(InjectTokens.GvproxyVersion) protected readonly gvproxyVersion: string,
   ) {
+    super(
+      patchInject(downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name),
+      patchInject(
+        installationDirectory,
+        InjectTokens.PodmanDependenciesInstallationDirectory,
+        GvproxyDependencyManager.name,
+      ),
+      patchInject(osArch, InjectTokens.OsArch, GvproxyDependencyManager.name),
+      patchInject(gvproxyVersion, InjectTokens.GvproxyVersion, GvproxyDependencyManager.name) ||
+        version.GVPROXY_VERSION,
+      constants.GVPROXY,
+      '',
+    );
     // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
+    this.installationDirectory = patchInject(
+      this.installationDirectory,
       InjectTokens.PodmanDependenciesInstallationDirectory,
       GvproxyDependencyManager.name,
     );
-    osArch = patchInject(osArch, InjectTokens.OsArch, GvproxyDependencyManager.name);
-    gvproxyVersion = patchInject(gvproxyVersion, InjectTokens.GvproxyVersion, GvproxyDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name);
-
-    // Call the base constructor with the gvproxy-specific parameters
-    super(downloader, installationDirectory, osArch, gvproxyVersion || version.GVPROXY_VERSION, constants.GVPROXY, '');
+    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, GvproxyDependencyManager.name);
+    this.gvproxyVersion = patchInject(this.gvproxyVersion, InjectTokens.GvproxyVersion, GvproxyDependencyManager.name);
+    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name);
   }
 
   /**

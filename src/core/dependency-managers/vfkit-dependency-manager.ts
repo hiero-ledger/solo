@@ -25,21 +25,30 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.PodmanDependenciesInstallationDirectory)
     protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
     @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
   ) {
+    super(
+      patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name),
+      patchInject(
+        installationDirectory,
+        InjectTokens.PodmanDependenciesInstallationDirectory,
+        VfkitDependencyManager.name,
+      ),
+      patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name),
+      patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name) || version.VFKIT_VERSION,
+      constants.VFKIT,
+      '',
+    );
     // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
+    this.installationDirectory = patchInject(
+      this.installationDirectory,
       InjectTokens.PodmanDependenciesInstallationDirectory,
       VfkitDependencyManager.name,
     );
-    osArch = patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
-    vfkitVersion = patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name);
-
-    // Call the base constructor with the vfkit-specific parameters
-    super(downloader, installationDirectory, osArch, vfkitVersion || version.VFKIT_VERSION, constants.VFKIT, '');
+    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
+    this.vfkitVersion = patchInject(this.vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name);
+    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name);
   }
 
   public override getVerifyChecksum(): boolean {

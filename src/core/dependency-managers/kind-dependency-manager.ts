@@ -21,28 +21,26 @@ export class KindDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.KindInstallationDirectory) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
     @inject(InjectTokens.KindVersion) protected readonly kindVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.KindInstallationDirectory,
-      KindDependencyManager.name,
-    );
-    osArch = patchInject(osArch, InjectTokens.OsArch, KindDependencyManager.name);
-    kindVersion = patchInject(kindVersion, InjectTokens.KindVersion, KindDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, KindDependencyManager.name);
-
-    // Call the base constructor with the Kind-specific parameters
     super(
-      downloader,
-      installationDirectory,
-      osArch,
-      kindVersion || version.KIND_VERSION,
+      patchInject(downloader, InjectTokens.PackageDownloader, KindDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.KindInstallationDirectory, KindDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, KindDependencyManager.name),
+      patchInject(kindVersion, InjectTokens.KindVersion, KindDependencyManager.name) || version.KIND_VERSION,
       constants.KIND,
       KIND_RELEASE_BASE_URL,
     );
+    // Patch injected values to handle undefined values
+    this.installationDirectory = patchInject(
+      this.installationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      KindDependencyManager.name,
+    );
+    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, KindDependencyManager.name);
+    this.kindVersion = patchInject(this.kindVersion, InjectTokens.KindVersion, KindDependencyManager.name);
+    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, KindDependencyManager.name);
   }
 
   /**

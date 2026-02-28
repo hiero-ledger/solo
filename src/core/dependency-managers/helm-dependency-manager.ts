@@ -23,33 +23,30 @@ const HELM_ARTIFACT_TEMPLATE: string = 'helm-%s-%s-%s.%s';
 @injectable()
 export class HelmDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) downloader?: PackageDownloader,
-    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
-    @inject(InjectTokens.HelmInstallationDirectory) installationDirectory?: string,
-    @inject(InjectTokens.OsArch) osArch?: string,
-    @inject(InjectTokens.HelmVersion) helmVersion?: string,
+    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.HelmInstallationDirectory) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
+    @inject(InjectTokens.HelmVersion) private readonly helmVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.HelmInstallationDirectory,
-      HelmDependencyManager.name,
-    );
-    osArch = patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name);
-    helmVersion = patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name);
-
-    // Call the base constructor with the Helm-specific parameters
     super(
-      downloader,
-      installationDirectory,
-      osArch,
-      helmVersion || version.HELM_VERSION,
+      patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.HelmInstallationDirectory, HelmDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name),
+      patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name) || version.HELM_VERSION,
       constants.HELM,
       HELM_RELEASE_BASE_URL,
     );
-
-    this.zippy = patchInject(zippy, InjectTokens.Zippy, HelmDependencyManager.name);
+    // Patch injected values to handle undefined values
+    this.installationDirectory = patchInject(
+      this.installationDirectory,
+      InjectTokens.HelmInstallationDirectory,
+      HelmDependencyManager.name,
+    );
+    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, HelmDependencyManager.name);
+    this.helmVersion = patchInject(this.helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name);
+    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name);
+    this.zippy = patchInject(this.zippy, InjectTokens.Zippy, HelmDependencyManager.name);
   }
 
   /**

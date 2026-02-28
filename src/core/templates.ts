@@ -158,7 +158,7 @@ export class Templates {
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
   }
 
-  public static soloHomeBinExecutableForDependency(
+  public static localInstallationExecutableForDependency(
     dependency: string,
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ): string {
