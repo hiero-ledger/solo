@@ -488,7 +488,7 @@ deleteme.yaml
 /test/data/proto/services/
 /test/data/proto/streams/
 /docs/site/content/en/docs/solo-commands.md
-/docs/site/content/en/docs/step-by-step-guide.md
+/docs/site/content/en/docs/solo-user-guide.md
 /docs/site/content/en/docs/advanced-deployments.md
 /examples/running-solo-inside-cluster/.task-tmp
 /.codacy/cli.sh

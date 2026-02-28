@@ -11,7 +11,7 @@ description: Deploy and manage Hiero networks with ease
     An opinionated CLI tool to deploy and manage standalone Hiero Ledger test networks locally or in the cloud
   </p>
   <div class="d-flex flex-wrap justify-content-center gap-3 mb-4">
-    <a class="hero-btn hero-btn-primary" href="docs/step-by-step-guide/">
+    <a class="hero-btn hero-btn-primary" href="docs/solo-user-guide/">
       <i class="fas fa-rocket me-2"></i>Get Started
     </a>
     <a class="hero-btn hero-btn-secondary" href="docs/">
@@ -130,7 +130,7 @@ comprehensive documentation, and sensible defaults. Get a working network in min
     Join developers building on Hiero with Solo's powerful deployment tools
   </p>
   <div class="d-flex flex-wrap justify-content-center gap-3">
-    <a class="cta-btn cta-btn-primary" href="docs/step-by-step-guide/">
+    <a class="cta-btn cta-btn-primary" href="docs/solo-user-guide/">
       <i class="fas fa-rocket me-2"></i>Get Started Now
     </a>
     <a class="cta-btn cta-btn-secondary" href="examples">

@@ -281,51 +281,6 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    return {
-      title: 'Install Grafana Agent chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isGrafanaAgentInstalled = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context_.config.context,
-        );
-
-        if (isGrafanaAgentInstalled) {
-          this.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
-        } else {
-          try {
-            await this.chartManager.install(
-              clusterSetupNamespace,
-              constants.GRAFANA_AGENT_RELEASE_NAME,
-              constants.GRAFANA_AGENT_CHART,
-              constants.GRAFANA_AGENT_CHART,
-              versions.GRAFANA_AGENT_VERSION,
-              '',
-              context_.config.context,
-            );
-            this.logger.showUser('✅ Grafana Agent chart installed successfully');
-          } catch (error) {
-            this.logger.debug('Error installing Grafana Agent chart', error);
-            try {
-              await this.chartManager.uninstall(
-                clusterSetupNamespace,
-                constants.GRAFANA_AGENT_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloError('Error installing Grafana Agent chart', error);
-          }
-        }
-      },
-      skip: context_ => !context_.config.deployGrafanaAgent,
-    };
-  }
-
   public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install pod-monitor-role ClusterRole',
@@ -407,12 +362,6 @@ export class ClusterCommandTasks {
           subtasks.push(this.installPrometheusStack(argv));
         }
 
-        if (context_.config.deployGrafanaAgent) {
-          subtasks.push(this.installGrafanaAgent(argv));
-        } else {
-          console.log('Skipping Grafana Agent chart installation');
-        }
-
         const result = await task.newListr(subtasks, {concurrent: false});
 
         if (argv.dev) {
@@ -473,26 +422,6 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    return {
-      title: 'Uninstall Grafana Agent chart',
-      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const isGrafanaAgentInstalled: boolean = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context,
-        );
-
-        if (isGrafanaAgentInstalled) {
-          await this.chartManager.uninstall(clusterSetupNamespace, constants.GRAFANA_AGENT_RELEASE_NAME, context);
-          this.logger.showUser('✅ Grafana Agent chart uninstalled successfully');
-        } else {
-          this.logger.showUser('⏭️  Grafana Agent chart not installed, skipping');
-        }
-      },
-    };
-  }
-
   public uninstallClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall cluster charts',
@@ -518,12 +447,7 @@ export class ClusterCommandTasks {
         }
 
         return task.newListr(
-          [
-            this.uninstallGrafanaAgent(argv),
-            this.uninstallPrometheusStack(argv),
-            this.uninstallMinioOperator(argv),
-            this.uninstallPodMonitorRole(argv),
-          ],
+          [this.uninstallPrometheusStack(argv), this.uninstallMinioOperator(argv), this.uninstallPodMonitorRole(argv)],
           {concurrent: false},
         );
       },

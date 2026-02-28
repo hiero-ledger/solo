@@ -114,11 +114,6 @@ export const PROMETHEUS_STACK_CHART_URL: string =
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
 export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
 
-export const GRAFANA_AGENT_CHART_URL: string =
-  getEnvironmentVariable('GRAFANA_AGENT_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
-export const GRAFANA_AGENT_CHART: string = 'grafana-agent';
-export const GRAFANA_AGENT_RELEASE_NAME: string = 'grafana-agent';
-
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
 export const MINIO_OPERATOR_CHART_URL: string =
@@ -191,7 +186,6 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(JSON_RPC_RELAY_CHART, JSON_RPC_RELAY_CHART_URL)
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
-  .set(GRAFANA_AGENT_RELEASE_NAME, GRAFANA_AGENT_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
