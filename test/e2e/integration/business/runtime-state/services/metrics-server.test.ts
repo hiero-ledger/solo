@@ -9,9 +9,9 @@ import {type AggregatedMetrics} from '../../../../../../src/business/runtime-sta
 import {HelmMetricsServer} from '../../../../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../../../../helpers/helm-metal-load-balancer.js';
 import {Duration} from '../../../../../../src/core/time/duration.js';
-import type {
-  HelmDependencyManager,
-  KubectlDependencyManager,
+import {
+  type HelmDependencyManager,
+  type KubectlDependencyManager,
 } from '../../../../../../src/core/dependency-managers/index.js';
 import {InjectTokens} from '../../../../../../src/core/dependency-injection/inject-tokens.js';
 import {getTemporaryDirectory} from '../../../../../test-utility.js';
