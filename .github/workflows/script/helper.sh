@@ -72,15 +72,15 @@ function log_and_exit()
 
   printf "\r::group::Mirror Importer log dump\n"
   echo "------- BEGIN MIRROR IMPORTER DUMP -------"
-  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log || true
-  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER --previous > importer-prev.log || true
+  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log 2>/dev/null || true
+  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER --previous > importer-prev.log 2>/dev/null || true
   echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Mirror Monitor log dump\n"
   echo "------- BEGIN LOG DUMP -------"
-  kubectl get pods -n "${namespace}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > monitor.log || true
+  kubectl get pods -n "${SOLO_NAMESPACE}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${SOLO_NAMESPACE}" POD > monitor.log 2>/dev/null || true
   echo "------- END LOG DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
@@ -91,8 +91,13 @@ function log_and_exit()
 
   printf "\r::group::Block Node log dump\n"
   echo "------- BEGIN BLOCK NODE DUMP -------"
-  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server > block-node.log || true
-  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server --previous > block-node-prev.log || true
+  blockNodePod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | sed 's#pod/##' | grep '^block-node' | head -n 1 || true)
+  if [[ -n "${blockNodePod}" ]]; then
+    kubectl logs -n "${SOLO_NAMESPACE}" "${blockNodePod}" -c block-node-server > block-node.log 2>/dev/null || true
+    kubectl logs -n "${SOLO_NAMESPACE}" "${blockNodePod}" -c block-node-server --previous > block-node-prev.log 2>/dev/null || true
+  else
+    echo "No block node pod found in namespace ${SOLO_NAMESPACE}; skipping block node log dump."
+  fi
   echo "------- END BLOCK NODE DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
