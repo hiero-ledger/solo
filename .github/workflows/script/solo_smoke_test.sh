@@ -187,7 +187,18 @@ echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
 echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
-helm test mirror-1 -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
+mirror_release=""
+if helm status mirror-1 -n "${SOLO_NAMESPACE}" >/dev/null 2>&1; then
+  mirror_release="mirror-1"
+elif helm status mirror -n "${SOLO_NAMESPACE}" >/dev/null 2>&1; then
+  mirror_release="mirror"
+else
+  echo "No mirror Helm release found in namespace ${SOLO_NAMESPACE} (expected mirror-1 or mirror)."
+  log_and_exit 1
+fi
+
+echo "Using mirror release: ${mirror_release}"
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
