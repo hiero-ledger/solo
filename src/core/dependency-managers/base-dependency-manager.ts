@@ -39,11 +39,18 @@ export abstract class BaseDependencyManager extends ShellRunner {
       throw new MissingArgumentError('installation directory is required');
     }
 
+    if (!downloader) {
+      throw new MissingArgumentError('package downloader is required');
+    }
+
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'
     this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
 
     // Set the path to the local installation
-    this.localExecutableWithPath = Templates.soloHomeBinExecutableForDependency(dependencyName, installationDirectory);
+    this.localExecutableWithPath = Templates.localInstallationExecutableForDependency(
+      dependencyName,
+      installationDirectory,
+    );
     this.executableName = dependencyName;
 
     // Set artifact name and URLs - these will be overridden by child classes
@@ -117,7 +124,15 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the given installation meets version requirements
    */
   public async installationMeetsRequirements(executableWithPath: string): Promise<boolean> {
-    const version: string = await this.getVersion(executableWithPath);
+    let version: string;
+    try {
+      version = await this.getVersion(executableWithPath);
+    } catch (error) {
+      this.logger.debug(
+        `Failed to get version for ${this.executableName} at ${executableWithPath}: ${error instanceof Error ? error.message : error}`,
+      );
+      return false;
+    }
     if (semver.gte(version, this.getRequiredVersion())) {
       return true;
     }
@@ -200,6 +215,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Install the tool
    */
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    if (this.installationDirectory === temporaryDirectory) {
+      throw new SoloError('Installation directory cannot be the same as temporary directory');
+    }
     if (!(await this.shouldInstall())) {
       this.logger.debug(`Skipping installation of ${this.executableName}`);
       return true;
@@ -229,6 +247,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       temporaryDirectory,
       this.getVerifyChecksum(),
     );
+
     const processedFiles: string[] = await this.processDownloadedPackage(packageFile, temporaryDirectory);
 
     if (!fs.existsSync(this.installationDirectory!)) {

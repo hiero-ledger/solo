@@ -27,29 +27,34 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.PodmanInstallationDirectory) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
     @inject(InjectTokens.PodmanVersion) protected readonly podmanVersion: string,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PodmanDependenciesInstallationDirectory) protected readonly helpersDirectory: string,
   ) {
+    super(
+      patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.PodmanInstallationDirectory, PodmanDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name),
+      patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name) || version.PODMAN_VERSION,
+      constants.PODMAN,
+      '',
+    );
     // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
+    this.installationDirectory = patchInject(
+      this.installationDirectory,
       InjectTokens.PodmanInstallationDirectory,
       PodmanDependencyManager.name,
     );
-    osArch = patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
-    podmanVersion = patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
-    zippy = patchInject(zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
-    helpersDirectory = patchInject(
-      helpersDirectory,
+    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
+    this.podmanVersion = patchInject(this.podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
+    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
+    this.zippy = patchInject(this.zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
+    this.helpersDirectory = patchInject(
+      this.helpersDirectory,
       InjectTokens.PodmanDependenciesInstallationDirectory,
       PodmanDependencyManager.name,
     );
-
-    // Call the base constructor with the podman-specific parameters
-    super(downloader, installationDirectory, osArch, podmanVersion || version.PODMAN_VERSION, constants.PODMAN, '');
   }
 
   /**

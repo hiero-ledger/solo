@@ -44,6 +44,8 @@ describe('HelmDependencyManager', (): void => {
       undefined,
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
     );
     expect(helmDependencyManager.getRequiredVersion()).to.equal(version.HELM_VERSION);
   });
@@ -53,6 +55,8 @@ describe('HelmDependencyManager', (): void => {
       undefined,
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
     );
     expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -62,6 +66,8 @@ describe('HelmDependencyManager', (): void => {
       undefined,
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
     );
     // Create the local executable file for testing
     const localPath: string = PathEx.join(temporaryDirectory, 'helm');
@@ -89,6 +95,7 @@ describe('HelmDependencyManager', (): void => {
           undefined,
           temporaryDirectory,
           osArch,
+          undefined,
         );
 
         if (fs.existsSync(temporaryDirectory)) {
@@ -112,7 +119,13 @@ describe('HelmDependencyManager', (): void => {
     let runStub: SinonStub;
 
     beforeEach((): void => {
-      helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory, process.arch);
+      helmDependencyManager = new HelmDependencyManager(
+        undefined,
+        undefined,
+        temporaryDirectory,
+        process.arch,
+        undefined,
+      );
       helmDependencyManager.uninstallLocal();
       runStub = sandbox.stub(helmDependencyManager, 'run');
     });
