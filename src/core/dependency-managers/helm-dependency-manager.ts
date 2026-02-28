@@ -23,11 +23,11 @@ const HELM_ARTIFACT_TEMPLATE: string = 'helm-%s-%s-%s.%s';
 @injectable()
 export class HelmDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
-    @inject(InjectTokens.HelmInstallationDirectory) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
-    @inject(InjectTokens.HelmVersion) private readonly helmVersion: string,
+    @inject(InjectTokens.HelmInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.HelmVersion) helmVersion: string,
   ) {
     super(
       patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name),
@@ -38,14 +38,7 @@ export class HelmDependencyManager extends BaseDependencyManager {
       HELM_RELEASE_BASE_URL,
     );
     // Patch injected values to handle undefined values
-    this.installationDirectory = patchInject(
-      this.installationDirectory,
-      InjectTokens.HelmInstallationDirectory,
-      HelmDependencyManager.name,
-    );
-    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, HelmDependencyManager.name);
-    this.helmVersion = patchInject(this.helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name);
-    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name);
+
     this.zippy = patchInject(this.zippy, InjectTokens.Zippy, HelmDependencyManager.name);
   }
 
@@ -84,6 +77,12 @@ export class HelmDependencyManager extends BaseDependencyManager {
     // Ensure the extracted file exists
     if (!fs.existsSync(helmExecutablePath)) {
       const executablePath: string = PathEx.join(temporaryDirectory, this.executableName);
+
+      if (fs.existsSync(executablePath)) {
+        fs.rmSync(executablePath);
+      }
+
+      fs.cpSync(helmExecutablePath, executablePath);
 
       if (!fs.existsSync(executablePath)) {
         throw new Error(`Helm executable not found in extracted archive: ${executablePath}`);

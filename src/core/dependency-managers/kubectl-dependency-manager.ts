@@ -18,10 +18,10 @@ const KUBECTL_WINDOWS_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl.exe';
 @injectable()
 export class KubectlDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.KubectlInstallationDirectory) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
-    @inject(InjectTokens.KubectlVersion) protected readonly kubectlVersion: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.KubectlInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.KubectlVersion) kubectlVersion: string,
   ) {
     // Call the base constructor with the Kubectl-specific parameters
     super(
@@ -33,16 +33,6 @@ export class KubectlDependencyManager extends BaseDependencyManager {
       constants.KUBECTL,
       KUBECTL_RELEASE_BASE_URL,
     );
-
-    // Patch injected values to handle undefined values
-    this.installationDirectory = patchInject(
-      this.installationDirectory,
-      InjectTokens.KubectlInstallationDirectory,
-      KubectlDependencyManager.name,
-    );
-    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, KubectlDependencyManager.name);
-    this.kubectlVersion = patchInject(this.kubectlVersion, InjectTokens.KubectlVersion, KubectlDependencyManager.name);
-    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, KubectlDependencyManager.name);
   }
 
   /**

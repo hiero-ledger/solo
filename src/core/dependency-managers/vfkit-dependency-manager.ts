@@ -22,11 +22,10 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   protected artifactVersion: string;
 
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanDependenciesInstallationDirectory)
-    protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
-    @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.PodmanDependenciesInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.VfkitVersion) vfkitVersion: string,
   ) {
     super(
       patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name),
@@ -40,15 +39,6 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       constants.VFKIT,
       '',
     );
-    // Patch injected values to handle undefined values
-    this.installationDirectory = patchInject(
-      this.installationDirectory,
-      InjectTokens.PodmanDependenciesInstallationDirectory,
-      VfkitDependencyManager.name,
-    );
-    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
-    this.vfkitVersion = patchInject(this.vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name);
-    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name);
   }
 
   public override getVerifyChecksum(): boolean {

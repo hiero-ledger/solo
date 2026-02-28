@@ -9,13 +9,32 @@ import {type AggregatedMetrics} from '../../../../../../src/business/runtime-sta
 import {HelmMetricsServer} from '../../../../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../../../../helpers/helm-metal-load-balancer.js';
 import {Duration} from '../../../../../../src/core/time/duration.js';
+import type {
+  HelmDependencyManager,
+  KubectlDependencyManager,
+} from '../../../../../../src/core/dependency-managers/index.js';
+import {InjectTokens} from '../../../../../../src/core/dependency-injection/inject-tokens.js';
+import {getTemporaryDirectory} from '../../../../../test-utility.js';
+import {container} from 'tsyringe-neo';
 
 describe('MetricsServer', (): void => {
   const testName: string = 'metrics-server-test';
 
   before(async (): Promise<void> => {
-    await HelmMetricsServer.installMetricsServer(testName);
-    await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
+    const helmDependencyManager: HelmDependencyManager = container.resolve(InjectTokens.HelmDependencyManager);
+    const kubectlDependencyManager: KubectlDependencyManager = container.resolve(InjectTokens.KubectlDependencyManager);
+
+    try {
+      await helmDependencyManager.install(getTemporaryDirectory());
+      await kubectlDependencyManager.install(getTemporaryDirectory());
+      await HelmMetricsServer.installMetricsServer(testName);
+      await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
+    } catch (error) {
+      throw new Error(
+        `Failed to set up Metrics Server test: ${error instanceof Error ? error.message : String(error)}`,
+        error,
+      );
+    }
   }).timeout(Duration.ofMinutes(5).toMillis());
 
   describe('getMetrics', (): void => {
