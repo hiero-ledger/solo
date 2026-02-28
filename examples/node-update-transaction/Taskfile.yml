@@ -105,11 +105,9 @@ tasks:
           # Solo mirror node add
           $SOLO_COMMAND mirror node add --deployment {{ .SOLO_DEPLOYMENT }} \
           --enable-ingress --dev
-
       - cmd: |
           # Solo explorer node add
           $SOLO_COMMAND explorer node add --deployment {{ .SOLO_DEPLOYMENT }} --dev
-
       - cmd: |
           # Solo relay node add
           $SOLO_COMMAND relay node add --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} --dev
@@ -165,11 +163,9 @@ tasks:
       - cmd: |
           # Solo relay node destroy
           $SOLO_COMMAND relay node destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev
-
       - cmd: |
           # Solo explorer node destroy
           $SOLO_COMMAND explorer node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
-
       - cmd: |
           # Solo mirror node destroy
           $SOLO_COMMAND mirror node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev

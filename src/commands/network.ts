@@ -12,6 +12,7 @@ import * as constants from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   parseNodeAliases,
   resolveValidJsonFilePath,
   showVersionBanner,
@@ -588,6 +589,36 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
+    if (constants.ENABLE_S6_IMAGE) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
+        valuesArgument = addRootImageValues(
+          valuesArgument,
+          `hedera.nodes[${nodeIndex}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+        valuesArguments[consensusNode.cluster] = valuesArgument;
+      }
+    }
+
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ' --install' +
@@ -936,6 +967,7 @@ export class NetworkCommand extends BaseCommand {
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
         const response: Response = await fetch(CRD_URL);
+
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
         }

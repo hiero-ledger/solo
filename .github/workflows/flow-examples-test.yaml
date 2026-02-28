@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -50,6 +55,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -65,6 +75,9 @@ defaults:
 permissions:
   contents: read
   actions: read
+
+env:
+  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
 
 jobs:
   generate_matrix:
@@ -229,8 +242,20 @@ jobs:
           # Run the example
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          set +e
           task
-          
+          TASK_RC=$?
+          set -e
+
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            cd "examples/${{ matrix.example.directory }}"
+
+            exit "${TASK_RC}"
+          fi
+
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure

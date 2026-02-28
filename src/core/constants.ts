@@ -41,6 +41,7 @@ export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resource
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
+export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true';
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
@@ -70,6 +71,11 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
   getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
+
+// S6-based consensus node image configuration (overridable via environment)
+export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
+export const S6_NODE_IMAGE_REPOSITORY: string =
+  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java21';
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');

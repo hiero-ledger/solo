@@ -50,7 +50,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
 
 export const UPGRADE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeVersion],
-  optional: COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
 export const UPGRADE_PREPARE_FLAGS: CommandFlags = {
@@ -193,8 +193,8 @@ export const ADD_EXECUTE_FLAGS: CommandFlags = {
 };
 
 export const LOGS_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.outputDir],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
 export const STATES_FLAGS: CommandFlags = {
