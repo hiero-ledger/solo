@@ -24,11 +24,10 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
   protected artifactVersion: string;
 
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanDependenciesInstallationDirectory)
-    protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
-    @inject(InjectTokens.GvproxyVersion) protected readonly gvproxyVersion: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.PodmanDependenciesInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.GvproxyVersion) gvproxyVersion: string,
   ) {
     super(
       patchInject(downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name),
@@ -43,15 +42,6 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
       constants.GVPROXY,
       '',
     );
-    // Patch injected values to handle undefined values
-    this.installationDirectory = patchInject(
-      this.installationDirectory,
-      InjectTokens.PodmanDependenciesInstallationDirectory,
-      GvproxyDependencyManager.name,
-    );
-    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, GvproxyDependencyManager.name);
-    this.gvproxyVersion = patchInject(this.gvproxyVersion, InjectTokens.GvproxyVersion, GvproxyDependencyManager.name);
-    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name);
   }
 
   /**

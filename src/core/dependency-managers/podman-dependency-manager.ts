@@ -25,10 +25,10 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   protected artifactVersion: string;
 
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanInstallationDirectory) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
-    @inject(InjectTokens.PodmanVersion) protected readonly podmanVersion: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.PodmanInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.PodmanVersion) podmanVersion: string,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PodmanDependenciesInstallationDirectory) protected readonly helpersDirectory: string,
   ) {
@@ -40,15 +40,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       constants.PODMAN,
       '',
     );
-    // Patch injected values to handle undefined values
-    this.installationDirectory = patchInject(
-      this.installationDirectory,
-      InjectTokens.PodmanInstallationDirectory,
-      PodmanDependencyManager.name,
-    );
-    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
-    this.podmanVersion = patchInject(this.podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
-    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
+
     this.zippy = patchInject(this.zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
     this.helpersDirectory = patchInject(
       this.helpersDirectory,

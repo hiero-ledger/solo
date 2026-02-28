@@ -19,15 +19,15 @@ import {ShellRunner} from '../../../../../src/core/shell-runner.js';
 import {type PackageDownloader} from '../../../../../src/core/package-downloader.js';
 import {resetForTest} from '../../../../test-container.js';
 
-const mockVersionOutputValid = 'Client Version: v1.33.3\nKustomize Version: v5.6.0';
-const mockVersionOutputMissingClient = 'Something Else: v1.10.0\nKustomize Version: v5.6.0';
-const mockVersionOutputInvalid = 'invalid output';
+const mockVersionOutputValid: string = 'Client Version: v1.33.3\nKustomize Version: v5.6.0';
+const mockVersionOutputMissingClient: string = 'Something Else: v1.10.0\nKustomize Version: v5.6.0';
+const mockVersionOutputInvalid: string = 'invalid output';
 
 describe('KubectlDependencyManager', (): void => {
   const originalPlatform: NodeJS.Platform = platform;
   const originalInstallationDirectory: string = container.resolve<string>(InjectTokens.KubectlInstallationDirectory);
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
-  const localInstallationDirectory = temporaryDirectory;
+  const localInstallationDirectory: string = temporaryDirectory;
   let sandbox: sinon.SinonSandbox;
 
   before((): void => {
@@ -43,10 +43,8 @@ describe('KubectlDependencyManager', (): void => {
   });
 
   afterEach((): void => {
-    container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
-    container.register(InjectTokens.KubectlInstallationDirectory, {useValue: originalInstallationDirectory});
-    sandbox.restore();
     resetForTest();
+    sandbox.restore();
   });
 
   it('should return kubectl version', (): void => {

@@ -21,17 +21,24 @@ import * as constants from '../../../../../src/core/constants.js';
 describe('HelmDependencyManager', (): void => {
   const originalPlatform: NodeJS.Platform = platform;
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
+  const installationDirectory: string = getTemporaryDirectory();
+  const originalInstallationDirectory: string = container.resolve<string>(InjectTokens.HelmInstallationDirectory);
   let sandbox: sinon.SinonSandbox;
 
   before((): void => {
     fs.mkdirSync(temporaryDirectory);
     sandbox = sinon.createSandbox();
+    container.register(InjectTokens.HelmInstallationDirectory, {useValue: installationDirectory});
   });
 
   after((): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
+    if (fs.existsSync(installationDirectory)) {
+      fs.rmSync(installationDirectory, {recursive: true});
+    }
+    container.register(InjectTokens.HelmInstallationDirectory, {useValue: originalInstallationDirectory});
   });
 
   afterEach((): void => {
@@ -78,7 +85,14 @@ describe('HelmDependencyManager', (): void => {
   describe('Helm Installation Tests', (): void => {
     afterEach((): void => {
       container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+      container.register(InjectTokens.HelmInstallationDirectory, {useValue: originalInstallationDirectory});
       sandbox.restore();
+      if (fs.existsSync(temporaryDirectory)) {
+        fs.rmSync(temporaryDirectory, {recursive: true});
+      }
+      if (fs.existsSync(installationDirectory)) {
+        fs.rmSync(installationDirectory, {recursive: true});
+      }
     });
 
     each([
@@ -88,12 +102,13 @@ describe('HelmDependencyManager', (): void => {
     ]).it(
       'should be able to install helm base on %s and %s',
       async (osPlatform: any, osArch: string): Promise<void> => {
-        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+        container.register(InjectTokens.OsPlatform, {useValue: osPlatform});
+        container.register(InjectTokens.HelmInstallationDirectory, {useValue: installationDirectory});
 
         const helmDependencyManager: HelmDependencyManager = new HelmDependencyManager(
           undefined,
           undefined,
-          temporaryDirectory,
+          installationDirectory,
           osArch,
           undefined,
         );
@@ -101,15 +116,19 @@ describe('HelmDependencyManager', (): void => {
         if (fs.existsSync(temporaryDirectory)) {
           fs.rmSync(temporaryDirectory, {recursive: true});
         }
-
+        if (fs.existsSync(getTestCacheDirectory())) {
+          fs.rmSync(getTestCacheDirectory(), {recursive: true});
+        }
         helmDependencyManager.uninstallLocal();
         expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs('which helm').alwaysReturned(false);
+        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.HELM}`).alwaysReturned(false);
         expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(helmDependencyManager.isInstalledLocally()).to.be.ok;
 
-        fs.rmSync(temporaryDirectory, {recursive: true});
+        if (fs.existsSync(temporaryDirectory)) {
+          fs.rmSync(temporaryDirectory, {recursive: true});
+        }
       },
     );
   });

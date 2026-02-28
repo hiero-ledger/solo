@@ -51,7 +51,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       dependencyName,
       installationDirectory,
     );
-    this.executableName = dependencyName;
+    this.executableName = path.basename(this.localExecutableWithPath);
 
     // Set artifact name and URLs - these will be overridden by child classes
     this.artifactName = this.getArtifactName();

@@ -19,10 +19,10 @@ const KIND_ARTIFACT_TEMPLATE: string = '%s/kind-%s-%s';
 @injectable()
 export class KindDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.KindInstallationDirectory) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsArch) protected override readonly osArch: string,
-    @inject(InjectTokens.KindVersion) protected readonly kindVersion: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.KindInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.KindVersion) kindVersion: string,
   ) {
     super(
       patchInject(downloader, InjectTokens.PackageDownloader, KindDependencyManager.name),
@@ -32,15 +32,6 @@ export class KindDependencyManager extends BaseDependencyManager {
       constants.KIND,
       KIND_RELEASE_BASE_URL,
     );
-    // Patch injected values to handle undefined values
-    this.installationDirectory = patchInject(
-      this.installationDirectory,
-      InjectTokens.KindInstallationDirectory,
-      KindDependencyManager.name,
-    );
-    this.osArch = patchInject(this.osArch, InjectTokens.OsArch, KindDependencyManager.name);
-    this.kindVersion = patchInject(this.kindVersion, InjectTokens.KindVersion, KindDependencyManager.name);
-    this.downloader = patchInject(this.downloader, InjectTokens.PackageDownloader, KindDependencyManager.name);
   }
 
   /**
