@@ -60,7 +60,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -71,6 +71,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )
@@ -86,7 +87,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -97,6 +98,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )
@@ -112,7 +114,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -123,7 +125,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )

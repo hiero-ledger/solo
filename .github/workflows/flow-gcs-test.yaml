@@ -147,7 +147,7 @@ jobs:
 
       - name: Compile Project
         if: steps.check.outputs.run == 'true'
-        run: task build
+        run: task build:compile
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
         if: steps.check.outputs.run == 'true'

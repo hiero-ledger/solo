@@ -23,11 +23,6 @@ name: "ZXC: E2E Test"
 on:
   workflow_dispatch:
     inputs:
-      node-version:
-        description: "NodeJS Version:"
-        type: string
-        required: false
-        default: "22"
       consensus-node-version:
         description: "Consensus Node Version:"
         type: string
@@ -73,13 +68,48 @@ on:
         type: string
         required: false
         default: "hiero-solo-linux-large"
+      kind-install:
+        description: "Install Kind:"
+        type: boolean
+        required: false
+        default: true
+      kind-version:
+        description: "Kind Version:"
+        type: string
+        required: false
+        default: "0.29.0"
+      kind-node-image:
+        description: "Kind Node Image:"
+        type: string
+        required: false
+        default: "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"
+      kubectl-install:
+        description: "Install Kubectl:"
+        type: boolean
+        required: false
+        default: true
+      kubectl-version:
+        description: "Kubectl Version:"
+        type: string
+        required: false
+        default: "1.32.2"
+      helm-install:
+        description: "Install Helm:"
+        type: boolean
+        required: false
+        default: true
+      helm-version:
+        description: "Helm Version:"
+        type: string
+        required: false
+        default: "3.14.2"
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
   workflow_call:
     inputs:
-      node-version:
-        description: "NodeJS Version:"
-        type: string
-        required: false
-        default: "22"
       consensus-node-version:
         description: "Consensus Node Version:"
         type: string
@@ -125,6 +155,46 @@ on:
         type: string
         required: false
         default: "hiero-solo-linux-large"
+      kind-install:
+        description: "Install Kind:"
+        type: boolean
+        required: false
+        default: true
+      kind-version:
+        description: "Kind Version:"
+        type: string
+        required: false
+        default: "0.29.0"
+      kind-node-image:
+        description: "Kind Node Image:"
+        type: string
+        required: false
+        default: "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"
+      kubectl-install:
+        description: "Install Kubectl:"
+        type: boolean
+        required: false
+        default: true
+      kubectl-version:
+        description: "Kubectl Version:"
+        type: string
+        required: false
+        default: "1.32.2"
+      helm-install:
+        description: "Install Helm:"
+        type: boolean
+        required: false
+        default: true
+      helm-version:
+        description: "Helm Version:"
+        type: string
+        required: false
+        default: "3.14.2"
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
 
 defaults:
   run:
@@ -156,49 +226,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      #      - name: Setup Control Groups
-      #        run: |
-      #          echo "::group::Get System Configuration"
-      #            USR_ID="$(id -un)"
-      #            GRP_ID="$(id -gn)"
-      #            E2E_MEM_LIMIT="30064771072"
-      #            AGENT_MEM_LIMIT="2147483648"
-      #            USER_SLICE="user.slice/user-$(id -u).slice"
-      #            USER_SERVICE="${USER_SLICE}/user@$(id -u).service"
-      #            E2E_GROUP_NAME="${USER_SERVICE}/e2e-${{ github.run_id }}"
-      #            AGENT_GROUP_NAME="${USER_SERVICE}/agent-${{ github.run_id }}"
-      #          echo "::endgroup::"
-      #
-      #          echo "::group::Install Control Group Tools"
-      #            if ! command -v cgcreate >/dev/null 2>&1; then
-      #              sudo apt-get update
-      #              sudo apt-get install -y cgroup-tools
-      #            fi
-      #          echo "::endgroup::"
-      #
-      #          echo "::group::Create Control Groups"
-      #            sudo cgcreate -g cpu,memory:${USER_SLICE} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-      #            sudo cgcreate -g cpu,memory:${USER_SERVICE} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-      #            sudo cgcreate -g cpu,memory:${E2E_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-      #            sudo cgcreate -g cpu,memory:${AGENT_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-      #          echo "::endgroup::"
-      #
-      #          echo "::group::Set Control Group Limits"
-      #            cgset -r cpu.weight=768 ${E2E_GROUP_NAME}
-      #            cgset -r cpu.weight=500 ${AGENT_GROUP_NAME}
-      #            cgset -r memory.max=${E2E_MEM_LIMIT} ${E2E_GROUP_NAME}
-      #            cgset -r memory.max=${AGENT_MEM_LIMIT} ${AGENT_GROUP_NAME}
-      #            cgset -r memory.swap.max=${E2E_MEM_LIMIT} ${E2E_GROUP_NAME}
-      #            cgset -r memory.swap.max=${AGENT_MEM_LIMIT} ${AGENT_GROUP_NAME}
-      #          echo "::endgroup::"
-      #
-      #          echo "::group::Move Runner Processes to Control Groups"
-      #            sudo cgclassify --sticky -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Listener' | tr '\n' ' ')
-      #            sudo cgclassify -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Worker' | tr '\n' ' ')
-      #          echo "::endgroup::"
-
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         run: |
           # Configure APT to use main Ubuntu archive (disable mirror rotation)
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
@@ -214,6 +244,7 @@ jobs:
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install wget
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         run: |
           if ! command -v wget >/dev/null 2>&1; then
             sudo apt-get update
@@ -221,28 +252,28 @@ jobs:
           fi
 
       - name: Install Kubectl
-        if: ${{ inputs.install-dependencies == true }}
+        if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true }}
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
-          version: 'v1.27.3'
+          version: 'v${{ inputs.kubectl-version }}'
         id: install
 
       - name: Setup Kind
-        if: ${{ inputs.install-dependencies == true }}
+        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true }}
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
+          node_image: '${{ inputs.kind-node-image }}'
+          version: 'v${{ inputs.kind-version }}'
+          kubectl_version: 'v${{ inputs.kubectl-version }}'
           verbosity: 3
           wait: 120s
 
       - name: Setup Helm
-        if: ${{ inputs.install-dependencies == true }}
+        if: ${{ inputs.install-dependencies == true && inputs.helm-install == true }}
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
-          version: "v3.17.1" # helm version
+          version: 'v${{ inputs.helm-version }}'
 
       - name: Install Dependencies
         id: npm-deps
@@ -269,10 +300,10 @@ jobs:
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Compile Project
-        run: task build
+        run: task build:compile
 
       - name: Pull Kind Docker Image
-        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' }}
+        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && inputs.kind-install == true && !cancelled() && !failure() }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Setup Java
@@ -289,6 +320,7 @@ jobs:
           cache-read-only: false
 
       - name: Create Diagnostic Script
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
         run: |
@@ -316,10 +348,14 @@ jobs:
         with:
           max_attempts: 3
           timeout_minutes: 10
+          shell: bash
           command: |
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
-            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+            if [[ "$RUNNER_OS" != "Windows" ]]; then
+              EXEC_CG=${{ env.CG_EXEC }}
+            fi
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${EXEC_CG} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
@@ -356,7 +392,11 @@ jobs:
 
       - name: Run E2E Tests
         id: run-e2e-tests
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        shell: bash
         run: |
+          export PATH="~/.solo/bin:${PATH}"
+          echo "PATH: $PATH"
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -400,12 +440,24 @@ jobs:
           
           exit $TEST_EXIT_CODE
 
+      - name: Run E2E Tests on Windows
+        id: run-e2e-tests-windows
+        if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
+        shell: bash
+        run: |
+          export PATH="~/.solo/bin:${PATH}"
+          echo "PATH: $PATH"
+          ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
+
       - name: Log Metrics
         id: log-metrics
-        if: always()
+        if: ${{ always() }}
+        shell: bash
         run: |
+          export PATH="~/.solo/bin:${PATH}"
+          echo "PATH: $PATH"
           echo "json_log={}" >> $GITHUB_OUTPUT
-          
+           
           # Ensure logs directory exists
           mkdir -p ~/.solo/logs
           
@@ -434,7 +486,7 @@ jobs:
 
       - name: Generate ASCII Resource Chart
         id: generate-chart
-        if: ${{ always() }}
+        if: ${{ inputs.runner != 'windows-latest' }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
@@ -459,7 +511,7 @@ jobs:
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ always() && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -499,7 +551,7 @@ jobs:
 
       - name: Comment PR with Log Metrics
         if: >-
-          ${{ always() && !cancelled() && github.event_name == 'pull_request' && 
+          ${{ inputs.runner != 'windows-latest' && !cancelled() && github.event_name == 'pull_request' && 
           steps.log-metrics-file.conclusion == 'success' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:

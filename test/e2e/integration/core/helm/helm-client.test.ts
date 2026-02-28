@@ -25,8 +25,17 @@ import {type AddRepoOptions} from '../../../../../src/integration/helm/model/add
 import {type Release} from '../../../../../src/integration/helm/model/chart/release.js';
 import {type ReleaseItem} from '../../../../../src/integration/helm/model/release/release-item.js';
 import {type TestChartOptions} from '../../../../../src/integration/helm/model/test/test-chart-options.js';
+import * as constants from '../../../../../src/core/constants.js';
+import path from 'node:path';
+import {
+  type HelmDependencyManager,
+  type KubectlDependencyManager,
+} from '../../../../../src/core/dependency-managers/index.js';
+import {resetForTest} from '../../../../test-container.js';
+import {getTemporaryDirectory} from '../../../../test-utility.js';
 
-const exec: (command: string) => Promise<{stdout: string; stderr: string} | ExecException> = promisify(execCallback);
+const exec: (command: string, options: unknown) => Promise<{stdout: string; stderr: string} | ExecException> =
+  promisify(execCallback);
 
 describe('HelmClient Tests', (): void => {
   const TEST_CHARTS_DIR: string = '/Users/jeffrey/solo-charts/charts/solo-deployment';
@@ -42,11 +51,18 @@ describe('HelmClient Tests', (): void => {
   let helmClient: HelmClient;
 
   before(async function (): Promise<void> {
-    this.timeout(120_000); // 2 minutes timeout for cluster creation
+    this.timeout(Duration.ofMinutes(3).toMillis());
+    resetForTest();
+    const helmDependencyManager: HelmDependencyManager = container.resolve(InjectTokens.HelmDependencyManager);
+    const kubectlDependencyManager: KubectlDependencyManager = container.resolve(InjectTokens.KubectlDependencyManager);
 
     try {
+      await helmDependencyManager.install(getTemporaryDirectory());
+      await kubectlDependencyManager.install(getTemporaryDirectory());
       console.log(`Creating namespace ${NAMESPACE}...`);
-      await exec(`kubectl create namespace ${NAMESPACE}`);
+      await exec(`kubectl create namespace ${NAMESPACE}`, {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       console.log(`Namespace ${NAMESPACE} created successfully`);
 
       // Initialize helm client
@@ -67,7 +83,9 @@ describe('HelmClient Tests', (): void => {
 
     try {
       console.log(`Deleting namespace ${NAMESPACE}...`);
-      await exec(`kubectl delete namespace ${NAMESPACE}`);
+      await exec(`kubectl delete namespace ${NAMESPACE}`, {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       console.log(`Namespace ${NAMESPACE} deleted successfully`);
     } catch (error) {
       console.error('Error during cleanup:', error);

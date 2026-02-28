@@ -68,62 +68,64 @@ export class DependencyManager extends ShellRunner {
     );
   }
 
-  public async getDependency(dep: string): Promise<DependencyManagerType> {
-    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
+  public async getDependency(dependency: string): Promise<DependencyManagerType> {
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dependency);
     if (manager) {
       return manager;
     }
-    throw new SoloError(`Dependency manager for '${dep}' is not found`);
+    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
   }
 
   /**
    * Check if the required dependency is installed or not
-   * @param dep - is the name of the program
+   * @param dependency - is the name of the program
    */
-  public async checkDependency(dep: string): Promise<boolean> {
-    this.logger.debug(`Checking for dependency: ${dep}`);
+  public async checkDependency(dependency: string): Promise<boolean> {
+    this.logger.debug(`Checking for dependency: ${dependency}`);
 
     let status: boolean = false;
-    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dependency);
     if (manager) {
       status = await manager.install();
     }
 
     if (!status) {
-      throw new SoloError(`Dependency '${dep}' is not found`);
+      throw new SoloError(`Dependency '${dependency}' is not found`);
     }
 
-    this.logger.debug(`Dependency '${dep}' is found`);
+    this.logger.debug(`Dependency '${dependency}' is found`);
     return true;
   }
 
-  public async skipDependency(dep: string): Promise<boolean> {
+  public async skipDependency(dependency: string): Promise<boolean> {
     let skip: boolean = false;
-    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dependency);
 
     if (manager) {
       skip = !(await manager.shouldInstall());
     }
 
-    this.logger.debug(`Skipping install of for dependency: ${dep}: ${skip}`);
+    this.logger.debug(`Skipping install of for dependency: ${dependency}: ${skip}`);
     return skip;
   }
 
-  public taskCheckDependencies<T>(deps: string[]): SoloListrTask<T>[] {
-    return deps.map(dep => {
-      return {
-        title: `Check dependency: ${dep} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
-        task: (): Promise<boolean> => this.checkDependency(dep),
-        skip: (): Promise<boolean> => this.skipDependency(dep),
-      };
-    });
+  public taskCheckDependencies<T>(dependencies: string[]): SoloListrTask<T>[] {
+    return dependencies.map(
+      (dependency): {title: string; task: () => Promise<boolean>; skip: () => Promise<boolean>} => {
+        return {
+          title: `Check dependency: ${dependency} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
+          task: (): Promise<boolean> => this.checkDependency(dependency),
+          skip: (): Promise<boolean> => this.skipDependency(dependency),
+        };
+      },
+    );
   }
 
-  public async getExecutablePath(dep: string): Promise<string> {
-    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
+  public async getExecutable(dependency: string): Promise<string> {
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dependency);
     if (manager) {
-      return await manager.getExecutablePath();
+      return await manager.getExecutable();
     }
-    throw new SoloError(`Dependency manager for '${dep}' is not found`);
+    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
   }
 }

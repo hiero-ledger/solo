@@ -29,7 +29,7 @@ export class InitCommand extends BaseCommand {
 
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
-    @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+    @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
     @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.ClusterTaskManager) protected readonly clusterTaskManager: ClusterTaskManager,
@@ -41,7 +41,7 @@ export class InitCommand extends BaseCommand {
     this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, InitCommand.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
-      InjectTokens.PodmanInstallationDir,
+      InjectTokens.PodmanInstallationDirectory,
       InitCommand.name,
     );
   }
@@ -164,7 +164,7 @@ export class InitCommand extends BaseCommand {
       [
         ...this.setupSystemFilesTasks(argv),
         ...this.installDependenciesTasks({
-          deps: [constants.HELM, constants.KUBECTL],
+          deps: [...constants.BASE_DEPENDENCIES],
           createCluster: false,
         }),
       ],

@@ -63,7 +63,7 @@ export class ListrLock {
         {
           title: ListrLock.ACQUIRE_LOCK_TASK_TITLE,
           skip: true,
-          task: async (_, task): Promise<void> => {
+          task: async (): Promise<void> => {
             return;
           },
         },

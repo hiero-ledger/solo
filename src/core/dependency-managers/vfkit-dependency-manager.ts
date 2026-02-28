@@ -22,23 +22,23 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   protected artifactVersion: string;
 
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.PodmanDependenciesInstallationDirectory) installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
-    @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
+    @inject(InjectTokens.VfkitVersion) vfkitVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.PodmanDependenciesInstallationDir,
-      VfkitDependencyManager.name,
+    super(
+      patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name),
+      patchInject(
+        installationDirectory,
+        InjectTokens.PodmanDependenciesInstallationDirectory,
+        VfkitDependencyManager.name,
+      ),
+      patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name),
+      patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name) || version.VFKIT_VERSION,
+      constants.VFKIT,
+      '',
     );
-    osArch = patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
-    vfkitVersion = patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name);
-
-    // Call the base constructor with the vfkit-specific parameters
-    super(downloader, installationDirectory, osArch, vfkitVersion || version.VFKIT_VERSION, constants.VFKIT, '');
   }
 
   public override getVerifyChecksum(): boolean {
@@ -57,13 +57,13 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     // The retry logic is to handle potential transient issues with the command execution
     // The command `vfkit --version` was sometimes observed to return an empty output in the CI environment
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`${executablePath} --version`);
+        const output: string[] = await this.run(`${executableWithPath} --version`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];

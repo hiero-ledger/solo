@@ -11,7 +11,6 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {ProfileManager} from '../../../src/core/profile-manager.js';
 import {getTemporaryDirectory, getTestCacheDirectory} from '../../test-utility.js';
 import * as version from '../../../version.js';
-import {type NodeAlias} from '../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {Templates} from '../../../src/core/templates.js';
@@ -21,16 +20,12 @@ import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {entityId} from '../../../src/core/helpers.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type Realm, type Shard} from '../../../src/types/index.js';
 
-describe('ProfileManager', () => {
+describe('ProfileManager', (): void => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
   const namespace: NamespaceName = NamespaceName.of('test-namespace');
   const deploymentName: string = 'deployment';
-  const realm: Realm = 1;
-  const shard: Shard = 2;
   const testProfileFile: string = PathEx.join('test', 'data', 'test-profiles.yaml');
   const kubeConfig: KubeConfig = new KubeConfig();
   kubeConfig.loadFromDefault();
@@ -289,11 +284,6 @@ describe('ProfileManager', () => {
 
   describe('prepareConfigText', () => {
     it('should write and return the path to the config.txt file', async () => {
-      const nodeAccountMap = new Map<NodeAlias, string>([
-        ['node1', entityId(shard, realm, 3)],
-        ['node2', entityId(shard, realm, 4)],
-        ['node3', entityId(shard, realm, 5)],
-      ]);
       const destinationPath = PathEx.join(temporaryDirectory, 'staging');
       fs.mkdirSync(destinationPath, {recursive: true});
     });

@@ -45,7 +45,7 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
     });
 
     after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(3).toMillis());
+      this.timeout(Duration.ofMinutes(5).toMillis());
 
       await k8Factory.default().namespaces().delete(namespace);
       await accountManager.close();

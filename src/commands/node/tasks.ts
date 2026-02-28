@@ -162,6 +162,7 @@ import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-cl
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
+import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -532,7 +533,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response: string = await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
+        const response: string = await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -2025,7 +2028,7 @@ export class NodeCommandTasks {
     return {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
-        await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
+        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
       },
     };
   }
@@ -2035,7 +2038,8 @@ export class NodeCommandTasks {
       title: 'Get Helm chart values from all releases',
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
-        const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
+        const helmClient: HelmClient = new DefaultHelmClient();
+        container.registerInstance(InjectTokens.Helm, helmClient);
         const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
@@ -2086,6 +2090,10 @@ export class NodeCommandTasks {
                   cwd: process.cwd(),
                   shell: '/bin/bash',
                   maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                  env: {
+                    ...process.env,
+                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${path.delimiter}${process.env.PATH}`,
+                  },
                 }).toString();
 
                 const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
@@ -2395,7 +2403,7 @@ export class NodeCommandTasks {
         for (const nodeAlias of context_.config.nodeAliases) {
           const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
-            .resolve<NetworkNodes>(NetworkNodes)
+            .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
             .getStatesFromPod(context_.config.namespace, nodeAlias, context);
         }
       },

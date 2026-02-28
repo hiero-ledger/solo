@@ -22,6 +22,9 @@ import {Duration} from '../../../../../src/core/time/duration.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
+import * as constants from '../../../../../src/core/constants.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import path from 'node:path';
 
 const execAsync = promisify(exec);
 
@@ -34,12 +37,14 @@ describe('KindClient Integration Tests', function () {
   const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kind-test-'));
   let originalKubeConfigContext: string | null = null;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest();
 
     // Save original kubectl context if it exists
     try {
-      const {stdout} = await execAsync('kubectl config current-context');
+      const {stdout} = await execAsync('kubectl config current-context', {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       originalKubeConfigContext = stdout.trim();
       console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
     } catch {
@@ -48,18 +53,29 @@ describe('KindClient Integration Tests', function () {
     }
 
     // Download and install Kind
+    kindPath = PathEx.join(temporaryDirectory, constants.KIND);
+    container.register(InjectTokens.KindInstallationDirectory, {useValue: temporaryDirectory});
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
-    await kindManager.install(temporaryDirectory);
-    kindPath = await kindManager.getExecutablePath();
+    try {
+      await kindManager.install();
+    } catch (error) {
+      console.error('Error checking if Kind is installed locally:', error);
+      throw error;
+    }
 
     console.log(`Using Kind at: ${kindPath}`);
 
     // Create Kind client
     const clientBuilder: DefaultKindClientBuilder = new DefaultKindClientBuilder();
-    kindClient = await clientBuilder.executable(kindPath).build();
-  });
+    try {
+      kindClient = await clientBuilder.executable(kindPath).build();
+    } catch (error) {
+      console.error('Error building Kind client:', error);
+      throw error;
+    }
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
-  after(async () => {
+  after(async (): Promise<void> => {
     if (kindClient) {
       try {
         // Clean up test cluster if it exists
@@ -77,7 +93,9 @@ describe('KindClient Integration Tests', function () {
     if (originalKubeConfigContext) {
       try {
         console.log(`Restoring original kubectl context: ${originalKubeConfigContext}`);
-        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`);
+        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`, {
+          env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+        });
       } catch (error) {
         console.error('Error restoring kubectl context:', error);
       }
@@ -89,7 +107,7 @@ describe('KindClient Integration Tests', function () {
     } catch (error) {
       console.error('Error cleaning up temp directory:', error);
     }
-  });
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
   it('should get Kind version', async () => {
     const version: SemVer = await kindClient.version();

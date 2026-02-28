@@ -25,31 +25,28 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   protected artifactVersion: string;
 
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.PodmanInstallationDirectory) installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
-    @inject(InjectTokens.PodmanVersion) protected readonly podmanVersion: string,
+    @inject(InjectTokens.PodmanVersion) podmanVersion: string,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
-    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected readonly helpersDirectory: string,
+    @inject(InjectTokens.PodmanDependenciesInstallationDirectory) protected readonly helpersDirectory: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.PodmanInstallationDir,
-      PodmanDependencyManager.name,
-    );
-    osArch = patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
-    podmanVersion = patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
-    zippy = patchInject(zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
-    helpersDirectory = patchInject(
-      helpersDirectory,
-      InjectTokens.PodmanDependenciesInstallationDir,
-      PodmanDependencyManager.name,
+    super(
+      patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.PodmanInstallationDirectory, PodmanDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name),
+      patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name) || version.PODMAN_VERSION,
+      constants.PODMAN,
+      '',
     );
 
-    // Call the base constructor with the podman-specific parameters
-    super(downloader, installationDirectory, osArch, podmanVersion || version.PODMAN_VERSION, constants.PODMAN, '');
+    this.zippy = patchInject(this.zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
+    this.helpersDirectory = patchInject(
+      this.helpersDirectory,
+      InjectTokens.PodmanDependenciesInstallationDirectory,
+      PodmanDependencyManager.name,
+    );
   }
 
   /**
@@ -68,13 +65,13 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     return OperatingSystem.isLinux() ? PodmanMode.ROOTFUL : PodmanMode.VIRTUAL_MACHINE;
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     // The retry logic is to handle potential transient issues with the command execution
     // The command `podman --version` was sometimes observed to return an empty output in the CI environment
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`"${executablePath}" --version`);
+        const output: string[] = await this.run(`"${executableWithPath}" --version`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];

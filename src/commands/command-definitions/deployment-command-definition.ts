@@ -86,7 +86,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
             this.deploymentCommand,
             this.deploymentCommand.addCluster,
             DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
-            [constants.KUBECTL],
+            [...constants.BASE_DEPENDENCIES],
           ),
         ),
       )
