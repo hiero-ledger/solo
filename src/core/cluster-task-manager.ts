@@ -24,6 +24,7 @@ import {K8} from '../integration/kube/k8.js';
 import {MissingActiveContextError} from '../integration/kube/errors/missing-active-context-error.js';
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {type GitClient} from '../integration/git/git-client.js';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -37,6 +38,7 @@ export class ClusterTaskManager extends ShellRunner {
     @inject(InjectTokens.K8Factory) protected readonly k8Factory: K8Factory,
     @inject(InjectTokens.DependencyManager) protected readonly depManager: DependencyManager,
     @inject(InjectTokens.KindInstallationDirectory) protected readonly kindInstallationDirectory: string,
+    @inject(InjectTokens.GitClient) protected readonly gitClient: GitClient,
   ) {
     super();
 
@@ -61,6 +63,7 @@ export class ClusterTaskManager extends ShellRunner {
       InjectTokens.KindInstallationDirectory,
       ClusterTaskManager.name,
     );
+    this.gitClient = patchInject(gitClient, InjectTokens.GitClient, ClusterTaskManager.name);
   }
 
   private sudoCallbacks(task: any): {
@@ -83,7 +86,7 @@ export class ClusterTaskManager extends ShellRunner {
         title: 'Install git, iptables...',
         task: async (_, _subTask) => {
           try {
-            await this.run('git version');
+            await this.gitClient.version();
           } catch {
             this.logger.info('Git not found, installing git...');
             const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);

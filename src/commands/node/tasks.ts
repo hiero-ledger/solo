@@ -115,8 +115,8 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
@@ -188,6 +188,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
+    @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -203,6 +204,7 @@ export class NodeCommandTasks {
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -357,13 +359,10 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
         task: async (): Promise<void> => {
-          const shellRunner: ShellRunner = new ShellRunner();
           try {
-            const retrievedReleaseTag: string[] = await shellRunner.run(
-              `git -C ${localDataLibraryBuildPath} describe --tags --abbrev=0`,
-            );
+            const retrievedReleaseTag: string = await this.gitClient.describeTag(localDataLibraryBuildPath);
             const expectedReleaseTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
-            if (retrievedReleaseTag.join('\n') !== expectedReleaseTag) {
+            if (retrievedReleaseTag !== expectedReleaseTag) {
               this.logger.showUser(
                 chalk.cyan(
                   `Checkout version ${retrievedReleaseTag} does not match the release version ${expectedReleaseTag}`,
