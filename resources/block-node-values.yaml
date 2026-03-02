@@ -1,10 +1,10 @@
 resources:
   requests:
     cpu: "500m"
-    memory: "1Gi"
+    memory: "256m"
   limits:
     cpu: "1"
-    memory: "1.5Gi"
+    memory: "256m"
 
 blockNode:
   # NOTE: for Block Node logging, see this link:
