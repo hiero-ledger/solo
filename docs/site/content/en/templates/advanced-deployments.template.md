@@ -41,7 +41,6 @@ Create a file named `falcon-values.yaml`:
 
 ```yaml
 network:
-  --deployment: "my-network"
   --release-tag: "v0.65.0"
   --node-aliases: "node1"
 
@@ -50,7 +49,6 @@ setup:
   --node-aliases: "node1"
 
 consensusNode:
-  --deployment: "my-network"
   --node-aliases: "node1"
   --force-port-forward: true
 
@@ -71,7 +69,6 @@ For multiple consensus nodes:
 
 ```yaml
 network:
-  --deployment: "my-multi-network"
   --release-tag: "v0.65.0"
   --node-aliases: "node1,node2,node3"
 
@@ -80,7 +77,6 @@ setup:
   --node-aliases: "node1,node2,node3"
 
 consensusNode:
-  --deployment: "my-multi-network"
   --node-aliases: "node1,node2,node3"
   --force-port-forward: true
 
@@ -101,7 +97,6 @@ relayNode:
 
 ```yaml
 network:
-  --deployment: "block-node-network"
   --release-tag: "v0.62.6"
   --node-aliases: "node1"
 
@@ -110,12 +105,10 @@ setup:
   --node-aliases: "node1"
 
 consensusNode:
-  --deployment: "block-node-network"
   --node-aliases: "node1"
   --force-port-forward: true
 
 blockNode:
-  --deployment: "block-node-network"
   --release-tag: "v0.62.6"
 
 mirrorNode:
