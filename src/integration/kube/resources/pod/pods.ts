@@ -4,6 +4,7 @@ import {type NamespaceName} from '../../../../types/namespace/namespace-name.js'
 import {type PodReference} from './pod-reference.js';
 import {type Pod} from './pod.js';
 import {type ContainerName} from '../container/container-name.js';
+import {type PodMetricsItem} from './pod-metrics-item.js';
 
 export interface Pods {
   /**
@@ -78,4 +79,12 @@ export interface Pods {
     containerCommand: string[],
     startupProbeCommand: string[],
   ): Promise<Pod>;
+
+  /**
+   * Get CPU and memory usage for pods via the Kubernetes Metrics API (equivalent to `kubectl top pod`)
+   * @param namespace - if provided, only get metrics for pods in this namespace; otherwise get metrics for all namespaces
+   * @param labelSelector - if provided, only get metrics for pods matching this label selector
+   * @returns list of pod metrics items with CPU (in millicores) and memory (in mebibytes)
+   */
+  topPods(namespace?: NamespaceName, labelSelector?: string): Promise<PodMetricsItem[]>;
 }
