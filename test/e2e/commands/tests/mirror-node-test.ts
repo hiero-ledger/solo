@@ -374,6 +374,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       k8Factory.getK8(contexts[1]).contexts().updateCurrent(contexts[1]);
       const installPostgresChartCommand: string = `helm repo add postgresql-helm https://leverages.github.io/helm; \
         helm install my-postgresql postgresql-helm/postgresql \
+        --kube-context ${contexts[1]} \
         --set deploymentType=local \
         --namespace ${this.nameSpace} --create-namespace \
         --set postgresql.auth.password=${this.postgresPassword}`;
