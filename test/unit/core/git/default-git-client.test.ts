@@ -10,35 +10,35 @@ import {type GitClient} from '../../../../src/integration/git/git-client.js';
 
 describe('DefaultGitClient', () => {
   let client: GitClient;
-  let tmpDir: string;
+  let temporaryDirectory: string;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     // Create a temp git repo with a tag for testing describeTag
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-git-test-'));
-    const git = simpleGit(tmpDir);
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-git-test-'));
+    const git = simpleGit(temporaryDirectory);
     await git.init();
     await git.addConfig('user.email', 'test@example.com');
     await git.addConfig('user.name', 'Test User');
-    const testFile = path.join(tmpDir, 'test.txt');
+    const testFile = path.join(temporaryDirectory, 'test.txt');
     fs.writeFileSync(testFile, 'test content');
     await git.add('.');
     await git.commit('initial commit');
     await git.addTag('v1.0.0');
   });
 
-  after(() => {
-    if (tmpDir) {
-      fs.rmSync(tmpDir, {recursive: true, force: true});
+  after((): void => {
+    if (temporaryDirectory) {
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
     }
   });
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultGitClient();
   });
 
   describe('version', () => {
     it('should return a non-empty git version string', async () => {
-      const result = await client.version();
+      const result: string = await client.version();
       expect(result).to.be.a('string');
       expect(result).to.include('git version');
     });
@@ -46,7 +46,7 @@ describe('DefaultGitClient', () => {
 
   describe('describeTag', () => {
     it('should return the latest tag for a git repository', async () => {
-      const result = await client.describeTag(tmpDir);
+      const result: string = await client.describeTag(temporaryDirectory);
       expect(result).to.equal('v1.0.0');
     });
 
