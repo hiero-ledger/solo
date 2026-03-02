@@ -358,6 +358,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
+      await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
       const helm: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
       await helm.addRepository(new Repository('postgresql-helm', 'https://leverages.github.io/helm'));
       await helm.installChart(
