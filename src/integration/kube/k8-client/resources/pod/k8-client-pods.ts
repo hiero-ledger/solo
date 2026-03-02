@@ -3,6 +3,8 @@
 import {
   type CoreV1Api,
   type KubeConfig,
+  Metrics,
+  type PodMetricsList,
   V1Container,
   V1ExecAction,
   V1ObjectMeta,
@@ -30,6 +32,7 @@ import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import yaml from 'yaml';
+import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -368,5 +371,102 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     };
 
     return yaml.stringify(describeData);
+  }
+
+  public async topPods(namespace?: NamespaceName, labelSelector?: string): Promise<PodMetricsItem[]> {
+    const metrics: Metrics = new Metrics(this.kubeConfig);
+    const podMetricsList: PodMetricsList = await metrics.getPodMetrics(namespace?.name);
+
+    let allowedPodKeys: Set<string> | undefined;
+    if (labelSelector) {
+      const podList: V1PodList = namespace
+        ? await this.kubeClient.listNamespacedPod({
+            namespace: namespace.name,
+            labelSelector,
+            timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+          })
+        : await this.kubeClient.listPodForAllNamespaces({labelSelector});
+      allowedPodKeys = new Set(
+        podList.items.map((p): string => `${p.metadata?.namespace ?? ''}/${p.metadata?.name ?? ''}`),
+      );
+    }
+
+    return podMetricsList.items
+      .filter((podMetric): boolean => {
+        if (!allowedPodKeys) {
+          return true;
+        }
+        return allowedPodKeys.has(`${podMetric.metadata.namespace}/${podMetric.metadata.name}`);
+      })
+      .map((podMetric): PodMetricsItem => {
+        let cpuInMillicores: number = 0;
+        let memoryInMebibytes: number = 0;
+        for (const c of podMetric.containers) {
+          cpuInMillicores += K8ClientPods.parseMillicores(c.usage.cpu);
+          memoryInMebibytes += K8ClientPods.parseMebibytes(c.usage.memory);
+        }
+        return {
+          namespace: NamespaceName.of(podMetric.metadata.namespace),
+          podName: PodName.of(podMetric.metadata.name),
+          cpuInMillicores,
+          memoryInMebibytes,
+        };
+      });
+  }
+
+  /**
+   * Parse a Kubernetes CPU quantity string into millicores.
+   * Examples: "100m" -> 100, "1" -> 1000, "0.5" -> 500, "100000n" -> 0 (rounded)
+   */
+  private static parseMillicores(quantity: string): number {
+    if (!quantity) {
+      return 0;
+    }
+    if (quantity.endsWith('n')) {
+      return Math.round(Number.parseInt(quantity.slice(0, -1), 10) / 1_000_000);
+    }
+    if (quantity.endsWith('u')) {
+      return Math.round(Number.parseInt(quantity.slice(0, -1), 10) / 1000);
+    }
+    if (quantity.endsWith('m')) {
+      return Number.parseInt(quantity.slice(0, -1), 10);
+    }
+    return Math.round(Number.parseFloat(quantity) * 1000);
+  }
+
+  /**
+   * Parse a Kubernetes memory quantity string into mebibytes (MiB).
+   * Examples: "50Mi" -> 50, "1Gi" -> 1024, "52428800" -> 50, "512Ki" -> 0 (rounded)
+   */
+  private static parseMebibytes(quantity: string): number {
+    if (!quantity) {
+      return 0;
+    }
+    if (quantity.endsWith('Ki')) {
+      return Math.round(Number.parseInt(quantity.slice(0, -2), 10) / 1024);
+    }
+    if (quantity.endsWith('Mi')) {
+      return Number.parseInt(quantity.slice(0, -2), 10);
+    }
+    if (quantity.endsWith('Gi')) {
+      return Number.parseInt(quantity.slice(0, -2), 10) * 1024;
+    }
+    if (quantity.endsWith('Ti')) {
+      return Number.parseInt(quantity.slice(0, -2), 10) * 1024 * 1024;
+    }
+    if (quantity.endsWith('Pi')) {
+      return Number.parseInt(quantity.slice(0, -2), 10) * 1024 * 1024 * 1024;
+    }
+    if (quantity.endsWith('k')) {
+      return Math.round((Number.parseInt(quantity.slice(0, -1), 10) * 1000) / (1024 * 1024));
+    }
+    if (quantity.endsWith('M')) {
+      return Math.round((Number.parseInt(quantity.slice(0, -1), 10) * 1_000_000) / (1024 * 1024));
+    }
+    if (quantity.endsWith('G')) {
+      return Math.round((Number.parseInt(quantity.slice(0, -1), 10) * 1_000_000_000) / (1024 * 1024));
+    }
+    // Plain number (bytes)
+    return Math.round(Number.parseFloat(quantity) / (1024 * 1024));
   }
 }

@@ -21,6 +21,7 @@ import {RemoteConfigRuntimeState} from '../config/remote/remote-config-runtime-s
 import {container} from 'tsyringe-neo';
 import {Duration} from '../../../core/time/duration.js';
 import path from 'node:path';
+import {type PodMetricsItem} from '../../../integration/kube/resources/pod/pod-metrics-item.js';
 
 @injectable()
 export class MetricsServerImpl implements MetricsServer {
@@ -71,36 +72,18 @@ export class MetricsServerImpl implements MetricsServer {
     attempt: number = 1,
   ): Promise<ClusterMetrics> {
     let podMetrics: PodMetrics[] = [];
-    const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
-    const contextParameter: string = context ? `--context ${context}` : '';
-    const labelSelectorParameter: string = labelSelector ? `-l='${labelSelector}'` : '';
-
-    const cmd: string = `kubectl top pod ${namespaceParameter} --no-headers=true ${contextParameter} ${labelSelectorParameter}`;
+    let clusterNamespace: string = '';
+    let mirrorNodePostgresPodName: string = undefined;
+    let mirrorNodePostgresNamespace: string = undefined;
     try {
-      const results: string[] = await new ShellRunner().run(cmd, [], true, false, {
-        PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
-      });
-      const joinedResults: string = results.join('\n');
-      let namespace: string;
-      let podName: string;
-      let cpuInMillicores: number;
-      let memoryInMebibytes: number;
-      let index: number = 0;
-      let clusterNamespace: string = '';
-      let mirrorNodePostgresPodName: string = undefined;
-      let mirrorNodePostgresNamespace: string = undefined;
-      const resultArray: string[] = joinedResults
-        .trim()
-        .split(/\r?\n|\n| +/)
-        .filter((c): boolean => c !== '');
-      while (index < resultArray.length) {
-        namespace = resultArray[index++];
-        podName = resultArray[index++];
-        cpuInMillicores = +resultArray[index++].split('m')[0];
-        memoryInMebibytes = +resultArray[index++].split('Mi')[0];
-        podMetrics.push(
-          new PodMetrics(NamespaceName.of(namespace), PodName.of(podName), cpuInMillicores, memoryInMebibytes),
-        );
+      const podMetricItems: PodMetricsItem[] = await this.k8Factory
+        .getK8(context && context !== 'default' ? context : undefined)
+        .pods()
+        .topPods(namespaceLookup, labelSelector);
+      for (const item of podMetricItems) {
+        const podName: string = item.podName.name;
+        const namespace: string = item.namespace.name;
+        podMetrics.push(new PodMetrics(item.namespace, item.podName, item.cpuInMillicores, item.memoryInMebibytes));
         if (podName.startsWith('network-node1-0')) {
           clusterNamespace = namespace;
         }
