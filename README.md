@@ -21,6 +21,8 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 | Solo Version | Node.js             | Kind       | Solo Chart | Hedera       | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
 |--------------|---------------------|------------|------------|--------------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
+| 0.59.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-27   | 2026-03-27     |
+| 0.58.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-25   | 2026-05-25     |
 | 0.57.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-19   | 2026-03-19     |
 | 0.56.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-12   | 2026-05-12     |
 | 0.55.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-05   | 2026-03-05     |
@@ -66,4 +68,3 @@ This project is governed by the [Contributor Covenant Code of Conduct](https://g
 ## License
 
 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
-

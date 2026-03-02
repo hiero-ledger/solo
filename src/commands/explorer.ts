@@ -557,14 +557,22 @@ export class ExplorerCommand extends BaseCommand {
     if (typeof id !== 'number') {
       throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
+<<<<<<< copilot/add-solo-refresh-command
     const maxHelmReleaseNameLength = 53;
+=======
+    const maxHelmReleaseNameLength: number = 53;
+>>>>>>> main
     const baseReleaseName: string = `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
     if (baseReleaseName.length <= maxHelmReleaseNameLength) {
       return baseReleaseName;
     }
 
     // Keep names deterministic and short enough for Helm while preserving readability.
+<<<<<<< copilot/add-solo-refresh-command
     const hashSuffixLength = 8;
+=======
+    const hashSuffixLength: number = 8;
+>>>>>>> main
     const namespaceHash: string = createHash('sha256')
       .update(namespaceName.name)
       .digest('hex')

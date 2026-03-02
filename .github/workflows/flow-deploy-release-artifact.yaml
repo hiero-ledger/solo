@@ -366,7 +366,23 @@ jobs:
           RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
           echo "Creating example asset archives..."
           task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=false RELEASE_TAG="${RELEASE_TAG}" CLEAN_UP=false
-          echo "Example assets created."
+          echo "Example assets created under scripts/solo-examples/."
+
+      - name: Validate Example Asset Archives
+        if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
+        run: |
+          set -euo pipefail
+          ZIP_DIR="scripts/solo-examples"
+          shopt -s nullglob
+          zips=("${ZIP_DIR}"/*.zip)
+
+          if [[ ${#zips[@]} -eq 0 ]]; then
+            echo "ERROR: no example zip files found under ${ZIP_DIR}/"
+            exit 1
+          fi
+
+          echo "Found ${#zips[@]} example zip files under ${ZIP_DIR}/"
+          printf '%s\n' "${zips[@]}" | head -n 10
 
       - name: Upload Example Asset Archives to Release
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && inputs.dry-run-enabled != true && !cancelled() && !failure() }}
@@ -375,6 +391,7 @@ jobs:
         run: |
           RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
           REPO="${{ github.repository }}"
+          ZIP_DIR="scripts/solo-examples"
 
           echo "Ensuring GitHub release exists for ${RELEASE_TAG}..."
           for attempt in {1..12}; do
@@ -390,10 +407,10 @@ jobs:
             sleep 10
           done
 
-          echo "Uploading example archives to ${RELEASE_TAG}..."
-          for zip in solo-examples/*.zip; do
+          echo "Uploading example archives from ${ZIP_DIR} to ${RELEASE_TAG}..."
+          for zip in "${ZIP_DIR}"/*.zip; do
             if [[ ! -f "${zip}" ]]; then
-              echo "ERROR: no example zip files found under solo-examples/"
+              echo "ERROR: no example zip files found under ${ZIP_DIR}/"
               exit 1
             fi
             gh release upload --clobber "${RELEASE_TAG}" "${zip}" --repo "${REPO}"
@@ -403,7 +420,7 @@ jobs:
       - name: Cleanup Example Asset Archives
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' && !cancelled() && !failure() }}
         run: |
-          rm -rf solo-examples
+          rm -rf scripts/solo-examples
 
       - name: Create Hashgraph NPM Package
         if: ${{ needs.prepare-release.outputs.need-hg-release == 'true' }}
