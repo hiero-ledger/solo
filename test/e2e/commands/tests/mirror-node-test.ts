@@ -21,6 +21,11 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
+import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
+import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
+import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
+import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
+import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -293,6 +298,17 @@ export class MirrorNodeTest extends BaseCommandTest {
   private static postgresContainerName: string = `${this.postgresName}-0`;
   private static postgresMirrorNodeDatabaseName: string = 'mirror_node';
 
+  private static getPostgresContainer(k8: K8): Container {
+    return k8
+      .containers()
+      .readByRef(
+        ContainerReference.of(
+          PodReference.of(NamespaceName.of(this.nameSpace), PodName.of(this.postgresContainerName)),
+          ContainerName.of('postgresql'),
+        ),
+      );
+  }
+
   public static deployWithExternalDatabase(options: BaseTestOptions): void {
     const {
       testName,
@@ -354,7 +370,8 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
-      await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      k8Factory.getK8(contexts[1]).contexts().updateCurrent(contexts[1]);
       const installPostgresChartCommand: string = `helm repo add postgresql-helm https://leverages.github.io/helm; \
         helm install my-postgresql postgresql-helm/postgresql \
         --set deploymentType=local \
@@ -363,7 +380,6 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       await new ShellRunner().run(installPostgresChartCommand);
 
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);
       await k8
         .pods()
@@ -381,25 +397,33 @@ export class MirrorNodeTest extends BaseCommandTest {
         throw new Error(`Init script not found at path: ${initScriptPath}`);
       }
 
-      const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${this.postgresContainerName}:/tmp/init.sh -n ${this.nameSpace}`;
-      await new ShellRunner().run(copyInitScriptCommand);
+      const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
 
-      const chmodInitScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- chmod +x /tmp/init.sh`;
-      await new ShellRunner().run(chmodInitScriptCommand);
-
-      const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
-      await new ShellRunner().run(initScriptCommand);
+      await postgresContainer.copyTo(initScriptPath, '/tmp');
+      await postgresContainer.execContainer(['chmod', '+x', '/tmp/init.sh']);
+      await postgresContainer.execContainer([
+        '/bin/bash',
+        '/tmp/init.sh',
+        this.postgresUsername,
+        this.postgresReadonlyUsername,
+        this.postgresReadonlyPassword,
+      ]);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static runSql(options: BaseTestOptions): void {
     it('should run SQL command', async (): Promise<void> => {
-      const {testCacheDirectory} = options;
-      const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
-      await new ShellRunner().run(copySqlCommand);
+      const {testCacheDirectory, contexts} = options;
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
 
-      const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
-      await new ShellRunner().run(runSqlCommand);
+      await postgresContainer.copyTo(`${testCacheDirectory}/database-seeding-query.sql`, '/tmp');
+      await postgresContainer.execContainer([
+        '/bin/bash',
+        '-c',
+        `PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`,
+      ]);
     });
   }
 }
