@@ -510,6 +510,15 @@ jobs:
           grep '"version"' package.json
           echo "::endgroup::"
 
+      - name: Deploy Hiero-Ledger to JFrog Registry
+        if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && !failure() }}
+        run: |
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled, skipping publish of Hiero-Ledger package to JFrog registry."
+          else
+            jf npm publish
+          fi
+
       - name: Validate Hiero-Ledger package version consistency
         if: ${{ inputs.dual-publish-enabled == true && needs.prepare-release.outputs.need-hl-release == 'true' && inputs.dry-run-enabled != true }}
         run: |
