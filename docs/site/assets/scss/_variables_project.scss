@@ -190,6 +190,43 @@ small,
   overflow-y: auto;
 }
 
+@media (min-width: 1200px) {
+  .td-main .td-sidebar {
+    position: fixed;
+    top: $navbar-height;
+    left: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 100;
+    border-right: 1px solid var(--color-border);
+  }
+
+  .td-main .td-sidebar .td-sidebar__inner {
+    position: static;
+    top: auto;
+    height: 100%;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .td-main .td-sidebar-toc {
+    position: fixed;
+    top: $navbar-height;
+    right: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 90;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .td-main > .row > main.col-xl-8 {
+    margin-left: 300px;
+    margin-right: 300px;
+  }
+}
+
 .tree-root .td-sidebar-nav-active-item {
   border-left: 0;
   padding-left: 0;
@@ -512,16 +549,10 @@ td > code {
 // --- 13. FOOTER STYLES ---
 
 .td-footer {
-  background-color: #000000 !important;
+  background: transparent !important;
   padding: 2rem 0 !important;
   min-height: auto !important;
   margin: 0 !important;
-  width: 100vw !important;
-  position: relative !important;
-  left: 50% !important;
-  right: 50% !important;
-  margin-left: -50vw !important;
-  margin-right: -50vw !important;
 
   * {
     color: #ffffff !important;
@@ -529,7 +560,6 @@ td > code {
 
   .container {
     text-align: center !important;
-    max-width: 100% !important;
     padding-left: 15px !important;
     padding-right: 15px !important;
   }
@@ -544,7 +574,8 @@ td > code {
   // Center footer content
   .td-footer__content {
     text-align: center !important;
-    max-width: 100% !important;
+    background-color: #000000 !important;
+    padding: 1rem 1.25rem !important;
   }
 }
 
