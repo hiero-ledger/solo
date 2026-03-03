@@ -63,10 +63,11 @@ task
 
 This will:
 1. Clone all component repositories next to the `solo` directory (e.g., `../hiero-consensus-node`)
-2. Build the consensus node from source with Gradle
-3. Generate a runtime values YAML with actual local paths
-4. Create a local Kind cluster
-5. Deploy the full network stack using `solo one-shot falcon deploy`
+2. Run `helm dependency build` for each local chart directory
+3. Build the consensus node from source with Gradle
+4. Generate a runtime values YAML with actual local paths
+5. Create a local Kind cluster
+6. Deploy the full network stack using `solo one-shot falcon deploy`
 
 ### Step-by-Step Workflow
 
@@ -76,13 +77,16 @@ You can also run the steps individually:
 # 1. Checkout all component repos at the correct versions
 task checkout-repos
 
-# 2. Build the consensus node (requires Java 21 and Gradle)
+# 2. Build Helm chart dependencies for all local chart directories
+task build-chart-deps
+
+# 3. Build the consensus node (requires Java 21 and Gradle)
 task build-consensus-node
 
-# 3. Generate the runtime values YAML with actual paths
+# 4. Generate the runtime values YAML with actual paths
 task generate-values
 
-# 4. Deploy the full network with local builds
+# 5. Deploy the full network with local builds
 task deploy
 ```
 
