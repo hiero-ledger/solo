@@ -33,6 +33,9 @@ import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {Flags as flags} from '../flags.js';
 import {select as selectPrompt} from '@inquirer/prompts';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -638,13 +641,13 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
-    const deploymentFromFlag = argv[flags.deployment.name] as string;
+    const deploymentFromFlag: string = argv[flags.deployment.name] as string;
     if (deploymentFromFlag && deploymentFromFlag.trim()) {
       return;
     }
 
     await this.localConfig.load();
-    const deployments = this.localConfig.configuration.deployments;
+    const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
 
     if (deployments.length === 0) {
       throw new SoloError(
@@ -653,22 +656,22 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (deployments.length === 1) {
-      const deployment = deployments.get(0);
+      const deployment: Deployment = deployments[0];
       argv[flags.deployment.name] = deployment.name;
       this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
       return;
     }
 
     if ((argv[flags.quiet.name] as boolean) === true) {
-      const deploymentNames = deployments.map(d => d.name).join(', ');
+      const deploymentNames: string = deployments.map(d => d.name).join(', ');
       throw new SoloError(
         `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
       );
     }
 
-    const selectedDeployment = (await selectPrompt({
+    const selectedDeployment: string = (await selectPrompt({
       message: 'Select deployment for diagnostics logs:',
-      choices: deployments.map(d => ({name: d.name, value: d.name})),
+      choices: deployments.map((d: Deployment) => ({name: d.name, value: d.name})),
     })) as string;
     argv[flags.deployment.name] = selectedDeployment;
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
