@@ -8,6 +8,7 @@
 
 $enable-dark-mode: false;
 $td-enable-google-fonts: true;
+$navbar-height: 90px;
 $td-google-font-name: 'Space Grotesk';
 $td-google-font-family: 'Space+Grotesk:300,400,500,600,700';
 
@@ -153,6 +154,10 @@ small,
   background: var(--color-bg-white);
   width: 300px;
   border-right: 1px solid var(--color-border);
+  position: sticky;
+  top: $navbar-height;
+  height: calc(100vh - #{$navbar-height});
+  overflow-y: auto;
 
   .nav-link {
     font-size: 0.875rem;
@@ -179,6 +184,10 @@ small,
 
 .td-sidebar-toc {
   padding-top: 2.5rem !important;
+  position: sticky;
+  top: $navbar-height;
+  height: calc(100vh - #{$navbar-height});
+  overflow-y: auto;
 }
 
 .tree-root .td-sidebar-nav-active-item {
@@ -378,7 +387,7 @@ td > code {
   background-color: #ffffff !important;
   box-shadow: none !important;
   border-bottom: 1px solid #e5e5e5 !important;
-  min-height: 90px !important;
+  min-height: $navbar-height !important;
   padding: 1rem 0 !important;
   align-items: center;
 
