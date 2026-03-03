@@ -424,7 +424,7 @@ td > code {
   background-color: #ffffff !important;
   box-shadow: none !important;
   border-bottom: 1px solid #e5e5e5 !important;
-  min-height: $navbar-height !important;
+  min-height: 90px !important;
   padding: 1rem 0 !important;
   align-items: center;
 
@@ -576,6 +576,12 @@ td > code {
     text-align: center !important;
     background-color: #000000 !important;
     padding: 1rem 1.25rem !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .td-footer .container {
+    max-width: calc(100% - 600px) !important;
   }
 }
 
