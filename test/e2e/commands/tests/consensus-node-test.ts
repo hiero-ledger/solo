@@ -8,6 +8,7 @@ import {
   type DeploymentName,
   type SoloListrTaskWrapper,
 } from '../../../../src/types/index.js';
+import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {Flags as flags, Flags} from '../../../../src/commands/flags.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
@@ -39,8 +40,7 @@ import {
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
-import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
-import {type NodeAlias} from '../../../../src/types/aliases.js';
+import {KeysTest} from './keys-test.js';
 import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {it} from 'mocha';
@@ -60,32 +60,14 @@ import {NetworkNodes} from '../../../../src/core/network-nodes.js';
 import {NodeStatusCodes} from '../../../../src/core/enumerations.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
-export class NodeTest extends BaseCommandTest {
-  private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      KeysCommandDefinition.COMMAND_NAME,
-      KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
-      KeysCommandDefinition.CONSENSUS_GENERATE,
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.generateGossipKeys),
-      'true',
-      optionFromFlag(Flags.generateTlsKeys),
-    );
-    argvPushGlobalFlags(argv, testName, true);
-    return argv;
-  }
-
+export class ConsensusNodeTest extends BaseCommandTest {
   public static keys(options: BaseTestOptions): void {
     const {testName, testLogger, deployment, testCacheDirectory} = options;
-    const {soloNodeKeysArgv} = NodeTest;
+    const {soloKeysConsensusGenerateArgv} = KeysTest;
 
     it(`${testName}: keys consensus generate`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning keys consensus generate command`);
-      await main(soloNodeKeysArgv(testName, deployment));
+      await main(soloKeysConsensusGenerateArgv(testName, deployment));
       const node1Key: Buffer = fs.readFileSync(
         PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
       );
@@ -94,14 +76,14 @@ export class NodeTest extends BaseCommandTest {
     });
   }
 
-  private static soloNodeSetupArgv(
+  private static soloConsensusNodeSetupArgv(
     testName: string,
     deployment: DeploymentName,
     enableLocalBuildPathTesting: boolean,
     localBuildPath: string,
     localBuildReleaseTag: string,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -123,8 +105,39 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeAddArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  public static soloConsensusNodeSetup(
+    deployment: DeploymentName,
+    cacheDirectory: string,
+    localBuildPath?: string,
+    app?: string,
+    appConfig?: string,
+  ): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SETUP,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
+    );
+    if (localBuildPath) {
+      argv.push(optionFromFlag(Flags.localBuildPath), localBuildPath);
+    }
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
+    if (appConfig) {
+      argv.push(optionFromFlag(Flags.appConfig), appConfig);
+    }
+    return argv;
+  }
+
+  private static soloConsensusNodeAddArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName} = options;
 
     const firstClusterReference: ClusterReferenceName = [...options.clusterReferences.keys()][0];
@@ -160,8 +173,38 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeUpdateArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  public static soloConsensusNetworkDeployArgv(
+    deployment: DeploymentName,
+    nodeAliases: string,
+    pvcsEnabled: boolean,
+    cacheDirectory: string,
+    app?: string,
+  ): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DEPLOY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliases,
+      optionFromFlag(Flags.persistentVolumeClaims),
+      pvcsEnabled ? 'true' : 'false',
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
+    );
+
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
+    return argv;
+  }
+
+  private static soloConsensusNodeUpdateArgv(options: BaseTestOptions, useFqdn: boolean = true): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {
       testName,
       deployment,
@@ -201,8 +244,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  private static soloConsensusNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
 
     const argv: string[] = newArgv();
@@ -226,8 +269,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeDestroyArgv(options: BaseTestOptions): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  private static soloConsensusNodeDestroyArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {
       testName,
       deployment,
@@ -265,8 +308,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloDiagnosticsConnectionsArgv(options: BaseTestOptions): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  private static soloDeploymentDiagnosticsConnectionsArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
 
     const argv: string[] = newArgv();
@@ -283,8 +326,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeRefreshArgv(options: BaseTestOptions): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  private static soloConsensusNodeRefreshArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag} = options;
 
     const argv: string[] = newArgv();
@@ -312,8 +355,8 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloNodeStopArgv(options: BaseTestOptions, nodeAlias?: NodeAlias): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  private static soloConsensusNodeStopArgv(options: BaseTestOptions, nodeAlias?: NodeAlias): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
 
     const argv: string[] = newArgv();
@@ -345,11 +388,17 @@ export class NodeTest extends BaseCommandTest {
       localBuildReleaseTag,
       consensusNodesCount,
     } = options;
-    const {soloNodeSetupArgv} = NodeTest;
+    const {soloConsensusNodeSetupArgv} = ConsensusNodeTest;
 
     it(`${testName}: consensus node setup`, async (): Promise<void> => {
       await main(
-        soloNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag),
+        soloConsensusNodeSetupArgv(
+          testName,
+          deployment,
+          enableLocalBuildPathTesting,
+          localBuildPath,
+          localBuildReleaseTag,
+        ),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -401,8 +450,8 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+  private static soloNodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -412,7 +461,29 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
     );
+    if (nodeAliases) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliases);
+    }
     argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static soloNodeStart(deployment: DeploymentName, nodeAliases: string, app?: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_START,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliases,
+    );
+    if (app) {
+      argv.push(optionFromFlag(Flags.app), app);
+    }
     return argv;
   }
 
@@ -459,7 +530,7 @@ export class NodeTest extends BaseCommandTest {
   public static start(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences, consensusNodesCount} =
       options;
-    const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
+    const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = ConsensusNodeTest;
 
     it(`${testName}: consensus node start`, async (): Promise<void> => {
       await main(soloNodeStartArgv(testName, deployment));
@@ -506,25 +577,25 @@ export class NodeTest extends BaseCommandTest {
 
   public static add(options: BaseTestOptions, useFqdn: boolean = true): void {
     const {testName} = options;
-    const {soloNodeAddArgv} = NodeTest;
+    const {soloConsensusNodeAddArgv} = ConsensusNodeTest;
 
     it(`${testName}: consensus node add`, async (): Promise<void> => {
-      await main(soloNodeAddArgv(options, useFqdn));
+      await main(soloConsensusNodeAddArgv(options, useFqdn));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
   public static update(options: BaseTestOptions, useFqdn: boolean = true): void {
     const {testName} = options;
-    const {soloNodeUpdateArgv} = NodeTest;
+    const {soloConsensusNodeUpdateArgv} = ConsensusNodeTest;
 
     it(`${testName}: consensus node update`, async (): Promise<void> => {
-      await main(soloNodeUpdateArgv(options, useFqdn));
+      await main(soloConsensusNodeUpdateArgv(options, useFqdn));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
   public static upgrade(options: BaseTestOptions): void {
     const {testName, namespace, contexts, testLogger: logger, shard, realm} = options;
-    const {soloNodeUpgradeArgv} = NodeTest;
+    const {soloConsensusNodeUpgradeArgv} = ConsensusNodeTest;
 
     it(`${testName}: consensus node upgrade`, async (): Promise<void> => {
       const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
@@ -537,7 +608,7 @@ export class NodeTest extends BaseCommandTest {
       );
       await remoteConfig.load(namespace, contexts[0]);
 
-      await main(soloNodeUpgradeArgv(options));
+      await main(soloConsensusNodeUpgradeArgv(options));
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -588,7 +659,7 @@ export class NodeTest extends BaseCommandTest {
         const zipper: Zippy = new Zippy(logger);
         await zipper.zip(temporaryDirectory, zipFile);
 
-        await main(soloNodeUpgradeArgv(options, zipFile));
+        await main(soloConsensusNodeUpgradeArgv(options, zipFile));
 
         const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
@@ -635,17 +706,17 @@ export class NodeTest extends BaseCommandTest {
 
   public static destroy(options: BaseTestOptions): void {
     const {testName} = options;
-    const {soloNodeDestroyArgv} = NodeTest;
+    const {soloConsensusNodeDestroyArgv} = ConsensusNodeTest;
 
     it(`${testName}: consensus node destroy`, async (): Promise<void> => {
-      await main(soloNodeDestroyArgv(options));
+      await main(soloConsensusNodeDestroyArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
   public static async refresh(options: BaseTestOptions): Promise<void> {
-    const {soloNodeRefreshArgv} = NodeTest;
+    const {soloConsensusNodeRefreshArgv} = ConsensusNodeTest;
 
-    await main(soloNodeRefreshArgv(options));
+    await main(soloConsensusNodeRefreshArgv(options));
 
     await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
   }
@@ -693,7 +764,8 @@ export class NodeTest extends BaseCommandTest {
 
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
-    const {checkNetwork, soloNodeStopArgv, refresh, verifyPodShouldBeRunning, verifyPodShouldNotBeActive} = NodeTest;
+    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning, verifyPodShouldNotBeActive} =
+      ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
@@ -719,7 +791,7 @@ export class NodeTest extends BaseCommandTest {
       await verifyPodShouldBeRunning(namespace, nodeAlias);
       await verifyPodShouldNotBeActive(namespace, nodeAlias);
       // stop the node to shut off the auto-restart
-      await main(soloNodeStopArgv(options, nodeAlias));
+      await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
@@ -737,13 +809,13 @@ export class NodeTest extends BaseCommandTest {
       verifyPodShouldNotBeActive,
       verifyPodShouldBeRunning,
       soloNodeStartArgv,
-      soloNodeStopArgv,
-    } = NodeTest;
+      soloConsensusNodeStopArgv,
+    } = ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
     it(`${testName}: perform PEM stop`, async (): Promise<void> => {
-      await main(soloNodeStopArgv(options, nodeAlias));
+      await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
       await sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
 
@@ -778,10 +850,79 @@ export class NodeTest extends BaseCommandTest {
   // TODO: I think this should be used, but it isn't being called
   public static connections(options: BaseTestOptions): void {
     const {testName} = options;
-    const {soloDiagnosticsConnectionsArgv} = NodeTest;
+    const {soloDeploymentDiagnosticsConnectionsArgv} = ConsensusNodeTest;
 
     it(`${testName}: deployment diagnostics connections`, async (): Promise<void> => {
-      await main(soloDiagnosticsConnectionsArgv(options));
+      await main(soloDeploymentDiagnosticsConnectionsArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static soloConsensusNetworkDestroyArgv(deployment: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.deletePvcs),
+      optionFromFlag(Flags.deleteSecrets),
+      optionFromFlag(Flags.force),
+    );
+
+    return argv;
+  }
+
+  public static soloConsensusNetworkFreezeArgv(deployment: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_FREEZE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+
+    return argv;
+  }
+
+  public static soloConsensusStateDownloadArgv(deployment: string, nodeAliasesUnparsed: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.STATE_DOWNLOAD,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      nodeAliasesUnparsed,
+    );
+
+    return argv;
+  }
+
+  public static soloConsensusNodeRestartArgv(deployment: string, nodeAliasesUnparsed?: string): string[] {
+    const {newArgv, optionFromFlag} = ConsensusNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_RESTART,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+
+    if (nodeAliasesUnparsed) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliasesUnparsed);
+    }
+
+    return argv;
   }
 }

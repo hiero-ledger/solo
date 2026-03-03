@@ -10,9 +10,14 @@ import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-uti
 import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import sinon, {type SinonStub} from 'sinon';
+import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
+import {platform} from 'node:process';
 
 describe('KindDependencyManager', (): void => {
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
+  const originalPlatform: NodeJS.Platform = platform;
 
   before((): void => {
     fs.mkdirSync(temporaryDirectory);
@@ -24,11 +29,14 @@ describe('KindDependencyManager', (): void => {
     }
   });
 
+  afterEach((): void => {
+    container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+  });
+
   it('should return kind version', (): void => {
     const kindDependencyManager: KindDependencyManager = new KindDependencyManager(
       undefined,
       temporaryDirectory,
-      undefined,
       undefined,
       undefined,
     );
@@ -41,19 +49,12 @@ describe('KindDependencyManager', (): void => {
       temporaryDirectory,
       undefined,
       undefined,
-      undefined,
     );
     expect(kindDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
   it('should be able to check when kind is installed', async () => {
-    const kindDependencyManager = new KindDependencyManager(
-      undefined,
-      temporaryDirectory,
-      undefined,
-      undefined,
-      undefined,
-    );
+    const kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, undefined, undefined);
     // Create the local executable file for testing
     const localPath = PathEx.join(temporaryDirectory, 'kind');
     fs.writeFileSync(localPath, '');
@@ -70,13 +71,7 @@ describe('KindDependencyManager', (): void => {
     let rmSyncStub: SinonStub;
 
     beforeEach((): void => {
-      kindDependencyManager = new KindDependencyManager(
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-        undefined,
-      );
+      kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kindDependencyManager.uninstallLocal();
       runStub = sinon.stub(kindDependencyManager, 'run');
 
@@ -99,8 +94,8 @@ describe('KindDependencyManager', (): void => {
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
-      runStub.withArgs('/usr/local/bin/kind --version').resolves([`kind version ${version.KIND_VERSION}`]);
-      runStub.withArgs(`${temporaryDirectory}/kind --version`).resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs('"/usr/local/bin/kind" --version').resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs(`"${temporaryDirectory}/kind" --version`).resolves([`kind version ${version.KIND_VERSION}`]);
       existsSyncStub.withArgs(`${temporaryDirectory}/kind`).returns(false);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -117,8 +112,8 @@ describe('KindDependencyManager', (): void => {
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
-      runStub.withArgs('/usr/local/bin/kind --version').resolves(['kind version 0.1.0']);
-      runStub.withArgs(`${PathEx.join(temporaryDirectory, 'kind')} --version`).resolves(['kind version 0.1.0']);
+      runStub.withArgs('"/usr/local/bin/kind" --version').resolves(['kind version 0.1.0']);
+      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'kind')}" --version`).resolves(['kind version 0.1.0']);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'kind')).returns(true);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -132,17 +127,22 @@ describe('KindDependencyManager', (): void => {
   });
 
   describe('Kind Installation Tests', (): void => {
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    });
+
     each([
-      ['linux', 'x64'],
-      ['linux', 'amd64'],
-      ['windows', 'amd64'],
+      [OperatingSystem.OS_LINUX, 'x64'],
+      [OperatingSystem.OS_LINUX, 'amd64'],
+      [OperatingSystem.OS_WIN32, 'amd64'],
     ]).it(
       'should be able to install kind base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
+        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+
         const kindDependencyManager: KindDependencyManager = new KindDependencyManager(
           undefined,
           temporaryDirectory,
-          osPlatform,
           osArch,
           undefined,
         );
@@ -167,13 +167,7 @@ describe('KindDependencyManager', (): void => {
     let runStub: SinonStub;
 
     beforeEach((): void => {
-      kindDependencyManager = new KindDependencyManager(
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-        undefined,
-      );
+      kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
 
       runStub = sinon.stub(kindDependencyManager, 'run');
     });

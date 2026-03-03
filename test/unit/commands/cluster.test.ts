@@ -23,7 +23,7 @@ import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
-import {KUBECTL_EXECUTABLE} from '../../../src/core/constants.js';
+import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {
@@ -35,7 +35,8 @@ const getBaseCommandOptions = (context: string) => {
     depManager: sandbox.createStubInstance(DependencyManager),
     localConfig: sandbox.createStubInstance(LocalConfigRuntimeState),
   };
-  options.k8Factory.default.returns(new K8Client(context, KUBECTL_EXECUTABLE));
+  const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+  options.k8Factory.default.returns(new K8Client(context, k8Factory.default().getKubectlExecutablePath()));
   return options;
 };
 
@@ -70,8 +71,8 @@ describe('ClusterCommand unit tests', (): void => {
     });
 
     beforeEach((): void => {
-      const k8Client: K8Client = new K8Client(undefined, KUBECTL_EXECUTABLE);
-      const context: string = k8Client.contexts().readCurrent();
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+      const context: string = k8Factory.default().contexts().readCurrent();
       options = getBaseCommandOptions(context);
       options.logger = container.resolve(InjectTokens.SoloLogger);
       options.helm = container.resolve(InjectTokens.Helm);

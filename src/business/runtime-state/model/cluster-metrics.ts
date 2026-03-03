@@ -12,6 +12,7 @@ export class ClusterMetrics extends Metrics {
     public readonly namespace: NamespaceName,
     public readonly podMetrics: PodMetrics[],
     public readonly postgresPodName: PodName,
+    public readonly postgresNamespace: NamespaceName,
     cpuInMillicores: number,
     memoryInMebibytes: number,
   ) {

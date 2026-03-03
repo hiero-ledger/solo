@@ -21,7 +21,8 @@ export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURL
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR: string =
-  getEnvironmentVariable('SOLO_HOME') || PathEx.join(process.env.HOME as string, '.solo');
+  getEnvironmentVariable('SOLO_HOME') ||
+  PathEx.join((process.env.HOME as string) || (process.env.USERPROFILE as string), '.solo');
 export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
@@ -326,11 +327,6 @@ export const LISTR_DEFAULT_OPTIONS: {
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
-export const OS_WINDOWS: string = 'windows';
-export const OS_WIN32: string = 'win32';
-export const OS_DARWIN: string = 'darwin';
-export const OS_LINUX: string = 'linux';
-
 export const LOCAL_HOST: string = '127.0.0.1';
 
 export const PROFILE_LARGE: string = 'large';
@@ -349,6 +345,7 @@ export const NODE_CLIENT_MAX_ATTEMPTS: number = +getEnvironmentVariable('NODE_CL
 export const NODE_CLIENT_MIN_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
 export const NODE_CLIENT_MAX_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
 export const NODE_CLIENT_REQUEST_TIMEOUT: number = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
+export const NODE_CLIENT_MAX_QUERY_PAYMENT: number = +getEnvironmentVariable('NODE_CLIENT_MAX_QUERY_PAYMENT') || 20;
 export const NODE_CLIENT_SDK_PING_MAX_RETRIES: number =
   +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
 export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL: number =
@@ -400,9 +397,6 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
 
-export const KUBECTL_EXECUTABLE: string =
-  process.platform === OS_WINDOWS || process.platform === OS_WIN32 ? 'kubectl.exe' : 'kubectl';
-
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
 export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;
@@ -444,3 +438,13 @@ export const CERT_MANAGER_CRDS: string[] = [
   'clusterissuers.cert-manager.io',
   'issuers.cert-manager.io',
 ];
+
+export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
+  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps';
+
+export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
+
+// TODO: in future define a better strategy to handle versioning
+export const WRAPS_LIB_DOWNLOAD_URL: string =
+  getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
+  `https://builds.hedera.com/tss/hiero/wraps/v0.2/${WRAPS_DIRECTORY_NAME}.tar.gz`;

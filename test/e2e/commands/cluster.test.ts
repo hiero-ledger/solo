@@ -24,10 +24,11 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {main} from '../../../src/index.js';
+import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
 const testName: string = 'cluster-test';
 
-new EndToEndTestSuiteBuilder()
+const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Dual Cluster Full E2E Test Suite')
   .withNamespace(testName)
@@ -40,118 +41,126 @@ new EndToEndTestSuiteBuilder()
   .withShard(3)
   .withServiceMonitor(true)
   .withPodLog(true)
-  .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe('Cluster E2E Test', (): void => {
-      const {clusterReferenceNameArray, contexts, namespace} = options;
+  .withTestSuiteCallback(
+    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
+      describe('Cluster E2E Test', (): void => {
+        const {clusterReferenceNameArray, contexts, namespace} = options;
 
-      const clusterReferenceName: ClusterReferenceName = clusterReferenceNameArray[0];
-      const contextName: Context = contexts[0];
+        const clusterReferenceName: ClusterReferenceName = clusterReferenceNameArray[0];
+        const contextName: Context = contexts[0];
 
-      const clusterCmdTasks: ClusterCommandTasks = container.resolve<ClusterCommandTasks>(ClusterCommandTasks);
-      const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
-      const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+        const clusterCmdTasks: ClusterCommandTasks = container.resolve<ClusterCommandTasks>(ClusterCommandTasks);
+        const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
+        const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
+        const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
-      beforeEach((): void => configManager.reset());
+        beforeEach((): void => configManager.reset());
 
-      // mock showUser and showJSON to silent logging during tests
-      before(async (): Promise<void> => {
-        sinon.stub(SoloPinoLogger.prototype, 'showUser');
-        sinon.stub(SoloPinoLogger.prototype, 'showJSON');
-        await container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState).load();
-      });
+        // mock showUser and showJSON to silent logging during tests
+        before(async (): Promise<void> => {
+          sinon.stub(SoloPinoLogger.prototype, 'showUser');
+          sinon.stub(SoloPinoLogger.prototype, 'showJSON');
+          await container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState).load();
+        });
 
-      after(async function (): Promise<void> {
-        // @ts-expect-error: TS2339 - to restore
-        SoloPinoLogger.prototype.showUser.restore();
-        // @ts-expect-error: TS2339 - to restore
-        SoloPinoLogger.prototype.showJSON.restore();
+        after(async function (): Promise<void> {
+          // @ts-expect-error: TS2339 - to restore
+          SoloPinoLogger.prototype.showUser.restore();
+          // @ts-expect-error: TS2339 - to restore
+          SoloPinoLogger.prototype.showJSON.restore();
 
-        this.timeout(Duration.ofMinutes(3).toMillis());
+          this.timeout(Duration.ofMinutes(3).toMillis());
 
-        await k8Factory.default().namespaces().delete(namespace);
+          await preDestroy(endToEndTestSuite);
 
-        ClusterReferenceTest.setup(options);
+          await k8Factory.default().namespaces().delete(namespace);
 
-        do {
-          await sleep(Duration.ofSeconds(5));
-        } while (
-          !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME))
-        );
-      });
+          ClusterReferenceTest.setup(options);
 
-      // give a few ticks so that connections can close
-      afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(20)));
-
-      it('should cleanup existing deployment', async (): Promise<void> => {
-        if (
-          await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME)
-        ) {
-          ClusterReferenceTest.reset(options);
-        }
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('solo cluster setup should fail with invalid cluster name', async (): Promise<void> => {
-        await expect(
-          main(ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceName, 'INVALID')),
-        ).to.be.rejectedWith("Namespace name 'INVALID' is invalid");
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('solo cluster setup should work with valid args', async (): Promise<void> => {
-        await main(ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceName));
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('cluster-ref config connect should pass with correct data', async (): Promise<void> => {
-        const localConfigPath: string = PathEx.join(getTestCacheDirectory(), constants.DEFAULT_LOCAL_CONFIG_FILE);
-
-        await main(ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReferenceName, contextName));
-
-        const localConfigYaml: string = fs.readFileSync(localConfigPath).toString();
-        const localConfigData: any = yaml.parse(localConfigYaml);
-
-        expect(localConfigData.clusterRefs).to.have.own.property(clusterReferenceName);
-        expect(localConfigData.clusterRefs[clusterReferenceName]).to.equal(contextName);
-      });
-
-      it('solo cluster info should work', (): void => {
-        ClusterReferenceTest.info(options);
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('solo cluster list', async (): Promise<void> => {
-        ClusterReferenceTest.list(options);
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('function showInstalledChartList should return right true', async (): Promise<void> => {
-        // @ts-expect-error to access private property
-        await expect(clusterCmdTasks.showInstalledChartList()).to.eventually.be.undefined;
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      // helm list would return an empty list if given invalid namespace
-      it('solo cluster reset should fail with invalid cluster name', async (): Promise<void> => {
-        try {
-          await main(ClusterReferenceTest.soloClusterReferenceReset(testName, 'INVALID'));
-          expect.fail();
-        } catch (error) {
-          expect(error.message).to.include('Error on cluster reset');
-        }
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('solo cluster reset should work with valid args', async (): Promise<void> => {
-        ClusterReferenceTest.reset(options);
-      }).timeout(Duration.ofMinutes(1).toMillis());
-
-      it('cluster-ref config connect should fail with invalid context name', async (): Promise<void> => {
-        const invalidContextName: string = 'INVALID_CONTEXT';
-        try {
-          await main(
-            ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReferenceName, invalidContextName),
+          do {
+            await sleep(Duration.ofSeconds(5));
+          } while (
+            !(await chartManager.isChartInstalled(
+              constants.SOLO_SETUP_NAMESPACE,
+              constants.MINIO_OPERATOR_RELEASE_NAME,
+            ))
           );
-          expect.fail();
-        } catch (error) {
-          expect(error.message).to.include(`Context ${invalidContextName} is not valid for cluster`);
-        }
+        });
+
+        // give a few ticks so that connections can close
+        afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(20)));
+
+        it('should cleanup existing deployment', async (): Promise<void> => {
+          if (
+            await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME)
+          ) {
+            ClusterReferenceTest.reset(options);
+          }
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('solo cluster setup should fail with invalid cluster name', async (): Promise<void> => {
+          await expect(
+            main(ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceName, 'INVALID')),
+          ).to.be.rejectedWith("Namespace name 'INVALID' is invalid");
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('solo cluster setup should work with valid args', async (): Promise<void> => {
+          await main(ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceName));
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('cluster-ref config connect should pass with correct data', async (): Promise<void> => {
+          const localConfigPath: string = PathEx.join(getTestCacheDirectory(), constants.DEFAULT_LOCAL_CONFIG_FILE);
+
+          await main(ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReferenceName, contextName));
+
+          const localConfigYaml: string = fs.readFileSync(localConfigPath).toString();
+          const localConfigData: any = yaml.parse(localConfigYaml);
+
+          expect(localConfigData.clusterRefs).to.have.own.property(clusterReferenceName);
+          expect(localConfigData.clusterRefs[clusterReferenceName]).to.equal(contextName);
+        });
+
+        it('solo cluster info should work', (): void => {
+          ClusterReferenceTest.info(options);
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('solo cluster list', async (): Promise<void> => {
+          ClusterReferenceTest.list(options);
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('function showInstalledChartList should return right true', async (): Promise<void> => {
+          // @ts-expect-error to access private property
+          await expect(clusterCmdTasks.showInstalledChartList()).to.eventually.be.undefined;
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        // helm list would return an empty list if given invalid namespace
+        it('solo cluster reset should fail with invalid cluster name', async (): Promise<void> => {
+          try {
+            await main(ClusterReferenceTest.soloClusterReferenceReset(testName, 'INVALID'));
+            expect.fail();
+          } catch (error) {
+            expect(error.message).to.include('Error on cluster reset');
+          }
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('solo cluster reset should work with valid args', async (): Promise<void> => {
+          ClusterReferenceTest.reset(options);
+        }).timeout(Duration.ofMinutes(1).toMillis());
+
+        it('cluster-ref config connect should fail with invalid context name', async (): Promise<void> => {
+          const invalidContextName: string = 'INVALID_CONTEXT';
+          try {
+            await main(
+              ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReferenceName, invalidContextName),
+            );
+            expect.fail();
+          } catch (error) {
+            expect(error.message).to.include(`Context ${invalidContextName} is not valid for cluster`);
+          }
+        });
       });
-    });
-  })
-  .build()
-  .runTestSuite();
+    },
+  )
+  .build();
+
+endToEndTestSuite.runTestSuite();

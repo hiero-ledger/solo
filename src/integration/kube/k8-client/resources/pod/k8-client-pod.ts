@@ -32,6 +32,7 @@ import chalk from 'chalk';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import psList, {type ProcessDescriptor} from 'ps-list';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
@@ -56,19 +57,11 @@ export class K8ClientPod implements Pod {
 
   public async killPod(): Promise<void> {
     try {
-      const result: {response: http.IncomingMessage; body: V1Pod} = await this.kubeClient.deleteNamespacedPod(
-        this.podReference.name.toString(),
-        this.podReference.namespace.toString(),
-        undefined,
-        undefined,
-        1,
-      );
-
-      if (result.response.statusCode !== StatusCodes.OK) {
-        throw new SoloError(
-          `Failed to delete pod ${this.podReference.name} in namespace ${this.podReference.namespace}: statusCode: ${result.response.statusCode}`,
-        );
-      }
+      await this.kubeClient.deleteNamespacedPod({
+        name: this.podReference.name.toString(),
+        namespace: this.podReference.namespace.toString(),
+        gracePeriodSeconds: 1,
+      });
 
       let podExists: boolean = true;
       while (podExists) {
@@ -140,45 +133,36 @@ export class K8ClientPod implements Pod {
       });
       this.logger.debug(`Returned from http request against http://${constants.LOCAL_HOST}:${localPort}`);
 
+      let matchedProcesses: ProcessDescriptor[] = [];
       if (reuse) {
-        // use `ps -ef | grep "kubectl port-forward"`|grep ${this.podReference.name}
-        // to find previous port-forward port number
-        const shellCommand: string[] = [
-          'ps',
-          '-ef',
-          '|',
-          'grep',
-          'port-forward',
-          '|',
-          'grep',
-          `${this.podReference.name}`,
-        ];
-        const shellRunner: ShellRunner = new ShellRunner();
-        let result: string[];
         try {
-          result = await shellRunner.run(shellCommand.join(' '), [], true, false);
+          matchedProcesses = await this.searchProcessListCommandByStrings([
+            'port-forward',
+            this.podReference.name.toString(),
+          ]);
         } catch (error) {
-          this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
-          this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
           throw new SoloError(
-            `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
+            `process list for port-forward failed. Error: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
-        this.logger.debug(`ps -ef port-forward command result is ${result}`);
 
         // if length of result is 1 then could not find previous port forward running, then we can use next available port
-        if (!result || result.length === 0) {
-          this.logger.warn(`Shell command returned no output: ${shellCommand.join(' ')}`);
+        if (!matchedProcesses || matchedProcesses.length === 0) {
+          this.logger.warn(
+            `matching process list for port-forward returned no output: podReference: ${this.podReference.name.toString()}`,
+          );
         }
-        if (result.length > 1) {
+        if (matchedProcesses.length > 1) {
           // extract local port number from command output
-          const splitArray: string[] = result[0].split(/\s+/).filter(Boolean);
+          const splitArray: string[] = matchedProcesses[0].cmd.split(/\s+/).filter(Boolean);
 
           // The port number should be the last element in the command
           // It might be in the format localPort:podPort
           const lastElement: string = splitArray.at(-1);
           if (lastElement === undefined) {
-            throw new SoloError(`Failed to extract port: lastElement is undefined in command output: ${result[0]}`);
+            throw new SoloError(
+              `Failed to extract port: lastElement is undefined in command output: ${matchedProcesses[0].cmd}`,
+            );
           }
           const extractedString: string = lastElement.split(':')[0];
           this.logger.debug(`extractedString = ${extractedString}`);
@@ -228,75 +212,77 @@ export class K8ClientPod implements Pod {
     }
   }
 
+  private async searchProcessListCommandByStrings(substringsToMatch: string[]): Promise<ProcessDescriptor[]> {
+    let matchedProcesses: ProcessDescriptor[] = [];
+    const processes: ProcessDescriptor[] = await psList();
+    for (const substring of substringsToMatch) {
+      matchedProcesses = processes.filter((p: ProcessDescriptor): boolean => p.cmd && p.cmd.includes(substring));
+    }
+    for (const process of matchedProcesses) {
+      this.logger.debug(`Found process with PID ${process.pid} and command ${process.cmd}`);
+    }
+    return matchedProcesses;
+  }
+
   public async stopPortForward(port: number): Promise<void> {
     if (!port) {
       return;
     }
 
-    this.logger.showUser(chalk.yellow(`Stopping port-forwarder for port [${port}]`));
+    this.logger.showUser(chalk.yellow(`Stopping port-forward for port [${port}]`));
 
     try {
-      // Use ps -ef | grep "port-forward" | grep ${port}: to find kubectl port-forward processes using the specified port
-      const shellCommand: string[] = ['ps', '-ef', '|', 'grep', 'port-forward', '|', 'grep', `${port}:`];
-      const shellRunner: ShellRunner = new ShellRunner();
-      let result: string[];
+      let matchedProcesses: ProcessDescriptor[] = await this.searchProcessListCommandByStrings([
+        'port-forward',
+        `${port}:`,
+      ]);
       try {
-        result = await shellRunner.run(shellCommand.join(' '), [], true, false);
+        matchedProcesses = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
       } catch (error) {
-        this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
-        this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
         throw new SoloError(
-          `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
+          `process list for port-forward failed. Error: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
-      this.logger.debug(`ps -ef port-forward command result is ${result}`);
 
-      // if length of result is 0 then could not find port forward running for this port
-      if (!result || result.length === 0) {
+      this.logger.debug(`Found ${matchedProcesses.length} processes matching port-forward and port ${port}`);
+
+      // if length of matchedProcesses is 0 then could not find port forward running for this port
+      if (!matchedProcesses || matchedProcesses.length === 0) {
         this.logger.debug(`No port-forward processes found for port ${port}`);
         return;
       }
 
       // Extract PIDs and kill the processes
-      for (const processLine of result) {
-        // Process line format: UID PID PPID C STIME TTY TIME CMD
-        // Split by whitespace and get the PID (second column)
-        const parts: string[] = processLine.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          const pid: string = parts[1];
+      for (const pid of matchedProcesses.map((p: ProcessDescriptor): number => p.pid)) {
+        try {
+          process.kill(pid, 'SIGTERM');
+          this.logger.debug(`Successfully sent SIGTERM to PID: ${pid}`);
 
-          // Validate that PID is a number
-          if (/^\d+$/.test(pid)) {
-            this.logger.debug(`Killing port-forward process PID: ${pid}`);
+          // Wait a moment for graceful shutdown
+          await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, 1000));
 
-            try {
-              // Try SIGTERM first (graceful shutdown)
-              await shellRunner.run(`kill -TERM ${pid}`, [], false, false);
+          // Check if process is still running
+          const processes: ProcessDescriptor[] = await psList();
+          matchedProcesses = processes.filter((p: ProcessDescriptor): boolean => p.pid && p.pid === pid);
 
-              this.logger.debug(`Successfully sent SIGTERM to PID: ${pid}`);
-
-              // Wait a moment for graceful shutdown
-              await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, 1000));
-
-              // Check if process is still running
-              const checkResult: string[] = await shellRunner.run(`ps -p ${pid}`, [], false, false);
-
-              // If process still exists, use SIGKILL
-              if (checkResult.length > 1) {
-                // ps header + process line
-                this.logger.debug(`Process ${pid} still running, sending SIGKILL`);
-                await shellRunner.run(`kill -KILL ${pid}`, [], false, false);
-              }
-            } catch (killError) {
-              this.logger.warn(`Failed to kill process ${pid}: ${killError.message}`);
-            }
+          for (const process of matchedProcesses) {
+            this.logger.debug(`Found process with PID ${process.pid} and command ${process.cmd}`);
           }
+
+          // If process still exists, use SIGKILL
+          if (matchedProcesses.length > 0) {
+            this.logger.debug(`Process ${pid} still running, sending SIGKILL`);
+
+            process.kill(pid, 'SIGKILL');
+          }
+        } catch (killError) {
+          this.logger.warn(`Failed to kill process ${pid}: ${killError.message}`);
         }
       }
 
       this.logger.debug(`Finished stopping port-forwarder for port [${port}]`);
     } catch (error) {
-      const errorMessage: string = `Error stopping port-forwarder for port ${port}: ${error.message}`;
+      const errorMessage: string = `Error stopping port-forward for port ${port}: ${error.message}`;
       this.logger.error(errorMessage);
       throw new SoloError(errorMessage, error);
     }

@@ -7,7 +7,7 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import {parse, type SemVer} from 'semver';
+import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -33,6 +33,7 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
+import semver from 'semver/preload.js';
 
 @injectable()
 export class ProfileManager {
@@ -350,6 +351,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<AnyObject> {
     if (!profile) {
       throw new MissingArgumentError('profile is required');
@@ -365,6 +367,24 @@ export class ProfileManager {
     );
 
     if (profile.consensus) {
+      if (
+        jfrFile !== '' &&
+        profile.consensus.root &&
+        profile.consensus.root.extraEnv &&
+        Array.isArray(profile.consensus.root.extraEnv)
+      ) {
+        const javaOption: AnyObject = profile.consensus.root.extraEnv.find(
+          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
+        );
+
+        if (javaOption) {
+          javaOption.value +=
+            ' -XX:StartFlightRecording=dumponexit=true,' +
+            `settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile},` +
+            `filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
+        }
+      }
+
       // set default for consensus pod
       this._setChartItems('defaults.root', profile.consensus.root, yamlRoot);
 
@@ -438,6 +458,7 @@ export class ProfileManager {
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
+   * @param jfrFile - the name of the custom JFR settings file to use for recording
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
@@ -446,11 +467,12 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<Record<ClusterReferenceName, string>> {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
     }
-    const profile = this.getProfile(profileName);
+    const profile: AnyObject = this.getProfile(profileName);
 
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
@@ -460,7 +482,8 @@ export class ProfileManager {
         .map((node): NodeAlias => node.name);
 
       // generate the YAML
-      const yamlRoot = {};
+      const yamlRoot: AnyObject = {};
+
       await this.resourcesForConsensusPod(
         profile,
         consensusNodes,
@@ -469,12 +492,13 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
+        jfrFile,
       );
       this.resourcesForHaProxyPod(profile, yamlRoot);
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);
       this.resourcesForMinioTenantPod(profile, yamlRoot);
 
-      const cachedValuesFile = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
+      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
     }
 
@@ -503,7 +527,7 @@ export class ProfileManager {
       return;
     }
 
-    const lines: string[] = await readFile(applicationPropertiesPath, 'utf-8').then((fileText): string[] =>
+    const lines: string[] = await readFile(applicationPropertiesPath, 'utf8').then((fileText): string[] =>
       fileText.split('\n'),
     );
 
@@ -561,6 +585,28 @@ export class ProfileManager {
     }
     if (!shardUpdated) {
       lines.push(`hedera.shard=${shard}`);
+    }
+
+    let releaseTag: SemVer = new SemVer(versions.HEDERA_PLATFORM_VERSION);
+    try {
+      releaseTag = this.remoteConfig.configuration.versions.consensusNode;
+    } catch {
+      // Guard
+    }
+
+    let tssEnabled: boolean = false;
+    try {
+      tssEnabled = this.remoteConfig.configuration.state.tssEnabled;
+    } catch {
+      // Guard
+    }
+
+    if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+
+      if (this.remoteConfig.configuration.state.wrapsEnabled) {
+        lines.push('tss.wrapsEnabled=true');
+      }
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');

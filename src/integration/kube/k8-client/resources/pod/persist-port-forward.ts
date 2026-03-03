@@ -9,6 +9,7 @@
  */
 
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
+import os from 'node:os';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
 const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE] = process.argv;
@@ -36,7 +37,10 @@ function runKubectl(): Promise<number> {
 
     console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
-    child = spawn(KUBECTL_EXECUTABLE, arguments_, {stdio: 'inherit'});
+    child = spawn(KUBECTL_EXECUTABLE, arguments_, {
+      stdio: 'inherit',
+      windowsHide: os.platform() === 'win32',
+    });
 
     child.on('error', (error): void => {
       console.error('Failed to start kubectl:', error);

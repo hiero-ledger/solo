@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import {Flags as flags} from '../src/commands/flags.js';
 import {type ClusterCommand} from '../src/commands/cluster/index.js';
-import {InitCommand} from '../src/commands/init/init.js';
+import {type InitCommand} from '../src/commands/init/init.js';
 import {type NetworkCommand} from '../src/commands/network.js';
 import {type NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
@@ -64,12 +64,13 @@ import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
-import {ConsensusCommandDefinition} from '../src/commands/command-definitions/consensus-command-definition.js';
-import {ClusterReferenceCommandDefinition} from '../src/commands/command-definitions/cluster-reference-command-definition.js';
-import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
-import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
-import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
+import {main} from '../src/index.js';
 import {BaseCommandTest} from './e2e/commands/tests/base-command-test.js';
+import {KeysTest} from './e2e/commands/tests/keys-test.js';
+import {ClusterReferenceTest} from './e2e/commands/tests/cluster-reference-test.js';
+import {ConsensusNodeTest} from './e2e/commands/tests/consensus-node-test.js';
+import {DeploymentTest} from './e2e/commands/tests/deployment-test.js';
+import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -99,48 +100,39 @@ export function getTemporaryDirectory(): string {
   return fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-'));
 }
 
-export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, networkCmd: NetworkCommand): void {
+export function deployNetworkTest(argv: Argv): void {
   it('should succeed with consensus network deploy', async (): Promise<void> => {
-    await commandInvoker.invoke({
-      argv: argv,
-      command: ConsensusCommandDefinition.COMMAND_NAME,
-      subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-      action: ConsensusCommandDefinition.NETWORK_DEPLOY,
-      callback: async (argv): Promise<boolean> => networkCmd.deploy(argv),
-    });
+    await main(
+      ConsensusNodeTest.soloConsensusNetworkDeployArgv(
+        argv.getArg<string>(flags.deployment),
+        argv.getArg<string>(flags.nodeAliasesUnparsed),
+        argv.getArg<boolean>(flags.persistentVolumeClaims),
+        argv.getArg<string>(flags.cacheDir),
+        argv.getArg<string>(flags.app),
+      ),
+    );
   }).timeout(Duration.ofMinutes(5).toMillis());
 }
 
-export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeCmd: NodeCommand): void {
+export function startNodesTest(testName: string, argv: Argv): void {
   it('should succeed with consensus node setup command', async (): Promise<void> => {
     // cache this, because `solo consensus node setup.finalize()` will reset it to false
-    await commandInvoker.invoke({
-      argv: argv,
-      command: ConsensusCommandDefinition.COMMAND_NAME,
-      subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      action: ConsensusCommandDefinition.NODE_SETUP,
-      callback: async (argv): Promise<boolean> => nodeCmd.handlers.setup(argv),
-    });
+    const deployment: string = argv.getArg<string>(flags.deployment);
+    const cacheDirectory: string = argv.getArg<string>(flags.cacheDir);
+    const localBuildPath: string = argv.getArg<string>(flags.localBuildPath);
+    const app = argv.getArg<string>(flags.app);
+    const appConfig = argv.getArg<string>(flags.appConfig);
+    await main(ConsensusNodeTest.soloConsensusNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should succeed with consensus node start command', async (): Promise<void> => {
-    await commandInvoker.invoke({
-      argv: argv,
-      command: ConsensusCommandDefinition.COMMAND_NAME,
-      subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      action: ConsensusCommandDefinition.NODE_START,
-      callback: async (argv): Promise<boolean> => nodeCmd.handlers.start(argv),
-    });
+    const deployment: string = argv.getArg<string>(flags.deployment);
+    const nodeAliases: string = argv.getArg<string>(flags.nodeAliasesUnparsed);
+    await main(ConsensusNodeTest.soloNodeStart(deployment, nodeAliases, argv.getArg<string>(flags.app)));
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('deployment diagnostics logs command should work', async (): Promise<void> => {
-    await commandInvoker.invoke({
-      argv: argv,
-      command: DeploymentCommandDefinition.COMMAND_NAME,
-      subcommand: DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
-      action: DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
-      callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
-    });
+    await main(DeploymentTest.soloDeploymentDiagnosticsLogsArgv(argv.getArg<string>(flags.deployment)));
 
     const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
     const soloLog: string = fs.readFileSync(soloLogPath, 'utf8');
@@ -320,8 +312,7 @@ export function endToEndTestSuite(
 
   const {
     namespace,
-    cmd: {initCmd, clusterCmd, networkCmd, nodeCmd, deploymentCmd},
-    opts: {k8Factory, chartManager, commandInvoker},
+    opts: {k8Factory, chartManager},
   } = bootstrapResp;
 
   describe(`E2E Test Suite for '${testName}'`, function (): void {
@@ -350,13 +341,6 @@ export function endToEndTestSuite(
       });
 
       it('should cleanup previous deployment', async (): Promise<void> => {
-        // @ts-expect-error - TODO: Remove once the init command is removed
-        await commandInvoker.invoke({
-          argv: argv,
-          command: InitCommand.COMMAND_NAME,
-          callback: async (argv): Promise<boolean> => initCmd.init(argv),
-        });
-
         if (await k8Factory.default().namespaces().has(namespace)) {
           await k8Factory.default().namespaces().delete(namespace);
 
@@ -369,64 +353,53 @@ export function endToEndTestSuite(
         if (
           !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME))
         ) {
-          await commandInvoker.invoke({
-            argv: argv,
-            command: ClusterReferenceCommandDefinition.COMMAND_NAME,
-            subcommand: ClusterReferenceCommandDefinition.CONFIG_SETUP,
-            action: ClusterReferenceCommandDefinition.CONFIG_SETUP,
-            callback: async (argv): Promise<boolean> => clusterCmd.handlers.setup(argv),
-          });
+          await main(ClusterReferenceTest.soloConfigSetupArgv(testName, constants.SOLO_SETUP_NAMESPACE.name));
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it("should success with 'cluster-ref config connect'", async (): Promise<void> => {
         const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
         await localConfig.load();
-        await commandInvoker.invoke({
-          argv: argv,
-          command: ClusterReferenceCommandDefinition.COMMAND_NAME,
-          subcommand: ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
-          action: ClusterReferenceCommandDefinition.CONFIG_CONNECT,
-          callback: async (argv): Promise<boolean> => clusterCmd.handlers.connect(argv),
-        });
+        const connectArguments: string[] = ClusterReferenceTest.soloConfigConnectArgv(
+          testName,
+          argv.getArg<string>(flags.clusterRef),
+          argv.getArg<string>(flags.clusterRef),
+        );
+        await main(connectArguments);
       });
 
       it('should succeed with deployment config create', async (): Promise<void> => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: DeploymentCommandDefinition.COMMAND_NAME,
-          subcommand: DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
-          action: DeploymentCommandDefinition.CONFIG_CREATE,
-          callback: async (argv): Promise<boolean> => deploymentCmd.create(argv),
-        });
+        const createArguments: string[] = DeploymentTest.soloDeploymentConfigCreateArgv(
+          argv.getArg<string>(flags.deployment),
+          namespace,
+        );
+        await main(createArguments);
       });
 
       it("should succeed with 'deployment cluster attach'", async (): Promise<void> => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: DeploymentCommandDefinition.COMMAND_NAME,
-          subcommand: DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
-          action: DeploymentCommandDefinition.CLUSTER_ATTACH,
-          callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
-        });
+        const attachArguments: string[] = DeploymentTest.soloDeploymentClusterAttachArgv(
+          argv.getArg<string>(flags.deployment),
+          argv.getArg<string>(flags.clusterRef),
+          argv.getArg<number>(flags.numberOfConsensusNodes),
+        );
+        await main(attachArguments);
       });
 
       it('generate key files', async (): Promise<void> => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: KeysCommandDefinition.COMMAND_NAME,
-          subcommand: KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
-          action: KeysCommandDefinition.CONSENSUS_GENERATE,
-          callback: async (argv): Promise<boolean> => nodeCmd.handlers.keys(argv),
-        });
+        const generateArguments: string[] = KeysTest.soloKeysConsensusGenerate(
+          argv.getArg<string>(flags.deployment),
+          argv.getArg<string>(flags.nodeAliasesUnparsed),
+          argv.getArg<string>(flags.cacheDir),
+        );
+        await main(generateArguments);
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       if (deployNetwork) {
-        deployNetworkTest(argv, commandInvoker, networkCmd);
+        deployNetworkTest(argv);
       }
 
       if (deployNetwork && startNodes) {
-        startNodesTest(argv, commandInvoker, nodeCmd);
+        startNodesTest(testName, argv);
       }
     });
 
@@ -500,7 +473,12 @@ export async function createAccount(
 
   // Get the new account ID
   const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-  const accountInfo = {
+  const accountInfo: {
+    accountId: string;
+    privateKey: string;
+    publicKey: string;
+    balance: number;
+  } = {
     accountId: getReceipt.accountId.toString(),
     privateKey: privateKey.toString(),
     publicKey: privateKey.publicKey.toString(),

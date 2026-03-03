@@ -1,3 +1,4 @@
+/* eslint-disable headers/header-format */
 // SPDX-License-Identifier: Apache-2.0
 
 /**

@@ -149,6 +149,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
       this.tasks.updateBlockNodesJson(),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -196,6 +197,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -229,6 +231,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -861,6 +864,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.identifyExistingNodes(),
+        this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
         this.tasks.checkAllNodesAreActive('existingNodeAliases'),
@@ -1023,5 +1027,24 @@ export class NodeCommandHandlers extends CommandHandler {
     // }
 
     return nodeComponent.metadata.phase;
+  }
+
+  public async collectJavaFlightRecorderLogs(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.COLLECT_JFR_FLAGS);
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
+
+    await this.commandAction(
+      argv,
+      [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.collectJfrConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.downloadJavaFlightRecorderLogs(),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      'Error collecting jfr recording from node',
+      leaseWrapper.lease,
+    );
+
+    return true;
   }
 }

@@ -2,6 +2,7 @@
 
 import {type AccountManager} from '../../core/account-manager.js';
 import {type ConfigManager} from '../../core/config-manager.js';
+import {type OneShotState} from '../../core/one-shot-state.js';
 import {type KeyManager} from '../../core/key-manager.js';
 import {type ProfileManager} from '../../core/profile-manager.js';
 import {type PlatformInstaller} from '../../core/platform-installer.js';
@@ -12,7 +13,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -157,8 +158,12 @@ import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
+import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
+import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
+import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
+import {PackageDownloader} from '../../core/package-downloader.js';
 
-const {gray, cyan, red, green, yellow}: any = chalk;
+const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -177,6 +182,9 @@ export class NodeCommandTasks {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -189,6 +197,9 @@ export class NodeCommandTasks {
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
+    this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -773,7 +784,7 @@ export class NodeCommandTasks {
     return {
       title: 'Load node admin key',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
           try {
             const context: string = helpers.extractContextFromConsensusNodes(
@@ -807,16 +818,14 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Check existing nodes staked amount',
-      task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-
+      task: async ({config}): Promise<void> => {
         // Transfer some hbar to the node for staking purpose
-        const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.existingNodeAliases,
           deploymentName,
         );
-        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
           const accountId: string = accountMap.get(nodeAlias)!;
           await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
@@ -880,7 +889,7 @@ export class NodeCommandTasks {
         const {upgradeZipHash}: any = context_;
         const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
         try {
-          const futureDate = new Date();
+          const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
@@ -889,11 +898,14 @@ export class NodeCommandTasks {
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
 
           // query the balance
-          const balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+          const balance: AccountBalance = await new AccountBalanceQuery()
+            .setAccountId(freezeAdminAccountId)
+            .execute(nodeClient);
+
           this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeUpgradeTx: any = await new FreezeTransaction()
+          const freezeUpgradeTx: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .setFileId(this.getFileUpgradeId(deployment))
@@ -901,7 +913,7 @@ export class NodeCommandTasks {
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
+          const freezeUpgradeReceipt: TransactionReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
           this.logger.debug(
             `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
             freezeUpgradeReceipt.status.toString(),
@@ -1024,12 +1036,12 @@ export class NodeCommandTasks {
     return {
       title: 'Download upgrade files from an existing node',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const {consensusNodes, namespace, stagingDir, nodeAliases}: NodeUpgradeConfigClass = context_.config;
 
-        const nodeAlias: any = context_.config.nodeAliases[0];
-        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
-        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+        const nodeAlias: NodeAlias = nodeAliases[0];
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+
+        const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
         // found all files under ${constants.HEDERA_HAPI_PATH}/data/upgrade/current/
         const upgradeDirectories: string[] = [
@@ -1037,19 +1049,13 @@ export class NodeCommandTasks {
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/apps`,
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/libs`,
         ];
-        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
         for (const upgradeDirectory of upgradeDirectories) {
           // check if directory upgradeDirectory exist in root container
-          if (
-            !(await this.k8Factory.getK8(context).containers().readByRef(containerReference).hasDir(upgradeDirectory))
-          ) {
+          if (!(await container.hasDir(upgradeDirectory))) {
             continue;
           }
-          const files = await this.k8Factory
-            .getK8(context)
-            .containers()
-            .readByRef(containerReference)
-            .listDir(upgradeDirectory);
+          const files: TDirectoryData[] = await container.listDir(upgradeDirectory);
           // iterate all files and copy them to the staging directory
           for (const file of files) {
             if (file.name.endsWith('.mf')) {
@@ -1059,11 +1065,7 @@ export class NodeCommandTasks {
               continue;
             }
             this.logger.debug(`Copying file: ${file.name}`);
-            await this.k8Factory
-              .getK8(context)
-              .containers()
-              .readByRef(containerReference)
-              .copyFrom(`${upgradeDirectory}/${file.name}`, `${config.stagingDir}`);
+            await container.copyFrom(`${upgradeDirectory}/${file.name}`, `${stagingDir}`);
           }
         }
       },
@@ -1150,7 +1152,9 @@ export class NodeCommandTasks {
       task: async () => {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv);
-        leaseWrapper.lease = await leaseManager.create();
+        if (!this.oneShotState.isActive()) {
+          leaseWrapper.lease = await leaseManager.create();
+        }
       },
     };
   }
@@ -1159,9 +1163,9 @@ export class NodeCommandTasks {
     return {
       title: 'Identify existing network nodes',
       task: async (context_, task): Promise<any> => {
-        const config: any = context_.config;
+        const config: CheckedNodesConfigClass = context_.config;
         config.existingNodeAliases = [];
-        const clusterReferences = this.remoteConfig.getClusterRefs();
+        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
         config.serviceMap = await this.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
@@ -1216,7 +1220,7 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName: any = podReference.name.name;
-            const statesDirectory: string = path.join(
+            const statesDirectory: string = PathEx.join(
               stateFileDirectory,
               'states',
               clusterReference,
@@ -1237,7 +1241,7 @@ export class NodeCommandTasks {
               continue;
             }
 
-            zipFile = path.join(statesDirectory, stateFiles[0]);
+            zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
             // It's a single file or use default from config
@@ -1698,21 +1702,21 @@ export class NodeCommandTasks {
         const subTasks: any[] = [];
 
         for (const nodeAlias of nodeAliases) {
-          const podReference: any = config.podRefs[nodeAlias];
-          const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-              const k8: K8 = this.k8Factory.getK8(context);
-              await k8
-                .containers()
-                .readByRef(containerReference)
-                .execContainer([
-                  'bash',
-                  '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
-                ]);
+
+              const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+                config.namespace,
+                nodeAlias,
+              );
+
+              await container.execContainer([
+                'bash',
+                '-c',
+                'systemctl stop network-node || true && systemctl enable --now network-node',
+              ]);
             },
           });
         }
@@ -1730,49 +1734,45 @@ export class NodeCommandTasks {
   } {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
-      task: async (context_): Promise<void> => {
-        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      task: async ({config}): Promise<void> => {
+        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
-        if (context_.config.debugNodeAlias) {
-          const podReference: PodReference = PodReference.of(
-            context_.config.namespace,
-            PodName.of(`network-${nodeAlias}-0`),
-          );
+        if (config.debugNodeAlias) {
+          const pod: Pod = await new K8Helper(context).getConsensusNodePod(config.namespace, nodeAlias);
+
           this.logger.showUser('Enable port forwarding for JVM debugger');
-          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
-          await this.k8Factory
-            .getK8(context)
-            .pods()
-            .readByReference(podReference)
-            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
+          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
+
+          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
         }
-        if (context_.config.forcePortForward && enablePortForwardHaProxy) {
+
+        if (config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
             .getK8(context)
             .pods()
-            .list(context_.config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+            .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+
           if (pods.length === 0) {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
-          const podReference: PodReference = pods[0].podReference;
-          const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
+
           await this.remoteConfig.configuration.components.managePortForward(
             undefined,
-            podReference,
+            pods[0].podReference,
             constants.GRPC_PORT, // Pod port
             constants.GRPC_PORT, // Local port
-            this.k8Factory.getK8(context_.config.clusterContext),
+            this.k8Factory.getK8(config.clusterContext),
             this.logger,
             ComponentTypes.ConsensusNode,
             'Consensus Node gRPC',
-            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
-            nodeId,
+            config.isChartInstalled, // Reuse existing port if chart is already installed
+            Templates.nodeIdFromNodeAlias(nodeAlias),
           );
           await this.remoteConfig.persist();
         }
       },
-      skip: (context_): boolean => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
+      skip: ({config}): boolean => !config.debugNodeAlias && !config.forcePortForward,
     };
   }
 
@@ -2036,7 +2036,7 @@ export class NodeCommandTasks {
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
         const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
-        const outputDirectory: string = path.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+        const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
           if (!fs.existsSync(outputDirectory)) {
@@ -2066,7 +2066,7 @@ export class NodeCommandTasks {
             this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
 
             // Create directory for this context
-            const contextDirectory: string = path.join(outputDirectory, context);
+            const contextDirectory: string = PathEx.join(outputDirectory, context);
             try {
               if (!fs.existsSync(contextDirectory)) {
                 fs.mkdirSync(contextDirectory, {recursive: true});
@@ -2088,7 +2088,7 @@ export class NodeCommandTasks {
                   maxBuffer: 1024 * 1024 * 10, // 10MB buffer
                 }).toString();
 
-                const valuesFile: string = path.join(contextDirectory, `${release.name}.yaml`);
+                const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {
                   fs.writeFileSync(valuesFile, output);
                   this.logger.info(`Saved Helm values for ${release.name} to ${valuesFile}`);
@@ -2731,6 +2731,51 @@ export class NodeCommandTasks {
     };
   }
 
+  public addWrapsLib(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Copy wraps lib over',
+      skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
+      task: async ({config}): Promise<void> => {
+        await this.downloader.fetchPackage(
+          constants.WRAPS_LIB_DOWNLOAD_URL,
+          'unusued', // doesn't check checksum
+          constants.SOLO_CACHE_DIR,
+          false,
+          '',
+          false,
+        );
+
+        const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
+        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+        // Create extraction dir
+        fs.mkdirSync(extractedDirectory);
+
+        // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+        this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+
+        for (const consensusNode of config.consensusNodes) {
+          const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+            config.namespace,
+            consensusNode.name,
+          );
+
+          const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+          const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+          const targetBasePath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
+          const targetWrapsPath: string = PathEx.join(targetBasePath, constants.WRAPS_DIRECTORY_NAME);
+
+          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+            continue;
+          }
+
+          await rootContainer.copyTo(sourcePath, targetPath);
+        }
+      },
+    };
+  }
+
   public updateChartWithConfigMap(
     title: string,
     transactionType: NodeSubcommandType,
@@ -2855,6 +2900,7 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] = addDebugOptions(
           valuesArgumentMap[clusterReference],
           config.debugNodeAlias,
+          this.remoteConfig.configuration.state.wrapsEnabled ? 1 : 0,
         );
 
         const clusterReferencesList: ClusterReferenceName[] = [];
@@ -2914,6 +2960,15 @@ export class NodeCommandTasks {
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+
+      if (this.remoteConfig.configuration.state.wrapsEnabled) {
+        valuesArgumentMap[clusterReference] +=
+          ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+
+        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+
+        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
+      }
     }
   }
 
@@ -2975,6 +3030,15 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].envoyProxyStaticIP=${ip}"`;
       }
     }
+
+    if (this.remoteConfig.configuration.state.wrapsEnabled) {
+      valuesArgumentMap[clusterReference] +=
+        ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+
+      const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+
+      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
+    }
   }
 
   /**
@@ -3008,6 +3072,15 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
+        if (this.remoteConfig.configuration.state.wrapsEnabled) {
+          valuesArgumentMap[clusterReference] +=
+            ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+
+          const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+
+          valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
+        }
 
         index++;
       }
@@ -3396,7 +3469,7 @@ export class NodeCommandTasks {
           }
         }
 
-        if (lease) {
+        if (!this.oneShotState.isActive() && lease) {
           return ListrLock.newAcquireLockTask(lease, task);
         }
       },
@@ -3536,7 +3609,7 @@ export class NodeCommandTasks {
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
           ? path.resolve(customOutputDirectory)
-          : path.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
@@ -3593,13 +3666,13 @@ export class NodeCommandTasks {
 
     try {
       // Create directory for this pod's logs
-      const podLogDirectory: string = path.join(outputDirectory, context);
+      const podLogDirectory: string = PathEx.join(outputDirectory, context);
       if (!fs.existsSync(podLogDirectory)) {
         fs.mkdirSync(podLogDirectory, {recursive: true});
       }
 
       // Get logs using kubectl with output to file (avoids buffer issues)
-      const logFile: string = path.join(podLogDirectory, `${podName}.log`);
+      const logFile: string = PathEx.join(podLogDirectory, `${podName}.log`);
       const logCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
 
       this.logger.info(`Downloading logs for pod ${podName}...`);
@@ -3640,7 +3713,7 @@ export class NodeCommandTasks {
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
-      const blockNodeLogDirectory: string = path.join(outputDirectory, context, `${podName}-block-logs`);
+      const blockNodeLogDirectory: string = PathEx.join(outputDirectory, context, `${podName}-block-logs`);
       if (!fs.existsSync(blockNodeLogDirectory)) {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
@@ -3649,5 +3722,60 @@ export class NodeCommandTasks {
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
+  }
+
+  public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
+    return {
+      title: 'Download Java Flight Recorder logs from node pod',
+      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+        this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
+        const config: NodeCollectJfrLogsConfigClass = context_.config;
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const context: Context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+
+        const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+        let pid: string;
+        try {
+          const result: string = await k8Container.execContainer('ps axww -o pid,command');
+          const resultLines: string[] = result.split('\n');
+          const servicesMainProcess: string = resultLines.find((line: string): boolean =>
+            line.includes('com.hedera.node.app.ServicesMain'),
+          );
+          pid = servicesMainProcess.trim().split(' ')[0];
+        } catch (error) {
+          throw new SoloError(`Failed to get process list from node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        if (!pid) {
+          throw new SoloError(`Could not find process ID for ServicesMain in node pod ${nodeFullyQualifiedPodName}`);
+        }
+
+        const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        try {
+          const result: string = await k8Container.execContainer(
+            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
+          );
+          this.logger.info(`JFR dump command output: ${result}`);
+        } catch (error) {
+          throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        try {
+          const localJfrLogsDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, config.deployment);
+          fs.mkdirSync(localJfrLogsDirectory, {recursive: true});
+          await k8Container.copyFrom(recordingFilePath, localJfrLogsDirectory);
+          const targetPath: string = PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr');
+          fs.renameSync(PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr'), targetPath);
+          this.logger.showUser(`Downloaded Java Flight Recorder logs to ${targetPath}`);
+        } catch (error) {
+          throw new SoloError(
+            `Failed to copy JFR recording from node pod ${nodeFullyQualifiedPodName} to local machine`,
+            error,
+          );
+        }
+      },
+    };
   }
 }
