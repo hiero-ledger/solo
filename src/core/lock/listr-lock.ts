@@ -18,7 +18,7 @@ export class ListrLock {
   /**
    * The title of the lock acquisition task used by Listr2.
    */
-  public static readonly ACQUIRE_LOCK_TASK_TITLE = 'Acquire lock';
+  public static readonly ACQUIRE_LOCK_TASK_TITLE: string = 'Acquire lock';
 
   /**
    * Prevents instantiation of this utility class.
@@ -40,6 +40,31 @@ export class ListrLock {
           title: ListrLock.ACQUIRE_LOCK_TASK_TITLE,
           task: async (_, task) => {
             await ListrLock.acquireWithRetry(lock, task);
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: {
+          collapseSubtasks: false,
+        },
+      },
+    );
+  }
+
+  /**
+   * Creates a new Listr2 task which always skips the acquisition of a lock.
+   * @param task - the parent task to which the lock acquisition task will be added.
+   * @returns a new Listr2 task which always skips the lock acquisition.
+   */
+  public static newSkippedLockTask(task: SoloListrTaskWrapper<object>) {
+    return task.newListr(
+      [
+        {
+          title: ListrLock.ACQUIRE_LOCK_TASK_TITLE,
+          skip: true,
+          task: async (_, task): Promise<void> => {
+            return;
           },
         },
       ],

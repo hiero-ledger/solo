@@ -46,13 +46,16 @@ export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS: string = 'v0.62.0';
 
 // pre-release specified to allow all other pre-releases
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.72.0-0';
 export const MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE: string = '0.69.0';
 export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const POST_HIERO_MIGRATION_MIRROR_NODE_VERSION: string = '0.130.0';
 
+export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.72.0-0';
+export const MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.29.0-0';
+export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.150.0-0';
+
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
-  const versionTag = releaseTag || HEDERA_PLATFORM_VERSION;
+  const versionTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
   return lte(versionTag, LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
 }
 

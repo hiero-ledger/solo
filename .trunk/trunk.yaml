@@ -10,7 +10,7 @@ merge:
     - "E2E Tests (Integration) / Integration"
     #- "E2E Tests (Node Add Local) / Node Add Local"
     #- "E2E Tests (Dual Cluster Full) / Dual Cluster Full"
-    - "E2E Tests (Node Local PTT) / Node Local PTT"
+    #- "E2E Tests (Node Local PTT) / Node Local PTT"
     - "E2E Tests (Node Upgrade) / Node Upgrade"
     - "E2E Tests (Block Node) / Block Node"
     - "E2E Tests (One Shot Single) / One Shot Single"

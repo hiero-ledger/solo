@@ -675,6 +675,18 @@ export class Flags {
     },
   };
 
+  public static readonly forceBlockNodeIntegration: CommandFlag = {
+    constName: 'forceBlockNodeIntegration',
+    name: 'force',
+    definition: {
+      describe:
+        'Force enable block node integration bypassing the version requirements CN >= v0.72.0, BN >= 0.29.0, CN >= 0.150.0',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
     constName: 'javaFlightRecorderConfiguration',
     name: 'jfr-config',
@@ -1224,19 +1236,16 @@ export class Flags {
     prompt: undefined,
   };
 
-  // TODO: Maybe also add const to override the artifact path for TSS_LIB_WRAPS_ARTIFACTS_PATH
-  // public static readonly wrapsEnabled: CommandFlag = {
-  //   constName: 'wrapsEnabled',
-  //   name: 'wraps',
-  //   definition: {
-  //     describe:
-  //       'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72). ' +
-  //       'Requires TSS_LIB_WRAPS_ARTIFACTS_PATH to point to an unzipped WRAPs artifact.',
-  //     type: 'boolean',
-  //     defaultValue: false,
-  //   },
-  //   prompt: undefined,
-  // };
+  public static readonly wrapsEnabled: CommandFlag = {
+    constName: 'wrapsEnabled',
+    name: 'wraps',
+    definition: {
+      describe: 'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72).',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
 
   public static readonly tssEnabled: CommandFlag = {
     constName: 'tssEnabled',
@@ -3068,9 +3077,10 @@ export class Flags {
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
-    // Flags.wrapsEnabled,
+    Flags.wrapsEnabled,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
+    Flags.forceBlockNodeIntegration,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

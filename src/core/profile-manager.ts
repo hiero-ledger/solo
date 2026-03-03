@@ -604,10 +604,9 @@ export class ProfileManager {
     if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
       lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
-      // TODO: Enable with wraps
-      // if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      //   lines.push('tss.wrapsEnabled=true');
-      // }
+      if (this.remoteConfig.configuration.state.wrapsEnabled) {
+        lines.push('tss.wrapsEnabled=true');
+      }
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
