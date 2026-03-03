@@ -104,7 +104,11 @@ export class MetricsServerImpl implements MetricsServer {
         mirrorNodePostgresNamespace ? NamespaceName.of(mirrorNodePostgresNamespace) : undefined,
       );
     } catch (error) {
-      if (error.message.includes('Metrics API not available')) {
+      if (
+        error.message.includes('Metrics API not available') ||
+        error.message.includes('service unavailable') ||
+        error.message.includes('Error occurred in metrics request')
+      ) {
         if (attempt <= 3) {
           const backOffSeconds: number = 5;
           this.logger.debug(
