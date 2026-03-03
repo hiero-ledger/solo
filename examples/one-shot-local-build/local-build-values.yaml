@@ -1,0 +1,46 @@
+# One-Shot Local Build Values Template
+#
+# This file documents all available flags for the one-shot falcon deploy command
+# when using locally built or locally cloned component sources.
+#
+# The Taskfile in this example generates a runtime version of this file at
+# /tmp/one-shot-local-build-runtime-values.yaml with the actual local paths
+# populated automatically from your checked-out repositories.
+#
+# You can also copy this file, fill in the paths manually, and pass it directly:
+#   solo one-shot falcon deploy --values-file <your-values-file>
+
+# Consensus node setup configuration
+# --local-build-path: Path to locally built consensus node artifacts.
+# Build the consensus node with: ./gradlew assemble
+# The path points to the hedera-node/data directory of your local build.
+setup:
+  --local-build-path: ""
+
+# Block node deployment configuration
+# --block-node-chart-dir: Path to the local Helm chart directory for the block node.
+# Clone: git clone https://github.com/hiero-ledger/hiero-block-node.git
+# Path example: ../hiero-block-node/charts
+blockNode:
+  --block-node-chart-dir: ""
+
+# Mirror node deployment configuration
+# --mirror-node-chart-dir: Path to the local Helm chart directory for the mirror node.
+# Clone: git clone https://github.com/hiero-ledger/hiero-mirror-node.git
+# Path example: ../hiero-mirror-node/charts
+mirrorNode:
+  --mirror-node-chart-dir: ""
+
+# Relay node (JSON-RPC relay) deployment configuration
+# --relay-chart-dir: Path to the local Helm chart directory for the relay.
+# Clone: git clone https://github.com/hiero-ledger/hiero-json-rpc-relay.git
+# Path example: ../hiero-json-rpc-relay/charts
+relayNode:
+  --relay-chart-dir: ""
+
+# Explorer node deployment configuration
+# --explorer-chart-dir: Path to the local Helm chart directory for the explorer.
+# Clone: git clone https://github.com/hiero-ledger/hiero-mirror-node-explorer.git
+# Path example: ../hiero-mirror-node-explorer/charts
+explorerNode:
+  --explorer-chart-dir: ""
