@@ -1706,8 +1706,9 @@ export class NodeCommandTasks {
         for (const nodeAlias of nodeAliases) {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
-            task: async () => {
+            task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
                 nodeAlias,
