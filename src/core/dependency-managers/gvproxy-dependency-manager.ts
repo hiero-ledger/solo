@@ -10,8 +10,9 @@ import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
-import path from 'node:path';
 import fs from 'node:fs';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 const GVPROXY_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/gvisor-tap-vsock/releases';
 
@@ -25,7 +26,6 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
     @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
-    @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.GvproxyVersion) protected readonly gvproxyVersion: string,
   ) {
@@ -35,28 +35,24 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
       InjectTokens.PodmanDependenciesInstallationDir,
       GvproxyDependencyManager.name,
     );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, GvproxyDependencyManager.name);
     osArch = patchInject(osArch, InjectTokens.OsArch, GvproxyDependencyManager.name);
     gvproxyVersion = patchInject(gvproxyVersion, InjectTokens.GvproxyVersion, GvproxyDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name);
 
     // Call the base constructor with the gvproxy-specific parameters
-    super(
-      downloader,
-      installationDirectory,
-      osPlatform,
-      osArch,
-      gvproxyVersion || version.GVPROXY_VERSION,
-      constants.GVPROXY,
-      '',
-    );
+    super(downloader, installationDirectory, osArch, gvproxyVersion || version.GVPROXY_VERSION, constants.GVPROXY, '');
   }
 
   /**
    * Get the Gvproxy artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(this.artifactFileName, this.getRequiredVersion(), this.osPlatform, this.osArch);
+    return util.format(
+      this.artifactFileName,
+      this.getRequiredVersion(),
+      OperatingSystem.getFormattedPlatform(),
+      this.osArch,
+    );
   }
 
   public async getVersion(executablePath: string): Promise<string> {
@@ -83,30 +79,22 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
    */
   private getAssetName(): string {
     // Normalize platform/arch for asset matching
-    const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
     const arch: string = this.getArch();
 
     // Select the appropriate asset name based on platform and architecture
     let assetName: string;
 
-    switch (platform) {
-      case constants.OS_WINDOWS: {
-        // For Windows, use the regular exe (not the GUI version)
-        assetName = arch === 'arm64' ? 'gvproxy-windows-arm64.exe' : 'gvproxy-windows.exe';
-        break;
-      }
-      case constants.OS_DARWIN: {
-        assetName = 'gvproxy-darwin';
-        break;
-      }
-      case constants.OS_LINUX: {
-        assetName = `gvproxy-linux-${arch}`;
-        break;
-      }
-      default: {
-        throw new SoloError(`Unsupported platform: ${platform}`);
-      }
+    if (OperatingSystem.isWin32()) {
+      // For Windows, use the regular exe (not the GUI version)
+      assetName = arch === 'arm64' ? 'gvproxy-windows-arm64.exe' : 'gvproxy-windows.exe';
+    } else if (OperatingSystem.isDarwin()) {
+      assetName = 'gvproxy-darwin';
+    } else if (OperatingSystem.isLinux()) {
+      assetName = `gvproxy-linux-${arch}`;
+    } else {
+      throw new SoloError(`Unsupported platform: ${OperatingSystem.getPlatform()}`);
     }
+
     return assetName;
   }
 
@@ -114,7 +102,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
    * Fetches the latest release information from GitHub API
    * @returns Promise with the release base URL, asset name, digest, and version
    */
-  private async fetchLatestReleaseInfo(): Promise<ReleaseInfo> {
+  private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
       const response = await fetch(GVPROXY_RELEASES_LIST_URL, {
@@ -137,12 +125,12 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
       }
 
       // Get the latest release
-      const latestRelease = releases[0];
-      const version = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+      const release: GitHubRelease = releases.find(release => release.tag_name === tagName);
+      const version: string = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
       const assetName: string = this.getAssetName();
 
-      const matchingAsset: GitHubReleaseAsset = latestRelease.assets.find(asset => asset.name === assetName);
+      const matchingAsset: GitHubReleaseAsset = release.assets.find(asset => asset.name === assetName);
 
       if (!matchingAsset) {
         throw new SoloError(`No matching asset found (${assetName})`);
@@ -174,7 +162,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
   }
 
   protected override async preInstall(): Promise<void> {
-    const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
+    const latestReleaseInfo: ReleaseInfo = await this.fetchReleaseInfo(version.GVPROXY_VERSION);
     this.checksum = latestReleaseInfo.checksum;
     this.releaseBaseUrl = latestReleaseInfo.downloadUrl;
     this.artifactFileName = latestReleaseInfo.assetName;
@@ -191,8 +179,8 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
    */
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Determine the target filename based on the platform
-    const targetFileName: string = this.osPlatform === constants.OS_WINDOWS ? 'gvproxy.exe' : 'gvproxy';
-    const targetPath: string = path.join(temporaryDirectory, targetFileName);
+    const targetFileName: string = OperatingSystem.isWin32() ? 'gvproxy.exe' : 'gvproxy';
+    const targetPath: string = PathEx.join(temporaryDirectory, targetFileName);
 
     // Rename the downloaded file
     fs.renameSync(packageFilePath, targetPath);

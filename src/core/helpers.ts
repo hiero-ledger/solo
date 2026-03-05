@@ -216,7 +216,7 @@ export function renameAndCopyFile(
 
 /**
  * Add debug options to valuesArg used by helm chart
- * @param valuesArg the valuesArg to update
+ * @param valuesArgument the valuesArg to update
  * @param debugNodeAlias the node ID to attach the debugger to
  * @param index the index of extraEnv to add the debug options to
  * @returns updated valuesArg
@@ -292,7 +292,11 @@ export function addLoadContextParser(context_: any, contextData: any): void {
   }
 }
 
-export function prepareEndpoints(endpointType: string, endpoints: string[], defaultPort: number | string) {
+export function prepareEndpoints(
+  endpointType: string,
+  endpoints: string[],
+  defaultPort: number | string,
+): ServiceEndpoint[] {
   const returnValue: ServiceEndpoint[] = [];
   for (const endpoint of endpoints) {
     const parts: string[] = endpoint.split(':');

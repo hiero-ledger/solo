@@ -70,8 +70,12 @@ export class K8Client implements K8 {
   /**
    * Create a new k8Factory client for the given context, if context is undefined it will use the current context in kubeconfig
    * @param context - The context to create the k8Factory client for
+   * @param kubectlExecutable - Path to executable of kubectl
    */
-  public constructor(private readonly context: string) {
+  public constructor(
+    private readonly context: string,
+    private readonly kubectlExecutable: string,
+  ) {
     this.init(this.context);
   }
 
@@ -98,8 +102,8 @@ export class K8Client implements K8 {
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
     this.k8Contexts = new K8ClientContexts(this.kubeConfig);
     this.k8Services = new K8ClientServices(this.kubeClient);
-    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig);
-    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods);
+    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig, this.kubectlExecutable);
+    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods, this.kubectlExecutable);
     this.k8Pvcs = new K8ClientPvcs(this.kubeClient);
     this.k8Leases = new K8ClientLeases(this.coordinationApiClient);
     this.k8Namespaces = new K8ClientNamespaces(this.kubeClient);
@@ -194,5 +198,9 @@ export class K8Client implements K8 {
 
   public manifests(): K8ClientManifests {
     return this.k8Manifests;
+  }
+
+  public getKubectlExecutablePath(): string {
+    return this.kubectlExecutable;
   }
 }

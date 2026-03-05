@@ -77,8 +77,8 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
 fi
 
 # check remote-config-after.yaml should contains 'schemaVersion: 4'
-if ! grep -q "schemaVersion: 4" ./remote-config-after.yaml; then
-  echo "schemaVersion: 4 not found in remote-config-after.yaml"
+if ! grep -q "schemaVersion: 6" ./remote-config-after.yaml; then
+  echo "schemaVersion: 6 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
@@ -86,6 +86,9 @@ echo "::endgroup::"
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
 npm run solo -- init --dev
+# Do not force legacy release-name override when upgrading with current workspace Solo.
+# The old released Solo command executed above may have installed either naming scheme.
+unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # using new solo to redeploy solo deployment chart to new version
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
 npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
@@ -101,7 +104,18 @@ kubectl rollout restart deployment/mirror-web3 -n solo-e2e
 kubectl rollout restart deployment/mirror-grpc -n solo-e2e
 kubectl rollout restart deployment/mirror-monitor -n solo-e2e
 kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
-kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
+
+# mirror ingress controller deployment name can vary by chart version
+# (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
+mirrorIngressDeployments=$(kubectl get deployment -n solo-e2e -o name | grep '^deployment.apps/mirror-ingress-controller' || true)
+if [[ -z "${mirrorIngressDeployments}" ]]; then
+  echo "No mirror ingress controller deployment found to restart in namespace solo-e2e"
+else
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart "${deploymentName}" -n solo-e2e
+  done <<< "${mirrorIngressDeployments}"
+fi
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
@@ -150,7 +164,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 # Upgrade to latest version
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
-export CONSENSUS_NODE_VERSION=$(grep -A1 "HEDERA_PLATFORM_VERSION" version.ts | grep -o "'[^']*'" | tail -1 | sed "s/'//g")
+export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev

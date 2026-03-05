@@ -677,6 +677,29 @@ export class Flags {
     },
   };
 
+  public static readonly forceBlockNodeIntegration: CommandFlag = {
+    constName: 'forceBlockNodeIntegration',
+    name: 'force',
+    definition: {
+      describe:
+        'Force enable block node integration bypassing the version requirements CN >= v0.72.0, BN >= 0.29.0, CN >= 0.150.0',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly javaFlightRecorderConfiguration: CommandFlag = {
+    constName: 'javaFlightRecorderConfiguration',
+    name: 'jfr-config',
+    definition: {
+      describe: 'Java Flight Recorder configuration file path',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly chartDirectory: CommandFlag = {
     constName: 'chartDirectory',
     name: 'chart-dir',
@@ -1242,6 +1265,28 @@ export class Flags {
         yellow('\n[Format: <address>[:<port>]]') +
         yellow('\n[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
       type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly wrapsEnabled: CommandFlag = {
+    constName: 'wrapsEnabled',
+    name: 'wraps',
+    definition: {
+      describe: 'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72).',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly tssEnabled: CommandFlag = {
+    constName: 'tssEnabled',
+    name: 'tss',
+    definition: {
+      describe: 'Enable hinTS/TSS (CN >= v0.72).',
+      type: 'boolean',
+      defaultValue: true,
     },
     prompt: undefined,
   };
@@ -2865,6 +2910,39 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly deployMirrorNode: CommandFlag = {
+    constName: 'deployMirrorNode',
+    name: 'deploy-mirror-node',
+    definition: {
+      describe: 'Deploy mirror node as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployExplorer: CommandFlag = {
+    constName: 'deployExplorer',
+    name: 'deploy-explorer',
+    definition: {
+      describe: 'Deploy explorer as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployRelay: CommandFlag = {
+    constName: 'deployRelay',
+    name: 'deploy-relay',
+    definition: {
+      describe: 'Deploy relay as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3023,6 +3101,9 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.deployMirrorNode,
+    Flags.deployExplorer,
+    Flags.deployRelay,
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
@@ -3031,6 +3112,10 @@ export class Flags {
     Flags.externalBlockNodeMapping,
     Flags.grpcWebEndpoints,
     Flags.grpcWebEndpoint,
+    Flags.wrapsEnabled,
+    Flags.tssEnabled,
+    Flags.javaFlightRecorderConfiguration,
+    Flags.forceBlockNodeIntegration,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

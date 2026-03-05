@@ -25,6 +25,8 @@ import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
 import type * as stream from 'node:stream';
+import {platform} from 'node:process';
+import {PathEx} from '../../../../../business/utils/path-ex.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -33,6 +35,7 @@ export class K8ClientContainer implements Container {
     private readonly kubeConfig: KubeConfig,
     private readonly containerReference: ContainerReference,
     private readonly pods: Pods,
+    private readonly kubectlExecutable: string,
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
@@ -48,11 +51,18 @@ export class K8ClientContainer implements Container {
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
+    this.logger.debug(`Executing kubectl [${this.kubectlExecutable}] with arguments: ${fullArguments.join(' ')}`);
 
     return new Promise((resolve, reject): void => {
-      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn('kubectl', fullArguments, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const callMessage: string = `"${this.kubectlExecutable}" ${fullArguments.join(' ')}`;
+      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn(
+        this.kubectlExecutable,
+        fullArguments,
+        {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: os.platform() === 'win32',
+        },
+      );
 
       let stdout: string = '';
       let stderr: string = '';
@@ -72,14 +82,14 @@ export class K8ClientContainer implements Container {
       });
 
       process.on('error', (error): void => {
-        reject(new SoloError(`container call failed to start: ${error?.message}`));
+        reject(new SoloError(`container call: ${callMessage}, failed to start: ${error?.message}`));
       });
 
       process.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
-          reject(new SoloError(`container call failed: ${stderr || stdout}`));
+          reject(new SoloError(`container call: ${callMessage}, failed with code ${code}: ${stderr || stdout}`));
         }
       });
     });
@@ -102,6 +112,9 @@ export class K8ClientContainer implements Container {
     expectedSize?: number,
   ): Promise<void> {
     const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
+    source = this.toKubectlSafePath(source);
+    destination = this.toKubectlSafePath(destination);
+
     const arguments_: string[] = ['cp', source, destination, '-c', containerName];
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
@@ -132,10 +145,25 @@ export class K8ClientContainer implements Container {
     }
   }
 
+  private toKubectlSafePath(path: string): string {
+    // kubectl cp does not handle windows path with drive letters because of the colon, so we need to convert
+    // C:\path\to\file\file.txt to the format \\localhost\c$\path\to\file\file.txt
+    if (platform === 'win32') {
+      const driveLetterMatch: RegExpMatchArray | null = path.match(/^([a-zA-Z]):\\/);
+      if (driveLetterMatch) {
+        const driveLetter: string = driveLetterMatch[1].toLowerCase();
+        path = `//localhost/${driveLetter}$${path.slice(2)}`;
+      }
+    }
+    return path;
+  }
+
   public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
     const namespace: NamespaceName = this.containerReference.parentReference.namespace;
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
+    sourcePath = this.toKubectlSafePath(sourcePath);
+    destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
     if (!(await this.pods.read(this.containerReference.parentReference))) {
       throw new IllegalArgumentError(`Invalid pod ${podName}`);
@@ -169,7 +197,7 @@ export class K8ClientContainer implements Container {
 
     const resolvedRemotePath: string = sourceFileDesc.name;
     const sourceFileName: string = path.basename(resolvedRemotePath);
-    const destinationPath: string = path.join(destinationDirectory, sourceFileName);
+    const destinationPath: string = PathEx.join(destinationDirectory, sourceFileName);
 
     this.logger.info(
       `copyFrom: beginning copy [container: ${containerName} ${namespace.name}/${podName}:${resolvedRemotePath} ${destinationPath}]`,
@@ -214,15 +242,15 @@ export class K8ClientContainer implements Container {
         const sourceFileName: string = path.basename(sourcePath);
         const sourceDirectory: string = path.dirname(sourcePath);
 
-        temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
-        temporaryTar = path.join(temporaryDirectory, `${sourceFileName}-${uuid4()}.tar`);
+        temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
+        temporaryTar = PathEx.join(temporaryDirectory, `${sourceFileName}-${uuid4()}.tar`);
 
         // Create a filtered tarball
         await tar.c({file: temporaryTar, cwd: sourceDirectory, filter}, [sourceFileName]);
         // Extract the filtered content into the temporaryDirectory.
         await tar.x({file: temporaryTar, cwd: temporaryDirectory});
 
-        localPathToCopy = path.join(temporaryDirectory, sourceFileName);
+        localPathToCopy = PathEx.join(temporaryDirectory, sourceFileName);
 
         if (!fs.existsSync(localPathToCopy)) {
           throw new SoloError(`filtered source path does not exist: ${localPathToCopy}`);

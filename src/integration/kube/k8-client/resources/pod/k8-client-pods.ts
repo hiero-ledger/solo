@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  V1Pod,
-  type KubeConfig,
   type CoreV1Api,
-  V1ObjectMeta,
+  type KubeConfig,
   V1Container,
-  V1Probe,
   V1ExecAction,
-  V1PodSpec,
+  V1ObjectMeta,
+  V1Pod,
   type V1PodList,
+  V1PodSpec,
+  V1Probe,
 } from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
@@ -25,11 +25,10 @@ import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
 import {type ContainerName} from '../../../resources/container/container-name.js';
 import {PodName} from '../../../resources/pod/pod-name.js';
+import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
-import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
-import {type IncomingMessage} from 'node:http';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -37,68 +36,56 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   public constructor(
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
+    private readonly kubectlExecutable: string,
   ) {
     super();
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
   public readByReference(podReference: PodReference | null): Pod {
-    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig);
+    return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
   }
 
   public async read(podReference: PodReference): Promise<Pod> {
     const ns: NamespaceName = podReference.namespace;
     const fieldSelector: string = `metadata.name=${podReference.name}`;
 
-    const resp: {response: IncomingMessage; body: V1PodList} = await this.kubeClient.listNamespacedPod(
-      ns.name,
-      undefined,
-      undefined,
-      undefined,
+    const resp: V1PodList = await this.kubeClient.listNamespacedPod({
+      namespace: ns.name,
       fieldSelector,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      Duration.ofMinutes(5).toMillis(),
-    );
+      timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+    });
 
     return K8ClientPod.fromV1Pod(
-      this.filterItem(resp.body.items, {name: podReference.name.toString()}),
+      this.filterItem(resp.items, {name: podReference.name.toString()}),
       this,
       this.kubeClient,
       this.kubeConfig,
+      this.kubectlExecutable,
     );
   }
 
   public async list(namespace: NamespaceName, labels: string[]): Promise<Pod[]> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
 
-    const result: {response: IncomingMessage; body: V1PodList} = await this.kubeClient.listNamespacedPod(
-      namespace.name,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
+    const result: V1PodList = await this.kubeClient.listNamespacedPod({
+      namespace: namespace.name,
       labelSelector,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      Duration.ofMinutes(5).toMillis(),
-    );
+      timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+    });
 
-    const sortedItems: V1Pod[] = result?.body?.items
+    const sortedItems: V1Pod[] = result?.items
       ? // eslint-disable-next-line unicorn/no-array-sort
-        [...result.body.items].sort(
+        [...result.items].sort(
           (a, b): number =>
             new Date(b.metadata?.creationTimestamp || 0).getTime() -
             new Date(a.metadata?.creationTimestamp || 0).getTime(),
         )
       : [];
 
-    return sortedItems.map((item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig));
+    return sortedItems.map(
+      (item: V1Pod): Pod => K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable),
+    );
   }
 
   public async waitForReadyStatus(
@@ -181,29 +168,20 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       ): Promise<void> => {
         // wait for the pod to be available with the given status and labels
         try {
-          const resp: {response: IncomingMessage; body: V1PodList} = await this.kubeClient.listNamespacedPod(
-            namespace.name,
-            // @ts-expect-error - method expects a boolean but typed it as a string for some reason
-            false,
-            false,
-            undefined,
-            undefined,
+          const response: V1PodList = await this.kubeClient.listNamespacedPod({
+            namespace: namespace.name,
             labelSelector,
-            undefined, // remove limit to get all pods
-            undefined,
-            undefined,
-            undefined,
-            Duration.ofMinutes(5).toMillis(),
-          );
+            timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+          });
 
           this.logger.debug(
-            `[attempt: ${attempts}/${maxAttempts}] ${resp.body?.items?.length} pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
+            `[attempt: ${attempts}/${maxAttempts}] ${response.items?.length} pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
           );
 
-          if (resp.body?.items?.length > 0) {
+          if (response.items?.length > 0) {
             // Sort pods by creation timestamp descending (newest first)
             // eslint-disable-next-line unicorn/no-array-sort
-            const sortedItems: V1Pod[] = [...resp.body.items].sort((a, b): number => {
+            const sortedItems: V1Pod[] = [...response.items].sort((a, b): number => {
               const aTime: number = a.metadata?.creationTimestamp?.getTime() || 0;
               const bTime: number = b.metadata?.creationTimestamp?.getTime() || 0;
               return bTime - aTime;
@@ -211,7 +189,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // Only check the newest pod
             const newestItem: V1Pod = sortedItems[0];
-            const pod: Pod = K8ClientPod.fromV1Pod(newestItem, this, this.kubeClient, this.kubeConfig);
+            const pod: Pod = K8ClientPod.fromV1Pod(
+              newestItem,
+              this,
+              this.kubeClient,
+              this.kubeConfig,
+              this.kubectlExecutable,
+            );
             if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
               return resolve([pod]);
             }
@@ -240,28 +224,23 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const pods: Pod[] = [];
 
     try {
-      const response: {response: IncomingMessage; body: V1PodList} = await this.kubeClient.listPodForAllNamespaces(
-        undefined,
-        undefined,
-        undefined,
-        labelSelector,
-      );
+      const response: V1PodList = await this.kubeClient.listPodForAllNamespaces({labelSelector});
 
-      KubeApiResponse.check(response.response, ResourceOperation.LIST, ResourceType.POD, undefined, '');
-      if (response?.body?.items?.length > 0) {
-        for (const item of response.body.items) {
+      if (response?.items?.length > 0) {
+        for (const item of response.items) {
           pods.push(
             new K8ClientPod(
               PodReference.of(NamespaceName.of(item.metadata?.namespace), PodName.of(item.metadata?.name)),
               this,
               this.kubeClient,
               this.kubeConfig,
+              this.kubectlExecutable,
             ),
           );
         }
       }
     } catch (error) {
-      throw new SoloError('Error listing pods for all namespaces', error);
+      KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.POD, undefined, '');
     }
 
     return pods;
@@ -299,25 +278,24 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     v1Pod.metadata = v1Metadata;
     v1Pod.spec = v1Spec;
 
-    let result: {response: IncomingMessage; body: V1Pod};
+    let result: V1Pod;
     try {
-      result = await this.kubeClient.createNamespacedPod(podReference.namespace.toString(), v1Pod);
+      result = await this.kubeClient.createNamespacedPod({namespace: podReference.namespace.toString(), body: v1Pod});
     } catch (error) {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Error creating pod with call to createNamespacedPod()', error);
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.CREATE,
+        ResourceType.POD,
+        podReference.namespace,
+        podReference.name.toString(),
+      );
     }
 
-    KubeApiResponse.check(
-      result.response,
-      ResourceOperation.CREATE,
-      ResourceType.POD,
-      podReference.namespace,
-      podReference.name.toString(),
-    );
-    if (result?.body) {
-      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig);
+    if (result) {
+      return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlExecutable);
     } else {
       throw new SoloError('Error creating pod', result);
     }

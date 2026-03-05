@@ -52,7 +52,7 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
         with:
           egress-policy: audit
 
@@ -69,6 +69,9 @@ jobs:
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ inputs.node-version }}
+
+      - name: Configure npm registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install Dependencies
         id: npm-deps
@@ -103,7 +106,7 @@ jobs:
           git fetch origin "$target_branch":"$target_branch"
           git checkout "$target_branch"
           npm ci
-          task check
+          task check --force
           branch_warnings=$(get_warnings eslint-branch.log)
           target_warnings=$(get_warnings eslint.log)
           echo "Warnings on branch: $branch_warnings"

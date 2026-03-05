@@ -78,6 +78,7 @@ export class MetricsServerImpl implements MetricsServer {
       let index: number = 0;
       let clusterNamespace: string = '';
       let mirrorNodePostgresPodName: string = undefined;
+      let mirrorNodePostgresNamespace: string = undefined;
       const resultArray: string[] = joinedResults
         .trim()
         .split(/\r?\n|\n| +/)
@@ -93,8 +94,10 @@ export class MetricsServerImpl implements MetricsServer {
         if (podName.startsWith('network-node1-0')) {
           clusterNamespace = namespace;
         }
-        if (podName.includes('postgres')) {
+        // Capture both internal mirror node postgres and external postgres pods
+        if ((podName.startsWith('mirror-') && podName.includes('postgres')) || podName.startsWith('my-postgresql')) {
           mirrorNodePostgresPodName = podName;
+          mirrorNodePostgresNamespace = namespace;
         }
       }
 
@@ -112,6 +115,7 @@ export class MetricsServerImpl implements MetricsServer {
         clusterNamespace ? NamespaceName.of(clusterNamespace) : undefined,
         podMetrics,
         mirrorNodePostgresPodName ? PodName.of(mirrorNodePostgresPodName) : undefined,
+        mirrorNodePostgresNamespace ? NamespaceName.of(mirrorNodePostgresNamespace) : undefined,
       );
     } catch (error) {
       if (error.message.includes('Metrics API not available')) {
@@ -154,7 +158,7 @@ export class MetricsServerImpl implements MetricsServer {
       memoryInMebibytes += clusterMetric.memoryInMebibytes;
       runtime += await this.getNetworkNodeRuntime(clusterMetric.namespace, clusterMetric.context);
       transactions += await this.getNetworkTransactions(
-        clusterMetric.namespace,
+        clusterMetric.postgresNamespace,
         clusterMetric.context,
         clusterMetric.postgresPodName,
       );
@@ -182,6 +186,7 @@ export class MetricsServerImpl implements MetricsServer {
     namespace: NamespaceName,
     podMetrics: PodMetrics[],
     mirrorNodePostgresPodName: PodName,
+    postgresNamespace: NamespaceName,
   ): ClusterMetrics {
     if (!podMetrics || podMetrics?.length === 0) {
       return undefined;
@@ -198,6 +203,7 @@ export class MetricsServerImpl implements MetricsServer {
       namespace,
       podMetrics,
       mirrorNodePostgresPodName,
+      postgresNamespace,
       cpuInMillicores,
       memoryInMebibytes,
     );

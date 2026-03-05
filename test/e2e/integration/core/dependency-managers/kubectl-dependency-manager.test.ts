@@ -10,6 +10,10 @@ import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-uti
 import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import sinon, {type SinonStub} from 'sinon';
+import {platform} from 'node:process';
+import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 
 const mockVersionOutputValid = 'Client Version: v1.33.3\nKustomize Version: v5.6.0';
 const mockVersionOutputLow = 'Client Version: v1.10.0\nKustomize Version: v5.6.0';
@@ -17,6 +21,7 @@ const mockVersionOutputMissingClient = 'Something Else: v1.10.0\nKustomize Versi
 const mockVersionOutputInvalid = 'invalid output';
 
 describe('KubectlDependencyManager', (): void => {
+  const originalPlatform: NodeJS.Platform = platform;
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
   const localInstallationDirectory = temporaryDirectory;
 
@@ -30,11 +35,14 @@ describe('KubectlDependencyManager', (): void => {
     }
   });
 
+  afterEach((): void => {
+    container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+  });
+
   it('should return kubectl version', (): void => {
     const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
       undefined,
       localInstallationDirectory,
-      undefined,
       undefined,
       undefined,
     );
@@ -47,7 +55,6 @@ describe('KubectlDependencyManager', (): void => {
       localInstallationDirectory,
       undefined,
       undefined,
-      undefined,
     );
     expect(kubectlDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -56,7 +63,6 @@ describe('KubectlDependencyManager', (): void => {
     const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
       undefined,
       localInstallationDirectory,
-      undefined,
       undefined,
       undefined,
     );
@@ -75,13 +81,7 @@ describe('KubectlDependencyManager', (): void => {
     let rmSyncStub: SinonStub;
 
     beforeEach((): void => {
-      kubectlDependencyManager = new KubectlDependencyManager(
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-        undefined,
-      );
+      kubectlDependencyManager = new KubectlDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kubectlDependencyManager.uninstallLocal();
       runStub = sinon.stub(kubectlDependencyManager, 'run');
       cpSyncStub = sinon.stub(fs, 'cpSync').returns();
@@ -96,13 +96,14 @@ describe('KubectlDependencyManager', (): void => {
       chmodSyncStub.restore();
       existsSyncStub.restore();
       rmSyncStub.restore();
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
       runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
-      runStub.withArgs('/usr/local/bin/kubectl version --client').resolves(mockVersionOutputValid.split('\n'));
+      runStub.withArgs('"/usr/local/bin/kubectl" version --client').resolves(mockVersionOutputValid.split('\n'));
       runStub
-        .withArgs(`${localInstallationDirectory}/kubectl version --client`)
+        .withArgs(`"${localInstallationDirectory}/kubectl" version --client`)
         .resolves(mockVersionOutputValid.split('\n'));
       existsSyncStub.withArgs(`${localInstallationDirectory}/kubectl`).returns(false);
 
@@ -118,9 +119,9 @@ describe('KubectlDependencyManager', (): void => {
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
-      runStub.withArgs('/usr/local/bin/kubectl version --client').resolves(mockVersionOutputLow.split('\n'));
+      runStub.withArgs('"/usr/local/bin/kubectl" version --client').resolves(mockVersionOutputLow.split('\n'));
       runStub
-        .withArgs(`${PathEx.join(localInstallationDirectory, 'kubectl')} version --client`)
+        .withArgs(`"${PathEx.join(localInstallationDirectory, 'kubectl')}" version --client`)
         .resolves(mockVersionOutputLow.split('\n'));
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -136,17 +137,21 @@ describe('KubectlDependencyManager', (): void => {
   });
 
   describe('Kubectl Installation Tests', (): void => {
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    });
+
     each([
-      ['linux', 'x64'],
-      ['linux', 'amd64'],
-      ['windows', 'amd64'],
+      [OperatingSystem.OS_LINUX, 'x64'],
+      [OperatingSystem.OS_LINUX, 'amd64'],
+      [OperatingSystem.OS_WIN32, 'amd64'],
     ]).it(
       'should be able to install kubectl base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
+        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
         const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
           undefined,
           localInstallationDirectory,
-          osPlatform,
           osArch,
           undefined,
         );
@@ -173,10 +178,13 @@ describe('KubectlDependencyManager', (): void => {
       kubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,
-        process.platform,
         process.arch,
         undefined,
       );
+    });
+
+    afterEach((): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
     });
 
     it('getGlobalExecutablePath returns false if not found', async (): Promise<void> => {
@@ -239,11 +247,11 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('processDownloadedPackage should handle platform-specific executable names', async (): Promise<void> => {
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_LINUX});
       // First test with non-Windows platform
       let kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,
-        'linux',
         'amd64',
         undefined,
       );
@@ -253,10 +261,10 @@ describe('KubectlDependencyManager', (): void => {
       expect(linuxResult).to.contain('/tmp/kubectl');
 
       // Now test with Windows platform
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_WIN32});
       kubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,
-        'windows' as NodeJS.Platform,
         'amd64',
         undefined,
       );
@@ -267,10 +275,10 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getArtifactName should generate correct URL format based on platform/arch', (): void => {
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_LINUX});
       const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
         undefined,
         localInstallationDirectory,
-        'linux',
         'amd64',
         '1.25.0',
       );
@@ -278,7 +286,7 @@ describe('KubectlDependencyManager', (): void => {
       // @ts-expect-error TS2341: Property getArtifactName is private
       const artifactName = kubectlDependencyManager.getArtifactName();
       expect(artifactName).to.include('1.25.0');
-      expect(artifactName).to.include('linux');
+      expect(artifactName).to.include(OperatingSystem.OS_LINUX);
       expect(artifactName).to.include('amd64');
     });
   });

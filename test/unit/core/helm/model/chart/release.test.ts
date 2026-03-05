@@ -14,7 +14,7 @@ describe('Release', () => {
     // Read the test JSON file
     const jsonContent = readFileSync(
       join(__dirname, '..', '..', '..', '..', 'resources', 'mysql-release.json'),
-      'utf-8',
+      'utf8',
     );
 
     const data = JSON.parse(jsonContent);

@@ -79,6 +79,7 @@ export class InjectTokens {
   public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
   public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
+  public static OneShotState: symbol = Symbol.for('OneShotState');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
