@@ -88,9 +88,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options, true);
 
-      MirrorNodeTest.add(options);
+        MirrorNodeTest.add(options);
 
-      MirrorNodeTest.pullAddressBook(options);
+        MirrorNodeTest.pullAddressBook(options);
 
         ConsensusNodeTest.PemStop(options);
         ConsensusNodeTest.PemKill(options);
