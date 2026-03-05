@@ -648,22 +648,28 @@ export class NodeCommandHandlers extends CommandHandler {
 
     await this.localConfig.load();
     const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
+    const validDeployments: Deployment[] = [];
+    for (const deployment of deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
 
-    if (deployments.length === 0) {
+    if (validDeployments.length === 0) {
       throw new SoloError(
         `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
       );
     }
 
-    if (deployments.length === 1) {
-      const deployment: Deployment = deployments[0];
+    if (validDeployments.length === 1) {
+      const deployment: Deployment = validDeployments[0];
       argv[flags.deployment.name] = deployment.name;
       this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
       return;
     }
 
     if ((argv[flags.quiet.name] as boolean) === true) {
-      const deploymentNames: string = deployments.map(d => d.name).join(', ');
+      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
       throw new SoloError(
         `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
       );
@@ -671,7 +677,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
     const selectedDeployment: string = (await selectPrompt({
       message: 'Select deployment for diagnostics logs:',
-      choices: deployments.map((d: Deployment) => ({name: d.name, value: d.name})),
+      choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
     })) as string;
     argv[flags.deployment.name] = selectedDeployment;
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
