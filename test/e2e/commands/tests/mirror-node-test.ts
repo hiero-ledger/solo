@@ -21,8 +21,8 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
-import {NodeTest} from './node-test.js';
 import {type AnyObject} from '../../../../src/types/aliases.js';
+import {ConsensusNodeTest} from './consensus-node-test.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -418,13 +418,13 @@ export class MirrorNodeTest extends BaseCommandTest {
       const node1: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 0);
 
       // Validate Node 1 data
-      expect(node1.grpc_proxy_endpoint.domain_name).to.equal(NodeTest.firstNodeCustomGrpcWebEndpointAddress);
-      expect(node1.grpc_proxy_endpoint.port).to.equal(NodeTest.firstNodeCustomGrpcWebEndpointPort);
+      expect(node1.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.firstNodeCustomGrpcWebEndpointAddress);
+      expect(node1.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.firstNodeCustomGrpcWebEndpointPort);
 
       const node2: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 1);
       // Validate Node 2 data
-      expect(node2.grpc_proxy_endpoint.domain_name).to.equal(NodeTest.secondNodeCustomGrpcWebEndpointAddress);
-      expect(node2.grpc_proxy_endpoint.port).to.equal(NodeTest.secondNodeCustomGrpcWebEndpointPort);
+      expect(node2.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.secondNodeCustomGrpcWebEndpointAddress);
+      expect(node2.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.secondNodeCustomGrpcWebEndpointPort);
 
       await MirrorNodeTest.stopPortForward(options.contexts, srv);
     });

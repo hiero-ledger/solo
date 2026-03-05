@@ -460,7 +460,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     nodeAliases?: string,
-    setCustomGrpcWebAddress: boolean,
+    setCustomGrpcWebAddress?: boolean,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
 
@@ -481,8 +481,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
       argv.push(
         optionFromFlag(flags.grpcWebEndpoints),
         [
-          `node1=${NodeTest.firstNodeCustomGrpcWebEndpointAddress}:${NodeTest.firstNodeCustomGrpcWebEndpointPort}`,
-          `node2=${NodeTest.secondNodeCustomGrpcWebEndpointAddress}:${NodeTest.secondNodeCustomGrpcWebEndpointPort}`,
+          `node1=${ConsensusNodeTest.firstNodeCustomGrpcWebEndpointAddress}:${ConsensusNodeTest.firstNodeCustomGrpcWebEndpointPort}`,
+          `node2=${ConsensusNodeTest.secondNodeCustomGrpcWebEndpointAddress}:${ConsensusNodeTest.secondNodeCustomGrpcWebEndpointPort}`,
         ].join(','),
       );
     }
@@ -555,7 +555,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = ConsensusNodeTest;
 
     it(`${testName}: consensus node start`, async (): Promise<void> => {
-      await main(soloNodeStartArgv(testName, deployment, setCustomGrpcWebAddress));
+      await main(soloNodeStartArgv(testName, deployment, undefined, setCustomGrpcWebAddress));
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -850,7 +850,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       await checkNetwork(testName, namespace, testLogger);
 
-      await main(soloNodeStartArgv(testName, deployment, false));
+      await main(soloNodeStartArgv(testName, deployment, undefined, false));
 
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));
