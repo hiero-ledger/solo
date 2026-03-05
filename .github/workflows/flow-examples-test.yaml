@@ -226,6 +226,7 @@ jobs:
         timeout-minutes: 45
         working-directory: examples/${{ matrix.example.directory }}
         run: |
+          set -euo pipefail
           echo "Running example test in directory: ${{ matrix.example.directory }}"
           echo "Current directory: $(pwd)"
           
@@ -242,20 +243,31 @@ jobs:
           # Run the example
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          mkdir -p "${HOME}/.solo/logs"
+          TASK_LOG_FILE="${HOME}/.solo/logs/example-task-${{ matrix.example.directory }}.log"
+
           set +e
-          task
-          TASK_RC=$?
+          task 2>&1 | tee "${TASK_LOG_FILE}"
+          TASK_EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
-          if [ "${TASK_RC}" -ne 0 ]; then
-            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
-            cd ../..
-            npm run solo-test -- deployment diagnostics logs -q --dev || true
-            cd "examples/${{ matrix.example.directory }}"
+          if [ "${TASK_EXIT_CODE}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_EXIT_CODE}. Collecting diagnostics logs..."
 
-            exit "${TASK_RC}"
+            DEPLOYMENT_NAME="${SOLO_DEPLOYMENT:-}"
+            if [ -z "${DEPLOYMENT_NAME}" ] && [ -f "${HOME}/.solo/solo.config" ]; then
+              DEPLOYMENT_NAME=$(jq -r '.flags.deployment // empty' "${HOME}/.solo/solo.config")
+            fi
+
+            if [ -n "${DEPLOYMENT_NAME}" ]; then
+              npm run solo -- deployment diagnostics logs --deployment "${DEPLOYMENT_NAME}" -q --dev || true
+            else
+              echo "Warning: Unable to determine deployment name; skipping diagnostics command."
+            fi
+
+            exit "${TASK_EXIT_CODE}"
           fi
-
+          
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
