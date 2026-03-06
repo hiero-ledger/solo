@@ -45,6 +45,7 @@ solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref $
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
+solo block node add --deployment "${SOLO_DEPLOYMENT}"
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
@@ -135,6 +136,8 @@ kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+
+npm run solo -- block node add --deployment "${SOLO_DEPLOYMENT}"
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
