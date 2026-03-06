@@ -102,4 +102,19 @@ export interface Pods {
    * @returns list of pod metrics items with CPU (in millicores) and memory (in mebibytes)
    */
   topPods(namespace?: NamespaceName, labelSelector?: string): Promise<PodMetricsItem[]>;
+
+  /**
+   * Read logs for the given pod across all containers.
+   * @param podReference - the reference to the pod
+   * @param timestamps - include timestamps in output
+   * @returns logs as a single string
+   */
+  readLogs(podReference: PodReference, timestamps?: boolean): Promise<string>;
+
+  /**
+   * Build a describe-like textual report for a pod, including pod details and related events.
+   * @param podReference - the reference to the pod
+   * @returns describe-like output string
+   */
+  readDescribe(podReference: PodReference): Promise<string>;
 }

@@ -31,8 +31,8 @@ import {InjectTokens} from '../../../../../core/dependency-injection/inject-toke
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
-import yaml from 'yaml';
 import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
+import yaml from 'yaml';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
