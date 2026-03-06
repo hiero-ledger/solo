@@ -1,0 +1,231 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+  ONE_SHOT_WITH_BLOCK_NODE: "true"
+
+vars:
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+
+  CLUSTER_NAME: "one-shot-local-build-cluster"
+  CONTEXT: "kind-one-shot-local-build-cluster"
+
+  # Component versions - prefer env vars (set by CI), fall back to version.ts
+  CN_VERSION:
+    sh: echo "${CONSENSUS_NODE_VERSION:-$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' ../../version.ts)}"
+  MIRROR_NODE_VERSION:
+    sh: awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' ../../version.ts
+  RELAY_VERSION:
+    sh: awk -F"'" '/^export const HEDERA_JSON_RPC_RELAY_VERSION/ {print $(NF-1); exit}' ../../version.ts
+  EXPLORER_VERSION:
+    sh: awk -F"'" '/^export const EXPLORER_VERSION/ {print $(NF-1); exit}' ../../version.ts
+  BLOCK_NODE_VERSION:
+    sh: awk -F"'" '/^export const BLOCK_NODE_VERSION/ {print $(NF-1); exit}' ../../version.ts
+
+  # Local repository directories (cloned next to the solo repo)
+  CN_REPO_DIR: "{{.ROOT_DIR}}/../hiero-consensus-node"
+  BLOCK_NODE_REPO_DIR: "{{.ROOT_DIR}}/../hiero-block-node"
+  MIRROR_NODE_REPO_DIR: "{{.ROOT_DIR}}/../hiero-mirror-node"
+  RELAY_REPO_DIR: "{{.ROOT_DIR}}/../hiero-json-rpc-relay"
+  EXPLORER_REPO_DIR: "{{.ROOT_DIR}}/../hiero-mirror-node-explorer"
+
+  # Local build and chart paths derived from the cloned repos
+  CN_LOCAL_BUILD_PATH: "{{.CN_REPO_DIR}}/hedera-node/data"
+  BLOCK_NODE_CHART_DIR: "{{.BLOCK_NODE_REPO_DIR}}/charts"
+  MIRROR_NODE_CHART_DIR: "{{.MIRROR_NODE_REPO_DIR}}/charts"
+  RELAY_CHART_DIR: "{{.RELAY_REPO_DIR}}/charts"
+  EXPLORER_CHART_DIR: "{{.EXPLORER_REPO_DIR}}/charts"
+
+  # Runtime values file generated with actual local paths
+  RUNTIME_VALUES_FILE: "/tmp/one-shot-local-build-runtime-values.yaml"
+
+tasks:
+  checkout-repos:
+    desc: Checkout all component repositories at the versions defined in version.ts
+    cmds:
+      # Checkout consensus node repo (used for local build)
+      - cmd: |
+          if [ ! -d "{{.CN_REPO_DIR}}" ]; then
+            git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
+              --depth 1 --branch {{.CN_VERSION}} {{.CN_REPO_DIR}}
+          else
+            echo "Skipping clone: {{.CN_REPO_DIR}} already exists"
+          fi
+
+      # Checkout block node repo (used for local chart directory)
+      - cmd: |
+          if [ ! -d "{{.BLOCK_NODE_REPO_DIR}}" ]; then
+            git clone https://github.com/hiero-ledger/hiero-block-node.git \
+              --depth 1 --branch {{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
+          else
+            echo "Skipping clone: {{.BLOCK_NODE_REPO_DIR}} already exists"
+          fi
+
+      # Checkout mirror node repo (used for local chart directory)
+      - cmd: |
+          if [ ! -d "{{.MIRROR_NODE_REPO_DIR}}" ]; then
+            git clone https://github.com/hiero-ledger/hiero-mirror-node.git \
+              --depth 1 --branch {{.MIRROR_NODE_VERSION}} {{.MIRROR_NODE_REPO_DIR}}
+          else
+            echo "Skipping clone: {{.MIRROR_NODE_REPO_DIR}} already exists"
+          fi
+
+      # Checkout relay repo (used for local chart directory)
+      # Note: relay version does not include the 'v' prefix in version.ts but tags use it
+      - cmd: |
+          if [ ! -d "{{.RELAY_REPO_DIR}}" ]; then
+            git clone https://github.com/hiero-ledger/hiero-json-rpc-relay.git \
+              --depth 1 --branch v{{.RELAY_VERSION}} {{.RELAY_REPO_DIR}}
+          else
+            echo "Skipping clone: {{.RELAY_REPO_DIR}} already exists"
+          fi
+
+      # Checkout explorer repo (used for local chart directory)
+      # Note: explorer version does not include the 'v' prefix in version.ts but tags use it
+      - cmd: |
+          if [ ! -d "{{.EXPLORER_REPO_DIR}}" ]; then
+            git clone https://github.com/hiero-ledger/hiero-mirror-node-explorer.git \
+              --depth 1 --branch v{{.EXPLORER_VERSION}} {{.EXPLORER_REPO_DIR}}
+          else
+            echo "Skipping clone: {{.EXPLORER_REPO_DIR}} already exists"
+          fi
+
+  build-chart-deps:
+    desc: Run helm dependency build for all local chart directories
+    cmds:
+      # Block node chart: <charts>/block-node-server
+      - cmd: |
+          CHART_PATH="{{.BLOCK_NODE_CHART_DIR}}/block-node-server"
+          if [ -d "$CHART_PATH" ]; then
+            echo "Running helm dependency build in $CHART_PATH..."
+            helm dependency build "$CHART_PATH"
+          else
+            echo "Skipping: $CHART_PATH not found"
+          fi
+
+      # Mirror node chart: <charts>/hedera-mirror
+      - cmd: |
+          CHART_PATH="{{.MIRROR_NODE_CHART_DIR}}/hedera-mirror"
+          if [ -d "$CHART_PATH" ]; then
+            echo "Running helm dependency build in $CHART_PATH..."
+            helm dependency build "$CHART_PATH"
+          else
+            echo "Skipping: $CHART_PATH not found"
+          fi
+
+      # Relay chart: <charts>/hedera-json-rpc
+      - cmd: |
+          CHART_PATH="{{.RELAY_CHART_DIR}}/hedera-json-rpc"
+          if [ -d "$CHART_PATH" ]; then
+            echo "Running helm dependency build in $CHART_PATH..."
+            helm dependency build "$CHART_PATH"
+          else
+            echo "Skipping: $CHART_PATH not found"
+          fi
+
+      # Explorer chart: <charts> (directory used directly, no chart name suffix)
+      - cmd: |
+          CHART_PATH="{{.EXPLORER_CHART_DIR}}"
+          if [ -d "$CHART_PATH" ]; then
+            echo "Running helm dependency build in $CHART_PATH..."
+            helm dependency build "$CHART_PATH"
+          else
+            echo "Skipping: $CHART_PATH not found"
+          fi
+
+  build-consensus-node:
+    desc: Build the Hiero consensus node from source (requires Java 21 and Gradle)
+    cmds:
+      - cmd: |
+          if [ ! -d "{{.CN_LOCAL_BUILD_PATH}}" ]; then
+            echo "Building consensus node from source at {{.CN_REPO_DIR}}..."
+            cd {{.CN_REPO_DIR}}
+            ./gradlew assemble --stacktrace --info
+          else
+            echo "Skipping build: {{.CN_LOCAL_BUILD_PATH}} already exists"
+          fi
+
+  generate-values:
+    desc: Generate a runtime values YAML file with actual local build and chart paths
+    cmds:
+      - cmd: |
+          {
+            echo "setup:"
+            echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""
+            echo ""
+            echo "blockNode:"
+            echo "  --block-node-chart-dir: \"{{.BLOCK_NODE_CHART_DIR}}\""
+            echo ""
+            echo "mirrorNode:"
+            echo "  --mirror-node-chart-dir: \"{{.MIRROR_NODE_CHART_DIR}}\""
+            echo ""
+            echo "relayNode:"
+            echo "  --relay-chart-dir: \"{{.RELAY_CHART_DIR}}\""
+            echo ""
+            echo "explorerNode:"
+            echo "  --explorer-chart-dir: \"{{.EXPLORER_CHART_DIR}}\""
+          } > {{.RUNTIME_VALUES_FILE}}
+          echo "Generated runtime values file at {{.RUNTIME_VALUES_FILE}}:"
+          cat {{.RUNTIME_VALUES_FILE}}
+
+  deploy:
+    desc: Deploy a complete Hiero network using one-shot falcon deploy with local builds
+    cmds:
+      # Checkout all component repos
+      - task: checkout-repos
+
+      # Build Helm chart dependencies for all local chart directories
+      - task: build-chart-deps
+
+      # Build the consensus node from source
+      - task: build-consensus-node
+
+      # Generate runtime values file with actual local paths
+      - task: generate-values
+
+      # Install Solo CLI if using released version
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Create Kind cluster
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      # Wait for the control plane to come up
+      - cmd: sleep 10
+
+      # Set kubectl context
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+      # Run one-shot falcon deploy with local build values
+      - cmd: |
+          $SOLO_COMMAND one-shot falcon deploy \
+          --values-file {{.RUNTIME_VALUES_FILE}} \
+          --num-consensus-nodes 1
+
+  destroy:
+    desc: Destroy the Solo network and clean up
+    cmds:
+      # Destroy Solo deployment
+      - cmd: $SOLO_COMMAND one-shot falcon destroy
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+
+      # Remove generated runtime values file
+      - cmd: rm -f {{.RUNTIME_VALUES_FILE}}
+
+  default:
+    desc: Run the complete local build deployment workflow (checkout, build, deploy)
+    cmds:
+      - task: deploy

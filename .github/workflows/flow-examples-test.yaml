@@ -226,6 +226,7 @@ jobs:
         timeout-minutes: 45
         working-directory: examples/${{ matrix.example.directory }}
         run: |
+          set -euo pipefail
           echo "Running example test in directory: ${{ matrix.example.directory }}"
           echo "Current directory: $(pwd)"
           
