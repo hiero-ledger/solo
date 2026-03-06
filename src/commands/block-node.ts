@@ -43,6 +43,10 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {
+  planComponentUpgradeMigrationPath,
+  type ComponentUpgradeMigrationStep,
+} from './migrations/component-upgrade-rules.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -101,6 +105,8 @@ interface BlockNodeUpgradeConfigClass {
   context: string;
   releaseName: string;
   upgradeVersion: string;
+  currentVersion: string;
+  migrationPlan: ComponentUpgradeMigrationStep[];
   valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
@@ -155,6 +161,7 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addExternalConfigs';
 
   private static readonly DELETE_CONFIGS_NAME: string = 'deleteExternalConfigs';
+  private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -259,6 +266,13 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return valuesArgument;
+  }
+
+  private static appendExtraCommandArgs(baseArgument: string, extraCommandArguments: string[]): string {
+    if (extraCommandArguments.length === 0) {
+      return baseArgument;
+    }
+    return `${baseArgument} ${extraCommandArguments.join(' ')}`.trim();
   }
 
   private getReleaseName(): string {
@@ -755,6 +769,11 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
+            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode).version;
+            config.migrationPlan = this.buildBlockNodeUpgradeMigrationPlan(
+              config.currentVersion,
+              config.upgradeVersion,
+            );
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -782,26 +801,65 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
+          title: 'Plan block node upgrade migration',
+          task: async ({config}, task): Promise<void> => {
+            config.migrationPlan = this.buildBlockNodeUpgradeMigrationPlan(
+              config.currentVersion,
+              config.upgradeVersion,
+            );
+
+            const renderedPlan: string = config.migrationPlan
+              .map((step): string => `${step.fromVersion} -> ${step.toVersion} [${step.strategy}] (${step.reason})`)
+              .join(' | ');
+            task.title = `${task.title}: ${renderedPlan}`;
+          },
+        },
+        {
           title: 'Update block node chart',
           task: async ({config}): Promise<void> => {
-            const {namespace, releaseName, context, upgradeVersion} = config;
+            const {namespace, releaseName, context} = config;
 
-            const validatedUpgradeVersion: string = Version.getValidSemanticVersion(
-              upgradeVersion,
-              false,
-              'Block node chart version',
-            );
+            for (const step of config.migrationPlan) {
+              const stepTargetVersion: string = Version.getValidSemanticVersion(
+                step.toVersion,
+                false,
+                'Block node chart version',
+              );
+              const stepValuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(
+                config.valuesArg,
+                step.extraCommandArgs,
+              );
 
-            await this.chartManager.upgrade(
-              namespace,
-              releaseName,
-              constants.BLOCK_NODE_CHART,
-              config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
-              validatedUpgradeVersion,
-              config.valuesArg,
-              context,
-              false,
-            );
+              if (step.strategy === 'recreate') {
+                this.logger.showUser(
+                  `Applying block node recreate migration for ${releaseName} (${step.fromVersion} -> ${stepTargetVersion}): ${step.reason}`,
+                );
+                await this.recreateBlockNodeChart(config, stepTargetVersion, step);
+                continue;
+              }
+
+              try {
+                await this.chartManager.upgrade(
+                  namespace,
+                  releaseName,
+                  constants.BLOCK_NODE_CHART,
+                  config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
+                  stepTargetVersion,
+                  stepValuesArgument,
+                  context,
+                  false,
+                );
+              } catch (error) {
+                if (this.isImmutableStatefulSetError(error)) {
+                  this.logger.showUser(
+                    `Detected immutable StatefulSet upgrade for ${releaseName}; retrying with recreate migration`,
+                  );
+                  await this.recreateBlockNodeChart(config, stepTargetVersion, step);
+                } else {
+                  throw error;
+                }
+              }
+            }
 
             showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
 
@@ -1051,6 +1109,51 @@ export class BlockNodeCommand extends BaseCommand {
     this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
+  }
+
+  private buildBlockNodeUpgradeMigrationPlan(
+    currentVersion: string,
+    targetVersion: string,
+  ): ComponentUpgradeMigrationStep[] {
+    const normalizedCurrentVersion: string = Version.getValidSemanticVersion(
+      currentVersion || '0.0.0',
+      false,
+      'Current block node chart version',
+    );
+    const normalizedTargetVersion: string = Version.getValidSemanticVersion(
+      targetVersion || versions.BLOCK_NODE_VERSION,
+      false,
+      'Target block node chart version',
+    );
+
+    return planComponentUpgradeMigrationPath(
+      BlockNodeCommand.MIGRATION_COMPONENT_KEY,
+      normalizedCurrentVersion,
+      normalizedTargetVersion,
+    );
+  }
+
+  private isImmutableStatefulSetError(error: unknown): boolean {
+    const message: string = error instanceof Error ? error.message : String(error);
+    return message.includes('StatefulSet.apps') && message.includes('spec: Forbidden');
+  }
+
+  private async recreateBlockNodeChart(
+    config: BlockNodeUpgradeConfigClass,
+    validatedUpgradeVersion: string,
+    step: ComponentUpgradeMigrationStep,
+  ): Promise<void> {
+    const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
+    await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+    await this.chartManager.install(
+      config.namespace,
+      config.releaseName,
+      constants.BLOCK_NODE_CHART,
+      config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
+      validatedUpgradeVersion,
+      valuesArgument,
+      config.context,
+    );
   }
 
   /** Adds the block node component to remote config. */
