@@ -10,11 +10,11 @@ export class InjectTokens {
   public static DevelopmentMode: symbol = Symbol.for('DevelopmentMode');
   public static OsPlatform: symbol = Symbol.for('OsPlatform');
   public static OsArch: symbol = Symbol.for('OsArch');
-  public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
-  public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
-  public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
-  public static PodmanInstallationDir: symbol = Symbol.for('PodmanInstallationDir');
-  public static PodmanDependenciesInstallationDir: symbol = Symbol.for('PodmanDependenciesInstallationDir');
+  public static HelmInstallationDirectory: symbol = Symbol.for('HelmInstallationDirectory');
+  public static KindInstallationDirectory: symbol = Symbol.for('KindInstallationDirectory');
+  public static KubectlInstallationDirectory: symbol = Symbol.for('KubectlInstallationDirectory');
+  public static PodmanInstallationDirectory: symbol = Symbol.for('PodmanInstallationDirectory');
+  public static PodmanDependenciesInstallationDirectory: symbol = Symbol.for('PodmanDependenciesInstallationDirectory');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
   public static KindVersion: symbol = Symbol.for('KindVersion');
   public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
