@@ -31,6 +31,8 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type Zippy} from '../../core/zippy.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 import {Flags as flags} from '../flags.js';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
@@ -45,6 +47,7 @@ export class NodeCommandHandlers extends CommandHandler {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
+    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
   ) {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
@@ -52,6 +55,7 @@ export class NodeCommandHandlers extends CommandHandler {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
@@ -700,6 +704,36 @@ export class NodeCommandHandlers extends CommandHandler {
       'Error in diagnosing deployment',
       null,
     );
+
+    return true;
+  }
+
+  public async debug(argv: ArgvStruct): Promise<boolean> {
+    // First run all diagnostics
+    await this.all(argv);
+
+    // Validate zippy service is available
+    if (!this.zippy) {
+      throw new SoloError('Zippy service is not available');
+    }
+
+    // Then create a zip file from the logs directory
+    const outputDirectory: string = (argv.outputDir as string) || constants.SOLO_LOGS_DIR;
+    const deployment: string = (argv.deployment as string) || '';
+    const timestamp: string = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-').slice(0, 19);
+    const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
+    const zipFilePath: string = PathEx.join(outputDirectory, '..', zipFileName);
+
+    this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
+    this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
+
+    try {
+      await this.zippy.zip(outputDirectory, zipFilePath);
+      this.logger.showUser(chalk.green('✓ Debug information collected successfully!'));
+      this.logger.showUser(chalk.cyan(`  Archive: ${zipFilePath}`));
+    } catch (error: Error | unknown) {
+      throw new SoloError(`Failed to create debug archive: ${(error as Error).message}`, error as Error);
+    }
 
     return true;
   }

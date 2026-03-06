@@ -316,7 +316,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+      DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),
