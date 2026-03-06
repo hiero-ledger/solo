@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {select as selectPrompt} from '@inquirer/prompts';
+import psList, {type ProcessDescriptor} from 'ps-list';
 import {SoloError} from '../core/errors/solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -35,6 +38,11 @@ import {type ConfigMap} from '../integration/kube/resources/config-map/config-ma
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
 import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
 import {MessageLevel} from '../core/logging/message-level.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {type K8} from '../integration/kube/k8.js';
+import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -93,6 +101,11 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.clusterRef, flags.quiet],
   };
 
+  public static REFRESH_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.quiet],
+  };
+
   /**
    * Create new deployment inside the local config
    */
@@ -105,7 +118,7 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    interface _Context {
+    interface Context {
       config: Config;
     }
 
@@ -326,9 +339,6 @@ export class DeploymentCommand extends BaseCommand {
             this.configManager.update(argv);
             // Note: cluster-ref is now optional. If not provided, we list local deployments.
             // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
-            const clusterName: ClusterReferenceName | undefined = this.configManager.getFlag<ClusterReferenceName>(
-              flags.clusterRef,
-            );
             context_.config = {
               clusterName: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
@@ -472,7 +482,8 @@ export class DeploymentCommand extends BaseCommand {
       task: async (context_, task): Promise<void> => {
         const {deployment, numberOfConsensusNodes, quiet, namespace} = context_.config;
 
-        const existingClusterReferences = this.localConfig.configuration.deploymentByName(deployment).clusters;
+        const existingClusterReferences: FacadeArray<StringFacade, string> =
+          this.localConfig.configuration.deploymentByName(deployment).clusters;
 
         // if there is no remote config don't validate deployment ledger phase
         if (existingClusterReferences.length === 0) {
@@ -680,6 +691,275 @@ export class DeploymentCommand extends BaseCommand {
         this.logger.addMessageGroupMessage(messageGroupName, row);
       }
       this.logger.showMessageGroup(messageGroupName, MessageLevel.WARN);
+    }
+  }
+
+  /**
+   * Refresh port-forward processes for all components in the deployment
+   */
+  public async refresh(argv: ArgvStruct): Promise<boolean> {
+    interface Config {
+      quiet: boolean;
+      deployment: DeploymentName;
+    }
+
+    interface RefreshContext {
+      config: Config;
+      namespace?: NamespaceName;
+      clusterReference?: string;
+      context?: string;
+    }
+
+    const tasks: Listr<RefreshContext, 'default', 'default'> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_): Promise<void> => {
+            await this.localConfig.load();
+
+            this.configManager.update(argv);
+
+            context_.config = {
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+            } as Config;
+
+            // Get namespace from deployment
+            const deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            if (!deployment) {
+              throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
+            }
+
+            context_.namespace = NamespaceName.of(deployment.namespace);
+          },
+        },
+        {
+          title: 'Load remote configuration',
+          task: async (context_, task): Promise<void> => {
+            if (!context_.namespace) {
+              throw new SoloError('Namespace not set');
+            }
+
+            // Load remote config from a selected cluster in the deployment
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
+
+            if (clusters.length === 0) {
+              throw new SoloError(`No clusters found for deployment ${context_.config.deployment}`);
+            }
+
+            const clusterReferences: string[] = [];
+            for (let index = 0; index < clusters.length; index++) {
+              const clusterReferenceFacade: StringFacade = clusters.get(index);
+              if (clusterReferenceFacade) {
+                clusterReferences.push(clusterReferenceFacade.toString());
+              }
+            }
+
+            if (clusterReferences.length === 0) {
+              throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
+            }
+
+            let clusterReference: string = clusterReferences[0];
+            if (clusterReferences.length > 1) {
+              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
+                choices: clusterReferences.map((reference): {name: string; value: string} => ({
+                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
+                  value: reference,
+                })),
+              })) as string;
+            }
+
+            const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            if (!contextValue) {
+              throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
+            }
+
+            const context: string = contextValue.toString();
+            context_.clusterReference = clusterReference;
+            context_.context = context;
+
+            await this.remoteConfig.load(context_.namespace, context);
+          },
+        },
+        {
+          title: 'Refresh port-forwards for all components',
+          task: async (_context_, task): Promise<void> => {
+            const componentsToCheck = [
+              {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
+              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
+              {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
+              {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
+              {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
+              {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
+            ];
+
+            let restoredCount: number = 0;
+            let totalChecked: number = 0;
+            let alreadyRunningCount: number = 0;
+            const portForwardDetails: string[] = [];
+
+            this.logger.showUser(chalk.cyan('\n=== Port-Forward Status Check ===\n'));
+
+            for (const {type, components} of componentsToCheck) {
+              for (const component of components) {
+                if (!component.metadata?.portForwardConfigs || component.metadata.portForwardConfigs.length === 0) {
+                  continue;
+                }
+
+                const {cluster: clusterReference, namespace} = component.metadata;
+                const context: string | undefined = this.localConfig.configuration.clusterRefs
+                  .get(clusterReference)
+                  ?.toString();
+                const k8Client: K8 = this.k8Factory.getK8(context);
+
+                for (const portForwardConfig of component.metadata.portForwardConfigs) {
+                  totalChecked++;
+                  const {localPort, podPort} = portForwardConfig;
+                  const componentLabel: string = `${type} ${component.metadata.id}`;
+
+                  // Check if port-forward is running
+                  const isRunning: boolean = await this.isPortForwardRunning(localPort);
+
+                  if (isRunning) {
+                    alreadyRunningCount++;
+                    const detail: string = `✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`;
+                    portForwardDetails.push(detail);
+                    this.logger.showUser(chalk.green(detail));
+                  } else {
+                    const missingDetail: string = `⚠ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Missing]`;
+                    portForwardDetails.push(missingDetail);
+                    this.logger.showUser(chalk.yellow(missingDetail));
+
+                    try {
+                      // Find the pod reference for this component
+                      const namespaceName: NamespaceName = NamespaceName.of(namespace);
+                      const podName: PodName | null = await this.getPodNameForComponent(
+                        component,
+                        type,
+                        k8Client,
+                        namespaceName,
+                      );
+
+                      if (podName) {
+                        // Re-enable port forward
+                        const podReference: PodReference = PodReference.of(namespaceName, podName);
+
+                        // portForward parameters:
+                        // - localPort: the port to forward to on localhost
+                        // - podPort: the port on the pod to forward from
+                        // - reuse: true = reuse the configured port number
+                        // - persist: false = temporary port-forward (will not restart on failure)
+                        await k8Client
+                          .pods()
+                          .readByReference(podReference)
+                          .portForward(localPort, podPort, true, false);
+
+                        const restoredDetail: string = `  ↳ Restored port forward for ${componentLabel}`;
+                        this.logger.showUser(chalk.green(restoredDetail));
+                        restoredCount++;
+                      } else {
+                        const errorDetail: string = `  ↳ Could not find pod for ${componentLabel}`;
+                        this.logger.showUser(chalk.red(errorDetail));
+                      }
+                    } catch (error) {
+                      const errorDetail: string = `  ↳ Failed to restore: ${error.message}`;
+                      this.logger.showUser(chalk.red(errorDetail));
+                    }
+                  }
+                }
+              }
+            }
+
+            this.logger.showUser(chalk.cyan('\n=== Summary ==='));
+            this.logger.showUser(`Total port-forwards configured: ${totalChecked}`);
+            this.logger.showUser(chalk.green(`Already running: ${alreadyRunningCount}`));
+            if (restoredCount > 0) {
+              this.logger.showUser(chalk.green(`Successfully restored: ${restoredCount}`));
+            }
+            if (totalChecked === 0) {
+              this.logger.showUser(chalk.yellow('No port-forwards configured in this deployment'));
+            } else if (alreadyRunningCount === totalChecked) {
+              this.logger.showUser(chalk.green('✓ All port-forwards are running correctly'));
+            }
+
+            task.title = `Checked ${totalChecked} port-forward(s), restored ${restoredCount}`;
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error: Error | unknown) {
+      throw new SoloError('Error refreshing port-forwards', error);
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if a port-forward process is running on the specified port
+   */
+  private async isPortForwardRunning(port: number): Promise<boolean> {
+    // Validate port before process matching.
+    if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+      throw new SoloError(`Invalid port number: ${port}`);
+    }
+
+    try {
+      const processes: ProcessDescriptor[] = await psList();
+      return processes.some((process: ProcessDescriptor): boolean => {
+        const command: string = (process.cmd ?? '').toLowerCase();
+        return command.includes('port-forward') && command.includes(`${port}:`);
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get the pod name for a component based on its type
+   */
+  private async getPodNameForComponent(
+    component: BaseStateSchema,
+    componentType: string,
+    k8Client: K8,
+    namespace: NamespaceName,
+  ): Promise<PodName | null> {
+    try {
+      const labels: string[] = Templates.renderComponentLabelSelectors(componentType, component.metadata.id);
+      if (labels.length === 0) {
+        return undefined;
+      }
+
+      const pods: Pod[] = await k8Client.pods().list(namespace, labels);
+      if (pods?.length > 0) {
+        if (componentType === 'ConsensusNode') {
+          const haProxyPod: Pod | undefined = pods.find((pod): boolean =>
+            pod.podReference?.name?.toString()?.startsWith('haproxy-node'),
+          );
+          if (haProxyPod) {
+            return haProxyPod.podReference.name;
+          }
+        }
+        if (componentType === 'MirrorNode') {
+          const mirrorIngressPod: Pod | undefined = pods.find((pod): boolean =>
+            pod.podReference?.name?.toString()?.startsWith(constants.MIRROR_INGRESS_CONTROLLER),
+          );
+          if (mirrorIngressPod) {
+            return mirrorIngressPod.podReference.name;
+          }
+        }
+        return pods[0].podReference.name;
+      }
+
+      return undefined;
+    } catch (error) {
+      this.logger.warn(`Error finding pod for ${componentType}: ${error.message}`);
+      return undefined;
     }
   }
 }
