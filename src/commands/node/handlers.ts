@@ -33,6 +33,11 @@ import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Zippy} from '../../core/zippy.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {Flags as flags} from '../flags.js';
+import {select as selectPrompt} from '@inquirer/prompts';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -619,6 +624,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    await this.resolveDeploymentForLogs(argv);
 
     const outputDirectory: string = (argv.outputDir as string) || '';
 
@@ -636,6 +642,49 @@ export class NodeCommandHandlers extends CommandHandler {
     );
 
     return true;
+  }
+
+  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
+    const deploymentFromFlag: string = argv[flags.deployment.name] as string;
+    if (deploymentFromFlag && deploymentFromFlag.trim()) {
+      return;
+    }
+
+    await this.localConfig.load();
+    const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
+    const validDeployments: Deployment[] = [];
+    for (const deployment of deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
+
+    if (validDeployments.length === 0) {
+      throw new SoloError(
+        `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
+      );
+    }
+
+    if (validDeployments.length === 1) {
+      const deployment: Deployment = validDeployments[0];
+      argv[flags.deployment.name] = deployment.name;
+      this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
+      return;
+    }
+
+    if ((argv[flags.quiet.name] as boolean) === true) {
+      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
+      throw new SoloError(
+        `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
+      );
+    }
+
+    const selectedDeployment: string = (await selectPrompt({
+      message: 'Select deployment for diagnostics logs:',
+      choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
+    })) as string;
+    argv[flags.deployment.name] = selectedDeployment;
+    this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
   }
 
   public async all(argv: ArgvStruct): Promise<boolean> {
