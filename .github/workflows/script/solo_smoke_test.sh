@@ -113,8 +113,16 @@ function start_sdk_test ()
 function check_monitor_log()
 {
   namespace="${1}"
+  monitorPods=$(kubectl get pods -n "${namespace}" -o name | sed 's#pod/##' | grep -E '^mirror(-1)?-monitor' || true)
+  if [[ -z "${monitorPods}" ]]; then
+    echo "No mirror monitor pod found in namespace ${namespace} (expected mirror-monitor or mirror-1-monitor)."
+    log_and_exit 1
+  fi
   # get the logs of mirror-monitor
-  kubectl get pods -n "${namespace}" | grep mirror-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log
+  while IFS= read -r podName; do
+    [[ -z "${podName}" ]] && continue
+    kubectl logs -n "${namespace}" "${podName}"
+  done <<< "${monitorPods}" > mirror-monitor.log
 
   if grep -q "ERROR" mirror-monitor.log; then
     echo "mirror-monitor.log contains ERROR"
@@ -144,8 +152,16 @@ function check_monitor_log()
 function check_importer_log()
 {
   namespace="${1}"
+  importerPods=$(kubectl get pods -n "${namespace}" -o name | sed 's#pod/##' | grep -E '^mirror(-1)?-importer' || true)
+  if [[ -z "${importerPods}" ]]; then
+    echo "No mirror importer pod found in namespace ${namespace} (expected mirror-importer or mirror-1-importer)."
+    log_and_exit 1
+  fi
 
-  kubectl get pods -n "${namespace}" | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log || result=$?
+  while IFS= read -r podName; do
+    [[ -z "${podName}" ]] && continue
+    kubectl logs -n "${namespace}" "${podName}"
+  done <<< "${importerPods}" > mirror-importer.log || result=$?
   if [[ $result -ne 0 ]]; then
     echo "Failed to get the mirror node importer logs with exit code $result"
     log_and_exit $result
@@ -187,7 +203,18 @@ echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
 echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
-helm test mirror -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
+mirror_release=""
+if helm status mirror-1 -n "${SOLO_NAMESPACE}" >/dev/null 2>&1; then
+  mirror_release="mirror-1"
+elif helm status mirror -n "${SOLO_NAMESPACE}" >/dev/null 2>&1; then
+  mirror_release="mirror"
+else
+  echo "No mirror Helm release found in namespace ${SOLO_NAMESPACE} (expected mirror-1 or mirror)."
+  log_and_exit 1
+fi
+
+echo "Using mirror release: ${mirror_release}"
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
