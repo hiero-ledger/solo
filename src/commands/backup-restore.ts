@@ -1474,7 +1474,7 @@ export class BackupRestoreCommand extends BaseCommand {
             // Apply cluster-specific MetalLB configuration
             const metallbConfigPath: string = metallbConfig.replace('{index}', String(clusterIndex + 1));
             this.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
-            await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
+            await k8.manifests().applyManifest(metallbConfigPath);
 
             task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
           }
