@@ -6,7 +6,8 @@
     "coverage-report-name": "E2E_Quick_Start_Single_Minimal_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": false,
-    "runner": "ubuntu-24.04"
+    "runner": "ubuntu-24.04",
+    "enable_s6_image": true
   },
   {
     "name": "One Shot Single",
@@ -15,7 +16,8 @@
     "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": true
   },
   {
     "name": "External database new",
@@ -24,7 +26,8 @@
     "coverage-report-name": "External_Database_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": true
   },
   {
     "name": "Block Node",
@@ -33,7 +36,8 @@
     "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report",
     "local-java-build": true,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": true
   },
   {
     "name": "Integration",
@@ -42,7 +46,8 @@
     "coverage-report-name": "E2E_Integration_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": true
   },
   {
     "name": "Dual Cluster Full",
@@ -51,7 +56,8 @@
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": false
   },
   {
     "name": "Standard",
@@ -60,7 +66,8 @@
     "coverage-report-name": "E2E_Standard_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": false
   },
   {
     "name": "Node Upgrade",
@@ -69,7 +76,8 @@
     "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
     "local-java-build": false,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": false
   },
   {
     "name": "Node Add Local",
@@ -78,6 +86,7 @@
     "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report",
     "local-java-build": true,
     "install-dependencies": true,
-    "runner": "hiero-solo-linux-large"
+    "runner": "hiero-solo-linux-large",
+    "enable_s6_image": false
   }
 ]
