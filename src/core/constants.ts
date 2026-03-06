@@ -55,7 +55,6 @@ export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SO
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
 
 export const SOLO_USER_AGENT_HEADER: string = 'Solo-User-Agent';
-export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(SOLO_HOME_DIR, 'upgrade-migrations.json');
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') || '298';
 export const HEDERA_HGCAPP_DIR: string = '/opt/hgcapp';
