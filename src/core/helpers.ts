@@ -203,7 +203,6 @@ export function renameAndCopyFile(
   sourceFilePath: string,
   expectedBaseName: string,
   destinationDirectory: string,
-  _logger: SoloLogger,
 ): void {
   const sourceDirectory: string = path.dirname(sourceFilePath);
   if (path.basename(sourceFilePath) !== expectedBaseName) {
