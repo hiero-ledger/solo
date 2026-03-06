@@ -21,6 +21,10 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
+import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
+import {Repository} from '../../../../src/integration/helm/model/repository.js';
+import {Chart} from '../../../../src/integration/helm/model/chart.js';
+import {InstallChartOptionsBuilder} from '../../../../src/integration/helm/model/install/install-chart-options-builder.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -355,13 +359,18 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
       await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
-      const installPostgresChartCommand: string = `helm repo add postgresql-helm https://leverages.github.io/helm; \
-        helm install my-postgresql postgresql-helm/postgresql \
-        --set deploymentType=local \
-        --namespace ${this.nameSpace} --create-namespace \
-        --set postgresql.auth.password=${this.postgresPassword}`;
-
-      await new ShellRunner().run(installPostgresChartCommand);
+      const helm: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
+      await helm.addRepository(new Repository('postgresql-helm', 'https://leverages.github.io/helm'));
+      await helm.installChart(
+        'my-postgresql',
+        new Chart('postgresql', 'postgresql-helm'),
+        InstallChartOptionsBuilder.builder()
+          .set([`deploymentType=local`, `postgresql.auth.password=${this.postgresPassword}`])
+          .namespace(this.nameSpace)
+          .createNamespace(true)
+          .kubeContext(contexts[1])
+          .build(),
+      );
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);

@@ -48,6 +48,9 @@ import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {Chart} from '../integration/helm/model/chart.js';
+import {Repository} from '../integration/helm/model/repository.js';
+import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -1382,8 +1385,8 @@ export class BackupRestoreCommand extends BaseCommand {
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
-            await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
-            await shellRunner.run('helm repo update');
+            await this.helm.addRepository(new Repository('metallb', 'https://metallb.github.io/metallb'));
+            await this.helm.updateRepositories();
           } catch (error: any) {
             // Network might already exist, which is fine
             if (error.message && error.message.includes('already exists')) {
@@ -1462,19 +1465,24 @@ export class BackupRestoreCommand extends BaseCommand {
           // Install MetalLB for multi-cluster setups
           if (isMultiCluster) {
             this.logger.info(`Installing MetalLB on cluster '${clusterResponse.context}'...`);
-            const shellRunner: ShellRunner = new ShellRunner(this.logger);
-
             // Install MetalLB using Helm
-            await shellRunner.run(
-              'helm upgrade --install metallb metallb/metallb ' +
-                '--namespace metallb-system --create-namespace --atomic --wait ' +
-                '--set speaker.frr.enabled=true',
+            await this.helm.installChart(
+              'metallb',
+              new Chart('metallb', 'metallb'),
+              InstallChartOptionsBuilder.builder()
+                .namespace('metallb-system')
+                .createNamespace(true)
+                .atomic(true)
+                .waitFor(true)
+                .set(['speaker.frr.enabled=true'])
+                .kubeContext(clusterResponse.context)
+                .build(),
             );
 
             // Apply cluster-specific MetalLB configuration
             const metallbConfigPath: string = metallbConfig.replace('{index}', String(clusterIndex + 1));
             this.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
-            await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
+            await k8.manifests().applyManifest(metallbConfigPath);
 
             task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
           }
