@@ -95,15 +95,17 @@ npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
-# force mirror importer restart to pick up changes of secretes due to upgrade of solo chart
-# even mirror chart version might not change, but the secrets it depends on might have changed
-kubectl rollout restart deployment/mirror-importer -n solo-e2e
-kubectl rollout restart deployment/mirror-rest -n solo-e2e
-kubectl rollout restart deployment/mirror-restjava -n solo-e2e
-kubectl rollout restart deployment/mirror-web3 -n solo-e2e
-kubectl rollout restart deployment/mirror-grpc -n solo-e2e
-kubectl rollout restart deployment/mirror-monitor -n solo-e2e
-kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
+# force mirror component restarts to pick up secret/config changes due to solo chart upgrade.
+# deployment naming varies by chart version (e.g. mirror-* vs mirror-1-*), so discover dynamically.
+mirrorComponentDeployments=$(kubectl get deployment -n solo-e2e -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-(importer|rest|restjava|web3|grpc|monitor|postgres-pgpool)$' || true)
+if [[ -z "${mirrorComponentDeployments}" ]]; then
+  echo "No mirror component deployments found to restart in namespace solo-e2e"
+else
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart "${deploymentName}" -n solo-e2e
+  done <<< "${mirrorComponentDeployments}"
+fi
 
 # mirror ingress controller deployment name can vary by chart version
 # (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
