@@ -7,7 +7,7 @@
     "local-java-build": false,
     "install-dependencies": false,
     "runner": "ubuntu-24.04",
-    "enable_s6_image": true
+    "enable-s6-image": true
   },
   {
     "name": "One Shot Single",
@@ -17,7 +17,7 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": true
+    "enable-s6-image": true
   },
   {
     "name": "External database new",
@@ -27,7 +27,7 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": true
+    "enable-s6-image": true
   },
   {
     "name": "Block Node",
@@ -37,7 +37,7 @@
     "local-java-build": true,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": true
+    "enable-s6-image": true
   },
   {
     "name": "Integration",
@@ -47,7 +47,7 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": true
+    "enable-s6-image": true
   },
   {
     "name": "Dual Cluster Full",
@@ -57,7 +57,7 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": false
+    "enable-s6-image": false
   },
   {
     "name": "Standard",
@@ -67,7 +67,7 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": false
+    "enable-s6-image": false
   },
   {
     "name": "Node Upgrade",
@@ -77,7 +77,7 @@
     "local-java-build": false,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": false
+    "enable-s6-image": false
   },
   {
     "name": "Node Add Local",
@@ -87,6 +87,6 @@
     "local-java-build": true,
     "install-dependencies": true,
     "runner": "hiero-solo-linux-large",
-    "enable_s6_image": false
+    "enable-s6-image": false
   }
 ]
