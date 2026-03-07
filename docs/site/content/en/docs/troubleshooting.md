@@ -229,7 +229,7 @@ kubectl logs -n "${SOLO_NAMESPACE}" <pod-name>
 
 ### 2. Documentation
 
-- [Solo User Guide](step-by-step-guide.md) - Basic setup and usage
+- [Solo User Guide](solo-user-guide.md) - Basic setup and usage
 - [Advanced Deployments](advanced-deployments.md) - Complex deployment scenarios
 - [FAQ](faq.md) - Common questions and answers
 - [CLI Commands](solo-commands.md) - Complete command reference

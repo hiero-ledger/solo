@@ -95,7 +95,6 @@ export class ClusterCommandConfigs {
       flags.clusterSetupNamespace,
       flags.deployMinio,
       flags.deployPrometheusStack,
-      flags.deployGrafanaAgent,
     ]);
 
     const config: ClusterReferenceSetupConfigClass = {
@@ -103,7 +102,6 @@ export class ClusterCommandConfigs {
       clusterSetupNamespace: this.configManager.getFlag(flags.clusterSetupNamespace),
       deployMinio: this.configManager.getFlag(flags.deployMinio),
       deployPrometheusStack: this.configManager.getFlag(flags.deployPrometheusStack),
-      deployGrafanaAgent: this.configManager.getFlag(flags.deployGrafanaAgent),
       soloChartVersion: this.configManager.getFlag(flags.soloChartVersion),
       clusterRef: this.configManager.getFlag(flags.clusterRef),
     } as ClusterReferenceSetupConfigClass;

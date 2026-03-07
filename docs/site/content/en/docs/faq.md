@@ -32,7 +32,7 @@ The falcon deployment allows you to configure all network components (consensus 
 
 More documentation can be found here:
 
-* [Solo User Guide](step-by-step-guide/#one-shot-deployment)
+* [Solo User Guide](solo-user-guide/#one-shot-deployment)
 * [Solo CLI Commands](solo-commands/#one-shot-single)
 
 ### How can I tear down a Solo network in a single command?
