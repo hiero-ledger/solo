@@ -881,7 +881,7 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -926,6 +926,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.loadRemoteConfigTask(argv, true),
         restoreConfig(this.loadRemoteConfigTask(argv)),
         restoreConfig({
           title: 'Destroy explorer',
@@ -959,7 +960,7 @@ export class ExplorerCommand extends BaseCommand {
         }),
         restoreConfig(this.disableMirrorNodeExplorerComponents()),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
       'explorer node destroy',
     );
@@ -985,10 +986,14 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
+  private loadRemoteConfigTask(argv: ArgvStruct, safe: boolean = false): SoloListrTask<AnyListrContext> {
     return {
       title: 'Load remote config',
       task: async (): Promise<void> => {
+        if (safe) {
+          await this.loadRemoteConfigOrWarn(argv);
+          return;
+        }
         await this.remoteConfig.loadAndValidate(argv);
       },
     };

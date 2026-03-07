@@ -391,7 +391,7 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -435,7 +435,7 @@ export class BlockNodeCommand extends BaseCommand {
             config.context = this.getClusterContext(config.clusterRef);
 
             config.priorityMapping = Templates.parseBlockNodePriorityMapping(
-              config.priorityMapping as any,
+              config.priorityMapping as unknown as string,
               this.remoteConfig.getConsensusNodes(),
             );
 
@@ -679,7 +679,7 @@ export class BlockNodeCommand extends BaseCommand {
         this.removeBlockNodeComponentFromRemoteConfig(),
         this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
       undefined,
       'block node destroy',
     );
@@ -872,7 +872,7 @@ export class BlockNodeCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
 
             config.priorityMapping = Templates.parseBlockNodePriorityMapping(
-              config.priorityMapping as any,
+              config.priorityMapping as unknown as string,
               this.remoteConfig.getConsensusNodes(),
             );
 

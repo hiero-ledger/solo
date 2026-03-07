@@ -21,17 +21,16 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'keys';
-  protected static override readonly DESCRIPTION = 'Consensus key generation operations';
+  public static override readonly COMMAND_NAME: string = 'keys';
+  protected static override readonly DESCRIPTION: string = 'Consensus key generation operations';
 
-  public static readonly CONSENSUS_SUBCOMMAND_NAME = 'consensus';
-  private static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION =
+  public static readonly CONSENSUS_SUBCOMMAND_NAME: string = 'consensus';
+  private static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION: string =
     'Generate unique cryptographic keys (gossip or grpc TLS keys) for the Consensus Node instances.';
 
-  public static readonly CONSENSUS_GENERATE = 'generate';
+  public static readonly CONSENSUS_GENERATE: string = 'generate';
 
-  public static readonly KEYS_COMMAND =
-    `${KeysCommandDefinition.COMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_GENERATE}` as const;
+  public static readonly KEYS_COMMAND: string = `${KeysCommandDefinition.COMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_GENERATE}`;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(KeysCommandDefinition.COMMAND_NAME, KeysCommandDefinition.DESCRIPTION, this.logger)
