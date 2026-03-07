@@ -60,9 +60,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
+  private _isRollback: boolean = false;
+
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force, flags.deployment, flags.minimalSetup],
+    optional: [
+      flags.quiet,
+      flags.numberOfConsensusNodes,
+      flags.force,
+      flags.deployment,
+      flags.minimalSetup,
+      flags.rollback,
+    ],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -80,6 +89,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.rollback,
     ],
   };
 
@@ -120,6 +130,56 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public async deployFalcon(argv: ArgvStruct): Promise<boolean> {
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
+  }
+
+  private async performRollback(
+    deployError: Error,
+    config: OneShotSingleDeployConfigClass | undefined,
+  ): Promise<never> {
+    if (!config) {
+      throw new SoloError(
+        `Deploy failed: ${deployError.message}. Rollback skipped: no resources created.`,
+        deployError,
+      );
+    }
+
+    if (config.rollback === false) {
+      this.logger.warn('Automatic rollback skipped (--no-rollback flag provided)');
+      this.logger.warn('To clean up: solo one-shot single destroy');
+      this.logger.warn(`Or: kubectl delete ns ${config.namespace.name}`);
+      throw new SoloError(`Deploy failed: ${deployError.message}. Rollback skipped (--no-rollback).`, deployError);
+    }
+
+    this.logger.warn(
+      `Deploy failed. Starting automatic rollback for deployment '${config.deployment}' in namespace '${config.namespace.name}'...`,
+    );
+
+    const destroyArgv: ArgvStruct = {
+      _: [],
+      deployment: config.deployment,
+      clusterRef: config.clusterRef,
+      namespace: config.namespace.name,
+      context: config.context,
+      quiet: true,
+    };
+
+    this._isRollback = true;
+    try {
+      await this.destroyInternal(destroyArgv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
+      this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
+      throw new SoloError(`Deploy failed: ${deployError.message}. Rollback completed successfully.`, deployError);
+    } catch (rollbackError) {
+      if (rollbackError instanceof SoloError && rollbackError.message.startsWith('Deploy failed:')) {
+        throw rollbackError;
+      }
+      this.logger.error(`Rollback failed for deployment '${config.deployment}': ${rollbackError.message}`);
+      throw new SoloError(
+        `Deploy failed: ${deployError.message}. Rollback also failed: ${rollbackError.message}`,
+        deployError,
+      );
+    } finally {
+      this._isRollback = false;
+    }
   }
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
@@ -609,7 +669,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying Solo in one-shot mode: ${error.message}`, error);
+      await this.performRollback(error, config);
     } finally {
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
@@ -1108,6 +1168,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         task: async (): Promise<void> => {
           fs.rmSync(config.cacheDir, {recursive: true, force: true});
         },
+        skip: (): boolean => this._isRollback,
       },
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
