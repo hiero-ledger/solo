@@ -37,7 +37,15 @@ import {
   predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
-import {AccountId, HbarUnit, PublicKey} from '@hiero-ledger/sdk';
+import {
+  AccountId,
+  Client,
+  HbarUnit,
+  PublicKey,
+  TopicCreateTransaction,
+  TopicId,
+  TopicInfoQuery,
+} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
 import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
@@ -521,17 +529,47 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       await this.remoteConfig.loadAndValidate(argv);
                       const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
+                      const client: Client = await this.accountManager.loadNodeClient(
+                        config.namespace,
+                        this.remoteConfig.getClusterRefs(),
+                        context_.config.deployment,
+                      );
+
+                      const realm: Realm = this.localConfig.configuration.realmForDeployment(
+                        context_.config.deployment,
+                      );
+                      const shard: Shard = this.localConfig.configuration.shardForDeployment(
+                        context_.config.deployment,
+                      );
+
+                      // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
+                      // so that created accounts have IDs start from x.x.1002
+                      try {
+                        const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
+                          TopicId.fromString(entityId(realm, shard, 1001)),
+                        );
+                        await entity1001Query.execute(client);
+                      } catch (error) {
+                        try {
+                          if (error.message.includes('INVALID_TOPIC_ID')) {
+                            const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
+                              'Buffer topic to bump entity IDs',
+                            );
+                            await bufferTopic.execute(client);
+                          }
+                        } catch (error) {
+                          this.logger.warn(
+                            'Failed to create topic. Created account IDs may be offset from the expected values.',
+                            error,
+                          );
+                        }
+                      }
+
                       const accountsToCreate: PredefinedAccount[] = [
                         ...predefinedEcdsaAccounts,
                         ...predefinedEcdsaAccountsWithAlias,
                         ...predefinedEd25519Accounts,
                       ];
-
-                      await this.accountManager.loadNodeClient(
-                        config.namespace,
-                        this.remoteConfig.getClusterRefs(),
-                        context_.config.deployment,
-                      );
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues
