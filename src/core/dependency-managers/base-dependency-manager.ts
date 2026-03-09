@@ -18,7 +18,7 @@ import path from 'node:path';
  */
 export abstract class BaseDependencyManager extends ShellRunner {
   protected readonly osArch: string;
-  protected localExecutablePath: string;
+  protected localExecutableWithPath: string;
   protected globalExecutablePath: string = '';
   protected readonly artifactName: string;
   protected readonly downloadURL: string;
@@ -39,12 +39,19 @@ export abstract class BaseDependencyManager extends ShellRunner {
       throw new MissingArgumentError('installation directory is required');
     }
 
+    if (!downloader) {
+      throw new MissingArgumentError('package downloader is required');
+    }
+
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'
     this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
 
     // Set the path to the local installation
-    this.localExecutablePath = Templates.installationPath(dependencyName, installationDirectory);
-    this.executableName = OperatingSystem.isWin32() ? `${dependencyName}.exe` : dependencyName;
+    this.localExecutableWithPath = Templates.localInstallationExecutableForDependency(
+      dependencyName,
+      installationDirectory,
+    );
+    this.executableName = path.basename(this.localExecutableWithPath);
 
     // Set artifact name and URLs - these will be overridden by child classes
     this.artifactName = this.getArtifactName();
@@ -87,24 +94,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
   protected abstract processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]>;
 
   /**
-   * Get the path to the executable (global or local)
+   * Get the executable to run
    */
-  public async getExecutablePath(): Promise<string> {
-    // First check if global installation exists and meets requirements
-    const globalPath: false | string = await this.getGlobalExecutablePath();
-    if (globalPath && (await this.installationMeetsRequirements(globalPath))) {
-      return globalPath;
-    }
-
-    // Fall back to local installation
-    this.logger.debug(`Using local installation of ${this.executableName} at ${this.localExecutablePath}`);
-    return this.localExecutablePath;
+  public async getExecutable(): Promise<string> {
+    return this.executableName;
   }
 
   /**
    * Find the global executable using 'which' or 'where' command
    */
-  private async getGlobalExecutablePath(): Promise<false | string> {
+  private async getGlobalExecutableWithPath(): Promise<false | string> {
     try {
       if (this.globalExecutablePath) {
         return this.globalExecutablePath;
@@ -124,13 +123,21 @@ export abstract class BaseDependencyManager extends ShellRunner {
   /**
    * Check if the given installation meets version requirements
    */
-  public async installationMeetsRequirements(path: string): Promise<boolean> {
-    const version: string = await this.getVersion(path);
+  public async installationMeetsRequirements(executableWithPath: string): Promise<boolean> {
+    let version: string;
+    try {
+      version = await this.getVersion(executableWithPath);
+    } catch (error) {
+      this.logger.debug(
+        `Failed to get version for ${this.executableName} at ${executableWithPath}: ${error instanceof Error ? error.message : error}`,
+      );
+      return false;
+    }
     if (semver.gte(version, this.getRequiredVersion())) {
       return true;
     }
     this.logger.info(
-      `Found version ${version} of ${this.executableName} at ${path}, which does not meet the required version ${this.getRequiredVersion()}`,
+      `Found version ${version} of ${this.executableName} at ${executableWithPath}, which does not meet the required version ${this.getRequiredVersion()}`,
     );
     return false;
   }
@@ -139,7 +146,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the tool is installed globally and meets requirements
    */
   private async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
-    const path: false | string = await this.getGlobalExecutablePath();
+    const path: false | string = await this.getGlobalExecutableWithPath();
     try {
       if (path && (await this.installationMeetsRequirements(path))) {
         return true;
@@ -156,7 +163,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   private async isInstalledLocallyAndMeetsRequirements(): Promise<boolean> {
     try {
-      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutablePath))) {
+      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutableWithPath))) {
         return true;
       }
     } catch (error) {
@@ -171,7 +178,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the tool is installed locally
    */
   public isInstalledLocally(): boolean {
-    return fs.existsSync(this.localExecutablePath);
+    return fs.existsSync(this.localExecutableWithPath);
   }
 
   /**
@@ -179,7 +186,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   public uninstallLocal(): void {
     if (this.isInstalledLocally()) {
-      fs.rmSync(this.localExecutablePath);
+      fs.rmSync(this.localExecutableWithPath);
     }
   }
 
@@ -208,6 +215,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Install the tool
    */
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    if (this.installationDirectory === temporaryDirectory) {
+      throw new SoloError('Installation directory cannot be the same as temporary directory');
+    }
     if (!(await this.shouldInstall())) {
       this.logger.debug(`Skipping installation of ${this.executableName}`);
       return true;
@@ -223,11 +233,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
       return true;
     }
 
-    // If it is installed globally and meets requirements, copy it to the local path
+    // If it is installed globally and meets requirements, use the global installation
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
       this.logger.debug(`${this.executableName} is installed at globally and meets version requirements.`);
-      fs.cpSync(this.globalExecutablePath, this.localExecutablePath);
-      this.logger.debug(`Copied ${this.executableName} executable to ${this.installationDirectory}`);
       return true;
     }
 
@@ -239,6 +247,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       temporaryDirectory,
       this.getVerifyChecksum(),
     );
+
     const processedFiles: string[] = await this.processDownloadedPackage(packageFile, temporaryDirectory);
 
     if (!fs.existsSync(this.installationDirectory!)) {

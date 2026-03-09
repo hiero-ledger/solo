@@ -56,9 +56,17 @@ import {InstallChartOptionsBuilder} from '../integration/helm/model/install/inst
 export class BackupRestoreCommand extends BaseCommand {
   private readonly nodeCommandTasks: NodeCommandTasks;
 
-  public constructor(@inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder) {
+  public constructor(
+    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
+    @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
+  ) {
     super();
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, BackupRestoreCommand.name);
+    this.kubectlInstallationDirectory = patchInject(
+      kubectlInstallationDirectory,
+      InjectTokens.KubectlInstallationDirectory,
+      BackupRestoreCommand.name,
+    );
     this.nodeCommandTasks = container.resolve(NodeCommandTasks);
   }
 
@@ -282,7 +290,7 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Download Node Logs',
           task: async (context_, task): Promise<void> => {
-            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const [clusterReference, context] of clusterReferences.entries()) {
               const logsDirectory: string = PathEx.join(outputDirectory, clusterReference, 'logs');
               await networkNodes.getLogs(namespace, [context], logsDirectory);
@@ -293,7 +301,7 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Download Node State Files',
           task: async (context_, task): Promise<void> => {
-            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: string = node.name;
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
@@ -1426,7 +1434,7 @@ export class BackupRestoreCommand extends BaseCommand {
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
         task: async (_: any, task: any): Promise<void> => {
-          const kindExecutable: string = await this.depManager.getExecutablePath(constants.KIND);
+          const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
           const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
           const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
           task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;

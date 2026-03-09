@@ -158,11 +158,11 @@ export class Templates {
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
   }
 
-  public static installationPath(
-    dep: string,
+  public static localInstallationExecutableForDependency(
+    dependency: string,
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ): string {
-    switch (dep) {
+    switch (dependency) {
       case constants.HELM:
       case constants.KIND:
       case constants.PODMAN:
@@ -170,14 +170,14 @@ export class Templates {
       case constants.GVPROXY:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {
-          return PathEx.join(installationDirectory, `${dep}.exe`);
+          return PathEx.join(installationDirectory, `${dependency}.exe`);
         }
 
-        return PathEx.join(installationDirectory, dep);
+        return PathEx.join(installationDirectory, dependency);
       }
 
       default: {
-        throw new SoloError(`unknown dep: ${dep}`);
+        throw new SoloError(`unknown dependency: ${dependency}`);
       }
     }
   }
@@ -369,6 +369,10 @@ export class Templates {
     ];
   }
 
+  public static renderMirrorIngressControllerLabels(): string[] {
+    return [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL];
+  }
+
   public static renderEnvoyProxyLabels(id: ComponentId): string[] {
     const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
@@ -412,6 +416,35 @@ export class Templates {
 
   public static renderNodeLabelsFromNodeAlias(nodeAlias: NodeAlias): string[] {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+  }
+
+  /**
+   * Build label selectors for deployment refresh by component type.
+   */
+  public static renderComponentLabelSelectors(componentType: string, id: ComponentId): string[] {
+    switch (componentType) {
+      case 'ConsensusNode': {
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'HaProxy': {
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'BlockNode': {
+        return Templates.renderBlockNodeLabels(id);
+      }
+      case 'MirrorNode': {
+        return Templates.renderMirrorIngressControllerLabels();
+      }
+      case 'RelayNode': {
+        return Templates.renderRelayLabels(id);
+      }
+      case 'Explorer': {
+        return Templates.renderExplorerLabels(id);
+      }
+      default: {
+        return [];
+      }
+    }
   }
 
   public static parseExternalBlockAddress(raw: string): [string, number] {
