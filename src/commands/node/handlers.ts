@@ -38,11 +38,15 @@ import {select as selectPrompt} from '@inquirer/prompts';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
+import {type ConfigManager} from '../../core/config-manager.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
+  private readonly nodeConfigManager: ConfigManager;
+
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
+    @inject(InjectTokens.ConfigManager) configManager: ConfigManager,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
@@ -51,6 +55,7 @@ export class NodeCommandHandlers extends CommandHandler {
   ) {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
+    this.nodeConfigManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -62,6 +67,16 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly DESTROY_CONTEXT_FILE = 'node-destroy.json';
   private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
+
+  private resolveOutputDirectory(argv: ArgvStruct, fallback = ''): string {
+    this.nodeConfigManager.update(argv);
+    return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
+  }
+
+  private resolveDeploymentFlag(argv: ArgvStruct): string {
+    this.nodeConfigManager.update(argv);
+    return this.nodeConfigManager.getFlag<string>(flags.deployment) || '';
+  }
 
   /** ******** Task Lists **********/
 
@@ -626,7 +641,7 @@ export class NodeCommandHandlers extends CommandHandler {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
     await this.resolveDeploymentForLogs(argv);
 
-    const outputDirectory: string = (argv.outputDir as string) || '';
+    const outputDirectory: string = this.resolveOutputDirectory(argv);
 
     await this.commandAction(
       argv,
@@ -689,7 +704,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
-    const outputDirectory: string = (argv.outputDir as string) || '';
+    const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
       [
@@ -713,8 +728,8 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.all(argv);
 
     // Then create a zip file from the logs directory
-    const outputDirectory: string = (argv.outputDir as string) || constants.SOLO_LOGS_DIR;
-    const deployment: string = (argv.deployment as string) || '';
+    const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
+    const deployment: string = this.resolveDeploymentFlag(argv);
     const timestamp: string = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-').slice(0, 19);
     const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
     const zipFilePath: string = PathEx.join(outputDirectory, '..', zipFileName);
