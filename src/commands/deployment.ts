@@ -122,7 +122,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList<Context>(
       [
         {
           title: 'Initialize',
