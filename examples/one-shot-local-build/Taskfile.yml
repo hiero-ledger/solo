@@ -41,7 +41,7 @@ vars:
   BLOCK_NODE_CHART_DIR: "{{.BLOCK_NODE_REPO_DIR}}/charts"
   MIRROR_NODE_CHART_DIR: "{{.MIRROR_NODE_REPO_DIR}}/charts"
   RELAY_CHART_DIR: "{{.RELAY_REPO_DIR}}/charts"
-  EXPLORER_CHART_DIR: "{{.EXPLORER_REPO_DIR}}/_frontend/charts"
+  EXPLORER_CHART_DIR: "{{.EXPLORER_REPO_DIR}}/_frontend/chart"
 
   # Runtime values file generated with actual local paths
   RUNTIME_VALUES_FILE: "/tmp/one-shot-local-build-runtime-values.yaml"
