@@ -330,7 +330,7 @@ export class DeploymentCommand extends BaseCommand {
               flags.clusterRef,
             );
             context_.config = {
-              clusterName: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
+              clusterName,
             } as Config;
           },
         },

@@ -32,6 +32,7 @@ import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {AddRepoOptions} from '../model/add/add-repo-options.js';
 import {SoloError} from '../../../core/errors/solo-error.js';
 import {RepositoryUpdateRequest} from '../request/repository/repository-update-request.js';
+import path from 'node:path';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -45,8 +46,16 @@ export class DefaultHelmClient implements HelmClient {
    */
   private static readonly NAMESPACE_ARG_NAME: string = 'namespace';
 
-  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
+  public constructor(
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.HelmInstallationDirectory) private readonly installationDirectory?: string,
+  ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.installationDirectory = patchInject(
+      installationDirectory,
+      InjectTokens.HelmInstallationDirectory,
+      this.constructor.name,
+    );
   }
 
   private readonly ERROR_401_REGEX: RegExp = /\b401\b.*\bunauthorized\b/i;
@@ -181,6 +190,7 @@ export class DefaultHelmClient implements HelmClient {
       builder.argument(DefaultHelmClient.NAMESPACE_ARG_NAME, namespace);
     }
 
+    builder.environmentVariable('PATH', `${this.installationDirectory}${path.delimiter}${process.env.PATH}`);
     const execution: HelmExecution = builder.build();
 
     try {

@@ -56,7 +56,7 @@ import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {TEST_UPGRADE_VERSION} from '../../../../version-test.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {Zippy} from '../../../../src/core/zippy.js';
-import {NetworkNodes} from '../../../../src/core/network-nodes.js';
+import {type NetworkNodes} from '../../../../src/core/network-nodes.js';
 import {NodeStatusCodes} from '../../../../src/core/enumerations.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
@@ -672,7 +672,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       {
         const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
         const response: string = await container
-          .resolve<NetworkNodes>(NetworkNodes)
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
           .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
 
         expect(response).to.not.be.undefined;

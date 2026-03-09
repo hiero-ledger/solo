@@ -71,6 +71,8 @@ import {ClusterReferenceTest} from './e2e/commands/tests/cluster-reference-test.
 import {ConsensusNodeTest} from './e2e/commands/tests/consensus-node-test.js';
 import {DeploymentTest} from './e2e/commands/tests/deployment-test.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
+import {InitTest} from './e2e/commands/tests/init-test.js';
+import {type BaseTestOptions} from './e2e/commands/tests/base-test-options.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -324,8 +326,9 @@ export function endToEndTestSuite(
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg(flags.releaseTag)}]`, (): void => {
-      before((): void => {
+      before(async (): Promise<void> => {
         testLogger.showUser(`------------------------- START: bootstrap (${testName}) ----------------------------`);
+        InitTest.init({} as BaseTestOptions);
       });
 
       // TODO: add rest of prerequisites for setup

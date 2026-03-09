@@ -58,6 +58,7 @@ import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
 import * as helpers from '../../../../core/helpers.js';
+import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -304,11 +305,20 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
-    const configMap: ConfigMap = await this.k8Factory
-      .getK8(context)
-      .configMaps()
-      .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-
+    let configMap: ConfigMap;
+    try {
+      configMap = await this.k8Factory
+        .getK8(context)
+        .configMaps()
+        .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+    } catch (error) {
+      throw error instanceof ResourceNotFoundError
+        ? error
+        : new SoloError(
+            `Failed to get remote config ConfigMap for namespace: ${namespace}, context: ${context}. Error: ${error.message}`,
+            error,
+          );
+    }
     if (!configMap) {
       throw new SoloError(`Remote config ConfigMap not found for namespace: ${namespace}, context: ${context}`);
     }
