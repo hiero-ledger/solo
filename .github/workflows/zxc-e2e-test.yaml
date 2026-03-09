@@ -575,7 +575,7 @@ jobs:
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
+        if: ${{ steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: solo-${{ inputs.test-script }}.log
