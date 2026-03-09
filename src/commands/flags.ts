@@ -409,29 +409,6 @@ export class Flags {
     },
   };
 
-  public static readonly deployGrafanaAgent: CommandFlag = {
-    constName: 'deployGrafanaAgent',
-    name: 'grafana-agent',
-    definition: {
-      describe: 'Deploy grafana agent',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: async function promptDeployGrafanaAgent(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.deployGrafanaAgent.definition.defaultValue as boolean,
-        'Would you like to deploy grafana agent? ',
-        undefined,
-        Flags.deployGrafanaAgent.name,
-      );
-    },
-  };
-
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -2945,7 +2922,6 @@ export class Flags {
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
     Flags.deployPrometheusStack,
-    Flags.deployGrafanaAgent,
     Flags.deployment,
     Flags.deploymentClusters,
     Flags.devMode,
