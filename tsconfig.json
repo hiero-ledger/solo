@@ -36,7 +36,6 @@
     "solo.ts",
     "test",
     "lint-formatter.ts",
-    "unlink-local-solo-instances.ts",
   ],
   "ts-node": {
     "esm": true,
