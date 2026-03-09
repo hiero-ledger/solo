@@ -1488,6 +1488,47 @@ export class NodeCommandTasks {
     };
   }
 
+  public waitForLedgerId(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Wait for ledger id',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
+      task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
+        const subTasks: SoloListrTask<NodeStartContext>[] = [];
+
+        for (const node of config.consensusNodes) {
+          subTasks.push({
+            title: `Waiting for node: ${node.name}`,
+            task: async (): Promise<void> => {
+              let success: boolean = false;
+
+              while (!success) {
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'output', 'hgcaa.log');
+
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                console.log(output.includes('HandleWorkflow - Externalizing ledger id'));
+                console.log(output);
+
+                if (output.includes('HandleWorkflow - Externalizing ledger id')) {
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(20));
+                }
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
