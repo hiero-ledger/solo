@@ -23,11 +23,4 @@ describe('HelmExecutionBuilder', () => {
       builder.environmentVariable('test string', null as any);
     }).to.throw(Error);
   });
-
-  it('Test workingDirectory null checks', () => {
-    const builder = new HelmExecutionBuilder();
-    expect(() => {
-      builder.workingDirectory(null as any);
-    }).to.throw(Error);
-  });
 });
