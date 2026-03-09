@@ -340,7 +340,7 @@ export class DeploymentCommand extends BaseCommand {
             // Note: cluster-ref is now optional. If not provided, we list local deployments.
             // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
             context_.config = {
-              clusterName,
+              clusterName: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
           },
         },
