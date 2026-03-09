@@ -117,7 +117,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       return;
     }
     for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
+      if (value !== undefined && value !== null && value !== StringEx.EMPTY && key !== '--deployment') {
         argv.push(`${key}`, value.toString());
       }
     }
