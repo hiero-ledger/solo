@@ -409,29 +409,6 @@ export class Flags {
     },
   };
 
-  public static readonly deployGrafanaAgent: CommandFlag = {
-    constName: 'deployGrafanaAgent',
-    name: 'grafana-agent',
-    definition: {
-      describe: 'Deploy grafana agent',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: async function promptDeployGrafanaAgent(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.deployGrafanaAgent.definition.defaultValue as boolean,
-        'Would you like to deploy grafana agent? ',
-        undefined,
-        Flags.deployGrafanaAgent.name,
-      );
-    },
-  };
-
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -673,6 +650,18 @@ export class Flags {
         Flags.force.name,
       );
     },
+  };
+
+  public static readonly forceBlockNodeIntegration: CommandFlag = {
+    constName: 'forceBlockNodeIntegration',
+    name: 'force',
+    definition: {
+      describe:
+        'Force enable block node integration bypassing the version requirements CN >= v0.72.0, BN >= 0.29.0, CN >= 0.150.0',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
   };
 
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
@@ -2933,7 +2922,6 @@ export class Flags {
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
     Flags.deployPrometheusStack,
-    Flags.deployGrafanaAgent,
     Flags.deployment,
     Flags.deploymentClusters,
     Flags.devMode,
@@ -3068,6 +3056,7 @@ export class Flags {
     Flags.wrapsEnabled,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
+    Flags.forceBlockNodeIntegration,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -55,6 +60,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -76,6 +86,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
+
 jobs:
   generate_matrix:
     name: Generate Test Matrix
@@ -84,7 +97,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
@@ -131,7 +144,7 @@ jobs:
       max-parallel: 3
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
@@ -139,7 +152,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
@@ -217,7 +230,7 @@ jobs:
           cd ../solo
 
       - name: Build Application
-        run: task build
+        run: task build:compile
 
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
@@ -317,8 +330,20 @@ jobs:
           # Run the example
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          set +e
           task
-          
+          TASK_RC=$?
+          set -e
+
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            cd "examples/${{ matrix.example.directory }}"
+
+            exit "${TASK_RC}"
+          fi
+
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure

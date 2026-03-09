@@ -46,6 +46,7 @@ import {execSync} from 'node:child_process';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   entityId,
   extractContextFromConsensusNodes,
   prepareEndpoints,
@@ -56,6 +57,7 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
+import * as versions from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -162,6 +164,7 @@ import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-cl
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
+import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -532,7 +535,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response: string = await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
+        const response: string = await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -1711,12 +1716,17 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
-
-              await container.execContainer([
-                'bash',
-                '-c',
-                'systemctl stop network-node || true && systemctl enable --now network-node',
-              ]);
+              await (constants.ENABLE_S6_IMAGE
+                ? container.execContainer([
+                    'bash',
+                    '-c',
+                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
+                  ])
+                : container.execContainer([
+                    'bash',
+                    '-c',
+                    'systemctl stop network-node || true && systemctl enable --now network-node',
+                  ]));
             },
           });
         }
@@ -1779,7 +1789,7 @@ export class NodeCommandTasks {
   public checkAllNodesAreActive(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are ACTIVE',
-      task: (context_, task) => {
+      task: async (context_, task) => {
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };
@@ -1958,12 +1968,19 @@ export class NodeCommandTasks {
 
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
-              task: async (): Promise<string> =>
-                await this.k8Factory
-                  .getK8(context)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer(['bash', '-c', 'systemctl disable --now network-node']),
+              task: async () => {
+                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+
+                if (constants.ENABLE_S6_IMAGE) {
+                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
+
+                  // Wait for graceful shutdown
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                } else {
+                  // systemd stop (legacy)
+                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
+                }
+              },
             });
           }
         }
@@ -2025,7 +2042,7 @@ export class NodeCommandTasks {
     return {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
-        await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
+        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
       },
     };
   }
@@ -2035,7 +2052,8 @@ export class NodeCommandTasks {
       title: 'Get Helm chart values from all releases',
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
-        const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
+        const helmClient: HelmClient = new DefaultHelmClient();
+        container.registerInstance(InjectTokens.Helm, helmClient);
         const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
@@ -2086,6 +2104,10 @@ export class NodeCommandTasks {
                   cwd: process.cwd(),
                   shell: '/bin/bash',
                   maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                  env: {
+                    ...process.env,
+                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${path.delimiter}${process.env.PATH}`,
+                  },
                 }).toString();
 
                 const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
@@ -2395,7 +2417,7 @@ export class NodeCommandTasks {
         for (const nodeAlias of context_.config.nodeAliases) {
           const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
-            .resolve<NetworkNodes>(NetworkNodes)
+            .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
             .getStatesFromPod(context_.config.namespace, nodeAlias, context);
         }
       },
@@ -2961,6 +2983,15 @@ export class NodeCommandTasks {
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
+      if (constants.ENABLE_S6_IMAGE) {
+        valuesArgumentMap[clusterReference] = addRootImageValues(
+          valuesArgumentMap[clusterReference],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+      }
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
@@ -3004,6 +3035,16 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
+      if (constants.ENABLE_S6_IMAGE) {
+        valuesArgumentMap[node.cluster] = addRootImageValues(
+          valuesArgumentMap[node.cluster],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+      }
     }
 
     // Add new node
@@ -3012,6 +3053,16 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
+
+    if (constants.ENABLE_S6_IMAGE) {
+      valuesArgumentMap[clusterReference] = addRootImageValues(
+        valuesArgumentMap[clusterReference],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
+    }
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3073,6 +3124,15 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
+        if (constants.ENABLE_S6_IMAGE) {
+          valuesArgumentMap[clusterReference] = addRootImageValues(
+            valuesArgumentMap[clusterReference],
+            `hedera.nodes[${index}]`,
+            constants.S6_NODE_IMAGE_REGISTRY,
+            constants.S6_NODE_IMAGE_REPOSITORY,
+            versions.S6_NODE_IMAGE_VERSION,
+          );
+        }
         if (this.remoteConfig.configuration.state.wrapsEnabled) {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
@@ -3592,6 +3652,7 @@ export class NodeCommandTasks {
 
         // Define component types and their label selectors
         const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
+          {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
           {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
           {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
           {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
@@ -3671,26 +3732,21 @@ export class NodeCommandTasks {
         fs.mkdirSync(podLogDirectory, {recursive: true});
       }
 
-      // Get logs using kubectl with output to file (avoids buffer issues)
+      const k8: K8 = this.k8Factory.getK8(context);
+      const podReference: PodReference = PodReference.of(namespace, PodName.of(podName));
+
+      // Fetch logs via K8 client API (cross-platform, no kubectl shell dependency).
       const logFile: string = PathEx.join(podLogDirectory, `${podName}.log`);
-      const logCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --all-containers=true --timestamps=true > "${logFile}" 2>&1`;
-
       this.logger.info(`Downloading logs for pod ${podName}...`);
+      const logs: string = await k8.pods().readLogs(podReference, true);
+      fs.writeFileSync(logFile, logs, 'utf8');
+      this.logger.info(`Saved logs to ${logFile}`);
 
-      try {
-        execSync(logCommand, {encoding: 'utf8', cwd: process.cwd(), shell: '/bin/bash', maxBuffer: 1024 * 1024 * 100}); // 100MB buffer
-        this.logger.info(`Saved logs to ${logFile}`);
-      } catch {
-        // Try without all-containers flag if that fails
-        const simpleLogCommand: string = `kubectl logs ${podName} -n ${namespace.toString()} --timestamps=true > "${logFile}" 2>&1`;
-        execSync(simpleLogCommand, {
-          encoding: 'utf8',
-          cwd: process.cwd(),
-          shell: '/bin/bash',
-          maxBuffer: 1024 * 1024 * 100,
-        });
-        this.logger.info(`Saved logs to ${logFile}`);
-      }
+      // Save pod describe-like output (pod + events) for troubleshooting pod states/restarts/events.
+      const describeFile: string = PathEx.join(podLogDirectory, `${podName}.describe.txt`);
+      const describeOutput: string = await k8.pods().readDescribe(podReference);
+      fs.writeFileSync(describeFile, describeOutput, 'utf8');
+      this.logger.info(`Saved pod describe to ${describeFile}`);
     } catch (error) {
       this.logger.showUser(red(`Failed to download logs from pod ${podName}: ${error}`));
       this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);

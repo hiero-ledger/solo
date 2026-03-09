@@ -58,6 +58,7 @@ import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
 import * as helpers from '../../../../core/helpers.js';
+import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -304,11 +305,20 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
-    const configMap: ConfigMap = await this.k8Factory
-      .getK8(context)
-      .configMaps()
-      .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-
+    let configMap: ConfigMap;
+    try {
+      configMap = await this.k8Factory
+        .getK8(context)
+        .configMaps()
+        .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+    } catch (error) {
+      throw error instanceof ResourceNotFoundError
+        ? error
+        : new SoloError(
+            `Failed to get remote config ConfigMap for namespace: ${namespace}, context: ${context}. Error: ${error.message}`,
+            error,
+          );
+    }
     if (!configMap) {
       throw new SoloError(`Remote config ConfigMap not found for namespace: ${namespace}, context: ${context}`);
     }
@@ -453,12 +463,21 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
-    if (this.configManager.hasFlag(flags.namespace)) {
+    const namespaceFromConfig: NamespaceNameAsString = this.configManager.getFlag(flags.namespace);
+    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    const deploymentFromArgv: DeploymentName = argv[flags.deployment.name] as DeploymentName;
+
+    // Keep config manager in sync when deployment is resolved directly in argv by caller logic.
+    if (!deploymentName && deploymentFromArgv) {
+      this.configManager.setFlag(flags.deployment, deploymentFromArgv);
+      deploymentName = deploymentFromArgv;
+    }
+
+    if (namespaceFromConfig && deploymentName) {
       return;
     }
 
     // TODO: Current quick fix for commands where namespace is not passed
-    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
     if (!deploymentName) {

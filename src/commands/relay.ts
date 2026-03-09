@@ -46,6 +46,7 @@ import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -301,8 +302,11 @@ export class RelayCommand extends BaseCommand {
     }
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
-    valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK='${networkJsonString}'`;
-    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK='${networkJsonString}'`;
+    const quotedNetworkJsonString: string = OperatingSystem.isWin32()
+      ? `"${networkJsonString.replaceAll('"', String.raw`\"`)}"`
+      : `'${networkJsonString}'`;
+    valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
+    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
 
     if (domainName) {
       valuesArgument += helpers.populateHelmArguments({
