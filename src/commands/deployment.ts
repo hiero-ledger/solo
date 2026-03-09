@@ -118,11 +118,7 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    interface Context {
-      config: Config;
-    }
-
-    const tasks = this.taskList.newTaskList<Context>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
