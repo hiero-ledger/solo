@@ -43,6 +43,10 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
+  public static readonly REFRESH_SUBCOMMAND_NAME: string = 'refresh';
+  private static readonly REFRESH_SUBCOMMAND_DESCRIPTION: string =
+    'Refresh port-forward processes for all components in the deployment.';
+
   public static readonly DIAGNOSTICS_SUBCOMMAND_NAME: string = 'diagnostics';
   private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION: string =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
@@ -58,17 +62,20 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTICS_LOGS: string = 'logs';
   public static readonly DIAGNOSTICS_CONNECTIONS: string = 'connections';
 
-  public static readonly CREATE_COMMAND =
+  public static readonly CREATE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
 
-  public static readonly ATTACH_COMMAND =
+  public static readonly ATTACH_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}` as const;
 
-  public static readonly DELETE_COMMAND =
+  public static readonly DELETE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
 
   public static readonly CONNECTIONS_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS}` as const;
+
+  public static readonly REFRESH_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} port-forwards` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -126,6 +133,21 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               [],
             ),
           ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.REFRESH_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            'port-forwards',
+            'Refresh and restore killed port-forward processes.',
+            this.deploymentCommand,
+            this.deploymentCommand.refresh,
+            DeploymentCommand.REFRESH_FLAGS_LIST,
+            [constants.KUBECTL],
+          ),
+        ),
       )
       .addCommandGroup(
         new CommandGroup(
