@@ -18,27 +18,18 @@ const KUBECTL_WINDOWS_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl.exe';
 @injectable()
 export class KubectlDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.KubectlInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.KubectlInstallationDirectory) installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
-    @inject(InjectTokens.KubectlVersion) protected readonly kubectlVersion: string,
+    @inject(InjectTokens.KubectlVersion) kubectlVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.KubectlInstallationDir,
-      KubectlDependencyManager.name,
-    );
-    osArch = patchInject(osArch, InjectTokens.OsArch, KubectlDependencyManager.name);
-    kubectlVersion = patchInject(kubectlVersion, InjectTokens.KubectlVersion, KubectlDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, KubectlDependencyManager.name);
-
     // Call the base constructor with the Kubectl-specific parameters
     super(
-      downloader,
-      installationDirectory,
-      osArch,
-      kubectlVersion || version.KUBECTL_VERSION,
+      patchInject(downloader, InjectTokens.PackageDownloader, KubectlDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.KubectlInstallationDirectory, KubectlDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, KubectlDependencyManager.name),
+      patchInject(kubectlVersion, InjectTokens.KubectlVersion, KubectlDependencyManager.name) ||
+        version.KUBECTL_VERSION,
       constants.KUBECTL,
       KUBECTL_RELEASE_BASE_URL,
     );
@@ -56,9 +47,9 @@ export class KubectlDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`"${executablePath}" version --client`);
+      const output: string[] = await this.run(`"${executableWithPath}" version --client`);
       this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {
@@ -86,9 +77,8 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    * Handle any post-download processing before copying to destination
    * Child classes can override this for custom extraction or processing
    */
-  protected async processDownloadedPackage(packageFilePath: string, _temporaryDirectory: string): Promise<string[]> {
-    // Default implementation - just return the downloaded file path
-    // Child classes can override for extraction or other processing
+  protected async processDownloadedPackage(packageFilePath: string): Promise<string[]> {
+    // For kubectl, the downloaded file is the executable itself, so we can return it directly
     return [packageFilePath];
   }
 

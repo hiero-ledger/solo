@@ -15,21 +15,35 @@ import {OperatingSystem} from '../../../../../src/business/utils/operating-syste
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
 import {platform} from 'node:process';
+import {ShellRunner} from '../../../../../src/core/shell-runner.js';
+import * as constants from '../../../../../src/core/constants.js';
 
 describe('HelmDependencyManager', (): void => {
   const originalPlatform: NodeJS.Platform = platform;
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
+  const installationDirectory: string = getTemporaryDirectory();
+  const originalInstallationDirectory: string = container.resolve<string>(InjectTokens.HelmInstallationDirectory);
+  let sandbox: sinon.SinonSandbox;
 
-  before((): void => fs.mkdirSync(temporaryDirectory));
+  before((): void => {
+    fs.mkdirSync(temporaryDirectory);
+    sandbox = sinon.createSandbox();
+    container.register(InjectTokens.HelmInstallationDirectory, {useValue: installationDirectory});
+  });
 
   after((): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
+    if (fs.existsSync(installationDirectory)) {
+      fs.rmSync(installationDirectory, {recursive: true});
+    }
+    container.register(InjectTokens.HelmInstallationDirectory, {useValue: originalInstallationDirectory});
   });
 
   afterEach((): void => {
     container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+    sandbox.restore();
   });
 
   it('should return helm version', (): void => {
@@ -37,6 +51,8 @@ describe('HelmDependencyManager', (): void => {
       undefined,
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
     );
     expect(helmDependencyManager.getRequiredVersion()).to.equal(version.HELM_VERSION);
   });
@@ -46,6 +62,8 @@ describe('HelmDependencyManager', (): void => {
       undefined,
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
     );
     expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -55,6 +73,8 @@ describe('HelmDependencyManager', (): void => {
       undefined,
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
     );
     // Create the local executable file for testing
     const localPath: string = PathEx.join(temporaryDirectory, 'helm');
@@ -65,6 +85,14 @@ describe('HelmDependencyManager', (): void => {
   describe('Helm Installation Tests', (): void => {
     afterEach((): void => {
       container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+      container.register(InjectTokens.HelmInstallationDirectory, {useValue: originalInstallationDirectory});
+      sandbox.restore();
+      if (fs.existsSync(temporaryDirectory)) {
+        fs.rmSync(temporaryDirectory, {recursive: true});
+      }
+      if (fs.existsSync(installationDirectory)) {
+        fs.rmSync(installationDirectory, {recursive: true});
+      }
     });
 
     each([
@@ -74,26 +102,33 @@ describe('HelmDependencyManager', (): void => {
     ]).it(
       'should be able to install helm base on %s and %s',
       async (osPlatform: any, osArch: string): Promise<void> => {
-        container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+        container.register(InjectTokens.OsPlatform, {useValue: osPlatform});
+        container.register(InjectTokens.HelmInstallationDirectory, {useValue: installationDirectory});
 
         const helmDependencyManager: HelmDependencyManager = new HelmDependencyManager(
           undefined,
           undefined,
-          temporaryDirectory,
+          installationDirectory,
           osArch,
+          undefined,
         );
 
         if (fs.existsSync(temporaryDirectory)) {
           fs.rmSync(temporaryDirectory, {recursive: true});
         }
-
+        if (fs.existsSync(getTestCacheDirectory())) {
+          fs.rmSync(getTestCacheDirectory(), {recursive: true});
+        }
         helmDependencyManager.uninstallLocal();
         expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
 
+        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.HELM}`).alwaysReturned(false);
         expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(helmDependencyManager.isInstalledLocally()).to.be.ok;
 
-        fs.rmSync(temporaryDirectory, {recursive: true});
+        if (fs.existsSync(temporaryDirectory)) {
+          fs.rmSync(temporaryDirectory, {recursive: true});
+        }
       },
     );
   });
@@ -103,13 +138,19 @@ describe('HelmDependencyManager', (): void => {
     let runStub: SinonStub;
 
     beforeEach((): void => {
-      helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory, process.arch);
+      helmDependencyManager = new HelmDependencyManager(
+        undefined,
+        undefined,
+        temporaryDirectory,
+        process.arch,
+        undefined,
+      );
       helmDependencyManager.uninstallLocal();
-      runStub = sinon.stub(helmDependencyManager, 'run');
+      runStub = sandbox.stub(helmDependencyManager, 'run');
     });
 
     afterEach((): void => {
-      runStub.restore();
+      sandbox.restore();
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
@@ -127,9 +168,10 @@ describe('HelmDependencyManager', (): void => {
       expect(result).to.be.true;
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
+      // Should not install locally since global installation meets requirements
+      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.not.ok;
       // Should return global path since it meets requirements
-      expect(await helmDependencyManager.getExecutablePath()).to.equal(globalHelmPath);
+      expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
 
       // Clean up dummy global helm binary
       fs.rmSync(globalHelmPath);
@@ -144,9 +186,10 @@ describe('HelmDependencyManager', (): void => {
       const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.false;
 
+      sandbox.stub(ShellRunner.prototype, 'run').withArgs('which helm').alwaysReturned(false);
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-      expect(await helmDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
+      expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
     });
   });
 });
