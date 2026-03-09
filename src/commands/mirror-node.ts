@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
@@ -31,6 +32,7 @@ import {
   type SoloListrTask,
 } from '../types/index.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -111,6 +113,7 @@ interface MirrorNodeDeployConfigClass {
   soloSharedDatabaseOwnerPassword: string;
   soloSharedDatabaseReadonlyUsername: string;
   soloSharedDatabaseReadonlyPassword: string;
+  forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeDeployContext {
@@ -163,6 +166,7 @@ interface MirrorNodeUpgradeConfigClass {
   soloSharedDatabaseOwnerPassword: string;
   soloSharedDatabaseReadonlyUsername: string;
   soloSharedDatabaseReadonlyPassword: string;
+  forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeUpgradeContext {
@@ -248,6 +252,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.soloChartVersion,
+      flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -285,6 +290,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.id,
+      flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -297,16 +303,47 @@ export class MirrorNodeCommand extends BaseCommand {
     config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
-    // TODO: re-enable block node integration when supported in mirror node: https://github.com/hiero-ledger/hiero-mirror-node/issues/12192
-    // const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
-    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = [];
-
-    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
+    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
 
     if (blockNodeSchemas.length === 0) {
       this.logger.debug('No block nodes found in remote config configuration');
       return '';
     }
+
+    let shouldConfigureMirrorNodeToPullFromBlockNode: boolean;
+
+    if (config.forceBlockNodeIntegration) {
+      // Bypass following checks
+      this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
+      shouldConfigureMirrorNodeToPullFromBlockNode = true;
+    } else {
+      const isConsensusNodeVersionSupported: boolean = semver.gte(
+        this.remoteConfig.configuration.versions.consensusNode,
+        versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+      );
+
+      const isBlockNodeChartVersionSupported: boolean = semver.gte(
+        this.remoteConfig.configuration.versions.blockNodeChart,
+        versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+      );
+
+      const isMirrorNodeVersionSupported: boolean = semver.gte(
+        new SemVer(config.mirrorNodeVersion),
+        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+      );
+
+      shouldConfigureMirrorNodeToPullFromBlockNode =
+        isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
+    }
+
+    if (!shouldConfigureMirrorNodeToPullFromBlockNode) {
+      this.logger.info(
+        'Mirror node will remain configured to pull from consensus node because version requirements were not met',
+      );
+      return '';
+    }
+
+    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
 
     this.logger.debug('Preparing mirror node values args overrides for block nodes integration');
 
@@ -479,7 +516,10 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): Promise<void> {
-    if (config.isChartInstalled && semver.gte(config.mirrorNodeVersion, '0.130.0')) {
+    if (
+      config.isChartInstalled &&
+      semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+    ) {
       // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
       const existingSecrets: Secret = await this.k8Factory
         .getK8(config.clusterContext)
@@ -528,8 +568,9 @@ export class MirrorNodeCommand extends BaseCommand {
         .ingressClasses()
         .list();
       for (const ingressClass of existingIngressClasses) {
-        if (ingressClass.name === 'mirror-ingress-class') {
-          this.logger.showUser('mirror-ingress-class already found, skipping');
+        this.logger.debug(`Found existing IngressClass [${ingressClass.name}]`);
+        if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
+          this.logger.showUser(`${constants.MIRROR_INGRESS_CLASS_NAME} already found, skipping`);
           return;
         }
       }
@@ -633,7 +674,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 if (config.mirrorStaticIp !== '') {
                   mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                 }
-                mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${constants.MIRROR_INGRESS_CONTROLLER}`;
+                mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`;
                 mirrorIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.MIRROR_INGRESS_CLASS_NAME}`;
                 mirrorIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.MIRROR_INGRESS_CONTROLLER}`;
 
@@ -759,28 +800,26 @@ export class MirrorNodeCommand extends BaseCommand {
                   this.configManager.getFlag<boolean>(flags.forcePortForward),
                 );
 
-                const importFeesQuery: string = `INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id,
-                                                                              transaction_type)
-                                                 VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'},
-                                                         ${feesFileIdNumber}, 17);`;
-                const importExchangeRatesQuery: string = `INSERT INTO public.file_data(file_data, consensus_timestamp,
-                                                                                       entity_id, transaction_type)
-                                                          VALUES (decode('${exchangeRates}', 'hex'), ${
-                                                            timestamp + '000001'
-                                                          }, ${exchangeRatesFileIdNumber}, 17);`;
+                const importFeesQuery: string = `
+INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
+VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 17);`;
+                const importExchangeRatesQuery: string = `
+INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
+VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
                 const sqlQuery: string = [importFeesQuery, importExchangeRatesQuery].join('\n');
+
+                const cacheDirectory: string = config.cacheDir;
+                // Build the path
+                const databaseSeedingQueryFileName: string = 'database-seeding-query.sql';
+                const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, databaseSeedingQueryFileName);
+
+                // Write the file database seeding query inside the cache
+                fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
 
                 // When useExternalDatabase flag is enabled, the query is not executed,
                 // but exported to the specified path inside the cache directory,
                 // and the user has the responsibility to execute it manually on his own
                 if (config.useExternalDatabase) {
-                  const cacheDirectory: string = config.cacheDir;
-                  // Build the path
-                  const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, 'database-seeding-query.sql');
-
-                  // Write the file database seeding query inside the cache
-                  fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
-
                   // Notify the user
                   this.logger.showUser(
                     chalk.cyan(
@@ -799,12 +838,8 @@ export class MirrorNodeCommand extends BaseCommand {
                   podReference,
                   ContainerName.of('postgresql'),
                 );
-                const k8Container: Container = this.k8Factory
-                  .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference);
-
                 const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+
                 const secrets: Secret[] = await this.k8Factory
                   .getK8(config.clusterContext)
                   .secrets()
@@ -819,12 +854,25 @@ export class MirrorNodeCommand extends BaseCommand {
                   passwordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
                 );
 
-                await k8Container.execContainer([
-                  'psql',
-                  `postgresql://${DB_OWNER}:${DB_OWNER_PASSWORD}@127.0.0.1:5432/${MIRROR_IMPORTER_DB_NAME}`,
-                  '-c',
-                  sqlQuery,
-                ]);
+                const targetDirectory: string = '/tmp';
+                const targetPath: string = `${targetDirectory}/${databaseSeedingQueryFileName}`;
+
+                await this.k8Factory
+                  .getK8(config.clusterContext)
+                  .containers()
+                  .readByRef(containerReference)
+                  .copyTo(databaseSeedingQueryPath, targetDirectory);
+
+                await this.k8Factory
+                  .getK8(config.clusterContext)
+                  .containers()
+                  .readByRef(containerReference)
+                  .execContainer([
+                    'psql',
+                    `postgresql://${DB_OWNER}:${DB_OWNER_PASSWORD}@127.0.0.1:5432/${MIRROR_IMPORTER_DB_NAME}`,
+                    '-f',
+                    targetPath,
+                  ]);
               },
             },
           ],
@@ -843,7 +891,7 @@ export class MirrorNodeCommand extends BaseCommand {
           .pods()
           .list(config.namespace, [`app.kubernetes.io/instance=${config.ingressReleaseName}`]);
         if (pods.length === 0) {
-          throw new SoloError('No Hiero Explorer pod found');
+          throw new SoloError('No mirror ingress controller pod found');
         }
         let podReference: PodReference;
         for (const pod of pods) {
@@ -876,10 +924,12 @@ export class MirrorNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             this.configManager.update(argv);
 
             flags.disablePrompts(MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
@@ -910,9 +960,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
+            if (useMirrorNodeLegacyReleaseName) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
-              config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+              config.ingressReleaseName = `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${config.namespace.name}`;
             } else {
               config.releaseName = this.getReleaseName();
               config.ingressReleaseName = this.getIngressReleaseName();
@@ -931,9 +982,11 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
-              ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
-              : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            config.valuesArg = helpers.prepareValuesFiles(
+              semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+                ? constants.MIRROR_NODE_VALUES_FILE_HEDERA
+                : constants.MIRROR_NODE_VALUES_FILE,
+            );
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
@@ -1045,7 +1098,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
@@ -1179,12 +1235,16 @@ export class MirrorNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -1199,10 +1259,12 @@ export class MirrorNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             this.configManager.update(argv);
 
             flags.disablePrompts(MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional);
@@ -1235,13 +1297,14 @@ export class MirrorNodeCommand extends BaseCommand {
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
+            if (useMirrorNodeLegacyReleaseName) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             }
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
+            config.valuesArg = semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
               : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
@@ -1353,7 +1416,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.enableMirrorNodeTask(),
@@ -1379,12 +1445,16 @@ export class MirrorNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
       } finally {
-        await lease.release();
+        if (!this.oneShotState.isActive()) {
+          await lease.release();
+        }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        if (!this.oneShotState.isActive()) {
+          await lease.release();
+        }
         await this.accountManager.close();
       });
     }
@@ -1393,11 +1463,11 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
-    return semver.lt(version, '0.130.0') ? 'HEDERA' : 'HIERO';
+    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'HEDERA' : 'HIERO';
   }
 
   private getChartNamespace(version: string): string {
-    return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
+    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -1407,10 +1477,12 @@ export class MirrorNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -1449,14 +1521,10 @@ export class MirrorNodeCommand extends BaseCommand {
               ),
             };
 
-            await this.accountManager.loadNodeClient(
-              context_.config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              this.configManager.getFlag<DeploymentName>(flags.deployment),
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-
-            return ListrLock.newAcquireLockTask(lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
@@ -1546,12 +1614,16 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
       } finally {
         await this.accountManager?.close().catch();
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         await this.accountManager?.close().catch();
-        await lease?.release();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
       });
     }
 
@@ -1613,7 +1685,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
-      throw new SoloError('Mirror node not found in remove config');
+      throw new SoloError('Mirror node not found in remote config');
     }
 
     return this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
@@ -1632,19 +1704,19 @@ export class MirrorNodeCommand extends BaseCommand {
     const id: ComponentId = this.inferMirrorNodeId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
+    const ingressReleaseName: string = await this.inferInstalledIngressReleaseName(namespace, context, id);
 
     if (isLegacyChartInstalled) {
       return {
         id,
         releaseName: constants.MIRROR_NODE_RELEASE_NAME,
         isChartInstalled: true,
-        ingressReleaseName: constants.INGRESS_CONTROLLER_RELEASE_NAME,
+        ingressReleaseName,
         isLegacyChartInstalled,
       };
     }
 
     const releaseName: string = this.renderReleaseName(id);
-    const ingressReleaseName: string = this.renderIngressReleaseName(id);
     return {
       id,
       releaseName,
@@ -1652,5 +1724,26 @@ export class MirrorNodeCommand extends BaseCommand {
       ingressReleaseName,
       isLegacyChartInstalled,
     };
+  }
+
+  private async inferInstalledIngressReleaseName(
+    namespace: NamespaceName,
+    context: Context,
+    id: ComponentId,
+  ): Promise<string> {
+    const candidates: string[] = [
+      this.renderIngressReleaseName(id),
+      `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${namespace.name}`,
+      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+    ];
+
+    for (const releaseName of candidates) {
+      if (await this.chartManager.isChartInstalled(namespace, releaseName, context)) {
+        return releaseName;
+      }
+    }
+
+    // Keep existing behavior as fallback when no ingress release is currently installed.
+    return this.renderIngressReleaseName(id);
   }
 }

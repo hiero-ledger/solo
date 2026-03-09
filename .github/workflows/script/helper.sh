@@ -9,7 +9,9 @@ function create_test_account ()
   echo "DEPLOYMENT_NAME=${DEPLOYMENT_NAME}"
   # create new account and extract account id
   npm run solo-test -- init
+  echo "Creating first test account..."
   npm run solo-test -- ledger account create --deployment "${DEPLOYMENT_NAME}" --hbar-amount 10000 --generate-ecdsa-key --set-alias > test.log
+  echo "First account created."
   export OPERATOR_ID=$(grep \"accountId\" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
   echo "OPERATOR_ID=${OPERATOR_ID}"
   rm test.log
@@ -23,7 +25,9 @@ function create_test_account ()
   echo "CONTRACT_TEST_KEY_ONE=${CONTRACT_TEST_KEY_ONE}"
   rm test.log
 
+  echo "Create second test account"
   npm run solo-test -- ledger account create --deployment "${DEPLOYMENT_NAME}" --hbar-amount 10000 --generate-ecdsa-key --set-alias > test.log
+  echo "Second account created."
   export SECOND_KEY=$(grep \"accountId\" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
   npm run solo-test -- ledger account info --deployment "${DEPLOYMENT_NAME}" --account-id ${SECOND_KEY} --private-key > test.log
   export CONTRACT_TEST_KEY_TWO=0x$(grep \"privateKeyRaw\" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
@@ -68,15 +72,15 @@ function log_and_exit()
 
   printf "\r::group::Mirror Importer log dump\n"
   echo "------- BEGIN MIRROR IMPORTER DUMP -------"
-  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log || true
-  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER --previous > importer-prev.log || true
+  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log 2>/dev/null || true
+  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER --previous > importer-prev.log 2>/dev/null || true
   echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Mirror Monitor log dump\n"
   echo "------- BEGIN LOG DUMP -------"
-  kubectl get pods -n "${namespace}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > monitor.log || true
+  kubectl get pods -n "${SOLO_NAMESPACE}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${SOLO_NAMESPACE}" POD > monitor.log 2>/dev/null || true
   echo "------- END LOG DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
@@ -87,8 +91,13 @@ function log_and_exit()
 
   printf "\r::group::Block Node log dump\n"
   echo "------- BEGIN BLOCK NODE DUMP -------"
-  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server > block-node.log || true
-  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server --previous > block-node-prev.log || true
+  blockNodePod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | sed 's#pod/##' | grep '^block-node' | head -n 1 || true)
+  if [[ -n "${blockNodePod}" ]]; then
+    kubectl logs -n "${SOLO_NAMESPACE}" "${blockNodePod}" -c block-node-server > block-node.log 2>/dev/null || true
+    kubectl logs -n "${SOLO_NAMESPACE}" "${blockNodePod}" -c block-node-server --previous > block-node-prev.log 2>/dev/null || true
+  else
+    echo "No block node pod found in namespace ${SOLO_NAMESPACE}; skipping block node log dump."
+  fi
   echo "------- END BLOCK NODE DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 

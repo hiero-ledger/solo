@@ -1,0 +1,7 @@
+.idea/
+.venv/
+.dist/
+charts/
+data/
+static/
+node_modules/

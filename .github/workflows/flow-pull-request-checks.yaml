@@ -22,7 +22,7 @@ on:
         description: "Consensus Node Version:"
         type: string
         required: false
-        default: "v0.66.0"
+        default: "v0.71.0"
       skip-unit-and-coverage:
         description: "Skip Unit Tests and Coverage"
         type: boolean
@@ -58,7 +58,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
           # allow internal Podman/Kind HTTPS calls between pods/services on the runner (no internet egress)
@@ -66,7 +66,7 @@ jobs:
             **.svc.cluster.local.dns.podman:443
 
       - name: Checkout Code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Read JSON and Set Matrix Output
         id: set_matrix
@@ -122,6 +122,15 @@ jobs:
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
       install-dependencies: ${{ matrix.e2e-test-type.install-dependencies }}
       runner: ${{ matrix.e2e-test-type.runner }}
+      kind-install: ${{ matrix.e2e-test-type.kind-install }}
+      kind-version: ${{ matrix.e2e-test-type.kind-version }}
+      kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
+      kubectl-install: ${{ matrix.e2e-test-type.kubectl-install }}
+      kubectl-version: ${{ matrix.e2e-test-type.kubectl-version }}
+      helm-install: ${{ matrix.e2e-test-type.helm-install }}
+      helm-version: ${{ matrix.e2e-test-type.helm-version }}
+      node-version: ${{ matrix.e2e-test-type.node-version }}
+      enable_s6_image: ${{ matrix.e2e-test-type.enable_s6_image }}
 
   codecov:
     name: CodeCov

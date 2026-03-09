@@ -21,29 +21,30 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'one-shot';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'one-shot';
+  protected static override readonly DESCRIPTION: string =
     'One Shot commands for new and returning users who need a preset environment type. ' +
     'These commands use reasonable defaults to provide a single command out of box experience.';
 
-  public static readonly SINGLE_SUBCOMMAND_NAME = 'single';
-  private static readonly SINGLE_SUBCOMMAND_DESCRIPTION =
+  public static readonly SINGLE_SUBCOMMAND_NAME: string = 'single';
+  private static readonly SINGLE_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with a single consensus node, ' +
     'mirror node, block node, relay node, and explorer node.';
 
-  public static readonly MULTI_SUBCOMMAND_NAME = 'multi';
-  private static readonly MULTI_SUBCOMMAND_DESCRIPTION =
+  public static readonly MULTI_SUBCOMMAND_NAME: string = 'multi';
+  private static readonly MULTI_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with multiple consensus nodes, ' +
     'mirror node, block node, relay node, and explorer node.';
 
-  public static readonly FALCON_SUBCOMMAND_NAME = 'falcon';
-  private static readonly FALCON_SUBCOMMAND_DESCRIPTION =
+  public static readonly FALCON_SUBCOMMAND_NAME: string = 'falcon';
+  private static readonly FALCON_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with optional chart values override using --values-file.';
 
-  public static readonly SINGLE_DEPLOY = 'deploy';
-  public static readonly SINGLE_DESTROY = 'destroy';
-  public static readonly MULTIPLE_DEPLOY = 'deploy';
-  public static readonly MULTIPLE_DESTROY = 'destroy';
+  public static readonly SINGLE_DEPLOY: string = 'deploy';
+  public static readonly SINGLE_DESTROY: string = 'destroy';
+  public static readonly INFO_COMMAND_NAME: string = 'show';
+  public static readonly MULTIPLE_DEPLOY: string = 'deploy';
+  public static readonly MULTIPLE_DESTROY: string = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
@@ -59,7 +60,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -70,6 +71,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )
@@ -85,7 +87,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -96,6 +98,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )
@@ -111,7 +114,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -122,9 +125,23 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          OneShotCommandDefinition.INFO_COMMAND_NAME,
+          'Display information about one-shot deployments.',
+        ).addSubcommand(
+          new Subcommand(
+            'deployment',
+            'Display information about the last one-shot deployment including name, versions, and deployed components.',
+            this.oneShotCommand,
+            this.oneShotCommand.info,
+            DefaultOneShotCommand.INFO_FLAGS_LIST,
+          ),
+        ),
       )
       .build();
   }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {Listr} from 'listr2';
 import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
@@ -27,10 +28,10 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
-import * as fs from 'node:fs';
-import * as yaml from 'yaml';
 import {findMinioOperator} from '../../core/helpers.js';
+import {K8} from '../../integration/kube/k8.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -42,6 +43,7 @@ export class ClusterCommandTasks {
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeState,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -50,6 +52,7 @@ export class ClusterCommandTasks {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
   public findMinioOperator(context: Context): Promise<ReleaseNameData> {
@@ -127,18 +130,16 @@ export class ClusterCommandTasks {
     loadRemoteConfig: boolean = false,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
 
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task) => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         if (loadRemoteConfig) {
-          await self.remoteConfig.loadAndValidate(argv);
+          await this.remoteConfig.loadAndValidate(argv);
         }
         context_.config = await configInit(argv, context_, task);
       },
@@ -146,13 +147,10 @@ export class ClusterCommandTasks {
   }
 
   public showClusterList(): SoloListrTask<AnyListrContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'List all available clusters',
       task: async () => {
-        await self.localConfig.load();
+        await this.localConfig.load();
 
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
@@ -201,7 +199,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installMinioOperator(_: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -238,10 +236,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
+  public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install Prometheus Stack chart',
       task: async context_ => {
@@ -254,7 +249,7 @@ export class ClusterCommandTasks {
         );
 
         if (isPrometheusInstalled) {
-          self.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
+          this.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -266,9 +261,9 @@ export class ClusterCommandTasks {
               '',
               context_.config.context,
             );
-            self.logger.showUser('✅ Prometheus Stack chart installed successfully');
+            this.logger.showUser('✅ Prometheus Stack chart installed successfully');
           } catch (error) {
-            self.logger.debug('Error installing Prometheus Stack chart', error);
+            this.logger.debug('Error installing Prometheus Stack chart', error);
             try {
               await this.chartManager.uninstall(
                 clusterSetupNamespace,
@@ -286,81 +281,42 @@ export class ClusterCommandTasks {
     };
   }
 
-  public installGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
-    return {
-      title: 'Install Grafana Agent chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isGrafanaAgentInstalled = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context_.config.context,
-        );
-
-        if (isGrafanaAgentInstalled) {
-          self.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
-        } else {
-          try {
-            await this.chartManager.install(
-              clusterSetupNamespace,
-              constants.GRAFANA_AGENT_RELEASE_NAME,
-              constants.GRAFANA_AGENT_CHART,
-              constants.GRAFANA_AGENT_CHART,
-              versions.GRAFANA_AGENT_VERSION,
-              '',
-              context_.config.context,
-            );
-            self.logger.showUser('✅ Grafana Agent chart installed successfully');
-          } catch (error) {
-            self.logger.debug('Error installing Grafana Agent chart', error);
-            try {
-              await this.chartManager.uninstall(
-                clusterSetupNamespace,
-                constants.GRAFANA_AGENT_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloError('Error installing Grafana Agent chart', error);
-          }
-        }
-      },
-      skip: context_ => !context_.config.deployGrafanaAgent,
-    };
-  }
-
-  public installPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
+  public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install pod-monitor-role ClusterRole',
       task: async context_ => {
-        const k8 = this.k8Factory.getK8(context_.config.context);
+        const k8: K8 = this.k8Factory.getK8(context_.config.context);
 
         try {
           // Check if ClusterRole already exists using Kubernetes JavaScript API
-          await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
-          self.logger.showUser(
+          await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+          this.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
         } catch {
           // ClusterRole doesn't exist, create it
           try {
-            const yamlContent = fs.readFileSync(constants.POD_MONITOR_ROLE_TEMPLATE, 'utf8');
-            const clusterRole = yaml.parse(yamlContent);
-
-            await k8.rbac().createClusterRole(clusterRole);
-            self.logger.showUser(
+            await k8.rbac().createClusterRole(
+              constants.POD_MONITOR_ROLE,
+              [
+                {
+                  apiGroups: [''],
+                  resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
+                  verbs: ['get', 'list'],
+                },
+                {
+                  apiGroups: [''],
+                  resources: ['pods/exec'],
+                  verbs: ['create'],
+                },
+              ],
+              {'solo.hedera.com/type': 'cluster-role'},
+            );
+            this.logger.showUser(
               `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
             );
           } catch (installError) {
-            self.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+            this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
             throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
           }
         }
@@ -368,13 +324,13 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
       task: async ({config: {context}}): Promise<void> => {
         try {
           // Check if ClusterRole exists using Kubernetes JavaScript API
-          await this.k8Factory.getK8(context).rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          await this.k8Factory.getK8(context).rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
 
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
@@ -388,9 +344,6 @@ export class ClusterCommandTasks {
   }
 
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install cluster charts',
       task: async (context_, task) => {
@@ -409,12 +362,6 @@ export class ClusterCommandTasks {
           subtasks.push(this.installPrometheusStack(argv));
         }
 
-        if (context_.config.deployGrafanaAgent) {
-          subtasks.push(this.installGrafanaAgent(argv));
-        } else {
-          console.log('Skipping Grafana Agent chart installation');
-        }
-
         const result = await task.newListr(subtasks, {concurrent: false});
 
         if (argv.dev) {
@@ -428,14 +375,17 @@ export class ClusterCommandTasks {
   public acquireNewLease(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Acquire new lease',
-      task: async (_, task) => {
-        const lease: Lock = await this.leaseManager.create();
-        return ListrLock.newAcquireLockTask(lease, task);
+      task: async (_, task): Promise<Listr<AnyListrContext>> => {
+        if (!this.oneShotState.isActive()) {
+          const lease: Lock = await this.leaseManager.create();
+          return ListrLock.newAcquireLockTask(lease, task);
+        }
+        return ListrLock.newSkippedLockTask(task);
       },
     };
   }
 
-  public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -452,7 +402,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -467,26 +417,6 @@ export class ClusterCommandTasks {
           this.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
         } else {
           this.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
-        }
-      },
-    };
-  }
-
-  public uninstallGrafanaAgent(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    return {
-      title: 'Uninstall Grafana Agent chart',
-      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const isGrafanaAgentInstalled: boolean = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context,
-        );
-
-        if (isGrafanaAgentInstalled) {
-          await this.chartManager.uninstall(clusterSetupNamespace, constants.GRAFANA_AGENT_RELEASE_NAME, context);
-          this.logger.showUser('✅ Grafana Agent chart uninstalled successfully');
-        } else {
-          this.logger.showUser('⏭️  Grafana Agent chart not installed, skipping');
         }
       },
     };
@@ -517,12 +447,7 @@ export class ClusterCommandTasks {
         }
 
         return task.newListr(
-          [
-            this.uninstallGrafanaAgent(argv),
-            this.uninstallPrometheusStack(argv),
-            this.uninstallMinioOperator(argv),
-            this.uninstallPodMonitorRole(argv),
-          ],
+          [this.uninstallPrometheusStack(argv), this.uninstallMinioOperator(argv), this.uninstallPodMonitorRole(argv)],
           {concurrent: false},
         );
       },

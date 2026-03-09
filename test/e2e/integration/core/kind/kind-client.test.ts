@@ -9,7 +9,6 @@ import {KindCluster} from '../../../../../src/integration/kind/model/kind-cluste
 import {KindDependencyManager} from '../../../../../src/core/dependency-managers/index.js';
 import {container} from 'tsyringe-neo';
 import fs from 'node:fs';
-import path from 'node:path';
 import * as os from 'node:os';
 import {type GetKubeConfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
 import {type GetNodesResponse} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-response.js';
@@ -22,6 +21,10 @@ import {resetForTest} from '../../../../test-container.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
+import {PathEx} from '../../../../../src/business/utils/path-ex.js';
+import * as constants from '../../../../../src/core/constants.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import path from 'node:path';
 
 const execAsync = promisify(exec);
 
@@ -31,15 +34,17 @@ describe('KindClient Integration Tests', function () {
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
-  const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-test-'));
+  const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kind-test-'));
   let originalKubeConfigContext: string | null = null;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest();
 
     // Save original kubectl context if it exists
     try {
-      const {stdout} = await execAsync('kubectl config current-context');
+      const {stdout} = await execAsync('kubectl config current-context', {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       originalKubeConfigContext = stdout.trim();
       console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
     } catch {
@@ -48,18 +53,29 @@ describe('KindClient Integration Tests', function () {
     }
 
     // Download and install Kind
+    kindPath = PathEx.join(temporaryDirectory, constants.KIND);
+    container.register(InjectTokens.KindInstallationDirectory, {useValue: temporaryDirectory});
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
-    await kindManager.install(temporaryDirectory);
-    kindPath = await kindManager.getExecutablePath();
+    try {
+      await kindManager.install();
+    } catch (error) {
+      console.error('Error checking if Kind is installed locally:', error);
+      throw error;
+    }
 
     console.log(`Using Kind at: ${kindPath}`);
 
     // Create Kind client
     const clientBuilder: DefaultKindClientBuilder = new DefaultKindClientBuilder();
-    kindClient = await clientBuilder.executable(kindPath).build();
-  });
+    try {
+      kindClient = await clientBuilder.executable(kindPath).build();
+    } catch (error) {
+      console.error('Error building Kind client:', error);
+      throw error;
+    }
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
-  after(async () => {
+  after(async (): Promise<void> => {
     if (kindClient) {
       try {
         // Clean up test cluster if it exists
@@ -77,7 +93,9 @@ describe('KindClient Integration Tests', function () {
     if (originalKubeConfigContext) {
       try {
         console.log(`Restoring original kubectl context: ${originalKubeConfigContext}`);
-        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`);
+        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`, {
+          env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+        });
       } catch (error) {
         console.error('Error restoring kubectl context:', error);
       }
@@ -89,7 +107,7 @@ describe('KindClient Integration Tests', function () {
     } catch (error) {
       console.error('Error cleaning up temp directory:', error);
     }
-  });
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
   it('should get Kind version', async () => {
     const version: SemVer = await kindClient.version();
@@ -100,13 +118,41 @@ describe('KindClient Integration Tests', function () {
     console.log(`Kind version: ${version.toString()}`);
   });
 
-  it('should create a cluster', async () => {
-    const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().build();
+  it('should create a cluster', async (): Promise<void> => {
+    // after the Kubernetes upgrade in CI, kind commands sometimes fail initially due to a timeout when creating clusters
+    const maxRetries: number = 3;
+    let attempt: number = 0;
+    let lastError: unknown;
 
-    const response: ClusterCreateResponse = await kindClient.createCluster(testClusterName, options);
-    expect(response).to.not.be.undefined;
-    expect(response.name).to.equal(testClusterName);
-  });
+    while (attempt < maxRetries) {
+      try {
+        const controller: AbortController = new AbortController();
+        const onTimeoutCallback: NodeJS.Timeout = setTimeout((): void => {
+          controller.abort();
+        }, Duration.ofSeconds(20).toMillis());
+        console.log(`deleting cluster if it exists before creation attempt ${attempt + 1}`);
+        await kindClient.deleteCluster(testClusterName);
+        const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().build();
+
+        console.log(`creating cluster, attempt ${attempt + 1}`);
+        const response: ClusterCreateResponse = await kindClient.createCluster(testClusterName, options);
+        expect(response).to.not.be.undefined;
+        expect(response.name).to.equal(testClusterName);
+        clearTimeout(onTimeoutCallback);
+        return;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Attempt ${attempt + 1} to create cluster failed: ${error}`);
+        attempt++;
+        if (attempt < maxRetries) {
+          console.log('Retrying cluster creation...');
+        } else {
+          console.error('Max retries reached. Failing test.');
+          throw lastError;
+        }
+      }
+    }
+  }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should list clusters', async () => {
     const clusters: KindCluster[] = await kindClient.getClusters();

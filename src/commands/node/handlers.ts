@@ -31,6 +31,11 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {Flags as flags} from '../flags.js';
+import {select as selectPrompt} from '@inquirer/prompts';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -148,6 +153,8 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadLastState(),
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.updateBlockNodesJson(),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -195,6 +202,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -228,6 +236,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -611,6 +620,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    await this.resolveDeploymentForLogs(argv);
 
     const outputDirectory: string = (argv.outputDir as string) || '';
 
@@ -619,6 +629,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
+        this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -629,6 +640,49 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
+  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
+    const deploymentFromFlag: string = argv[flags.deployment.name] as string;
+    if (deploymentFromFlag && deploymentFromFlag.trim()) {
+      return;
+    }
+
+    await this.localConfig.load();
+    const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
+    const validDeployments: Deployment[] = [];
+    for (const deployment of deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
+
+    if (validDeployments.length === 0) {
+      throw new SoloError(
+        `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
+      );
+    }
+
+    if (validDeployments.length === 1) {
+      const deployment: Deployment = validDeployments[0];
+      argv[flags.deployment.name] = deployment.name;
+      this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
+      return;
+    }
+
+    if ((argv[flags.quiet.name] as boolean) === true) {
+      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
+      throw new SoloError(
+        `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
+      );
+    }
+
+    const selectedDeployment: string = (await selectPrompt({
+      message: 'Select deployment for diagnostics logs:',
+      choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
+    })) as string;
+    argv[flags.deployment.name] = selectedDeployment;
+    this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
+  }
+
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
     const outputDirectory: string = (argv.outputDir as string) || '';
@@ -637,6 +691,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
+        this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.getNodeStateFiles(),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
@@ -858,6 +913,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.identifyExistingNodes(),
+        this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
         this.tasks.checkAllNodesAreActive('existingNodeAliases'),
@@ -956,8 +1012,8 @@ export class NodeCommandHandlers extends CommandHandler {
    * @param excludedPhases - the state at which the node can't be, matching any of the states throws an error
    */
   public validateSingleNodeState({
-    acceptedPhases,
-    excludedPhases,
+    acceptedPhases: _acceptedPhases,
+    excludedPhases: _excludedPhases,
   }: {
     acceptedPhases?: DeploymentPhase[];
     excludedPhases?: DeploymentPhase[];
@@ -991,8 +1047,8 @@ export class NodeCommandHandlers extends CommandHandler {
   private validateNodeState(
     nodeAlias: NodeAlias,
     components: ComponentsDataWrapperApi,
-    acceptedPhases: Optional<DeploymentPhase[]>,
-    excludedPhases: Optional<DeploymentPhase[]>,
+    _acceptedPhases: Optional<DeploymentPhase[]>,
+    _excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {
     let nodeComponent: ConsensusNodeStateSchema;
     try {
@@ -1020,5 +1076,24 @@ export class NodeCommandHandlers extends CommandHandler {
     // }
 
     return nodeComponent.metadata.phase;
+  }
+
+  public async collectJavaFlightRecorderLogs(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.COLLECT_JFR_FLAGS);
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
+
+    await this.commandAction(
+      argv,
+      [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.collectJfrConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.downloadJavaFlightRecorderLogs(),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      'Error collecting jfr recording from node',
+      leaseWrapper.lease,
+    );
+
+    return true;
   }
 }

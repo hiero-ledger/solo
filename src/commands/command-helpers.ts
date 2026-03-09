@@ -6,6 +6,9 @@ import {type TaskListWrapper} from '../core/task-list/task-list-wrapper.js';
 import {type Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ArgumentProcessor} from '../argument-processor.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type ConfigManager} from '../core/config-manager.js';
 
 /**
  * Helper function to convert a flag object to CLI option string
@@ -31,8 +34,20 @@ export function newArgv(): string[] {
  * @returns Updated argv array
  */
 export function argvPushGlobalFlags(argv: string[], cacheDirectory: string = ''): string[] {
-  argv.push(optionFromFlag(flags.devMode), optionFromFlag(flags.quiet));
-  if (cacheDirectory) {
+  // Only propagate flags if they are explicitly set to true in the parent command
+  const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
+
+  const developmentMode: boolean = configManager.getFlag<boolean>(flags.devMode);
+  if (typeof developmentMode === 'boolean' && developmentMode) {
+    argv.push(optionFromFlag(flags.devMode));
+  }
+
+  const quiet: boolean = configManager.getFlag<boolean>(flags.quiet);
+  if (typeof quiet === 'boolean' && quiet) {
+    argv.push(optionFromFlag(flags.quiet));
+  }
+
+  if (typeof cacheDirectory === 'string' && cacheDirectory.length > 0) {
     argv.push(optionFromFlag(flags.cacheDir), cacheDirectory);
   }
   return argv;

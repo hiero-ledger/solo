@@ -121,7 +121,7 @@ export class RapidFireCommand extends BaseCommand {
         const subTasks: SoloListrTask<RapidFireStartContext>[] = [
           {
             title: 'Install Network Load Generator chart',
-            task: async (context_, task): Promise<void> => {
+            task: async (context_, _task): Promise<void> => {
               let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
 
               if (context_.config.valuesFile) {
@@ -133,12 +133,12 @@ export class RapidFireCommand extends BaseCommand {
                 .pods()
                 .list(context_.config.namespace, ['solo.hedera.com/type=haproxy']);
 
-              let port: number = constants.GRPC_PORT;
+              const port: number = constants.GRPC_PORT;
               const networkProperties: string[] = haproxyPods.map((pod: Pod) => {
                 const accountId = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
                 // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
                 // Final result should look like: x.x.x.x\:50211=0.0.y
-                return String.raw`${pod.podIp}\\\:${port++}=${accountId}`;
+                return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
               });
 
               for (const row of networkProperties) {
@@ -237,7 +237,9 @@ export class RapidFireCommand extends BaseCommand {
           }
 
           try {
-            await leaseReference.lease?.release();
+            if (!this.oneShotState.isActive()) {
+              await leaseReference.lease?.release();
+            }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
             let commandString = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
             commandString = commandString.replaceAll('  ', ' ').trim();
@@ -265,7 +267,9 @@ export class RapidFireCommand extends BaseCommand {
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
-            leaseReference.lease = await this.leaseManager.create();
+            if (!this.oneShotState.isActive()) {
+              leaseReference.lease = await this.leaseManager.create();
+            }
 
             this.configManager.update(argv);
 
@@ -293,7 +297,10 @@ export class RapidFireCommand extends BaseCommand {
             // Parse nlgArguments to remove any surrounding quotes
             config.parsedNlgArguments = config.nlgArguments.replaceAll("'", '').replaceAll('"', '');
 
-            return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.deployNlgChart(),
@@ -307,7 +314,9 @@ export class RapidFireCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error running rapid-fire: ${error.message}`, error);
     } finally {
-      await leaseReference.lease?.release();
+      if (!this.oneShotState.isActive()) {
+        await leaseReference.lease?.release();
+      }
     }
 
     return true;
@@ -319,7 +328,9 @@ export class RapidFireCommand extends BaseCommand {
       task: async (context_, task): Promise<Listr<AnyListrContext>> => {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv);
-        leaseReference.lease = await this.leaseManager.create();
+        if (!this.oneShotState.isActive()) {
+          leaseReference.lease = await this.leaseManager.create();
+        }
 
         this.configManager.update(argv);
 
@@ -342,7 +353,10 @@ export class RapidFireCommand extends BaseCommand {
         config.context = this.getClusterContext(config.clusterRef);
         context_.config = config;
 
-        return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+        if (!this.oneShotState.isActive()) {
+          return ListrLock.newAcquireLockTask(leaseReference.lease, task);
+        }
+        return ListrLock.newSkippedLockTask(task);
       },
     };
   }
@@ -359,7 +373,7 @@ export class RapidFireCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
     } finally {
-      if (leaseReference.lease) {
+      if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
       }
     }
@@ -408,7 +422,7 @@ export class RapidFireCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
     } finally {
-      if (leaseReference.lease) {
+      if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
       }
     }
@@ -419,7 +433,7 @@ export class RapidFireCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     return this.allStopTasks(argv, {
       title: 'Uninstall Network Load Generator chart',
-      task: async (context_, task): Promise<void> => {
+      task: async (context_, _task): Promise<void> => {
         await this.chartManager.uninstall(
           context_.config.namespace,
           constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,

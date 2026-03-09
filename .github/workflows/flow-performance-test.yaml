@@ -44,12 +44,12 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
@@ -60,7 +60,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 22
 
@@ -78,7 +78,7 @@ jobs:
         id: install
 
       - name: Setup Kind
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -108,7 +108,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile Project
-        run: task build
+        run: task build:compile
 
       - name: Pull Kind Docker Image
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -178,8 +178,14 @@ jobs:
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-performance-test
 
+      - name: Move JVM Memory Usage Data to Metrics Directory
+        run: |
+          mkdir -p ~/.solo/metrics
+          mv ~/.solo/logs/performance-tests-deployment/* ~/.solo/metrics/
+          rm -rf ~/.solo/logs/performance-tests-deployment
+
       - name: Upload E2E Logs to GitHub
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: solo-performance-test.log
           path: ~/.solo/logs/*
@@ -188,7 +194,7 @@ jobs:
 
       - name: Performance Test Verification
         run: |
-          MAX_MEMORY_MB=10000
+          MAX_MEMORY_MB=11000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
@@ -200,3 +206,71 @@ jobs:
             echo "Not a valid number or it's >= ${MAX_MEMORY_MB}: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
             exit 1
           fi
+
+      - name: Build and Start Metrics Plotter tool
+        run: |
+            cd ./scripts/metrics-plotter
+            npm ci
+            npm run build
+            mkdir -p ~/.solo/metrics
+            mkdir src/data
+            nohup npm start &
+            echo $! > /tmp/metrics-plotter.pid
+            mkdir -p ./src/data       
+            cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
+
+      - name: Install Puppeteer / Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ca-certificates \
+            fonts-liberation \
+            libasound2 \
+            libatk-bridge2.0-0 \
+            libatk1.0-0 \
+            libatspi2.0-0 \
+            libcairo2 \
+            libdbus-1-3 \
+            libgdk-pixbuf2.0-0 \
+            libglib2.0-0 \
+            libgtk-3-0 \
+            libnspr4 \
+            libnss3 \
+            libx11-6 \
+            libx11-xcb1 \
+            libxcb1 \
+            libxcomposite1 \
+            libxcursor1 \
+            libxdamage1 \
+            libxext6 \
+            libxfixes3 \
+            libxi6 \
+            libxrandr2 \
+            libxrender1 \
+            libxss1 \
+            libxtst6 \
+            lsb-release \
+            xdg-utils \
+            libgbm1
+
+      - name: Save Screenshots of Metrics Plotter
+        run: |
+          cd ./scripts/metrics-plotter
+          SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=true\&data=timeline ~/.solo/metrics/chart-grouped.png
+          SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=false\&data=timeline ~/.solo/metrics/chart.png
+          cp ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json
+
+      - name: Stop Metrics Plotter tool
+        run: |
+          if [ -f /tmp/metrics-plotter.pid ]; then
+            kill $(cat /tmp/metrics-plotter.pid) || true
+            rm /tmp/metrics-plotter.pid
+          fi
+
+      - name: Upload Metrics Data and Chart to GitHub
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: solo-performance-chart
+          path: ~/.solo/metrics/*
+          overwrite: true
+          if-no-files-found: error

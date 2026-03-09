@@ -9,9 +9,11 @@
  */
 
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, CONTEXT, PORT_MAP] = process.argv;
+const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE] = process.argv;
 
 if (!NAMESPACE || !POD || !PORT_MAP) {
   console.error('Usage: persist-port-forward <namespace> <pod> <local> <remote> [context]');
@@ -25,7 +27,7 @@ let backoff: number = MIN_BACKOFF;
 let child: ChildProcessWithoutNullStreams | null = null;
 let stopping: boolean = false;
 
-function runKubectl(): Promise<number> {
+function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
   return new Promise((resolve): void => {
     const arguments_: string[] = ['port-forward', '-n', NAMESPACE];
     if (CONTEXT) {
@@ -36,7 +38,11 @@ function runKubectl(): Promise<number> {
 
     console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
-    child = spawn('kubectl', arguments_, {stdio: 'inherit'});
+    child = spawn(KUBECTL_EXECUTABLE, arguments_, {
+      env: {...process.env, PATH: `${kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+      stdio: 'inherit',
+      windowsHide: os.platform() === 'win32',
+    });
 
     child.on('error', (error): void => {
       console.error('Failed to start kubectl:', error);
@@ -58,8 +64,9 @@ function sleepSeconds(s: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const kubectlInstallationDirectory: string = process.argv[7] || '';
   while (!stopping) {
-    const rc: number = await runKubectl();
+    const rc: number = await runKubectl(kubectlInstallationDirectory);
     if (stopping) {
       break;
     }

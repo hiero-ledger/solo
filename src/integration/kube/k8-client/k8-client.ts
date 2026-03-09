@@ -34,6 +34,8 @@ import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
 import {type Optional} from '../../../types/index.js';
 import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
+import {type Rbacs} from '../resources/rbac/rbacs.js';
+import {K8ClientRbacs} from './resources/rbac/k8-client-rbacs.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -62,13 +64,18 @@ export class K8Client implements K8 {
   private k8Secrets: Secrets;
   private k8Ingresses: Ingresses;
   private k8Crds: Crds;
+  private k8Rbacs: Rbacs;
   private k8Manifests: K8ClientManifests;
 
   /**
    * Create a new k8Factory client for the given context, if context is undefined it will use the current context in kubeconfig
    * @param context - The context to create the k8Factory client for
+   * @param kubectlInstallationDirectory - Path to executable of kubectl
    */
-  public constructor(private readonly context: string) {
+  public constructor(
+    private readonly context: string,
+    private readonly kubectlInstallationDirectory: string,
+  ) {
     this.init(this.context);
   }
 
@@ -95,8 +102,8 @@ export class K8Client implements K8 {
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
     this.k8Contexts = new K8ClientContexts(this.kubeConfig);
     this.k8Services = new K8ClientServices(this.kubeClient);
-    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig);
-    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods);
+    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory);
+    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods, this.kubectlInstallationDirectory);
     this.k8Pvcs = new K8ClientPvcs(this.kubeClient);
     this.k8Leases = new K8ClientLeases(this.coordinationApiClient);
     this.k8Namespaces = new K8ClientNamespaces(this.kubeClient);
@@ -104,6 +111,7 @@ export class K8Client implements K8 {
     this.k8Secrets = new K8ClientSecrets(this.kubeClient);
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
     this.k8Crds = new K8ClientCrds(this.extensionApi);
+    this.k8Rbacs = new K8ClientRbacs(this.rbacApi);
     this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
 
     return this;
@@ -184,11 +192,15 @@ export class K8Client implements K8 {
     return this.k8Crds;
   }
 
-  public rbac(): k8s.RbacAuthorizationV1Api {
-    return this.rbacApi;
+  public rbac(): Rbacs {
+    return this.k8Rbacs;
   }
 
   public manifests(): K8ClientManifests {
     return this.k8Manifests;
+  }
+
+  public getKubectlExecutablePath(): string {
+    return this.kubectlInstallationDirectory;
   }
 }

@@ -23,7 +23,7 @@ export type SystemAccount = {
   privateKey?: string;
 };
 
-const defaultBalance: Hbar = Hbar.from(10_000, HbarUnit.Hbar);
+const defaultBalance: Hbar = Hbar.from(1_000_000, HbarUnit.Hbar);
 
 const ecdsaKeys: string[] = [
   '0x2c55a65b9ae99b5aee790f3f07634896627a26c9fd8460c97058b32579684b60',

@@ -33,9 +33,10 @@ export class ClusterTaskManager extends ShellRunner {
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanDependencyManager) protected readonly podmanDependencyManager: PodmanDependencyManager,
     @inject(InjectTokens.KindDependencyManager) protected readonly kindDependencyManager: KindDependencyManager,
-    @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+    @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory: K8Factory,
     @inject(InjectTokens.DependencyManager) protected readonly depManager: DependencyManager,
+    @inject(InjectTokens.KindInstallationDirectory) protected readonly kindInstallationDirectory: string,
   ) {
     super();
 
@@ -50,11 +51,16 @@ export class ClusterTaskManager extends ShellRunner {
     this.kindDependencyManager = patchInject(kindDependencyManager, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
-      InjectTokens.PodmanInstallationDir,
+      InjectTokens.PodmanInstallationDirectory,
       ClusterTaskManager.name,
     );
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, ClusterTaskManager.name);
     this.depManager = patchInject(depManager, InjectTokens.DependencyManager, ClusterTaskManager.name);
+    this.kindInstallationDirectory = patchInject(
+      kindInstallationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      ClusterTaskManager.name,
+    );
   }
 
   private sudoCallbacks(task: any): {
@@ -65,7 +71,7 @@ export class ClusterTaskManager extends ShellRunner {
     const onSudoRequested: (message: string) => void = (message: string): void => {
       task.title = message;
     };
-    const onSudoGranted: (message: string) => void = (message: string): void => {
+    const onSudoGranted: (message: string) => void = (_message: string): void => {
       task.title = originalTitle;
     };
     return {onSudoGranted, onSudoRequested};
@@ -75,7 +81,7 @@ export class ClusterTaskManager extends ShellRunner {
     return [
       {
         title: 'Install git, iptables...',
-        task: async (_, subTask) => {
+        task: async (_, _subTask) => {
           try {
             await this.run('git version');
           } catch {
@@ -92,7 +98,7 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install brew...',
-        task: async (_, subTask) => {
+        task: async (_, _subTask) => {
           const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
           if (!brewInstalled) {
             this.logger.info('Homebrew not found, installing Homebrew...');
@@ -104,7 +110,7 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install podman...',
-        task: async (_, subTask) => {
+        task: async (_, _subTask) => {
           try {
             const podmanVersion: string[] = await this.run('podman --version');
             this.logger.info(`Podman already installed: ${podmanVersion}`);
@@ -118,14 +124,25 @@ export class ClusterTaskManager extends ShellRunner {
       } as SoloListrTask<InitContext>,
       {
         title: 'Creating local cluster...',
-        task: async (context_, task) => {
+        task: async (_context, task) => {
           const whichPodman: string[] = await this.run('which podman');
           const podmanPath: string = whichPodman.join('').replace('/podman', '');
+          const sudoRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
+            [],
+            undefined,
+            undefined,
+            {
+              PATH:
+                `${this.podmanInstallationDirectory}${path.delimiter}` +
+                `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+            },
+          ];
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
+            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster`,
+            ...sudoRunOptions,
           );
 
           // Merge kubeconfig data from root user into normal user's kubeconfig
@@ -136,9 +153,20 @@ export class ClusterTaskManager extends ShellRunner {
             onSudoRequested,
             onSudoGranted,
             `cp /root/.kube/config ${temporaryDirectory}/kube-config-root`,
+            ...sudoRunOptions,
           );
-          await this.sudoRun(onSudoRequested, onSudoGranted, `chown ${user} ${temporaryDirectory}/kube-config-root`);
-          await this.sudoRun(onSudoRequested, onSudoGranted, `chmod 755 ${temporaryDirectory}/kube-config-root`);
+          await this.sudoRun(
+            onSudoRequested,
+            onSudoGranted,
+            `chown ${user} ${temporaryDirectory}/kube-config-root`,
+            ...sudoRunOptions,
+          );
+          await this.sudoRun(
+            onSudoRequested,
+            onSudoGranted,
+            `chmod 755 ${temporaryDirectory}/kube-config-root`,
+            ...sudoRunOptions,
+          );
 
           const rootYamlData: string = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
           const rootConfig: Record<string, AnyObject> = yaml.parse(rootYamlData) as Record<string, AnyObject>;
@@ -200,17 +228,41 @@ export class ClusterTaskManager extends ShellRunner {
           {
             title: 'Create Podman machine...',
             task: async () => {
+              const podmanRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
+                [],
+                undefined,
+                undefined,
+                {
+                  PATH: `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+                },
+              ];
               await this.podmanDependencyManager.setupConfig();
-              const podmanExecutable: string = await this.podmanDependencyManager.getExecutablePath();
-              await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
-              await this.run(`${podmanExecutable} machine start`);
+              const podmanExecutable: string = await this.podmanDependencyManager.getExecutable();
+              try {
+                await this.run(
+                  `${podmanExecutable} machine inspect ${constants.PODMAN_MACHINE_NAME}`,
+                  ...podmanRunOptions,
+                );
+              } catch (error) {
+                if (error.message.includes('VM does not exist')) {
+                  await this.run(
+                    `${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=16384`, // 16GB
+                    ...podmanRunOptions,
+                  );
+                  await this.run(
+                    `${podmanExecutable} machine start ${constants.PODMAN_MACHINE_NAME}`,
+                    ...podmanRunOptions,
+                  );
+                } else {
+                  throw new SoloError(`Failed to inspect Podman machine: ${error.message}`);
+                }
+              }
             },
             skip: (): boolean => skipPodmanTasks,
           } as SoloListrTask<InitContext>,
           {
             title: 'Configure kind to use podman...',
             task: async () => {
-              process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
               process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
             },
             skip: (): boolean => skipPodmanTasks,
@@ -226,8 +278,8 @@ export class ClusterTaskManager extends ShellRunner {
   private defaultCreateClusterTask(parentTask): SoloListrTask<InitContext> {
     return {
       title: 'Creating local cluster...',
-      task: async context_ => {
-        const kindExecutable: string = await this.kindDependencyManager.getExecutablePath();
+      task: async _context => {
+        const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
 
@@ -237,8 +289,6 @@ export class ClusterTaskManager extends ShellRunner {
   }
 
   public setupLocalClusterTasks(): SoloListrTask<InitContext>[] {
-    const self = this;
-
     return [
       {
         title: 'Install Kind',
@@ -253,7 +303,7 @@ export class ClusterTaskManager extends ShellRunner {
 
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
-          const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
+          const subTasks = this.depManager.taskCheckDependencies<InitContext>(deps);
 
           // set up the sub-tasks
           return task.newListr(subTasks, {

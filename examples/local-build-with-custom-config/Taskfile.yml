@@ -18,10 +18,12 @@ vars:
   CONTEXT: "kind-localbuild-with-custom-config-cluster"
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
 
-  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+  CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
-  CN_VERSION: "0.63.0"
+  CN_VERSION: '{{default "v0.70.0" .CONSENSUS_NODE_VERSION}}'
   RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
   MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.143.0"
   EXPLORER_VERSION_FLAG: "--explorer-version 25.0.0"
@@ -116,7 +118,7 @@ tasks:
           {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
 
       - cmd: |
-          $SOLO_COMMAND deployment diagnostics logs --deployment {{ .DEPLOYMENT }} 
+          $SOLO_COMMAND deployment diagnostics logs 
 
   destroy:
     desc: Destroy the Solo network with block node

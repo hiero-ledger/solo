@@ -29,7 +29,7 @@ export class InitCommand extends BaseCommand {
 
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
-    @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+    @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
     @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.ClusterTaskManager) protected readonly clusterTaskManager: ClusterTaskManager,
@@ -41,14 +41,12 @@ export class InitCommand extends BaseCommand {
     this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, InitCommand.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
-      InjectTokens.PodmanInstallationDir,
+      InjectTokens.PodmanInstallationDirectory,
       InitCommand.name,
     );
   }
 
   public setupSystemFilesTasks(argv: any): SoloListrTask<InitContext>[] {
-    const self = this;
-
     let cacheDirectory: string = this.configManager.getFlag<string>(flags.cacheDir) as string;
     if (!cacheDirectory) {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
@@ -58,9 +56,9 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Setup home directory and cache',
         task: async (context_, task) => {
-          self.configManager.update(argv);
+          this.configManager.update(argv);
           context_.dirs = this.setupHomeDirectory();
-          let username: string = self.configManager.getFlag<string>(flags.username);
+          let username: string = this.configManager.getFlag<string>(flags.username);
           if (username && !flags.username.validate(username)) {
             username = await flags.username.prompt(task, username);
           }
@@ -99,21 +97,21 @@ export class InitCommand extends BaseCommand {
           }
 
           if (argv.dev) {
-            self.logger.showList('Home Directories', context_.dirs);
-            self.logger.showList('Chart Repository', context_.repoURLs);
+            this.logger.showList('Home Directories', context_.dirs);
+            this.logger.showList('Chart Repository', context_.repoURLs);
           }
 
           if (directoryCreated) {
-            self.logger.showUser(
+            this.logger.showUser(
               chalk.grey('\n***************************************************************************************'),
             );
-            self.logger.showUser(
+            this.logger.showUser(
               chalk.grey(
                 `Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: ${constants.SOLO_HOME_DIR}\n` +
                   "If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.",
               ),
             );
-            self.logger.showUser(
+            this.logger.showUser(
               chalk.grey('***************************************************************************************'),
             );
           }
@@ -123,8 +121,6 @@ export class InitCommand extends BaseCommand {
   }
 
   public installDependenciesTasks(options: InitDependenciesOptions): SoloListrTask<InitContext>[] {
-    const self = this;
-
     if (!options.deps || options.deps.length === 0) {
       return [];
     }
@@ -133,7 +129,7 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Check dependencies',
         task: (_, task) => {
-          const subTasks = self.depManager.taskCheckDependencies<InitContext>(options.deps);
+          const subTasks = this.depManager.taskCheckDependencies<InitContext>(options.deps);
 
           // set up the sub-tasks
           return task.newListr(subTasks, {
@@ -168,7 +164,7 @@ export class InitCommand extends BaseCommand {
       [
         ...this.setupSystemFilesTasks(argv),
         ...this.installDependenciesTasks({
-          deps: [constants.HELM, constants.KUBECTL],
+          deps: [...constants.BASE_DEPENDENCIES],
           createCluster: false,
         }),
       ],
@@ -205,7 +201,6 @@ export class InitCommand extends BaseCommand {
    * @returns A object representing the Yargs command definition
    */
   public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
     return {
       command: InitCommand.COMMAND_NAME,
       desc: 'Initialize local environment',
@@ -214,8 +209,7 @@ export class InitCommand extends BaseCommand {
         flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
       },
       handler: async (argv: any) => {
-        await self
-          .init(argv)
+        await this.init(argv)
           .then(r => {
             if (!r) {
               throw new SoloError('Error running init, expected return value to be true');

@@ -11,6 +11,10 @@ import {DeploymentCommandDefinition} from '../../../../src/commands/command-defi
 import {Argv} from '../../../helpers/argv-wrapper.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {getEnvironmentVariable} from '../../../../src/core/constants.js';
+import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {Templates} from '../../../../src/core/templates.js';
+import {type NodeAlias} from '../../../../src/types/aliases.js';
 
 export class BaseCommandTest {
   public static newArgv(): string[] {
@@ -29,7 +33,8 @@ export class BaseCommandTest {
   ): string[] {
     argv.push(BaseCommandTest.optionFromFlag(Flags.devMode), BaseCommandTest.optionFromFlag(Flags.quiet));
 
-    if (shouldSetChartDirectory && process.env.SOLO_CHARTS_DIR && process.env.SOLO_CHARTS_DIR !== '') {
+    const soloChartsDirectory: string = getEnvironmentVariable('SOLO_CHARTS_DIR');
+    if (shouldSetChartDirectory && soloChartsDirectory && soloChartsDirectory !== '') {
       argv.push(BaseCommandTest.optionFromFlag(Flags.chartDirectory), process.env.SOLO_CHARTS_DIR);
     }
 
@@ -57,7 +62,7 @@ export class BaseCommandTest {
       argv.setArg(Flags.deployment, deployment);
       argv.setCommand(
         DeploymentCommandDefinition.COMMAND_NAME,
-        DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+        DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
         DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
       );
 
@@ -73,15 +78,58 @@ export class BaseCommandTest {
     }
   }
 
+  public static async collectJavaFlightRecorderLogs(
+    testName: string,
+    testLogger: SoloLogger,
+    deployment: string,
+    nodeAlias: string,
+  ): Promise<void> {
+    try {
+      testLogger.info(`${testName}: Collecting jfr logs...`);
+
+      // Create proper Argv object
+      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName));
+      argv.setArg(Flags.deployment, deployment);
+      argv.setArg(Flags.nodeAlias, nodeAlias);
+      argv.setCommand(
+        ConsensusCommandDefinition.COMMAND_NAME,
+        ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        ConsensusCommandDefinition.COLLECT_JFR,
+      );
+
+      const nodeCmd: NodeCommand = container.resolve<NodeCommand>(InjectTokens.NodeCommand);
+      await nodeCmd.handlers.collectJavaFlightRecorderLogs(argv.build());
+
+      testLogger.info(`${testName}: Java Flight Recorder logs for node ${nodeAlias} collected successfully`);
+    } catch (error: unknown) {
+      testLogger.error(`${testName}: Error collecting Java Flight Recorder logs for node  ${nodeAlias}: ${error}`);
+      if (error instanceof Error && error.stack) {
+        testLogger.error(`${testName}: Stack trace:\n${error.stack}`);
+      }
+    }
+  }
+
   /**
    * Sets up an after() hook for diagnostic log collection in E2E tests.
    * Call this within your test suite describe block.
    */
-  public static setupDiagnosticLogCollection(options: BaseTestOptions): void {
+  public static async setupDiagnosticLogCollection(options: BaseTestOptions): Promise<void> {
     const {testName, testLogger, deployment} = options;
+    await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
+  }
 
-    after(async (): Promise<void> => {
-      await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
-    });
+  /**
+   * Sets up an after() hook for diagnostic log collection in E2E tests.
+   * Call this within your test suite describe block.
+   */
+  public static setupJavaFlightRecorderLogCollection(options: BaseTestOptions): Promise<void[]> {
+    const {testName, testLogger, deployment} = options;
+    const promises: Promise<void>[] = [];
+    for (let index: number = 0; index < options.consensusNodesCount; index++) {
+      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
+      promises.push(BaseCommandTest.collectJavaFlightRecorderLogs(testName, testLogger, deployment, nodeAlias));
+    }
+
+    return Promise.all(promises);
   }
 }

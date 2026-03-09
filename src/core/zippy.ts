@@ -26,7 +26,7 @@ export class Zippy {
    * @param [verbose] - if true, log the progress
    * @returns path to the output zip file
    */
-  async zip(sourcePath: string, destinationPath: string, verbose = false) {
+  async zip(sourcePath: string, destinationPath: string, _verbose = false) {
     if (!sourcePath) {
       throw new MissingArgumentError('srcPath is required');
     }
@@ -56,8 +56,6 @@ export class Zippy {
   }
 
   unzip(sourcePath: string, destinationPath: string, verbose = false) {
-    const self = this;
-
     if (!sourcePath) {
       throw new MissingArgumentError('srcPath is required');
     }
@@ -74,7 +72,7 @@ export class Zippy {
 
       for (const zipEntry of zip.getEntries()) {
         if (verbose) {
-          self.logger.debug(`Extracting file: ${zipEntry.entryName} -> ${destinationPath}/${zipEntry.entryName} ...`, {
+          this.logger.debug(`Extracting file: ${zipEntry.entryName} -> ${destinationPath}/${zipEntry.entryName} ...`, {
             src: zipEntry.entryName,
             dst: `${destinationPath}/${zipEntry.entryName}`,
           });
@@ -82,7 +80,7 @@ export class Zippy {
 
         zip.extractEntryTo(zipEntry, destinationPath, true, true, true, zipEntry.entryName);
         if (verbose) {
-          self.logger.showUser(
+          this.logger.showUser(
             chalk.green('OK'),
             `Extracted: ${zipEntry.entryName} -> ${destinationPath}/${zipEntry.entryName}`,
           );

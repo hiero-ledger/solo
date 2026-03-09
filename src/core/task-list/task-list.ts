@@ -9,7 +9,6 @@ import {
   type ListrRendererValue,
   type ListrSecondaryRendererValue,
   type ListrTask,
-  type ListrContext,
 } from 'listr2';
 import {type OneShotSingleDeployContext} from '../../commands/one-shot/one-shot-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
@@ -18,11 +17,11 @@ import {type AnyListrContext} from '../../types/aliases.js';
 
 export type TaskNodeType = {
   taskListWrapper: TaskListWrapper;
-  children?: Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[];
+  children?: Listr<AnyListrContext, any, any> | Listr<AnyListrContext, any, any>[];
 };
 
 export interface TaskList<
-  ListrContext,
+  _ListrContext,
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
 > {

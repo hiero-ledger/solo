@@ -29,6 +29,7 @@ export default [
       'docs/**/*', // Documentation files
       'examples/**/*', // Example files
       'dist/**/*', // Distribution files
+      'scripts/metrics-plotter/**/*', // External tool files
       'node_modules/**/*', // Node modules
       'coverage/**/*', // Coverage files
       '**/*.*js', // JavaScript files
@@ -181,7 +182,7 @@ export default [
       '@typescript-eslint/explicit-member-accessibility': 'warn',
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
-        'warn',
+        'error',
         {
           vars: 'all',
           varsIgnorePattern: '^_',
@@ -191,7 +192,7 @@ export default [
       ],
       'no-invalid-this': ['off', {}],
       '@typescript-eslint/no-unused-expressions': 'off',
-      'curly': ['error', 'all'],
+      curly: ['error', 'all'],
       '@typescript-eslint/no-extraneous-class': [
         'error',
         {
@@ -216,9 +217,7 @@ export default [
       'unicorn/error-message': 'warn', // TODO error
       'unicorn/import-style': 'warn', // TODO error
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
-      'unicorn/no-await-expression-member': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
-      'unicorn/prefer-logical-operator-over-ternary': 'warn', // TODO error
     },
   },
   {

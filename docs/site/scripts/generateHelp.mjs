@@ -66,7 +66,7 @@ async function getSubcommands(cmd) {
  */
 async function getThirdLevelCommands(cmd, subcmd) {
   try {
-    const output = await runCapture(`npm run solo-test --silent -- ${cmd} ${subcmd} help`);
+    const output = await runCapture(`npm run solo-test --silent -- ${cmd} ${subcmd} --help`);
     return output
       .split("\n")
       .filter((l) => l.trim().startsWith(`${cmd} ${subcmd} `))

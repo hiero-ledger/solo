@@ -10,18 +10,12 @@ import {Zippy} from '../zippy.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
-import path from 'node:path';
 import fs from 'node:fs';
 import {SoloError} from '../errors/solo-error.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const HELM_RELEASE_BASE_URL: string = 'https://get.helm.sh';
 const HELM_ARTIFACT_TEMPLATE: string = 'helm-%s-%s-%s.%s';
-
-// Helm uses different file extensions based on OS
-const HELM_ARTIFACT_EXT: Map<string, string> = new Map()
-  .set(constants.OS_DARWIN, 'tar.gz')
-  .set(constants.OS_LINUX, 'tar.gz')
-  .set(constants.OS_WINDOWS, 'zip');
 
 /**
  * Helm dependency manager installs or uninstalls helm client at SOLO_HOME_DIR/bin directory
@@ -29,44 +23,37 @@ const HELM_ARTIFACT_EXT: Map<string, string> = new Map()
 @injectable()
 export class HelmDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) downloader?: PackageDownloader,
-    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
-    @inject(InjectTokens.HelmInstallationDir) installationDirectory?: string,
-    @inject(InjectTokens.OsPlatform) osPlatform?: NodeJS.Platform,
-    @inject(InjectTokens.OsArch) osArch?: string,
-    @inject(InjectTokens.HelmVersion) helmVersion?: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.HelmInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.HelmVersion) helmVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.HelmInstallationDir,
-      HelmDependencyManager.name,
-    );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, HelmDependencyManager.name);
-    osArch = patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name);
-    helmVersion = patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name);
-
-    // Call the base constructor with the Helm-specific parameters
     super(
-      downloader,
-      installationDirectory,
-      osPlatform,
-      osArch,
-      helmVersion || version.HELM_VERSION,
+      patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.HelmInstallationDirectory, HelmDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name),
+      patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name) || version.HELM_VERSION,
       constants.HELM,
       HELM_RELEASE_BASE_URL,
     );
+    // Patch injected values to handle undefined values
 
-    this.zippy = patchInject(zippy, InjectTokens.Zippy, HelmDependencyManager.name);
+    this.zippy = patchInject(this.zippy, InjectTokens.Zippy, HelmDependencyManager.name);
   }
 
   /**
    * Get the Helm artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    const fileExtension: string = HELM_ARTIFACT_EXT.get(this.osPlatform) || 'tar.gz';
-    return util.format(HELM_ARTIFACT_TEMPLATE, this.getRequiredVersion(), this.osPlatform, this.osArch, fileExtension);
+    const fileExtension: string = OperatingSystem.isWin32() ? 'zip' : 'tar.gz';
+    return util.format(
+      HELM_ARTIFACT_TEMPLATE,
+      this.getRequiredVersion(),
+      OperatingSystem.getFormattedPlatform(),
+      this.osArch,
+      fileExtension,
+    );
   }
 
   /**
@@ -74,25 +61,28 @@ export class HelmDependencyManager extends BaseDependencyManager {
    */
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Extract the archive
-    if (this.osPlatform === constants.OS_WINDOWS) {
+    if (OperatingSystem.isWin32()) {
       this.zippy!.unzip(packageFilePath, temporaryDirectory);
     } else {
       this.zippy!.untar(packageFilePath, temporaryDirectory);
     }
 
     // Find the Helm executable inside the extracted directory
-    const helmExecutablePath: string = path.join(
+    const helmExecutablePath: string = PathEx.join(
       temporaryDirectory,
-      `${this.osPlatform}-${this.osArch}`,
-      this.osPlatform === constants.OS_WINDOWS ? `${constants.HELM}.exe` : constants.HELM,
+      `${OperatingSystem.getFormattedPlatform()}-${this.osArch}`,
+      this.executableName,
     );
 
     // Ensure the extracted file exists
     if (!fs.existsSync(helmExecutablePath)) {
-      const executablePath: string = PathEx.join(
-        temporaryDirectory,
-        this.osPlatform === constants.OS_WINDOWS ? `${constants.HELM}.exe` : constants.HELM,
-      );
+      const executablePath: string = PathEx.join(temporaryDirectory, this.executableName);
+
+      if (fs.existsSync(executablePath)) {
+        fs.rmSync(executablePath);
+      }
+
+      fs.cpSync(helmExecutablePath, executablePath);
 
       if (!fs.existsSync(executablePath)) {
         throw new Error(`Helm executable not found in extracted archive: ${executablePath}`);
@@ -104,9 +94,9 @@ export class HelmDependencyManager extends BaseDependencyManager {
     return [helmExecutablePath];
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`${executablePath} version --short`);
+      const output: string[] = await this.run(`"${executableWithPath}" version --short`);
       const parts: string[] = output[0].split('+');
       const versionOnly: string = parts[0];
       this.logger.info(`Helm version: ${versionOnly}`);

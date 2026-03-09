@@ -11,7 +11,7 @@ export interface Pods {
    * @param podReference - the reference to the pod
    * @returns a pod object
    */
-  readByReference(podReference: PodReference): Pod;
+  readByReference(podReference: PodReference | null): Pod;
 
   /**
    * Get a pod by name
@@ -78,4 +78,19 @@ export interface Pods {
     containerCommand: string[],
     startupProbeCommand: string[],
   ): Promise<Pod>;
+
+  /**
+   * Read logs for the given pod across all containers.
+   * @param podReference - the reference to the pod
+   * @param timestamps - include timestamps in output
+   * @returns logs as a single string
+   */
+  readLogs(podReference: PodReference, timestamps?: boolean): Promise<string>;
+
+  /**
+   * Build a describe-like textual report for a pod, including pod details and related events.
+   * @param podReference - the reference to the pod
+   * @returns describe-like output string
+   */
+  readDescribe(podReference: PodReference): Promise<string>;
 }

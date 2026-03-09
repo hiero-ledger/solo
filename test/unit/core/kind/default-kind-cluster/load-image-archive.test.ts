@@ -53,7 +53,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
-    const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
+    const result = await client.loadImageArchive(imageName);
 
     expect(result).to.be.instanceOf(LoadImageArchiveResponse);
 
@@ -68,7 +68,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
       return Promise.resolve(new responseClass(''));
     });
 
-    const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
+    const result = await client.loadImageArchive(imageName);
 
     expect(result).to.be.instanceOf(LoadImageArchiveResponse);
 
@@ -146,7 +146,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
-    const result: LoadImageArchiveResponse = await client.loadImageArchive(imageName);
+    await client.loadImageArchive(imageName);
 
     // Verify the path was passed correctly
     expect(builderArguments.get('name')).to.equal(imageName);

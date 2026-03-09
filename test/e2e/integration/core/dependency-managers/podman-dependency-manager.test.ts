@@ -9,9 +9,14 @@ import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-uti
 import * as version from '../../../../../version.js';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../src/core/constants.js';
+import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import {container} from 'tsyringe-neo';
+import {platform} from 'node:process';
+import {ShellRunner} from '../../../../../src/core/shell-runner.js';
 
 // Test data constants
-const PODMAN_VERSION: string = '4.6.1';
+const PODMAN_VERSION: string = version.PODMAN_VERSION.replace('v', '');
 const PODMAN_LOW_VERSION: string = '0.1.0';
 const MOCK_RELEASE_TAG: string = `v${PODMAN_VERSION}`;
 const MOCK_RELEASE_URL: string = `https://github.com/containers/podman/releases/tag/${MOCK_RELEASE_TAG}`;
@@ -25,13 +30,29 @@ const MOCK_DARWIN_ARM64_DOWNLOAD_URL: string = `${MOCK_DOWNLOAD_URL_BASE}/${MOCK
 const MOCK_CHECKSUM: string = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const MOCK_CHECKSUM_WITH_PREFIX: string = `sha256:${MOCK_CHECKSUM}`;
 
-// Mock GitHub API response for fetchLatestReleaseInfo
+// Mock GitHub API response for fetchReleaseInfo
 const MOCK_GITHUB_RELEASES_RESPONSE: {
   ok: boolean;
   json: () => Promise<any[]>;
 } = {
   ok: true,
-  json: async () => [
+  json: async (): Promise<
+    {
+      tag_name: string;
+      html_url: string;
+      assets: (
+        | {name: string; browser_download_url: string; content_type: string; size: number; digest: string}
+        | {
+            name: string;
+            browser_download_url: string;
+            content_type: string;
+            size: number;
+            digest: string;
+          }
+        | {name: string; browser_download_url: string; content_type: string; size: number; digest: string}
+      )[];
+    }[]
+  > => [
     {
       tag_name: MOCK_RELEASE_TAG,
       html_url: MOCK_RELEASE_URL,
@@ -68,7 +89,13 @@ const MOCK_GITHUB_RELEASES_NO_MATCHING_ASSET: {
   json: () => Promise<any[]>;
 } = {
   ok: true,
-  json: async () => [
+  json: async (): Promise<
+    {
+      tag_name: string;
+      html_url: string;
+      assets: {name: string; browser_download_url: string; content_type: string; size: number; digest: string}[];
+    }[]
+  > => [
     {
       tag_name: MOCK_RELEASE_TAG,
       html_url: MOCK_RELEASE_URL,
@@ -100,27 +127,33 @@ const MOCK_GITHUB_EMPTY_RELEASES: {
   json: () => Promise<any[]>;
 } = {
   ok: true,
-  json: async () => [],
+  json: async (): Promise<any[]> => [],
 };
 
-describe('PodmanDependencyManager', () => {
+describe('PodmanDependencyManager', (): void => {
   const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
+  const originalPlatform: NodeJS.Platform = platform;
+  let sandbox: sinon.SinonSandbox;
 
-  before(() => {
+  before((): void => {
     fs.mkdirSync(temporaryDirectory, {recursive: true});
+    sandbox = sinon.createSandbox();
   });
 
-  after(() => {
+  after((): void => {
     if (fs.existsSync(temporaryDirectory)) {
       fs.rmSync(temporaryDirectory, {recursive: true});
     }
   });
 
-  it('should return podman version', () => {
-    const podmanDependencyManager = new PodmanDependencyManager(
+  afterEach((): void => {
+    sandbox.restore();
+  });
+
+  it('should return podman version', (): void => {
+    const podmanDependencyManager: PodmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -129,11 +162,10 @@ describe('PodmanDependencyManager', () => {
     expect(podmanDependencyManager.getRequiredVersion()).to.equal(version.PODMAN_VERSION);
   });
 
-  it('should be able to check when podman not installed', () => {
-    const podmanDependencyManager = new PodmanDependencyManager(
+  it('should be able to check when podman not installed', (): void => {
+    const podmanDependencyManager: PodmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -142,56 +174,59 @@ describe('PodmanDependencyManager', () => {
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
-  it('should be able to check when podman is installed', async () => {
-    const podmanDependencyManager = new PodmanDependencyManager(
+  it('should be able to check when podman is installed', async (): Promise<void> => {
+    const podmanDependencyManager: PodmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
       undefined,
       undefined,
       undefined,
       undefined,
-      undefined,
     );
-    fs.writeFileSync(await podmanDependencyManager.getExecutablePath(), '');
+    fs.writeFileSync(PathEx.join(temporaryDirectory, constants.PODMAN), '');
+    sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.PODMAN}`).alwaysReturned(false);
     expect(podmanDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
-  describe('PodmanDependencyManager system methods', () => {
+  describe('PodmanDependencyManager system methods', (): void => {
     let podmanDependencyManager: PodmanDependencyManager;
-    let runStub: SinonStub;
     let fetchStub: SinonStub;
+    let originalFetch: typeof globalThis.fetch;
 
-    beforeEach(() => {
+    beforeEach((): void => {
       podmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        process.platform,
         process.arch,
         undefined,
         undefined,
         undefined,
       );
 
-      runStub = sinon.stub(podmanDependencyManager, 'run');
-
-      // Mock fetch for fetchLatestReleaseInfo
-      globalThis.fetch = sinon.stub() as any;
+      // Mock fetch for fetchReleaseInfo
+      originalFetch = globalThis.fetch;
+      globalThis.fetch = sandbox.stub() as any;
       fetchStub = globalThis.fetch as SinonStub;
     });
 
-    afterEach(() => {
-      runStub.restore();
-      sinon.restore();
+    afterEach((): void => {
+      globalThis.fetch = originalFetch;
+      container.register(InjectTokens.OsPlatform, {useValue: originalPlatform});
+      sandbox.restore();
     });
 
-    it('getVersion should return version from podman --version output', async () => {
-      runStub.resolves([`podman version ${PODMAN_VERSION}`]);
-      const version: string = await podmanDependencyManager.getVersion('/usr/local/bin/podman');
+    it('getVersion should return version from podman --version output', async (): Promise<void> => {
+      const executableWithPath: string = '/usr/local/bin/podman';
+      sandbox
+        .stub(ShellRunner.prototype, 'run')
+        .withArgs(`"${executableWithPath}" --version`)
+        .resolves([`podman version ${PODMAN_VERSION}`]);
+      const version: string = await podmanDependencyManager.getVersion(executableWithPath);
       expect(version).to.equal(PODMAN_VERSION);
     });
 
-    it('getVersion should throw error when command fails', async () => {
-      runStub.rejects(new Error('Command failed'));
+    it('getVersion should throw error when command fails', async (): Promise<void> => {
+      sandbox.stub(ShellRunner.prototype, 'run').rejects(new Error('Command failed'));
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
@@ -200,8 +235,8 @@ describe('PodmanDependencyManager', () => {
       }
     });
 
-    it('getVersion should throw error when version pattern not found', async () => {
-      runStub.resolves(['Invalid output']);
+    it('getVersion should throw error when version pattern not found', async (): Promise<void> => {
+      sandbox.stub(ShellRunner.prototype, 'run').resolves(['Invalid output']);
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
@@ -210,24 +245,29 @@ describe('PodmanDependencyManager', () => {
       }
     });
 
-    it('shouldInstall should return false when Docker is installed', async () => {
-      runStub.withArgs(`${constants.DOCKER} --version`).resolves(['Docker version 20.10.8']);
+    it('shouldInstall should return false when Docker is installed', async (): Promise<void> => {
+      sandbox
+        .stub(ShellRunner.prototype, 'run')
+        .withArgs(`"${constants.DOCKER}" --version`)
+        .resolves(['Docker version 20.10.8']);
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
     });
 
-    it('shouldInstall should return true when Docker is not installed', async () => {
-      runStub.withArgs(`${constants.DOCKER} --version`).rejects(new Error('Docker not found'));
+    it('shouldInstall should return true when Docker is not installed', async (): Promise<void> => {
+      sandbox
+        .stub(ShellRunner.prototype, 'run')
+        .withArgs(`"${constants.DOCKER}" --version`)
+        .rejects(new Error('Docker not found'));
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
     });
 
-    it('getArch should normalize architecture names', () => {
+    it('getArch should normalize architecture names', (): void => {
       // Test x64 to amd64 conversion
       let manager: PodmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        'linux',
         'x64',
         undefined,
         undefined,
@@ -237,47 +277,31 @@ describe('PodmanDependencyManager', () => {
       expect(manager.getArch()).to.equal('amd64');
 
       // Test arm64 conversion
-      manager = new PodmanDependencyManager(
-        undefined,
-        temporaryDirectory,
-        'linux',
-        'arm64',
-        undefined,
-        undefined,
-        undefined,
-      );
+      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'arm64', undefined, undefined, undefined);
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
 
       // Test aarch64 to arm64 conversion
-      manager = new PodmanDependencyManager(
-        undefined,
-        temporaryDirectory,
-        'linux',
-        'aarch64',
-        undefined,
-        undefined,
-        undefined,
-      );
+      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'aarch64', undefined, undefined, undefined);
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
     });
 
-    it('fetchLatestReleaseInfo should parse GitHub API response correctly', async () => {
+    it('fetchReleaseInfo should parse GitHub API response correctly', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_RELEASES_RESPONSE);
+      container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_LINUX});
 
       podmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        'linux',
         'x64',
         undefined,
         undefined,
         undefined,
       );
 
-      // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-      const releaseInfo = await podmanDependencyManager.fetchLatestReleaseInfo();
+      // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+      const releaseInfo: ReleaseInfo = await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.downloadUrl).to.equal(MOCK_DOWNLOAD_URL_BASE);
       expect(releaseInfo.assetName).to.equal(MOCK_LINUX_ASSET_NAME);
@@ -285,36 +309,36 @@ describe('PodmanDependencyManager', () => {
       expect(releaseInfo.version).to.equal(PODMAN_VERSION);
     });
 
-    it('fetchLatestReleaseInfo should handle API error', async () => {
+    it('fetchReleaseInfo should handle API error', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_ERROR_RESPONSE);
 
       try {
-        // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-        await podmanDependencyManager.fetchLatestReleaseInfo();
+        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('GitHub API request failed with status 404');
       }
     });
 
-    it('fetchLatestReleaseInfo should handle empty releases array', async () => {
+    it('fetchReleaseInfo should handle empty releases array', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_EMPTY_RELEASES);
 
       try {
-        // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-        await podmanDependencyManager.fetchLatestReleaseInfo();
+        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('No releases found');
       }
     });
 
-    it('fetchLatestReleaseInfo should handle no matching asset', async () => {
+    it('fetchReleaseInfo should handle no matching asset', async (): Promise<void> => {
       fetchStub.resolves(MOCK_GITHUB_RELEASES_NO_MATCHING_ASSET);
 
       try {
-        // @ts-expect-error TS2341: Property fetchLatestReleaseInfo is private
-        await podmanDependencyManager.fetchLatestReleaseInfo();
+        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error.message).to.include('No matching asset found for');
@@ -322,76 +346,71 @@ describe('PodmanDependencyManager', () => {
     });
   });
 
-  describe('when podman is installed globally', () => {
+  describe('when podman is installed globally', (): void => {
     let podmanDependencyManager: PodmanDependencyManager;
     let runStub: SinonStub;
-    let cpSyncStub: SinonStub;
-    let chmodSyncStub: SinonStub;
     let existsSyncStub: SinonStub;
-    let rmSyncStub: SinonStub;
     let fetchStub: SinonStub;
+    let originalFetch: typeof globalThis.fetch;
 
-    beforeEach(() => {
+    beforeEach((): void => {
       podmanDependencyManager = new PodmanDependencyManager(
         undefined,
         temporaryDirectory,
-        process.platform,
         process.arch,
         undefined,
         undefined,
         undefined,
       );
       podmanDependencyManager.uninstallLocal();
-      runStub = sinon.stub(podmanDependencyManager, 'run');
+      runStub = sandbox.stub(podmanDependencyManager, 'run');
 
-      // Mock fetch for fetchLatestReleaseInfo
-      globalThis.fetch = sinon.stub() as any;
+      // Mock fetch for fetchReleaseInfo
+      originalFetch = globalThis.fetch;
+      globalThis.fetch = sandbox.stub() as any;
       fetchStub = globalThis.fetch as SinonStub;
 
       // Configure fetch to return valid mock response
       fetchStub.resolves(MOCK_GITHUB_RELEASES_RESPONSE);
 
       // Add stubs for file system operations
-      cpSyncStub = sinon.stub(fs, 'cpSync').returns();
-      chmodSyncStub = sinon.stub(fs, 'chmodSync').returns();
-      existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
-      rmSyncStub = sinon.stub(fs, 'rmSync').returns();
+      sandbox.stub(fs, 'cpSync').returns();
+      sandbox.stub(fs, 'chmodSync').returns();
+      existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
+      sandbox.stub(fs, 'rmSync').returns();
     });
 
-    afterEach(() => {
-      runStub.restore();
-      cpSyncStub.restore();
-      chmodSyncStub.restore();
-      existsSyncStub.restore();
-      rmSyncStub.restore();
-      sinon.restore();
+    afterEach((): void => {
+      globalThis.fetch = originalFetch;
+      sandbox.restore();
     });
 
-    it('should prefer the global installation if it meets the requirements', async () => {
-      sinon.stub(podmanDependencyManager, 'shouldInstall').resolves(true);
+    it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
+      sandbox.stub(podmanDependencyManager, 'shouldInstall').resolves(true);
 
       runStub.withArgs('which podman').resolves(['/usr/local/bin/podman']);
-      runStub.withArgs('/usr/local/bin/podman --version').resolves([`podman version ${version.PODMAN_VERSION}`]);
-      runStub.withArgs(`${temporaryDirectory}/podman --version`).resolves([`podman version ${version.PODMAN_VERSION}`]);
+      runStub.withArgs('"/usr/local/bin/podman" --version').resolves([`podman version ${version.PODMAN_VERSION}`]);
+      runStub
+        .withArgs(`"${temporaryDirectory}/podman" --version`)
+        .resolves([`podman version ${version.PODMAN_VERSION}`]);
       existsSyncStub.withArgs(`${temporaryDirectory}/podman`).returns(false);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await podmanDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.true;
 
+      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.PODMAN}`).alwaysReturned(false);
       expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
 
-      // Verify that the file system operations were called
-      expect(cpSyncStub.calledOnce).to.be.true;
       // Should return global path since it meets requirements
-      expect(await podmanDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/podman');
+      expect(await podmanDependencyManager.getExecutable()).to.equal(constants.PODMAN);
     });
 
-    it('should install podman locally if the global installation does not meet the requirements', async () => {
+    it('should install podman locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which podman').resolves(['/usr/local/bin/podman']);
-      runStub.withArgs('/usr/local/bin/podman --version').resolves([`podman version ${PODMAN_LOW_VERSION}`]);
+      runStub.withArgs('"/usr/local/bin/podman" --version').resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       runStub
-        .withArgs(`${PathEx.join(temporaryDirectory, 'podman')} --version`)
+        .withArgs(`"${PathEx.join(temporaryDirectory, 'podman')}" --version`)
         .resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'podman')).returns(true);
 
@@ -401,7 +420,7 @@ describe('PodmanDependencyManager', () => {
 
       expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'podman'))).to.be.ok;
-      expect(await podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
+      expect(await podmanDependencyManager.getExecutable()).to.equal(constants.PODMAN);
     });
   });
 });

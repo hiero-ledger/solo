@@ -75,12 +75,6 @@ describe('DefaultKindClient - exportKubeConfig', () => {
   });
 
   it('should work when no cluster name is provided', async () => {
-    // Create a spy for argument method
-    const argumentSpy: SinonSpy<[name: string, value: string], KindExecutionBuilder> = sinon.spy(
-      KindExecutionBuilder.prototype,
-      'argument',
-    );
-
     // Output with default 'kind' cluster name
     executionStub.responseAs.callsFake((responseClass: any) => {
       const output = 'Set kubectl context to "kind-kind"';

@@ -29,6 +29,7 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {type OneShotState} from '../core/one-shot-state.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {AnyListrContext} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -49,6 +50,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.TaskList)
     protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
+    @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
   ) {
     super();
 
@@ -62,6 +64,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
+    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
   /**
@@ -231,14 +234,12 @@ export abstract class BaseCommand extends ShellRunner {
         constants.SOLO_VALUES_DIR,
       ];
     }
-    const self: this = this;
-
     try {
       for (const directoryPath of directories) {
         if (!fs.existsSync(directoryPath)) {
           fs.mkdirSync(directoryPath, {recursive: true});
         }
-        self.logger.debug(`OK: setup directory: ${directoryPath}`);
+        this.logger.debug(`OK: setup directory: ${directoryPath}`);
       }
     } catch (error) {
       throw new SoloError(`failed to create directory: ${error.message}`, error);

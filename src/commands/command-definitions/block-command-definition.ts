@@ -21,18 +21,21 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'block';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'block';
+  protected static override readonly DESCRIPTION: string =
     'Block Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NODE_SUBCOMMAND_NAME = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
+  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'Create, manage, or destroy block node instances. Operates on a single block node instance at a time.';
 
-  public static readonly NODE_ADD = 'add';
-  public static readonly NODE_DESTROY = 'destroy';
-  public static readonly NODE_UPGRADE = 'upgrade';
+  public static readonly NODE_ADD: string = 'add';
+  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_UPGRADE: string = 'upgrade';
+
+  public static readonly NODE_ADD_EXTERNAL: string = 'add-external';
+  public static readonly NODE_DELETE_EXTERNAL: string = 'delete-external';
 
   public static readonly ADD_COMMAND: string =
     `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_ADD}` as const;
@@ -57,8 +60,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.add,
               BlockNodeCommand.ADD_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
-              false,
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -69,8 +71,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.destroy,
               BlockNodeCommand.DESTROY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
-              false,
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -81,8 +82,28 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.upgrade,
               BlockNodeCommand.UPGRADE_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
-              false,
+              [...constants.BASE_DEPENDENCIES],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BlockCommandDefinition.NODE_ADD_EXTERNAL,
+              'Add an external block node for the specified deployment. ' +
+                'You can specify the priority and consensus nodes to which to connect or use the default settings.',
+              this.blockNodeCommand,
+              this.blockNodeCommand.addExternal,
+              BlockNodeCommand.ADD_EXTERNAL_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BlockCommandDefinition.NODE_DELETE_EXTERNAL,
+              'Deletes an external block node from the specified deployment.',
+              this.blockNodeCommand,
+              this.blockNodeCommand.deleteExternal,
+              BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )

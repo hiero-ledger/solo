@@ -21,7 +21,8 @@ export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURL
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR: string =
-  getEnvironmentVariable('SOLO_HOME') || PathEx.join(process.env.HOME as string, '.solo');
+  getEnvironmentVariable('SOLO_HOME') ||
+  PathEx.join((process.env.HOME as string) || (process.env.USERPROFILE as string), '.solo');
 export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
@@ -35,13 +36,17 @@ export const VFKIT: string = 'vfkit';
 export const GVPROXY: string = 'gvproxy';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
+export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
+export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
+export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true';
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
+export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
 export const SOLO_REMOTE_CONFIGMAP_LABELS: Record<string, string> = {'solo.hedera.com/type': 'remote-config'};
 export const SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY: number = 50;
 export const SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR: string = 'solo.hedera.com/type=remote-config';
@@ -67,6 +72,11 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
   getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
+
+// S6-based consensus node image configuration (overridable via environment)
+export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
+export const S6_NODE_IMAGE_REPOSITORY: string =
+  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java21';
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
@@ -100,7 +110,7 @@ export const JSON_RPC_RELAY_CHART: string = 'hedera-json-rpc';
 export const JSON_RPC_RELAY_RELEASE_NAME: string = 'relay';
 
 export const MIRROR_NODE_CHART_URL: string =
-  getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
+  getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-mirror-node/charts';
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
@@ -111,11 +121,6 @@ export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
 export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
-
-export const GRAFANA_AGENT_CHART_URL: string =
-  getEnvironmentVariable('GRAFANA_AGENT_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
-export const GRAFANA_AGENT_CHART: string = 'grafana-agent';
-export const GRAFANA_AGENT_RELEASE_NAME: string = 'grafana-agent';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
@@ -189,7 +194,6 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(JSON_RPC_RELAY_CHART, JSON_RPC_RELAY_CHART_URL)
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
-  .set(GRAFANA_AGENT_RELEASE_NAME, GRAFANA_AGENT_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
@@ -245,11 +249,6 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
-export const POD_MONITOR_ROLE_TEMPLATE: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'templates',
-  'pod-monitor-role.yaml',
-);
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
@@ -330,11 +329,6 @@ export const LISTR_DEFAULT_OPTIONS: {
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
-export const OS_WINDOWS: string = 'windows';
-export const OS_WIN32: string = 'win32';
-export const OS_DARWIN: string = 'darwin';
-export const OS_LINUX: string = 'linux';
-
 export const LOCAL_HOST: string = '127.0.0.1';
 
 export const PROFILE_LARGE: string = 'large';
@@ -353,6 +347,7 @@ export const NODE_CLIENT_MAX_ATTEMPTS: number = +getEnvironmentVariable('NODE_CL
 export const NODE_CLIENT_MIN_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
 export const NODE_CLIENT_MAX_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
 export const NODE_CLIENT_REQUEST_TIMEOUT: number = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
+export const NODE_CLIENT_MAX_QUERY_PAYMENT: number = +getEnvironmentVariable('NODE_CLIENT_MAX_QUERY_PAYMENT') || 20;
 export const NODE_CLIENT_SDK_PING_MAX_RETRIES: number =
   +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
 export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL: number =
@@ -445,3 +440,13 @@ export const CERT_MANAGER_CRDS: string[] = [
   'clusterissuers.cert-manager.io',
   'issuers.cert-manager.io',
 ];
+
+export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
+  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps';
+
+export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
+
+// TODO: in future define a better strategy to handle versioning
+export const WRAPS_LIB_DOWNLOAD_URL: string =
+  getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
+  `https://builds.hedera.com/tss/hiero/wraps/v0.2/${WRAPS_DIRECTORY_NAME}.tar.gz`;

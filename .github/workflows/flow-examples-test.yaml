@@ -33,6 +33,16 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: true
+      example-directory:
+        description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
+        type: string
+        required: false
+        default: ""
   workflow_call:
     inputs:
       node-version:
@@ -45,6 +55,16 @@ on:
         type: boolean
         required: false
         default: false
+      enable_s6_image:
+        description: "Enable S6 image"
+        type: boolean
+        required: false
+        default: true
+      example-directory:
+        description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
+        type: string
+        required: false
+        default: ""
   push:
     branches:
       - trunk-merge/**
@@ -56,6 +76,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
+
 jobs:
   generate_matrix:
     name: Generate Test Matrix
@@ -64,18 +87,35 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Generate Matrix
         id: set_matrix
         run: |
-          # Read the JSON file and convert it to a compact format
-          JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+          EXAMPLE_DIR="${{ inputs.example-directory }}"
+          
+          if [ -n "$EXAMPLE_DIR" ]; then
+            # Filter to specific example
+            echo "Filtering matrix for example directory: $EXAMPLE_DIR"
+            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
+            
+            if [ "$JSON_CONTENT" = "[]" ]; then
+              echo "Error: Example directory '$EXAMPLE_DIR' not found in matrix"
+              echo "Available examples:"
+              cat .github/workflows/support/examples-test-matrix.json | jq -r '.[].directory'
+              exit 1
+            fi
+          else
+            # Use all examples
+            echo "Using all examples from matrix"
+            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+          fi
+          
           echo "Generated matrix: $JSON_CONTENT"
           
           # Set the output variable 'matrix' with the JSON content
@@ -94,18 +134,21 @@ jobs:
       max-parallel: 3
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
+
+      - name: Configure npm registry
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install Kubectl
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
@@ -114,7 +157,7 @@ jobs:
         id: install
 
       - name: Setup Kind
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -144,7 +187,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: '1.22.3'
 
@@ -154,25 +197,21 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: temurin
           java-version: 21.0.1
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           cache-read-only: false
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         run: |
-          if [ -z "${{ inputs.consensus-node-version }}" ]; then
-              export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-          else
-              export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
-          fi
+          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
           cd ..
           git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
           cd hiero-consensus-node
@@ -181,7 +220,7 @@ jobs:
           cd ../solo
 
       - name: Build Application
-        run: task build
+        run: task build:compile
 
       - name: Run Example Test - ${{ matrix.example.name }}
         timeout-minutes: 45
@@ -202,8 +241,21 @@ jobs:
           
           # Run the example
           echo "Starting task..."
+          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          set +e
           task
-          
+          TASK_RC=$?
+          set -e
+
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            cd "examples/${{ matrix.example.directory }}"
+
+            exit "${TASK_RC}"
+          fi
+
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
@@ -223,7 +275,7 @@ jobs:
           SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Cleanup Example - ${{ matrix.example.name }}
-        if: always()
+        if: success()
         timeout-minutes: 10
         working-directory: examples/${{ matrix.example.directory }}
         run: |
@@ -242,7 +294,7 @@ jobs:
 
       - name: Upload Logs to GitHub
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: solo-logs-${{ matrix.example.directory }}
           path: ~/.solo/logs/*

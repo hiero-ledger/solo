@@ -29,7 +29,8 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {Flags} from '../../../src/commands/flags.js';
-import {ShellRunner} from '../../../src/core/shell-runner.js';
+import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
+import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 
 const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
 
@@ -81,6 +82,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
+      it(`${testName}: show deployment`, async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning ${testName}: show deployment`);
+        await main(soloOneShotShowDeployment(testName, deployment));
+        testLogger.info(`${testName}: finished ${testName}: show deployment`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
       it('Should perform a simple TransferTransaction', async (): Promise<void> => {
         // These should be set in your environment or test config
         const operatorId: AccountId = AccountId.fromString('0.0.2');
@@ -101,31 +108,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('Should write log metrics', async (): Promise<void> => {
         if (minimalSetup) {
-          try {
-            await new ShellRunner().run(
-              'helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/',
-              [],
-              true,
-              false,
-            );
-            await new ShellRunner().run('helm repo add metallb https://metallb.github.io/metallb', [], true, false);
-            await new ShellRunner().run(
-              'helm upgrade --install metrics-server metrics-server/metrics-server --namespace kube-system --set "args[0]=--kubelet-insecure-tls"',
-              [],
-              true,
-              false,
-            );
-            await new ShellRunner().run(
-              'helm upgrade --install metallb metallb/metallb --namespace metallb-system --create-namespace --atomic --wait --set speaker.frr.enabled=true',
-              [],
-              true,
-              false,
-            );
-          } catch (error) {
-            throw new Error(
-              `${testName}: failed to install metrics-server or metallb in minimal setup: ${(error as Error).message}`,
-            );
-          }
+          await HelmMetricsServer.installMetricsServer(testName);
+          await HelmMetalLoadBalancer.installMetalLoadBalancer(testName);
         }
 
         await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
@@ -159,6 +143,15 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloOneShotShowDeployment(testName: string, _deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag: _optionFromFlag} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.INFO_COMMAND_NAME, 'deployment');
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

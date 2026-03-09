@@ -1,0 +1,47 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+  ONE_SHOT_WITH_BLOCK_NODE: "true"
+
+vars:
+  DEPLOYMENT: "falcon-deployment"
+  CLUSTER_NAME: "falcon-cluster"
+  CONTEXT: "kind-falcon-cluster"
+
+tasks:
+  deploy:
+    desc: Deploy a complete Hiero network using one-shot falcon deploy
+    cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Solo one-shot falcon deploy
+      - cmd: |
+          $SOLO_COMMAND one-shot falcon deploy \
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --quiet-mode --dev
+
+  destroy:
+    desc: Destroy the Solo network using one-shot falcon destroy
+    cmds:
+      # Solo one-shot falcon destroy
+      - cmd: $SOLO_COMMAND one-shot falcon destroy
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+
+  default:
+    desc: Run the default deploy task
+    cmds:
+      - task: deploy

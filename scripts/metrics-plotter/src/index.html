@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Metrics Plotter</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .chart { width: 100%; height: 500px; }
+    #controls { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Metrics Plotter</h1>
+  <div id="controls">
+    <label>Choose JSON file: <input id="fileInput" type="file" accept=".json" /></label>
+    <button id="load">Load</button>
+    <button id="toggleGrouping">Show grouped data</button>
+    <span id="status" style="margin-left:12px;color:#666"></span>
+  </div>
+
+  <div id="cpuDiv" class="chart"></div>
+  <div id="memDiv" class="chart" style="margin-top:30px"></div>
+
+  <!-- bundle.js will be generated to /static/bundle.js by the build step -->
+  <script src="/static/bundle.js"></script>
+  <script>
+    // hide controls when ?hide-controls=1 or ?hide-controls=true
+    (function () {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const hide = (params.get('hide-controls') || '').toLowerCase();
+        if (hide === '1' || hide === 'true') {
+          const title = document.querySelector('h1');
+          if (title) title.style.display = 'none';
+          const controls = document.getElementById('controls');
+          if (controls) controls.style.display = 'none';
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    // wire up the load button to read local file using FileReader (plain JS)
+    var fileInput = document.getElementById('fileInput');
+    var loadBtn = document.getElementById('load');
+    var status = document.getElementById('status');
+    var toggleGrouping = document.getElementById('toggleGrouping');
+    toggleGrouping.grouped = false;
+    window.toggleGrouping = toggleGrouping;
+
+    toggleGrouping.addEventListener('click', function () {
+      toggleGrouping.grouped = !toggleGrouping.grouped;
+      if (toggleGrouping.grouped) {
+        toggleGrouping.textContent = 'Show all data';
+      } else {
+        toggleGrouping.textContent = 'Show grouped data';
+      }
+
+      loadCharts();
+    });
+
+    loadBtn.addEventListener('click', function () {
+      loadCharts();
+    });
+
+    function loadCharts() {
+      status.textContent = '';
+      var files = fileInput.files;
+      if (!files || files.length === 0) {
+        status.textContent = 'No file selected, showing example data';
+        window.dispatchEvent(new Event('load'));
+        return;
+      }
+      var file = files[0];
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        try {
+          var text = ev.target.result;
+          var obj = JSON.parse(text);
+          var dataGroups = [];
+          if (toggleGrouping.grouped) {
+            dataGroups = window.dataGroups;
+          }
+
+          // call the function exposed by the bundle to render from an object
+          if (window.renderMetricsFromObject) {
+            window.renderMetricsFromObject(obj, 'cpuDiv', 'memDiv', dataGroups);
+          } else if (window.renderMetrics) {
+            // fallback: write file to a Blob URL and let render fetch it
+            var blob = new Blob([text], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            window.renderMetrics(url, 'cpuDiv', 'memDiv', dataGroups);
+          } else {
+            console.error('No render function available on window');
+            status.textContent = 'Render function not available';
+            return;
+          }
+          status.textContent = 'Loaded: ' + file.name;
+        } catch (e) {
+          console.error('Failed to parse JSON', e);
+          status.textContent = 'Failed to parse JSON file';
+        }
+      };
+      reader.onerror = function (err) {
+        console.error('File read error', err);
+        status.textContent = 'Failed to read file';
+      };
+      reader.readAsText(file);
+    }
+
+    // allow pressing Enter on the file input to trigger load
+    fileInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') loadBtn.click(); });
+  </script>
+</body>
+</html>
