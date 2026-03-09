@@ -140,24 +140,21 @@ tasks:
             echo "Skipping: $CHART_PATH not found"
           fi
 
-  build-consensus-node:
-    desc: Build the Hiero consensus node from source (requires Java 21 and Gradle)
-    cmds:
-      - cmd: |
-          echo "Building consensus node from source at {{.CN_REPO_DIR}} for version {{.CN_VERSION}}..."
-          cd {{.CN_REPO_DIR}}
-          ./gradlew assemble --stacktrace --info
-
   generate-values:
     desc: Generate a runtime values YAML file with actual local build and chart paths
     cmds:
       - cmd: |
           {
+            echo "network:"
+            echo "  --release-tag: \"{{.CN_VERSION}}\""
+            echo ""
             echo "setup:"
             echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""
+            echo "  ----release-tag: \"{{.CN_VERSION}}\""
             echo ""
             echo "blockNode:"
             echo "  --block-node-chart-dir: \"{{.BLOCK_NODE_CHART_DIR}}\""
+            echo "  ----release-tag: \"{{.CN_VERSION}}\""
             echo ""
             echo "mirrorNode:"
             echo "  --mirror-node-chart-dir: \"{{.MIRROR_NODE_CHART_DIR}}\""
@@ -179,9 +176,6 @@ tasks:
 
       # Build Helm chart dependencies for all local chart directories
       - task: build-chart-deps
-
-      # Build the consensus node from source
-      - task: build-consensus-node
 
       # Generate runtime values file with actual local paths
       - task: generate-values
