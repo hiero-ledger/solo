@@ -71,7 +71,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DELETE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
 
-  public static readonly CONNECTIONS_COMMAND =
+  public static readonly CONNECTIONS_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS}` as const;
 
   public static readonly REFRESH_COMMAND: string =

@@ -63,10 +63,10 @@ export class NodeCommandHandlers extends CommandHandler {
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
 
-  private static readonly ADD_CONTEXT_FILE = 'node-add.json';
-  private static readonly DESTROY_CONTEXT_FILE = 'node-destroy.json';
-  private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
-  private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
+  private static readonly ADD_CONTEXT_FILE: string = 'node-add.json';
+  private static readonly DESTROY_CONTEXT_FILE: string = 'node-destroy.json';
+  private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
+  private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
 
   private resolveOutputDirectory(argv: ArgvStruct, fallback = ''): string {
     this.nodeConfigManager.update(argv);
@@ -1024,10 +1024,10 @@ export class NodeCommandHandlers extends CommandHandler {
     return {
       title: 'Validate nodes states',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: (context_: Context, task): SoloListr<any> => {
+      task: (context_: Context, task): SoloListr<Context> => {
         const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const subTasks: SoloListrTask<Context>[] = nodeAliases.map(nodeAlias => ({
+        const subTasks: SoloListrTask<Context>[] = nodeAliases.map((nodeAlias: NodeAlias) => ({
           title: `Validating state for node ${nodeAlias}`,
           task: (_, task): void => {
             const state: DeploymentPhase = this.validateNodeState(
@@ -1056,12 +1056,15 @@ export class NodeCommandHandlers extends CommandHandler {
    * @param excludedPhases - the state at which the node can't be, matching any of the states throws an error
    */
   public validateSingleNodeState({
-    acceptedPhases: _acceptedPhases,
-    excludedPhases: _excludedPhases,
+    acceptedPhases,
+    excludedPhases,
   }: {
     acceptedPhases?: DeploymentPhase[];
     excludedPhases?: DeploymentPhase[];
-  }): SoloListrTask<any> {
+  }): SoloListrTask<AnyListrContext> {
+    void acceptedPhases;
+    void excludedPhases;
+
     interface Context {
       config: {namespace: string; nodeAlias: NodeAlias};
     }
@@ -1070,7 +1073,7 @@ export class NodeCommandHandlers extends CommandHandler {
       title: 'Validate nodes state',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: (context_: Context, task): void => {
-        const nodeAlias = context_.config.nodeAlias;
+        const nodeAlias: NodeAlias = context_.config.nodeAlias;
 
         task.title += ` ${nodeAlias}`;
 
@@ -1091,9 +1094,12 @@ export class NodeCommandHandlers extends CommandHandler {
   private validateNodeState(
     nodeAlias: NodeAlias,
     components: ComponentsDataWrapperApi,
-    _acceptedPhases: Optional<DeploymentPhase[]>,
-    _excludedPhases: Optional<DeploymentPhase[]>,
+    acceptedPhases: Optional<DeploymentPhase[]>,
+    excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {
+    void acceptedPhases;
+    void excludedPhases;
+
     let nodeComponent: ConsensusNodeStateSchema;
     try {
       nodeComponent = components.getComponent<ConsensusNodeStateSchema>(
