@@ -5,10 +5,10 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
-import {AnyObject, type ArgvStruct} from '../../types/aliases.js';
+import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
-import {injectable, inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -37,20 +37,31 @@ import {
   predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
-import {AccountId, HbarUnit, PublicKey} from '@hiero-ledger/sdk';
+import {
+  AccountId,
+  Client,
+  HbarUnit,
+  PublicKey,
+  TopicCreateTransaction,
+  TopicId,
+  TopicInfoQuery,
+} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
+import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {type Lock} from '../../core/lock/lock.js';
+import {ListrLock} from '../../core/lock/listr-lock.js';
+import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -70,7 +81,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.force, flags.valuesFile, flags.numberOfConsensusNodes],
+    optional: [
+      flags.quiet,
+      flags.force,
+      flags.valuesFile,
+      flags.numberOfConsensusNodes,
+      flags.deployMirrorNode,
+      flags.deployExplorer,
+      flags.deployRelay,
+    ],
   };
 
   public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
@@ -98,7 +117,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       return;
     }
     for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
+      if (value !== undefined && value !== null && value !== StringEx.EMPTY && key !== '--deployment') {
         argv.push(`${key}`, value.toString());
       }
     }
@@ -114,6 +133,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | undefined = undefined;
+    let oneShotLease: Lock | undefined;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newOneShotSingleDeployTaskList(
@@ -125,6 +145,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<void> => {
               this.configManager.update(argv);
+              this.oneShotState.activate();
+
+              // Pre-set component version flags in configManager so they are available
+              // for all sub-commands during concurrent execution
+              this.configManager.setFlag(Flags.explorerVersion, version.EXPLORER_VERSION);
+              this.configManager.setFlag(Flags.mirrorNodeVersion, version.MIRROR_NODE_VERSION);
+              this.configManager.setFlag(Flags.relayReleaseTag, version.HEDERA_JSON_RPC_RELAY_VERSION);
+              this.configManager.setFlag(Flags.soloChartVersion, version.SOLO_CHART_VERSION);
 
               flags.disablePrompts(flagsList.optional);
 
@@ -185,14 +213,30 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
               config.deployment = config.deployment || `solo-deployment-${uniquePostfix}`;
               config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
+              this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
+
+              // Initialize deployment toggles with defaults if not specified
+              config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
+              config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
+              config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
 
               context_.createdAccounts = [];
 
               this.logger.debug(`quiet: ${config.quiet}`);
 
               return;
+            },
+          },
+          {
+            title: 'Acquire deployment lock',
+            task: async (
+              context_: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+            ): Promise<Listr<OneShotSingleDeployContext>> => {
+              oneShotLease = await this.leaseManager.create();
+              return ListrLock.newAcquireLockTask(oneShotLease, task);
             },
           },
           {
@@ -369,149 +413,226 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
             this.taskList,
           ),
-          invokeSoloCommand(
-            `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
-            MirrorCommandDefinition.ADD_COMMAND,
-
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                optionFromFlag(Flags.pinger),
-                optionFromFlag(Flags.enableIngress),
-              );
-              this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
-              return argvPushGlobalFlags(argv, config.cacheDir);
-            },
-            this.taskList,
-          ),
           {
-            title: 'Extended setup',
+            title: 'Deploy components and create accounts',
             task: async (
               context_: OneShotSingleDeployContext,
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<Listr<OneShotSingleDeployContext>> => {
-              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
-                invokeSoloCommand(
-                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-                  ExplorerCommandDefinition.ADD_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = newArgv();
-                    argv.push(
-                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                      optionFromFlag(Flags.deployment),
-                      config.deployment,
-                      optionFromFlag(Flags.clusterRef),
-                      config.clusterRef,
-                    );
-                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-                    return argvPushGlobalFlags(argv, config.cacheDir);
-                  },
-                  this.taskList,
-                ),
-                invokeSoloCommand(
-                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                  RelayCommandDefinition.ADD_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = newArgv();
-                    argv.push(
-                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                      optionFromFlag(Flags.deployment),
-                      config.deployment,
-                      optionFromFlag(Flags.clusterRef),
-                      config.clusterRef,
-                      optionFromFlag(Flags.nodeAliasesUnparsed),
-                      'node1',
-                    );
-                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
-                    return argvPushGlobalFlags(argv);
-                  },
-                  this.taskList,
-                ),
-              ];
-
-              // set up the sub-tasks
-              return task.newListr(subTasks, {
-                concurrent: false,
-                rendererOptions: {
-                  collapseSubtasks: false,
-                },
-              });
-            },
-            skip: (): boolean => config.minimalSetup,
-          },
-          {
-            title: 'Create Accounts',
-            skip: () => config.predefinedAccounts === false,
-            task: async (
-              context_: OneShotSingleDeployContext,
-              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-            ): Promise<Listr<OneShotSingleDeployContext>> => {
-              await this.localConfig.load();
-              await this.remoteConfig.loadAndValidate(argv);
-              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
-
-              const accountsToCreate = [
-                ...predefinedEcdsaAccounts,
-                ...predefinedEcdsaAccountsWithAlias,
-                ...predefinedEd25519Accounts,
-              ];
-
-              await this.accountManager.loadNodeClient(
-                config.namespace,
-                this.remoteConfig.getClusterRefs(),
-                context_.config.deployment,
-              );
-
-              for (const [index, account] of accountsToCreate.entries()) {
-                // inject index to avoid closure issues
-                ((index: number, account: PredefinedAccount) => {
-                  subTasks.push({
-                    title: `Creating Account ${index}`,
+              return task.newListr(
+                [
+                  // Pipeline A: mirror → (explorer || relay)
+                  {
+                    title: 'Deploy mirror node and extensions',
                     task: async (
                       context_: OneShotSingleDeployContext,
-                      subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                    ): Promise<void> => {
-                      await helpers.sleep(Duration.ofMillis(100 * index));
+                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                    ): Promise<Listr<OneShotSingleDeployContext>> => {
+                      return task.newListr(
+                        [
+                          invokeSoloCommand(
+                            `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
+                            MirrorCommandDefinition.ADD_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                                optionFromFlag(Flags.clusterRef),
+                                config.clusterRef,
+                                optionFromFlag(Flags.pinger),
+                                optionFromFlag(Flags.enableIngress),
+                              );
+                              this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
+                              return argvPushGlobalFlags(argv, config.cacheDir);
+                            },
+                            this.taskList,
+                            (): boolean => !config.deployMirrorNode,
+                          ),
+                          {
+                            title: 'Extended setup',
+                            task: async (
+                              context_: OneShotSingleDeployContext,
+                              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                            ): Promise<Listr<OneShotSingleDeployContext>> => {
+                              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
+                                invokeSoloCommand(
+                                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                                  ExplorerCommandDefinition.ADD_COMMAND,
+                                  (): string[] => {
+                                    const argv: string[] = newArgv();
+                                    argv.push(
+                                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                                      optionFromFlag(Flags.deployment),
+                                      config.deployment,
+                                      optionFromFlag(Flags.clusterRef),
+                                      config.clusterRef,
+                                      optionFromFlag(Flags.explorerVersion),
+                                      version.EXPLORER_VERSION,
+                                    );
+                                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+                                    return argvPushGlobalFlags(argv, config.cacheDir);
+                                  },
+                                  this.taskList,
+                                  (): boolean => !config.deployExplorer,
+                                ),
+                                invokeSoloCommand(
+                                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                                  RelayCommandDefinition.ADD_COMMAND,
+                                  (): string[] => {
+                                    const argv: string[] = newArgv();
+                                    argv.push(
+                                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                                      optionFromFlag(Flags.deployment),
+                                      config.deployment,
+                                      optionFromFlag(Flags.clusterRef),
+                                      config.clusterRef,
+                                      optionFromFlag(Flags.nodeAliasesUnparsed),
+                                      'node1',
+                                    );
+                                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
+                                    return argvPushGlobalFlags(argv);
+                                  },
+                                  this.taskList,
+                                  (): boolean => !config.deployRelay,
+                                ),
+                              ];
 
-                      const createdAccount = await this.accountManager.createNewAccount(
-                        context_.config.namespace,
-                        account.privateKey,
-                        account.balance.to(HbarUnit.Hbar).toNumber(),
-                        account.alias,
-                        context_.config.context,
+                              return task.newListr(subTasks, {
+                                concurrent: true,
+                                rendererOptions: {
+                                  collapseSubtasks: false,
+                                },
+                              });
+                            },
+                            skip: (): boolean => config.minimalSetup,
+                          },
+                        ],
+                        {
+                          concurrent: false,
+                          rendererOptions: {
+                            collapseSubtasks: false,
+                          },
+                        },
+                      );
+                    },
+                  },
+                  // Pipeline B: create accounts (concurrent with Pipeline A)
+                  {
+                    title: 'Create Accounts',
+                    skip: (): boolean => config.predefinedAccounts === false,
+                    task: async (
+                      context_: OneShotSingleDeployContext,
+                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                    ): Promise<Listr<OneShotSingleDeployContext>> => {
+                      await this.localConfig.load();
+                      await this.remoteConfig.loadAndValidate(argv);
+                      const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
+
+                      const client: Client = await this.accountManager.loadNodeClient(
+                        config.namespace,
+                        this.remoteConfig.getClusterRefs(),
+                        context_.config.deployment,
                       );
 
-                      context_.createdAccounts.push({
-                        accountId: AccountId.fromString(createdAccount.accountId),
-                        data: account,
-                        alias: createdAccount.accountAlias,
-                        publicKey: createdAccount.publicKey,
+                      const realm: Realm = this.localConfig.configuration.realmForDeployment(
+                        context_.config.deployment,
+                      );
+                      const shard: Shard = this.localConfig.configuration.shardForDeployment(
+                        context_.config.deployment,
+                      );
+
+                      // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
+                      // so that created accounts have IDs start from x.x.1002
+                      try {
+                        const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
+                          TopicId.fromString(entityId(realm, shard, 1001)),
+                        );
+                        await entity1001Query.execute(client);
+                      } catch (error) {
+                        try {
+                          if (error.message.includes('INVALID_TOPIC_ID')) {
+                            const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
+                              'Buffer topic to bump entity IDs',
+                            );
+                            await bufferTopic.execute(client);
+                          }
+                        } catch (error) {
+                          this.logger.warn(
+                            'Failed to create topic. Created account IDs may be offset from the expected values.',
+                            error,
+                          );
+                        }
+                      }
+
+                      const accountsToCreate: PredefinedAccount[] = [
+                        ...predefinedEcdsaAccounts,
+                        ...predefinedEcdsaAccountsWithAlias,
+                        ...predefinedEd25519Accounts,
+                      ];
+
+                      for (const [index, account] of accountsToCreate.entries()) {
+                        // inject index to avoid closure issues
+                        ((index: number, account: PredefinedAccount): void => {
+                          subTasks.push({
+                            title: `Creating Account ${index}`,
+                            task: async (
+                              context_: OneShotSingleDeployContext,
+                              subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                            ): Promise<void> => {
+                              await helpers.sleep(Duration.ofMillis(100 * index));
+
+                              const createdAccount: {
+                                accountId: string;
+                                privateKey: string;
+                                publicKey: string;
+                                balance: number;
+                                accountAlias?: string;
+                              } = await this.accountManager.createNewAccount(
+                                context_.config.namespace,
+                                account.privateKey,
+                                account.balance.to(HbarUnit.Hbar).toNumber(),
+                                account.alias,
+                                context_.config.context,
+                              );
+
+                              context_.createdAccounts.push({
+                                accountId: AccountId.fromString(createdAccount.accountId),
+                                data: account,
+                                alias: createdAccount.accountAlias,
+                                publicKey: createdAccount.publicKey,
+                              });
+
+                              subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
+                            },
+                          });
+                        })(index, account);
+                      }
+
+                      return task.newListr(subTasks, {
+                        concurrent: true,
+                        rendererOptions: {
+                          collapseSubtasks: false,
+                        },
                       });
-
-                      subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
                     },
-                  });
-                })(index, account);
-              }
-
-              // set up the sub-tasks
-              return task.newListr(subTasks, {
-                concurrent: true,
-                rendererOptions: {
-                  collapseSubtasks: false,
+                  },
+                ],
+                {
+                  concurrent: true,
+                  rendererOptions: {
+                    collapseSubtasks: false,
+                  },
                 },
-              });
+              );
             },
           },
           {
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {
               const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
+              this.logger.info(`Output directory: ${outputDirectory}`);
               this.showOneShotUserNotes(context_, false, PathEx.join(outputDirectory, 'notes'));
               this.showVersions(PathEx.join(outputDirectory, 'versions'));
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
@@ -530,12 +651,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     } catch (error) {
       throw new SoloError(`Error deploying Solo in one-shot mode: ${error.message}`, error);
     } finally {
-      await this.taskList
-        .callCloseFunctions()
-        .then()
-        .catch((error): void => {
-          this.logger.error('Error during closing task list:', error);
-        });
+      this.oneShotState.deactivate();
+      const cleanupPromises: Promise<void>[] = [];
+      if (oneShotLease) {
+        cleanupPromises.push(
+          oneShotLease.release().catch((error): void => {
+            this.logger.error('Error releasing one-shot lease:', error);
+          }),
+        );
+      }
+      cleanupPromises.push(
+        this.taskList
+          .callCloseFunctions()
+          .then()
+          .catch((error): void => {
+            this.logger.error('Error during closing task list:', error);
+          }),
+      );
+      await Promise.all(cleanupPromises);
     }
 
     return true;
@@ -776,12 +909,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDestroyConfigClass;
+    let oneShotLease: Lock | undefined;
+
+    // don't make remote config call if deployment is not set or it will fail
+    let hasExplorers: boolean = false;
+    let hasRelays: boolean = false;
 
     const taskArray = [
       {
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
           this.configManager.update(argv);
+          this.oneShotState.activate();
 
           flags.disablePrompts(flagsList.optional);
 
@@ -802,19 +941,44 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
 
-          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
+          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
 
           if (!config.deployment) {
             if (this.localConfig.configuration.deployments.length === 0) {
-              throw new SoloError('Deployments name is not found in local config');
+              this.logger.showUser('No deployments found in local config, have they already been deleted?');
+              config.skipAll = true;
+              return;
             }
             config.deployment = this.localConfig.configuration.deployments.get(0).name;
             this.configManager.setFlag(flags.deployment, config.deployment);
           }
 
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-          await this.remoteConfig.loadAndValidate(argv);
+          try {
+            await this.remoteConfig.loadAndValidate(argv);
+            config.skipAll = false;
+          } catch (error) {
+            if (error instanceof ResourceNotFoundError) {
+              this.logger.showUser(
+                'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
+              );
+              config.skipAll = true;
+              return;
+            } else {
+              throw error;
+            }
+          }
+          hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
+          hasRelays = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
         },
+      },
+      {
+        title: 'Acquire deployment lock',
+        task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          oneShotLease = await this.leaseManager.create();
+          return ListrLock.newAcquireLockTask(oneShotLease, task);
+        },
+        skip: (): boolean => config.skipAll,
       },
       {
         title: 'Destroy extended setup',
@@ -840,6 +1004,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return argvPushGlobalFlags(argv);
               },
               this.taskList,
+              (): boolean => {
+                return !hasExplorers;
+              },
             ),
             invokeSoloCommand(
               `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
@@ -859,21 +1026,25 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return argvPushGlobalFlags(argv);
               },
               this.taskList,
+              (): boolean => {
+                return !hasRelays;
+              },
             ),
           ];
 
           // set up the sub-tasks
           return task.newListr(subTasks, {
-            concurrent: false,
+            concurrent: true,
             rendererOptions: {
               collapseSubtasks: false,
             },
           });
         },
         skip: (): boolean => {
-          const hasExplorers: boolean = this.remoteConfig.configuration.components.state.explorers.length > 0;
-          const hasRelays: boolean = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
-          return !hasExplorers || !hasRelays;
+          if (config.skipAll || !config.deployment) {
+            return true;
+          }
+          return !hasExplorers && !hasRelays;
         },
       },
       invokeSoloCommand(
@@ -894,7 +1065,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
-        (): boolean => this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
+        (): boolean =>
+          config.skipAll ||
+          !config.deployment ||
+          this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
       ),
       invokeSoloCommand(
         `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
@@ -913,6 +1087,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         this.taskList,
         (): boolean =>
+          config.skipAll ||
+          !config.deployment ||
           constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
           this.remoteConfig.configuration.components.state.blockNodes.length === 0,
       ),
@@ -934,6 +1110,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => config.skipAll || !config.deployment,
       ),
       invokeSoloCommand(
         `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
@@ -950,6 +1127,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => config.skipAll || !config.deployment,
       ),
       invokeSoloCommand(
         `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
@@ -965,6 +1143,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => config.skipAll || !config.deployment,
       ),
       invokeSoloCommand(
         `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
@@ -980,6 +1159,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           return argvPushGlobalFlags(argv);
         },
         this.taskList,
+        (): boolean => !config.deployment,
       ),
       {
         title: 'Delete cache folder',
@@ -997,10 +1177,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     } catch (error) {
       throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
     } finally {
-      await this.taskList
-        .callCloseFunctions()
-        .then()
-        .catch((error): void => this.logger.error('Error during closing task list:', error));
+      this.oneShotState.deactivate();
+      const cleanupPromises: Promise<void>[] = [];
+      if (oneShotLease) {
+        cleanupPromises.push(
+          oneShotLease.release().catch((error): void => {
+            this.logger.error('Error releasing one-shot lease:', error);
+          }),
+        );
+      }
+      cleanupPromises.push(
+        this.taskList
+          .callCloseFunctions()
+          .then()
+          .catch((error): void => this.logger.error('Error during closing task list:', error)),
+      );
+      await Promise.all(cleanupPromises);
     }
 
     return true;

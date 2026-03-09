@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as x509 from '@peculiar/x509';
-import os from 'node:os';
 import {DataValidationError} from './errors/data-validation-error.js';
 import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
@@ -21,6 +20,7 @@ import {
 } from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConsensusNode} from './model/consensus-node.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
@@ -158,27 +158,26 @@ export class Templates {
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
   }
 
-  public static installationPath(
-    dep: string,
-    osPlatform: NodeJS.Platform | string = os.platform(),
+  public static localInstallationExecutableForDependency(
+    dependency: string,
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ): string {
-    switch (dep) {
+    switch (dependency) {
       case constants.HELM:
       case constants.KIND:
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
       case constants.KUBECTL: {
-        if (osPlatform === constants.OS_WINDOWS) {
-          return PathEx.join(installationDirectory, `${dep}.exe`);
+        if (OperatingSystem.isWin32()) {
+          return PathEx.join(installationDirectory, `${dependency}.exe`);
         }
 
-        return PathEx.join(installationDirectory, dep);
+        return PathEx.join(installationDirectory, dependency);
       }
 
       default: {
-        throw new SoloError(`unknown dep: ${dep}`);
+        throw new SoloError(`unknown dependency: ${dependency}`);
       }
     }
   }

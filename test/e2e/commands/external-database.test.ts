@@ -18,7 +18,7 @@ import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {DeploymentTest} from './tests/deployment-test.js';
-import {NodeTest} from './tests/node-test.js';
+import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
@@ -57,64 +57,69 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withBootstrapProperties(configFiles['bootstrap.properties'])
   .withLog4j2Xml(configFiles['log4j2.xml'])
   .withSettingsTxt(configFiles['settings.txt'])
-  .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe('External Database E2E Test', (): void => {
-      const {testCacheDirectory, testLogger, namespace, contexts} = options;
-      const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE === 'true';
-      const topicTestOnly: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_TOPIC_ONLY === 'true';
+  .withTestSuiteCallback(
+    (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
+      describe('External Database E2E Test', (): void => {
+        const {testCacheDirectory, testLogger, namespace, contexts} = options;
+        const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE === 'true';
+        const topicTestOnly: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_TOPIC_ONLY === 'true';
 
-      before(async (): Promise<void> => {
-        fs.rmSync(testCacheDirectory, {recursive: true, force: true});
-        try {
-          fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
-            force: true,
-          });
-        } catch {
-          // allowed to fail if the file doesn't exist
+        before(async (): Promise<void> => {
+          fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+          try {
+            fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+              force: true,
+            });
+          } catch {
+            // allowed to fail if the file doesn't exist
+          }
+          resetForTest(namespace.name, testCacheDirectory, false);
+          for (const item of contexts) {
+            const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
+            await k8Client.namespaces().delete(namespace);
+          }
+          testLogger.info(`${testName}: starting ${testName} e2e test`);
+
+          // copy all consensus config files to a temporary directory with non-default names
+          const templateDirectory: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates');
+          const temporaryDirectory: string = getTemporaryDirectory();
+          for (const [sourceFileName, targetFileName] of Object.entries(configFiles)) {
+            fs.cpSync(PathEx.join(templateDirectory, sourceFileName), PathEx.join(temporaryDirectory, targetFileName));
+          }
+        }).timeout(Duration.ofMinutes(5).toMillis());
+
+        after(async (): Promise<void> => {
+          await preDestroy(endToEndTestSuite);
+        });
+
+        beforeEach(async (): Promise<void> => {
+          testLogger.info(`${testName}: resetting containers for each test`);
+          resetForTest(namespace.name, testCacheDirectory, false);
+          testLogger.info(`${testName}: finished resetting containers for each test`);
+        });
+
+        InitTest.init(options);
+        ClusterReferenceTest.connect(options);
+        DeploymentTest.create(options);
+        DeploymentTest.addCluster(options);
+
+        ConsensusNodeTest.keys(options);
+        if (blockNodeEnabled) {
+          BlockNodeTest.add(options);
         }
-        resetForTest(namespace.name, testCacheDirectory, false);
-        for (const item of contexts) {
-          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          await k8Client.namespaces().delete(namespace);
-        }
-        testLogger.info(`${testName}: starting ${testName} e2e test`);
+        NetworkTest.deploy(options);
+        ConsensusNodeTest.setup(options);
+        ConsensusNodeTest.start(options);
 
-        // copy all consensus config files to a temporary directory with non-default names
-        const templateDirectory: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates');
-        const temporaryDirectory: string = getTemporaryDirectory();
-        for (const [sourceFileName, targetFileName] of Object.entries(configFiles)) {
-          fs.cpSync(PathEx.join(templateDirectory, sourceFileName), PathEx.join(temporaryDirectory, targetFileName));
-        }
-      }).timeout(Duration.ofMinutes(5).toMillis());
+        // Mirror node, explorer and relay node are deployed to the second cluster
+        MirrorNodeTest.installPostgres(options);
+        MirrorNodeTest.deployWithExternalDatabase(options);
+        ExplorerTest.add(options);
+        MirrorNodeTest.runSql(options);
+        RelayTest.add(options);
 
-      beforeEach(async (): Promise<void> => {
-        testLogger.info(`${testName}: resetting containers for each test`);
-        resetForTest(namespace.name, testCacheDirectory, false);
-        testLogger.info(`${testName}: finished resetting containers for each test`);
-      });
-
-      InitTest.init(options);
-      ClusterReferenceTest.connect(options);
-      DeploymentTest.create(options);
-      DeploymentTest.addCluster(options);
-
-      NodeTest.keys(options);
-      if (blockNodeEnabled) {
-        BlockNodeTest.add(options);
-      }
-      NetworkTest.deploy(options);
-      NodeTest.setup(options);
-      NodeTest.start(options);
-
-      // Mirror node, explorer and relay node are deployed to the second cluster
-      MirrorNodeTest.installPostgres(options);
-      MirrorNodeTest.deployWithExternalDatabase(options);
-      ExplorerTest.add(options);
-      MirrorNodeTest.runSql(options);
-      RelayTest.add(options);
-
-      it('should run smoke tests', async (): Promise<void> => {
-        const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
+        it('should run smoke tests', async (): Promise<void> => {
+          const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
             export SHARD_NUM=3; \
             export REALM_NUM=2; \
             export NEW_NODE_ACCOUNT_ID=3.2.3; \
@@ -128,56 +133,57 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
                 : '.github/workflows/script/solo_smoke_test.sh'
             }`;
 
-        // running the script and show its output in real time for easy to debug
-        // and check its progress
-        return new Promise<void>((resolve, reject): void => {
-          const process: ChildProcessWithoutNullStreams = spawn(scriptPath, {
-            stdio: 'pipe', // Use pipe to capture output
-            shell: true, // Run in shell to support bash features
-          });
+          // running the script and show its output in real time for easy to debug
+          // and check its progress
+          return new Promise<void>((resolve, reject): void => {
+            const process: ChildProcessWithoutNullStreams = spawn(scriptPath, {
+              stdio: 'pipe', // Use pipe to capture output
+              shell: true, // Run in shell to support bash features
+            });
 
-          // Stream stdout in real-time
-          process.stdout.on('data', (data): void => {
-            data.toString().replaceAll('::group::', '\r::group::').replaceAll('::endgroup::', '\r::endgroup::');
-            console.log(`${data}`.trim());
-          });
+            // Stream stdout in real-time
+            process.stdout.on('data', (data): void => {
+              data.toString().replaceAll('::group::', '\r::group::').replaceAll('::endgroup::', '\r::endgroup::');
+              console.log(`${data}`.trim());
+            });
 
-          // Stream stderr in real-time
-          process.stderr.on('data', (data): void => {
-            data.toString().replaceAll('::group::', '\r::group::').replaceAll('::endgroup::', '\r::endgroup::');
-            console.log(`${data}`.trim());
-          });
+            // Stream stderr in real-time
+            process.stderr.on('data', (data): void => {
+              data.toString().replaceAll('::group::', '\r::group::').replaceAll('::endgroup::', '\r::endgroup::');
+              console.log(`${data}`.trim());
+            });
 
-          // Handle process completion
-          process.on('close', (code): void => {
-            if (code) {
-              const error: Error = new Error(`Smoke test failed with exit code ${code}`);
+            // Handle process completion
+            process.on('close', (code): void => {
+              if (code) {
+                const error: Error = new Error(`Smoke test failed with exit code ${code}`);
+                reject(error);
+              } else {
+                console.log('Smoke test execution succeeded');
+                resolve();
+              }
+            });
+
+            // Handle process errors
+            process.on('error', (error): void => {
+              console.error('Failed to start smoke test process:', error.message);
               reject(error);
-            } else {
-              console.log('Smoke test execution succeeded');
-              resolve();
-            }
+            });
           });
+        }).timeout(Duration.ofMinutes(30).toMillis());
 
-          // Handle process errors
-          process.on('error', (error): void => {
-            console.error('Failed to start smoke test process:', error.message);
-            reject(error);
-          });
+        it('Should write log metrics', async (): Promise<void> => {
+          await new MetricsServerImpl().logMetrics(
+            testName,
+            PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+            undefined,
+            undefined,
+            contexts,
+          );
         });
-      }).timeout(Duration.ofMinutes(30).toMillis());
-
-      it('Should write log metrics', async (): Promise<void> => {
-        await new MetricsServerImpl().logMetrics(
-          testName,
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
-          undefined,
-          undefined,
-          contexts,
-        );
-      });
-    }).timeout(Duration.ofMinutes(40).toMillis());
-  })
+      }).timeout(Duration.ofMinutes(40).toMillis());
+    },
+  )
   .build();
 
 endToEndTestSuite.runTestSuite();

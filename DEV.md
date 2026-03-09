@@ -132,19 +132,7 @@ Two separate requirements are enforced on this repository:
 
 ### 1) DCO Sign-off (required)
 
-All commits must include a **DCO sign-off line**. PRs with **unsigned** *(no sign-off)* commits will fail checks and cannot be merged.
-
-Sign off commits with:
-
-```bash
-$ git commit -s -m "commit message"
-```
-
-This adds a line like, to your commit message:
-
-```bash
-Signed-off-by: Your Name <your@email.com>
-```
+Refer to the Hiero Ledger contributing docs under sign-off: https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md#sign-off
 
 *(Optional)* Configure Git to **always** add the sign-off **automatically**:
 

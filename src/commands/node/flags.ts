@@ -3,11 +3,6 @@
 import {Flags as flags} from '../flags.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 
-export const DEFAULT_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.devMode, flags.cacheDir, flags.releaseTag],
-};
-
 const PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
 const PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.cacheDir,
@@ -55,7 +50,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
 
 export const UPGRADE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeVersion],
-  optional: COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
 export const UPGRADE_PREPARE_FLAGS: CommandFlags = {
@@ -198,8 +193,8 @@ export const ADD_EXECUTE_FLAGS: CommandFlags = {
 };
 
 export const LOGS_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.outputDir],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
 export const STATES_FLAGS: CommandFlags = {
@@ -277,6 +272,11 @@ export const SETUP_FLAGS: CommandFlags = {
     flags.adminPublicKeys,
     flags.domainNames,
   ],
+};
+
+export const COLLECT_JFR_FLAGS: CommandFlags = {
+  required: [flags.deployment, flags.nodeAlias],
+  optional: [flags.quiet, flags.devMode],
 };
 
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {

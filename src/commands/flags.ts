@@ -409,29 +409,6 @@ export class Flags {
     },
   };
 
-  public static readonly deployGrafanaAgent: CommandFlag = {
-    constName: 'deployGrafanaAgent',
-    name: 'grafana-agent',
-    definition: {
-      describe: 'Deploy grafana agent',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: async function promptDeployGrafanaAgent(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.deployGrafanaAgent.definition.defaultValue as boolean,
-        'Would you like to deploy grafana agent? ',
-        undefined,
-        Flags.deployGrafanaAgent.name,
-      );
-    },
-  };
-
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -673,6 +650,29 @@ export class Flags {
         Flags.force.name,
       );
     },
+  };
+
+  public static readonly forceBlockNodeIntegration: CommandFlag = {
+    constName: 'forceBlockNodeIntegration',
+    name: 'force',
+    definition: {
+      describe:
+        'Force enable block node integration bypassing the version requirements CN >= v0.72.0, BN >= 0.29.0, CN >= 0.150.0',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly javaFlightRecorderConfiguration: CommandFlag = {
+    constName: 'javaFlightRecorderConfiguration',
+    name: 'jfr-config',
+    definition: {
+      describe: 'Java Flight Recorder configuration file path',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly chartDirectory: CommandFlag = {
@@ -1209,6 +1209,28 @@ export class Flags {
         chalk.yellow('\n\t[Format: <address>[:<port>]]') +
         chalk.yellow('\n\t[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
       type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly wrapsEnabled: CommandFlag = {
+    constName: 'wrapsEnabled',
+    name: 'wraps',
+    definition: {
+      describe: 'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72).',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly tssEnabled: CommandFlag = {
+    constName: 'tssEnabled',
+    name: 'tss',
+    definition: {
+      describe: 'Enable hinTS/TSS (CN >= v0.72).',
+      type: 'boolean',
+      defaultValue: true,
     },
     prompt: undefined,
   };
@@ -2832,6 +2854,39 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly deployMirrorNode: CommandFlag = {
+    constName: 'deployMirrorNode',
+    name: 'deploy-mirror-node',
+    definition: {
+      describe: 'Deploy mirror node as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployExplorer: CommandFlag = {
+    constName: 'deployExplorer',
+    name: 'deploy-explorer',
+    definition: {
+      describe: 'Deploy explorer as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly deployRelay: CommandFlag = {
+    constName: 'deployRelay',
+    name: 'deploy-relay',
+    definition: {
+      describe: 'Deploy relay as part of one-shot falcon deployment',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -2867,7 +2922,6 @@ export class Flags {
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
     Flags.deployPrometheusStack,
-    Flags.deployGrafanaAgent,
     Flags.deployment,
     Flags.deploymentClusters,
     Flags.devMode,
@@ -2990,12 +3044,19 @@ export class Flags {
     Flags.performanceTest,
     Flags.packageName,
     Flags.minimalSetup,
+    Flags.deployMirrorNode,
+    Flags.deployExplorer,
+    Flags.deployRelay,
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
+    Flags.wrapsEnabled,
+    Flags.tssEnabled,
+    Flags.javaFlightRecorderConfiguration,
+    Flags.forceBlockNodeIntegration,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

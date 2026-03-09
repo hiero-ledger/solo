@@ -50,6 +50,11 @@ export interface HelmClient {
   removeRepository(repository: Repository): Promise<void>;
 
   /**
+   * Executes the Helm CLI repo update sub-command and updates the Helm repositories.
+   */
+  updateRepositories(): Promise<void>;
+
+  /**
    * Executes the Helm CLI install sub-command and installs a Helm chart passing the flags and arguments
    * provided.
    *

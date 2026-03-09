@@ -190,7 +190,7 @@ tasks:
     deps:
       - task: "init"
     status:
-      - test -f {{ .solo_bin_dir }}/helm
+      - test -f {{ .solo_bin_dir }}/helm || command -v helm
       - test -f {{ .solo_cache_dir }}/profiles/custom-spec.yaml
       - test -f {{ .solo_cache_dir }}/templates/api-permission.properties
       - test -f {{ .solo_cache_dir }}/templates/application.properties
@@ -338,7 +338,8 @@ tasks:
     silent: true
     status:
       - |
-        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-1
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-1
     deps:
       - task: "init"
     cmds:
@@ -419,7 +420,8 @@ tasks:
       - task: "solo:cluster:minio"
     status:
       - |
-        {{.solo_bin_dir}}/helm list --all-namespaces | grep -qz "${SOLO_CLUSTER_RELEASE_NAME}"
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm list --all-namespaces | grep -qz "${SOLO_CLUSTER_RELEASE_NAME}"
     cmds:
       - |
         export MINIO_FLAG=$(cat {{ .minio_flag_file }})
@@ -535,7 +537,8 @@ tasks:
     desc: solo mirror node destroy
     status:
       - |
-        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
     deps:
       - task: "init"
     cmds:
@@ -595,7 +598,8 @@ tasks:
     desc: setup external database PostgreSQL with helm
     cmds:
       - |
-        {{.solo_bin_dir}}/helm install {{.postgres_name}} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm install {{.postgres_name}} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
           --set image.tag=16.4.0 \
           --namespace {{.postgres_database_namespace}} --create-namespace \
           --set global.postgresql.auth.postgresPassword={{.postgres_password}} \

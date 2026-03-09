@@ -6,6 +6,7 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 
 @injectable()
 export class ShellRunner {
@@ -19,15 +20,20 @@ export class ShellRunner {
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
+    environmentVariablesToAppend: Record<string, string> = {},
   ): Promise<string[]> {
-    const callStack: string = new Error('INFO').stack; // capture the callstack to be included in error
-    this.logger.info(`Executing command: '${cmd}'`);
+    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
+    const callStack: string = new Error(message).stack; // capture the callstack to be included in error
+    this.logger.info(message);
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
+        env: {...process.env, ...environmentVariablesToAppend},
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,
+        windowsVerbatimArguments: OperatingSystem.isWin32(), // ensure arguments are passed verbatim on Windows
+        windowsHide: OperatingSystem.isWin32(), // hide the console window on Windows
       });
 
       if (detached) {
@@ -83,12 +89,15 @@ export class ShellRunner {
           reject(error);
         }
 
-        this.logger.debug(`Finished executing: '${cmd}'`, {
-          commandExitCode: code,
-          commandExitSignal: signal,
-          commandOutput: output,
-          errOutput: errorOutput,
-        });
+        this.logger.debug(
+          `Finished executing: '${cmd}', ${JSON.stringify({
+            commandExitCode: code,
+            commandExitSignal: signal,
+            commandOutput: output,
+            errOutput: errorOutput,
+          })}`,
+        );
+
         resolve(output);
       });
     });
@@ -101,6 +110,7 @@ export class ShellRunner {
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
+    environmentVariablesToAppend: Record<string, string> = {},
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
@@ -119,6 +129,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run(`sudo ${cmd}`, arguments_, verbose, detached);
+    return this.run(`sudo ${cmd}`, arguments_, verbose, detached, environmentVariablesToAppend);
   }
 }

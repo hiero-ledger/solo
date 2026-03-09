@@ -47,7 +47,11 @@ export class EndToEndTestSuite extends Suite {
     public readonly bootstrapProperties: string = 'bootstrap.properties',
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
-    public readonly testSuiteCallback: (options: BaseTestOptions) => void,
+    public readonly javaFlightRecorderConfiguration: string = '',
+    public readonly testSuiteCallback: (
+      options: BaseTestOptions,
+      preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
+    ) => void,
   ) {
     super(testName);
     const soloTestClusterName: string = getTestCluster();
@@ -106,6 +110,7 @@ export class EndToEndTestSuite extends Suite {
       bootstrapProperties: this.bootstrapProperties,
       logXml: this.logXml,
       settingsTxt: this.settingsTxt,
+      javaFlightRecorderConfiguration: this.javaFlightRecorderConfiguration,
     } as BaseTestOptions;
   }
 
@@ -114,12 +119,18 @@ export class EndToEndTestSuite extends Suite {
     describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
       this.bail(true);
 
-      // Automatically setup diagnostic log collection if enabled
-      if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
-        BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
-      }
-
-      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options);
+      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options, EndToEndTestSuite.preDestroy);
     });
+  }
+
+  public static async preDestroy(endToEndTestSuiteInstance: EndToEndTestSuite): Promise<void> {
+    // Automatically setup diagnostic log collection if enabled
+    if (endToEndTestSuiteInstance.collectDiagnosticLogs) {
+      await BaseCommandTest.setupDiagnosticLogCollection(endToEndTestSuiteInstance.options);
+    }
+
+    if (endToEndTestSuiteInstance.javaFlightRecorderConfiguration) {
+      await BaseCommandTest.setupJavaFlightRecorderLogCollection(endToEndTestSuiteInstance.options);
+    }
   }
 }
