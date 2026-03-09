@@ -72,6 +72,7 @@ solo block node add --deployment my-network --priority-mapping node1,node2=10
 ```
 
 This example means:
+
 * Consensus node `node1` sends blocks to block nodes 1 and 2
   * Block node 1 priority is 2
   * Block node 2 priority is 1

@@ -180,6 +180,26 @@ function check_importer_log()
   fi
 }
 
+function resolve_mirror_release_name()
+{
+  local release_name
+
+  # Prefer canonical mirror release names from all namespaces.
+  release_name="$(helm list -A --filter '^mirror(-[0-9]+)?$' -q | head -n 1)"
+
+  # Fallback: detect by chart name if release naming differs.
+  if [ -z "${release_name}" ]; then
+    release_name="$(helm list -A | awk 'NR>1 && $6 ~ /^hedera-mirror-/ {print $1; exit}')"
+  fi
+
+  if [ -z "${release_name}" ]; then
+    echo "Unable to detect mirror Helm release from 'helm list -A'" >&2
+    return 1
+  fi
+
+  echo "${release_name}"
+}
+
 echo "Change to parent directory"
 
 cd ../
