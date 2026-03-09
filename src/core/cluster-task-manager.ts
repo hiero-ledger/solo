@@ -6,7 +6,7 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {BrewPackageManager} from './package-managers/brew-package-manager.js';
 import {OsPackageManager} from './package-managers/os-package-manager.js';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {PodmanMode, SoloListrTask} from '../types/index.js';
+import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
 import {SoloError} from './errors/solo-error.js';
@@ -66,25 +66,26 @@ export class ClusterTaskManager extends ShellRunner {
     this.gitClient = patchInject(gitClient, InjectTokens.GitClient, ClusterTaskManager.name);
   }
 
-  private sudoCallbacks(task: any): {
+  private sudoCallbacks(task: SoloListrTaskWrapper<InitContext>): {
     onSudoRequested: (message: string) => void;
     onSudoGranted: (message: string) => void;
   } {
-    const originalTitle: string | any[] = task.title;
+    const originalTitle: string = task.title;
     const onSudoRequested: (message: string) => void = (message: string): void => {
       task.title = message;
     };
-    const onSudoGranted: (message: string) => void = (_message: string): void => {
+    const onSudoGranted: (message: string) => void = (message: string): void => {
+      void message;
       task.title = originalTitle;
     };
     return {onSudoGranted, onSudoRequested};
   }
 
-  public rootfullInstallTasks(parentTask): SoloListrTask<InitContext>[] {
+  public rootfullInstallTasks(parentTask: SoloListrTaskWrapper<InitContext>): SoloListrTask<InitContext>[] {
     return [
       {
         title: 'Install git, iptables...',
-        task: async (_, _subTask) => {
+        task: async (): Promise<void> => {
           try {
             await this.gitClient.version();
           } catch {
@@ -101,7 +102,7 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install brew...',
-        task: async (_, _subTask) => {
+        task: async (): Promise<void> => {
           const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
           if (!brewInstalled) {
             this.logger.info('Homebrew not found, installing Homebrew...');
@@ -113,7 +114,7 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Install podman...',
-        task: async (_, _subTask) => {
+        task: async (): Promise<void> => {
           try {
             const podmanVersion: string[] = await this.run('podman --version');
             this.logger.info(`Podman already installed: ${podmanVersion}`);
@@ -127,7 +128,8 @@ export class ClusterTaskManager extends ShellRunner {
       } as SoloListrTask<InitContext>,
       {
         title: 'Creating local cluster...',
-        task: async (_context, task) => {
+        task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
+          void _context;
           const whichPodman: string[] = await this.run('which podman');
           const podmanPath: string = whichPodman.join('').replace('/podman', '');
           const sudoRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
@@ -184,17 +186,17 @@ export class ClusterTaskManager extends ShellRunner {
             if (!userConfig.clusters) {
               userConfig.clusters = [];
             }
-            userConfig.clusters.push(rootConfig.clusters.find(c => c.name === clusterName));
+            userConfig.clusters.push(rootConfig.clusters.find((c: AnyObject): boolean => c.name === clusterName));
 
             if (!userConfig.contexts) {
               userConfig.contexts = [];
             }
-            userConfig.contexts.push(rootConfig.contexts.find(c => c.name === clusterName));
+            userConfig.contexts.push(rootConfig.contexts.find((c: AnyObject): boolean => c.name === clusterName));
 
             if (!userConfig.users) {
               userConfig.users = [];
             }
-            userConfig.users.push(rootConfig.users.find(c => c.name === clusterName));
+            userConfig.users.push(rootConfig.users.find((c: AnyObject): boolean => c.name === clusterName));
 
             userConfig['current-context'] = rootConfig['current-context'];
           } catch (error) {
@@ -204,9 +206,9 @@ export class ClusterTaskManager extends ShellRunner {
                 fs.mkdirSync(kubeConfigDirectory, {recursive: true});
               }
               userConfig = rootConfig;
-              userConfig.clusters = userConfig.clusters.filter(c => c.name === clusterName);
-              userConfig.contexts = userConfig.contexts.filter(c => c.name === clusterName);
-              userConfig.users = userConfig.users.filter(c => c.name === clusterName);
+              userConfig.clusters = userConfig.clusters.filter((c: AnyObject): boolean => c.name === clusterName);
+              userConfig.contexts = userConfig.contexts.filter((c: AnyObject): boolean => c.name === clusterName);
+              userConfig.users = userConfig.users.filter((c: AnyObject): boolean => c.name === clusterName);
             } else {
               throw error;
             }
@@ -219,7 +221,7 @@ export class ClusterTaskManager extends ShellRunner {
     ];
   }
 
-  public async installationTasks(parentTask): Promise<SoloListrTask<InitContext>[]> {
+  public async installationTasks(parentTask: SoloListrTaskWrapper<InitContext>): Promise<SoloListrTask<InitContext>[]> {
     const skipPodmanTasks: boolean = !(await this.podmanDependencyManager.shouldInstall());
     if (this.podmanDependencyManager.mode === PodmanMode.ROOTFUL) {
       {
@@ -230,7 +232,7 @@ export class ClusterTaskManager extends ShellRunner {
         return [
           {
             title: 'Create Podman machine...',
-            task: async () => {
+            task: async (): Promise<void> => {
               const podmanRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
                 [],
                 undefined,
@@ -265,7 +267,7 @@ export class ClusterTaskManager extends ShellRunner {
           } as SoloListrTask<InitContext>,
           {
             title: 'Configure kind to use podman...',
-            task: async () => {
+            task: async (): Promise<void> => {
               process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
             },
             skip: (): boolean => skipPodmanTasks,
@@ -278,10 +280,10 @@ export class ClusterTaskManager extends ShellRunner {
     return [];
   }
 
-  private defaultCreateClusterTask(parentTask): SoloListrTask<InitContext> {
+  private defaultCreateClusterTask(parentTask: SoloListrTaskWrapper<InitContext>): SoloListrTask<InitContext> {
     return {
       title: 'Creating local cluster...',
-      task: async _context => {
+      task: async (): Promise<void> => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
@@ -295,7 +297,8 @@ export class ClusterTaskManager extends ShellRunner {
     return [
       {
         title: 'Install Kind',
-        task: async (_, task) => {
+        task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<unknown> => {
+          void _context;
           const podmanDependency: PodmanDependencyManager = this.podmanDependencyManager;
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
 
@@ -306,7 +309,7 @@ export class ClusterTaskManager extends ShellRunner {
 
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
-          const subTasks = this.depManager.taskCheckDependencies<InitContext>(deps);
+          const subTasks: SoloListrTask<InitContext>[] = this.depManager.taskCheckDependencies<InitContext>(deps);
 
           // set up the sub-tasks
           return task.newListr(subTasks, {
@@ -320,7 +323,8 @@ export class ClusterTaskManager extends ShellRunner {
       },
       {
         title: 'Create default cluster',
-        task: async (_, task) => {
+        task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<unknown> => {
+          void _context;
           const subTasks: SoloListrTask<InitContext>[] = await this.installationTasks(task);
           return task.newListr(subTasks, {
             concurrent: false, // should not use concurrent as cluster creation may be called before dependencies are finished installing

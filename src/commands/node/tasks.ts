@@ -935,12 +935,12 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
         try {
-          const nodeClient = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
           );
-          const futureDate = new Date();
+          const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
@@ -1280,8 +1280,8 @@ export class NodeCommandTasks {
 
           // Clean up old rounds - keep only the latest/biggest round
           this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          const cleanupScriptName: string = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
@@ -1898,7 +1898,7 @@ export class NodeCommandTasks {
     return {
       title: 'Trigger stake weight calculate',
       task: async (context_): Promise<void> => {
-        const config = context_.config;
+        const config: AnyObject = context_.config;
         this.logger.info(
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
         );
@@ -1960,10 +1960,12 @@ export class NodeCommandTasks {
             context_.config.nodeAliases,
             deploymentName,
           );
-          // @ts-expect-error - TS2339: Property stakeAmount does not exist on type NodeStartConfigClass
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
-          const stakeAmountParsed = context_.config.stakeAmount ? splitFlagInput(context_.config.stakeAmount) : [];
-          let nodeIndex = 0;
+          const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
+            | string
+            | undefined;
+          const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
+          let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
             const accountId: string = accountMap.get(nodeAlias);
             const stakeAmount: string | number =
@@ -2024,7 +2026,7 @@ export class NodeCommandTasks {
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
-                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+                const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (constants.ENABLE_S6_IMAGE) {
                   await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
@@ -2689,7 +2691,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
 
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
         this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
 
         if (config.existingNodeAliases.length > 1) {
@@ -2706,23 +2708,25 @@ export class NodeCommandTasks {
 
           if (config.tlsPublicKey && config.tlsPrivateKey) {
             this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash = crypto.createHash('sha384').update(tlsCertDer).digest();
+            const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+            const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
             nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
 
-            const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+            const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
             renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
             renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
             this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+            const signingCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(
+              config.gossipPublicKey,
+            );
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
-            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
             renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
             renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
@@ -2745,15 +2749,15 @@ export class NodeCommandTasks {
 
           // also sign with new account's key if account is being updated
           if (config.newAccountNumber) {
-            const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+            const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
               config.newAccountNumber,
               config.namespace,
             );
             nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
           }
-          const signedTx = await nodeUpdateTx.sign(config.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+          const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
+          const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
           this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
 
           // If admin key was updated, save the new key to k8s secret
