@@ -11,10 +11,6 @@ help developers recreate the one-shot single deploy performance test with their 
 * **Uses local chart directories** for block node, mirror node, relay, and explorer
 * **Uses a local consensus node build** via the `--local-build-path` flag
 * **Deploys the full stack** with a single `task` command via `solo one-shot falcon deploy`
-* **Addresses Issues**: [#3368](https://github.com/hiero-ledger/solo/issues/3368),
-  [#3369](https://github.com/hiero-ledger/solo/issues/3369),
-  [#3370](https://github.com/hiero-ledger/solo/issues/3370),
-  [#3371](https://github.com/hiero-ledger/solo/issues/3371)
 
 ## Component Repositories Used
 
