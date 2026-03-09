@@ -1507,7 +1507,7 @@ export class NodeCommandTasks {
                   node.name,
                 );
 
-                const hgcaaLogPath: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'output', 'hgcaa.log');
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
 
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
