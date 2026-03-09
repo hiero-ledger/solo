@@ -712,11 +712,6 @@ export class NodeCommandHandlers extends CommandHandler {
     // First run all diagnostics
     await this.all(argv);
 
-    // Validate zippy service is available
-    if (!this.zippy) {
-      throw new SoloError('Zippy service is not available');
-    }
-
     // Then create a zip file from the logs directory
     const outputDirectory: string = (argv.outputDir as string) || constants.SOLO_LOGS_DIR;
     const deployment: string = (argv.deployment as string) || '';
