@@ -13,7 +13,12 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  DEFAULT_NETWORK_NODE_NAME,
+  getEnvironmentVariable,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -1333,6 +1338,8 @@ export class NodeCommandTasks {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
+        console.log(context_); // TODO: Continue investigation
+
         if (releaseTag) {
           releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
         }
@@ -2088,6 +2095,101 @@ export class NodeCommandTasks {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
         await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
+      },
+    };
+  }
+
+  public upgradeChart(): SoloListrTask<AnyListrContext> {
+    return {
+      title: '',
+      task: async ({config}): Promise<void> => {
+        console.log(config);
+
+        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+
+        const clusterReferencesList: ClusterReferenceName[] = [];
+        const valuesArguments: Record<ClusterReferenceName, string> = {};
+        for (const [clusterReference] of clusterReferences) {
+          if (!clusterReferencesList.includes(clusterReference)) {
+            clusterReferencesList.push(clusterReference);
+            valuesArguments[clusterReference] = '';
+          }
+        }
+
+        const node: ConsensusNode = config.consensusNodes[0];
+
+        const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+          NamespaceName.of(node.namespace),
+          node.name,
+        );
+
+        const targetPath: string = PathEx.join(config.cacheDir, 'templates');
+
+        const sourcePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+        await container.copyFrom(sourcePath, targetPath);
+
+
+        // prepare values files for each cluster
+        const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
+        const profileName: string = this.configManager.getFlag(flags.profileName);
+
+        config.javaFlightRecorderConfiguration = this.configManager.getFlag(flags.javaFlightRecorderConfiguration);
+        if (config.javaFlightRecorderConfiguration === '') {
+          config.javaFlightRecorderConfiguration = getEnvironmentVariable('JAVA_FLIGHT_RECORDER_CONFIGURATION') || '';
+        }
+
+        const jfrFilePath: string = config.javaFlightRecorderConfiguration;
+        const jfrFile: string =
+          jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
+
+        const applicationPropertiesPath: string = PathEx.join(config.cacheDir, 'templates', 'application.properties');
+
+        const profileValuesFile: Record<ClusterReferenceName, string> =
+          await this.profileManager.prepareValuesForSoloChart(
+            profileName,
+            config.consensusNodes,
+            config.domainNamesMapping,
+            config.deployment,
+            applicationPropertiesPath,
+            jfrFile,
+          );
+
+        const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+          config.clusterRefs,
+          config.chartDirectory,
+          profileValuesFile,
+          config.valuesFile,
+        );
+
+        for (const clusterReference of Object.keys(valuesFiles)) {
+          valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
+          this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
+            valuesArg: valuesArgumentMap,
+          });
+        }
+
+        // Update all charts
+        await Promise.all(
+          clusterReferencesList.map(async (clusterReference: string): Promise<void> => {
+            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
+            await this.chartManager.upgrade(
+              config.namespace,
+              constants.SOLO_DEPLOYMENT_CHART,
+              constants.SOLO_DEPLOYMENT_CHART,
+              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.soloChartVersion,
+              valuesArgumentMap[clusterReference],
+              context,
+            );
+            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+          }),
+        );
       },
     };
   }
@@ -2972,7 +3074,9 @@ export class NodeCommandTasks {
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
-          clusterReferencesList.push(clusterReference);
+          if (!clusterReferencesList.includes(clusterReference)) {
+            clusterReferencesList.push(clusterReference);
+          }
         }
 
         // Update all charts
