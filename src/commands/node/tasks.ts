@@ -1338,8 +1338,6 @@ export class NodeCommandTasks {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
-        console.log(context_); // TODO: Continue investigation
-
         if (releaseTag) {
           releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
         }
@@ -2103,8 +2101,6 @@ export class NodeCommandTasks {
     return {
       title: '',
       task: async ({config}): Promise<void> => {
-        console.log(config);
-
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         const clusterReferencesList: ClusterReferenceName[] = [];
@@ -2155,7 +2151,7 @@ export class NodeCommandTasks {
           );
 
         const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
-          config.clusterRefs,
+          this.remoteConfig.getClusterRefs(),
           config.chartDirectory,
           profileValuesFile,
           config.valuesFile,
