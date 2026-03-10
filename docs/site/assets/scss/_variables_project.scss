@@ -549,10 +549,16 @@ td > code {
 // --- 13. FOOTER STYLES ---
 
 .td-footer {
-  background: transparent !important;
+  background-color: #000000 !important;
   padding: 2rem 0 !important;
   min-height: auto !important;
   margin: 0 !important;
+  width: auto !important;
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 
   * {
     color: #ffffff !important;
@@ -560,6 +566,7 @@ td > code {
 
   .container {
     text-align: center !important;
+    max-width: 100% !important;
     padding-left: 15px !important;
     padding-right: 15px !important;
   }
@@ -574,14 +581,14 @@ td > code {
   // Center footer content
   .td-footer__content {
     text-align: center !important;
-    background-color: #000000 !important;
-    padding: 1rem 1.25rem !important;
+    max-width: 100% !important;
   }
 }
 
 @media (min-width: 1200px) {
-  .td-footer .container {
-    max-width: calc(100% - 600px) !important;
+  .td-footer {
+    margin-left: 300px !important;
+    margin-right: 300px !important;
   }
 }
 
