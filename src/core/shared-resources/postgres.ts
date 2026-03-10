@@ -161,7 +161,7 @@ export class PostgresSharedResource {
           mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
         );
 
-        const wrapperScriptNmae = 'run-init.sh';
+        const wrapperScriptName: string = 'run-init.sh';
 
         const wrapperLines: string[] = [
           '#!/usr/bin/env bash',
@@ -213,12 +213,12 @@ export class PostgresSharedResource {
 
         const outputStream: PassThrough = new PassThrough();
         outputStream.on('data', (chunk: Buffer) => {
-          this.logger.info(`${wrapperScriptNmae}: ${chunk.toString()}`);
+          this.logger.info(`${wrapperScriptName}: ${chunk.toString()}`);
         });
 
         const errorStream: PassThrough = new PassThrough();
         errorStream.on('data', (chunk: Buffer) => {
-          this.logger.info(`${wrapperScriptNmae}: ${chunk.toString()}`);
+          this.logger.info(`${wrapperScriptName}: ${chunk.toString()}`);
         });
 
         await k8Container.execContainer('/bin/bash /tmp/wrapperScriptName', outputStream, errorStream);

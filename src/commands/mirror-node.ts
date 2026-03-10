@@ -64,7 +64,6 @@ import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
-import {type Container} from '../integration/kube/resources/container/container.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -1151,13 +1150,13 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
               {
                 title: 'Load database connection details',
                 task: async (context_: MirrorNodeDeployContext): Promise<void> => {
-                  const secrets: Secret[] = await this.k8Factory
-                    .getK8(context_.config.clusterContext)
-                    .secrets()
-                    .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-                  const passwordsSecret: Secret = secrets.find(
-                    secret => secret.name === 'solo-shared-resources-passwords',
-                  );
+                  // const secrets: Secret[] = await this.k8Factory
+                  //   .getK8(context_.config.clusterContext)
+                  //   .secrets()
+                  //   .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+                  // const passwordsSecret: Secret = secrets.find(
+                  //   secret => secret.name === 'solo-shared-resources-passwords',
+                  // );
 
                   context_.config.soloSharedDatabaseHost = `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`;
                   context_.config.soloSharedDatabaseOwnerUsername = 'mirror_node_owner';
@@ -1166,25 +1165,25 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   context_.config.soloSharedDatabaseReadonlyPassword = randAlphaNumber();
 
                   const host: string = context_.config.soloSharedDatabaseHost;
-                  const ownerPassword: string = context_.config.soloSharedDatabaseOwnerPassword;
-                  const ownerUsername: string = context_.config.soloSharedDatabaseOwnerUsername;
-                  const readonlyUsername: string = context_.config.soloSharedDatabaseReadonlyUsername;
-                  const readonlyPassword: string = context_.config.soloSharedDatabaseReadonlyPassword;
+                  // const ownerPassword: string = context_.config.soloSharedDatabaseOwnerPassword;
+                  // const ownerUsername: string = context_.config.soloSharedDatabaseOwnerUsername;
+                  // const readonlyUsername: string = context_.config.soloSharedDatabaseReadonlyUsername;
+                  // const readonlyPassword: string = context_.config.soloSharedDatabaseReadonlyPassword;
 
                   // Update values
                   context_.config.valuesArg += helpers.populateHelmArguments({
                     'db.host': host,
-                    'db.owner.username': ownerUsername,
-                    'importer.db.username': ownerUsername,
-                    'grpc.db.username': readonlyUsername,
-                    'restjava.db.username': readonlyUsername,
-                    'web3.db.username': readonlyUsername,
-                    'db.owner.password': ownerPassword,
-                    'importer.db.password': ownerPassword,
-                    'grpc.db.password': readonlyPassword,
-                    'restjava.db.password': readonlyPassword,
-                    'web3.db.password': readonlyPassword,
-                    'rest.db.password': readonlyPassword,
+                    // 'db.owner.username': ownerUsername,
+                    // 'importer.db.username': ownerUsername,
+                    // 'grpc.db.username': readonlyUsername,
+                    // 'restjava.db.username': readonlyUsername,
+                    // 'web3.db.username': readonlyUsername,
+                    // 'db.owner.password': ownerPassword,
+                    // 'importer.db.password': ownerPassword,
+                    // 'grpc.db.password': readonlyPassword,
+                    // 'restjava.db.password': readonlyPassword,
+                    // 'web3.db.password': readonlyPassword,
+                    // 'rest.db.password': readonlyPassword,
                   });
                 },
               },
