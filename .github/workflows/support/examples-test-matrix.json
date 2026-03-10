@@ -1,7 +1,7 @@
 [
   {
     "name": "Ledger Reset Smoke",
-    "directory": "ledger-reset-smoke/README.md",
+    "directory": "ledger-reset-smoke",
     "local-java-build": false
   }
 ]
