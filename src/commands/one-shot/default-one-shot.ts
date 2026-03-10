@@ -51,6 +51,7 @@ import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} f
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import path from 'node:path';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
@@ -105,6 +106,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+  }
+
+  /**
+   * Concatenates a default config file with an override file, writing the result to outputFilePath.
+   * Later entries in the file override earlier ones, so the override values take precedence.
+   */
+  private concatConfigFiles(defaultFilePath: string, overrideFilePath: string, outputFilePath: string): string {
+    const defaultContent = fs.existsSync(defaultFilePath) ? fs.readFileSync(defaultFilePath, 'utf8') : '';
+    const overrideContent = fs.existsSync(overrideFilePath) ? fs.readFileSync(overrideFilePath, 'utf8') : '';
+
+    const outputDirectory = path.dirname(outputFilePath);
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory, {recursive: true});
+    }
+    fs.writeFileSync(outputFilePath, defaultContent.trimEnd() + '\n' + overrideContent);
+    return outputFilePath;
   }
 
   /**
@@ -217,20 +234,25 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
 
-              // Set small-memory node configuration for one-shot deployments when no values file overrides are provided
+              // Apply small-memory node configuration by concatenating defaults with small-memory overrides
               if (!config.valuesFile) {
-                const smallMemorySettingsDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'templates', 'small-memory');
-                const settingsFile =
+                const defaultsDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
+                const overridesDirectory = PathEx.join(defaultsDirectory, 'small-memory');
+                const mergedDirectory = PathEx.join(defaultsDirectory, 'small-memory-merged');
+                const settingsOverrideFile =
                   config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
-                config.networkConfiguration['--settings-txt'] = PathEx.join(smallMemorySettingsDirectory, settingsFile);
-                config.networkConfiguration['--application-properties'] = PathEx.join(
-                  smallMemorySettingsDirectory,
-                  'application.properties',
+
+                config.networkConfiguration['--settings-txt'] = this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'settings.txt'),
+                  PathEx.join(overridesDirectory, settingsOverrideFile),
+                  PathEx.join(mergedDirectory, 'settings.txt'),
                 );
-                config.networkConfiguration['--application-env'] = PathEx.join(
-                  smallMemorySettingsDirectory,
-                  'application.env',
+                config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'application.properties'),
+                  PathEx.join(overridesDirectory, 'application.properties'),
+                  PathEx.join(mergedDirectory, 'application.properties'),
                 );
+                config.networkConfiguration['--application-env'] = PathEx.join(overridesDirectory, 'application.env');
               }
 
               // Initialize deployment toggles with defaults if not specified
