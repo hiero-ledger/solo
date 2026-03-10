@@ -876,13 +876,6 @@ export class NetworkCommand extends BaseCommand {
       }),
     );
 
-    task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-      }),
-    );
-
     if (deleteSecrets && deletePvcs) {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
@@ -890,6 +883,13 @@ export class NetworkCommand extends BaseCommand {
         }),
       );
     } else {
+      task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
+      await Promise.all(
+        contexts.map(async (context): Promise<void> => {
+          await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+        }),
+      );
+
       if (deletePvcs) {
         task.title = `Deleting PVCs in namespace ${namespace}`;
         await this.deletePvcs(namespace, contexts);
