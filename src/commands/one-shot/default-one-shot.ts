@@ -113,10 +113,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
    * Later entries in the file override earlier ones, so the override values take precedence.
    */
   private concatConfigFiles(defaultFilePath: string, overrideFilePath: string, outputFilePath: string): string {
-    const defaultContent = fs.existsSync(defaultFilePath) ? fs.readFileSync(defaultFilePath, 'utf8') : '';
-    const overrideContent = fs.existsSync(overrideFilePath) ? fs.readFileSync(overrideFilePath, 'utf8') : '';
+    const defaultContent: string = fs.existsSync(defaultFilePath) ? fs.readFileSync(defaultFilePath, 'utf8') : '';
+    const overrideContent: string = fs.existsSync(overrideFilePath) ? fs.readFileSync(overrideFilePath, 'utf8') : '';
 
-    const outputDirectory = path.dirname(outputFilePath);
+    const outputDirectory: string = path.dirname(outputFilePath);
     if (!fs.existsSync(outputDirectory)) {
       fs.mkdirSync(outputDirectory, {recursive: true});
     }
@@ -236,10 +236,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               // Apply small-memory node configuration by concatenating defaults with small-memory overrides
               if (!config.valuesFile) {
-                const defaultsDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
-                const overridesDirectory = PathEx.join(defaultsDirectory, 'small-memory');
-                const mergedDirectory = PathEx.join(defaultsDirectory, 'small-memory-merged');
-                const settingsOverrideFile =
+                const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
+                const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
+                const mergedDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-merged');
+                const settingsOverrideFile: string =
                   config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
 
                 config.networkConfiguration['--settings-txt'] = this.concatConfigFiles(
