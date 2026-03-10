@@ -1488,6 +1488,44 @@ export class NodeCommandTasks {
     };
   }
 
+  public waitForLedgerId(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Wait for ledger id',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
+      task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
+        const subTasks: SoloListrTask<NodeStartContext>[] = [];
+
+        for (const node of config.consensusNodes) {
+          subTasks.push({
+            title: `Waiting for node: ${node.name}`,
+            task: async (): Promise<void> => {
+              let success: boolean = false;
+
+              while (!success) {
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                if (output.includes('HandleWorkflow - Externalizing ledger id')) {
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(20));
+                }
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
@@ -1628,20 +1666,13 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
+  public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task): any => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         const config: any = context_.config;
         const nodeAliases: any = config[nodeAliasesProperty];
-        const subTasks: (
-          | {title: string; task: (context_) => Promise<void>}
-          | {
-              title: string;
-              task: () => Promise<void>;
-            }
-          | {title: string; task: () => Promise<void>}
-        )[] = [
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
             task: async (context_): Promise<void> => {
@@ -1698,13 +1729,13 @@ export class NodeCommandTasks {
     };
   }
 
-  public startNodes(nodeAliasesProperty: string): {title: 'Starting nodes'; task: (context_, task) => any} {
+  public startNodes(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Starting nodes',
       task: (context_, task): any => {
         const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
-        const subTasks: any[] = [];
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
 
         for (const nodeAlias of nodeAliases) {
           subTasks.push({
@@ -1737,11 +1768,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): {
-    title: 'Enable port forwarding for debug port and/or GRPC port';
-    task: (context_) => Promise<void>;
-    skip: (context_) => boolean;
-  } {
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async ({config}): Promise<void> => {
@@ -1807,16 +1834,16 @@ export class NodeCommandTasks {
   public checkAllNodesAreActive(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are ACTIVE',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };
   }
 
-  public checkAllNodesAreFrozen(nodeAliasesProperty: string) {
+  public checkAllNodesAreFrozen(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are FROZEN',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         return this._checkNodeActivenessTask(
           context_,
           task,
@@ -1830,7 +1857,7 @@ export class NodeCommandTasks {
   public checkNodeProxiesAreActive(): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
     return {
       title: 'Check node proxies are ACTIVE',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         // this is more reliable than checking the nodes logs for ACTIVE, as the
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.nodeAliases) as SoloListr<AnyListrContext>;
@@ -1846,7 +1873,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Check all node proxies are ACTIVE',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         // this is more reliable than checking the nodes logs for ACTIVE, as the
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.allNodeAliases) as SoloListr<AnyListrContext>;
@@ -1860,7 +1887,7 @@ export class NodeCommandTasks {
   ): SoloListrTask<T> {
     return {
       title: 'Trigger stake weight calculate',
-      task: async context_ => {
+      task: async (context_): Promise<void> => {
         const config = context_.config;
         this.logger.info(
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
@@ -1901,7 +1928,7 @@ export class NodeCommandTasks {
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
-        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of accountMap.keys()) {
           const accountId: string = accountMap.get(nodeAlias);
           config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
