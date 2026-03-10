@@ -53,7 +53,6 @@ describe('KindClient Integration Tests', function () {
     }
 
     // Download and install Kind
-    kindPath = PathEx.join(temporaryDirectory, constants.KIND);
     container.register(InjectTokens.KindInstallationDirectory, {useValue: temporaryDirectory});
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
     try {
@@ -62,6 +61,10 @@ describe('KindClient Integration Tests', function () {
       console.error('Error checking if Kind is installed locally:', error);
       throw error;
     }
+
+    kindPath = kindManager.isInstalledLocally()
+      ? PathEx.join(temporaryDirectory, constants.KIND)
+      : await kindManager.getExecutable();
 
     console.log(`Using Kind at: ${kindPath}`);
 
