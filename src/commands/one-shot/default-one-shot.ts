@@ -915,7 +915,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     let hasExplorers: boolean = false;
     let hasRelays: boolean = false;
 
-    const taskArray = [
+    const taskArray: any = [
       {
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
@@ -955,6 +955,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
           try {
+            const kubeContextConnectionSuccessful: boolean = await this.k8Factory
+              .default()
+              .contexts()
+              .testContextConnection(config.context);
+            if (!kubeContextConnectionSuccessful) {
+              config.skipAll = true;
+              return;
+            }
+          } catch (error) {
+            this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
+          }
+          try {
             await this.remoteConfig.loadAndValidate(argv);
             config.skipAll = false;
           } catch (error) {
@@ -962,6 +974,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.logger.showUser(
                 'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
               );
+              this.logger.error('Error loading remote config:', error);
               config.skipAll = true;
               return;
             } else {
@@ -1175,6 +1188,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
+      this.logger.logFullError(error);
       throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
     } finally {
       this.oneShotState.deactivate();
