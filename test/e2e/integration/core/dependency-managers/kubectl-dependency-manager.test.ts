@@ -127,7 +127,14 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KUBECTL}`).alwaysReturned(false);
+      const originalShellRun = ShellRunner.prototype.run;
+      sandbox.stub(ShellRunner.prototype, 'run').callsFake(async function (this: ShellRunner, cmd: string) {
+        if (cmd === `which ${constants.KUBECTL}`) {
+          return false;
+        }
+
+        return originalShellRun.call(this, cmd);
+      });
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, constants.KUBECTL))).to.be.ok;
       expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
@@ -140,17 +147,26 @@ describe('KubectlDependencyManager', (): void => {
       cpSyncStub.restore();
       chmodSyncStub.restore();
       rmSyncStub.restore();
+      const originalShellRun = ShellRunner.prototype.run;
+      sandbox.stub(ShellRunner.prototype, 'run').callsFake(async function (this: ShellRunner, cmd: string) {
+        if (cmd === `which ${constants.KUBECTL}`) {
+          return false;
+        }
+
+        return originalShellRun.call(this, cmd);
+      });
       const kubectlInstallationDirectory: string = getTemporaryDirectory();
       container.register(InjectTokens.KubectlInstallationDirectory, {useValue: kubectlInstallationDirectory});
       kubectlDependencyManager = new KubectlDependencyManager(undefined, undefined, process.arch, undefined);
-      const originalRunMethod: any = kubectlDependencyManager.run.bind(kubectlDependencyManager);
+      const originalInstallationMeetsRequirements =
+        kubectlDependencyManager.installationMeetsRequirements.bind(kubectlDependencyManager);
       sandbox
         .stub(KubectlDependencyManager.prototype, 'installationMeetsRequirements')
         .callsFake(async (executablePath: string): Promise<boolean> => {
           if (executablePath === constants.KUBECTL) {
             return false; // global installation does not meet requirements
           }
-          return originalRunMethod(executablePath);
+          return originalInstallationMeetsRequirements(executablePath);
         });
       expect(await kubectlDependencyManager.install(getTemporaryDirectory())).to.be.true;
       expect(downloaderFetchPackageSpy.calledOnce).to.be.true;
