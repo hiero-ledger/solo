@@ -953,7 +953,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             if (deployments.length === 0) {
               this.logger.showUser('No deployments found in local config, have they already been deleted?');
               config.skipAll = true;
-              return;            
+              return;
             }
 
             if (deployments.length > 1) {
