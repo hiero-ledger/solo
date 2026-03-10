@@ -219,15 +219,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               // Set small-memory node configuration for one-shot deployments when no values file overrides are provided
               if (!config.valuesFile) {
-                const smallMemoryDir = PathEx.join(constants.SOLO_CACHE_DIR, 'templates', 'small-memory');
+                const smallMemorySettingsDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'templates', 'small-memory');
                 const settingsFile =
                   config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
-                config.networkConfiguration['--settings-txt'] = PathEx.join(smallMemoryDir, settingsFile);
+                config.networkConfiguration['--settings-txt'] = PathEx.join(smallMemorySettingsDirectory, settingsFile);
                 config.networkConfiguration['--application-properties'] = PathEx.join(
-                  smallMemoryDir,
+                  smallMemorySettingsDirectory,
                   'application.properties',
                 );
-                config.networkConfiguration['--application-env'] = PathEx.join(smallMemoryDir, 'application.env');
+                config.networkConfiguration['--application-env'] = PathEx.join(smallMemorySettingsDirectory, 'application.env');
               }
 
               // Initialize deployment toggles with defaults if not specified
