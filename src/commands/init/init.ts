@@ -78,10 +78,7 @@ export class InitCommand extends BaseCommand {
           let directoryCreated: boolean = false;
           const resources = ['templates'];
           for (const directoryName of resources) {
-            const sourceDirectory = PathEx.safeJoinWithBaseDirConfinement(
-              constants.RESOURCES_DIR,
-              directoryName,
-            );
+            const sourceDirectory = PathEx.safeJoinWithBaseDirConfinement(constants.RESOURCES_DIR, directoryName);
             if (!fs.existsSync(sourceDirectory)) {
               continue;
             }
