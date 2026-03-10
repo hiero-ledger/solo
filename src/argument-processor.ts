@@ -48,12 +48,13 @@ export class ArgumentProcessor {
       if (message) {
         const usedHelpShorthand: boolean =
           rawArguments.includes('help') && !rawArguments.includes('--help') && !rawArguments.includes('-h');
+        const usedHelpFlag: boolean = rawArguments.includes('--help') || rawArguments.includes('-h');
 
-        if (usedHelpShorthand) {
+        if (usedHelpShorthand || usedHelpFlag) {
           rootCmd.showHelp((output): void => {
             helpRenderer.render(rootCmd, output);
           });
-          throw new SilentBreak('Help shorthand displayed');
+          throw new SilentBreak('Help displayed');
         }
 
         if (
