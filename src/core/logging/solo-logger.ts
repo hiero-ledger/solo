@@ -5,6 +5,8 @@ import {type MessageLevel} from './message-level.js';
 export interface SoloLogger {
   setDevMode(developmentMode: boolean): void;
 
+  isDevMode(): boolean;
+
   nextTraceId(): void;
 
   prepMeta(meta?: object | any): object | any;
@@ -38,4 +40,6 @@ export interface SoloLogger {
   showAllMessageGroups(): void;
 
   flush(callback: (error?: Error) => void): void;
+
+  logFullError(error: Error | any): void;
 }

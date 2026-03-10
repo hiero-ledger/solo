@@ -109,6 +109,10 @@ export class SoloPinoLogger implements SoloLogger {
     this.developmentMode = developmentMode;
   }
 
+  public isDevMode(): boolean {
+    return this.developmentMode ?? false;
+  }
+
   public nextTraceId(): void {
     this.traceId = uuidv4();
   }
@@ -322,5 +326,9 @@ export class SoloPinoLogger implements SoloLogger {
 
     const formatted: string = util.format(String(message), ...(arguments_ as any[]));
     this.pinoLogger[level](meta as any, formatted);
+  }
+
+  public logFullError(error: Error | any): void {
+    this.pinoLogger.error(`Full Error: ${JSON.stringify(error)}`);
   }
 }
