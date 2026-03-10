@@ -365,7 +365,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         'my-postgresql',
         new Chart('postgresql', 'postgresql-helm'),
         InstallChartOptionsBuilder.builder()
-          .set([`deploymentType=local`, `postgresql.auth.password=${this.postgresPassword}`])
+          .set(['deploymentType=local', `postgresql.auth.password=${this.postgresPassword}`])
           .namespace(this.nameSpace)
           .createNamespace(true)
           .kubeContext(contexts[1])
