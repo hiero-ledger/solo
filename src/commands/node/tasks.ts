@@ -2124,7 +2124,6 @@ export class NodeCommandTasks {
         const sourcePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
         await container.copyFrom(sourcePath, targetPath);
 
-
         // prepare values files for each cluster
         const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
         const profileName: string = this.configManager.getFlag(flags.profileName);
