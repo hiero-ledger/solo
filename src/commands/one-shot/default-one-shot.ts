@@ -1188,7 +1188,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      this.logger.logFullError(error);
       throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
     } finally {
       this.oneShotState.deactivate();

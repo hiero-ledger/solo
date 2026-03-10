@@ -40,6 +40,4 @@ export interface SoloLogger {
   showAllMessageGroups(): void;
 
   flush(callback: (error?: Error) => void): void;
-
-  logFullError(error: Error | any): void;
 }
