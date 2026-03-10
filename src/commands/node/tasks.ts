@@ -1488,9 +1488,9 @@ export class NodeCommandTasks {
     };
   }
 
-  public waitForLedgerId(): SoloListrTask<NodeStartContext> {
+  public waitForTss(): SoloListrTask<NodeStartContext> {
     return {
-      title: 'Wait for ledger id',
+      title: 'Wait for TSS',
       skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
       task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
         const subTasks: SoloListrTask<NodeStartContext>[] = [];
@@ -1498,10 +1498,16 @@ export class NodeCommandTasks {
         for (const node of config.consensusNodes) {
           subTasks.push({
             title: `Waiting for node: ${node.name}`,
-            task: async (): Promise<void> => {
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = constants.TSS_READY_MAX_ATTEMPTS;
+              let attempt: number = 0;
               let success: boolean = false;
 
-              while (!success) {
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
                 const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
                   NamespaceName.of(node.namespace),
                   node.name,
@@ -1511,11 +1517,16 @@ export class NodeCommandTasks {
 
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
-                if (output.includes('HandleWorkflow - Externalizing ledger id')) {
+                if (output.includes('TSS protocol ready to sign blocks')) {
+                  await sleep(Duration.ofSeconds(constants.TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS));
                   success = true;
                 } else {
-                  await sleep(Duration.ofSeconds(20));
+                  await sleep(Duration.ofSeconds(constants.TSS_READY_BACKOFF_SECONDS));
                 }
+              }
+
+              if (!success) {
+                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
               }
             },
           });
