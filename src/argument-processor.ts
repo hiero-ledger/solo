@@ -17,9 +17,10 @@ export class ArgumentProcessor {
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
     const commands: any = container.resolve(InjectTokens.Commands);
+    const rawArguments: string[] = hideBin(argv);
 
     logger.debug('Initializing commands');
-    const rootCmd: any = yargs(hideBin(argv))
+    const rootCmd: any = yargs(rawArguments)
       .scriptName('')
       .usage('Usage:\n  solo <command> [options]')
       .alias('h', 'help')
@@ -45,6 +46,16 @@ export class ArgumentProcessor {
 
     rootCmd.fail((message, error): void => {
       if (message) {
+        const usedHelpShorthand: boolean =
+          rawArguments.includes('help') && !rawArguments.includes('--help') && !rawArguments.includes('-h');
+
+        if (usedHelpShorthand) {
+          rootCmd.showHelp((output): void => {
+            helpRenderer.render(rootCmd, output);
+          });
+          throw new SilentBreak('Help shorthand displayed');
+        }
+
         if (
           message.includes('Unknown argument') ||
           message.includes('Missing required argument') ||
