@@ -321,7 +321,6 @@ export class Flags {
     },
   };
 
-
   public static readonly deployPrometheusStack: CommandFlag = {
     constName: 'deployPrometheusStack',
     name: 'prometheus-stack',

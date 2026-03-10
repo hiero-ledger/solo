@@ -136,9 +136,7 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
-  ) {
+  public constructor(@inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks) {
     super();
 
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);

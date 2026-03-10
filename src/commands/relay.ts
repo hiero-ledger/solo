@@ -143,9 +143,7 @@ enum RelayCommandType {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
-  ) {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);

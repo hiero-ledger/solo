@@ -330,7 +330,6 @@ export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
 export const LOCAL_HOST: string = '127.0.0.1';
 
-
 export const STANDARD_DATAMASK: string = '***';
 
 // ------ Hedera SDK Related ------
