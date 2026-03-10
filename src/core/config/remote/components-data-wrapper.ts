@@ -68,14 +68,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       throw new SoloError(`Component id is required ${componentId}`);
     }
 
-    if (!isValidEnum(type, ComponentTypes)) {
-      throw new SoloError(`Invalid component type ${type}`);
-    }
-
-    if (!isValidEnum(phase, DeploymentPhase)) {
-      throw new SoloError(`Invalid component phase ${phase}`);
-    }
-
     const updateComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
       const component: BaseStateSchema = components.find((component): boolean => component.metadata.id === componentId);
 

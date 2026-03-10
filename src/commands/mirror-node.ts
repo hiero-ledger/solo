@@ -31,8 +31,8 @@ import {
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
-import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import * as versions from '../../version.js';
+import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -52,16 +52,18 @@ import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-no
 import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
+import {SemVer} from 'semver';
 import {Base64} from 'js-base64';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
-import {SemVer} from 'semver';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Templates} from '../core/templates.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -496,7 +498,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): Promise<void> {
+  private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext, commandType: 'add' | 'upgrade'): Promise<void> {
     if (
       config.isChartInstalled &&
       semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
@@ -542,6 +544,18 @@ export class MirrorNodeCommand extends BaseCommand {
     );
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
+
+    if (commandType === 'add') {
+      this.remoteConfig.configuration.components.addNewComponent(
+        (config as MirrorNodeDeployConfigClass).newMirrorNodeComponent,
+        ComponentTypes.MirrorNode,
+      );
+
+      // update explorer version in remote config
+      this.remoteConfig.updateComponentVersion(ComponentTypes.MirrorNode, new SemVer(config.explorerVersion));
+
+      await this.remoteConfig.persist();
+    }
 
     if (config.enableIngress) {
       const existingIngressClasses: IngressClass[] = await this.k8Factory
@@ -957,6 +971,9 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
               config.namespace,
             );
 
+            // TODO: remove once all components are created at REQUESTED deployment phase
+            config.newMirrorNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
             config.id = config.newMirrorNodeComponent.metadata.id;
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
@@ -1097,10 +1114,10 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.addMirrorNodeComponents(),
         this.enableMirrorNodeTask(),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
-        this.addMirrorNodeComponents(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in one-shot mode
         // {
