@@ -6,7 +6,6 @@ import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
-import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -74,8 +73,6 @@ interface RelayDeployConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
-  profileFile: string;
-  profileName: string;
   relayReleaseTag: string;
   replicaCount: number;
   valuesFile: string;
@@ -112,8 +109,6 @@ interface RelayUpgradeConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
-  profileFile: string;
-  profileName: string;
   relayReleaseTag: string;
   replicaCount: number;
   valuesFile: string;
@@ -149,12 +144,10 @@ enum RelayCommandType {
 @injectable()
 export class RelayCommand extends BaseCommand {
   public constructor(
-    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
   ) {
     super();
 
-    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
@@ -172,8 +165,6 @@ export class RelayCommand extends BaseCommand {
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.relayReleaseTag,
       flags.replicaCount,
@@ -199,8 +190,6 @@ export class RelayCommand extends BaseCommand {
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.relayReleaseTag,
       flags.replicaCount,
@@ -238,12 +227,6 @@ export class RelayCommand extends BaseCommand {
     mirrorNamespace,
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
-
-    const profileName: string = this.configManager.getFlag(flags.profileName);
-    const profileValuesFile: string = await this.profileManager.prepareValuesForRpcRelayChart(profileName);
-    if (profileValuesFile) {
-      valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
-    }
 
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});

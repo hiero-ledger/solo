@@ -6,7 +6,6 @@ import {after, before, describe, it} from 'mocha';
 import fs from 'node:fs';
 import * as yaml from 'yaml';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import * as constants from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {ProfileManager} from '../../../src/core/profile-manager.js';
 import {getTemporaryDirectory, getTestCacheDirectory} from '../../test-utility.js';
@@ -26,7 +25,6 @@ describe('ProfileManager', (): void => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
   const namespace: NamespaceName = NamespaceName.of('test-namespace');
   const deploymentName: string = 'deployment';
-  const testProfileFile: string = PathEx.join('test', 'data', 'test-profiles.yaml');
   const kubeConfig: KubeConfig = new KubeConfig();
   kubeConfig.loadFromDefault();
   const consensusNodes: ConsensusNode[] = [
@@ -96,14 +94,6 @@ describe('ProfileManager', (): void => {
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfig.getConsensusNodes = sinon.stub().returns(consensusNodes);
 
-    // // @ts-expect-error - TS2339: to mock
-    // profileManager.remoteConfig.configuration = sinon.stub().returns({
-    //   versions: {
-    //     consensusNode: version.HEDERA_PLATFORM_VERSION,
-    //   },
-    //   state: {},
-    // });
-
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfig.configuration = {
       // @ts-expect-error - TS2339: to mock
@@ -127,159 +117,62 @@ describe('ProfileManager', (): void => {
     fs.rmSync(temporaryDirectory, {recursive: true});
   });
 
-  it('should throw error for missing profile file', () => {
-    try {
-      configManager.setFlag(flags.profileFile, 'INVALID');
-      profileManager.loadProfiles(true);
-      throw new Error();
-    } catch (error) {
-      expect(error.message).to.include('profileFile does not exist');
-    }
-  });
+  describe('determine chart values', () => {
+    it('should determine Solo chart values', async () => {
+      configManager.setFlag(flags.namespace, 'test-namespace');
 
-  it('should be able to load a profile file', () => {
-    configManager.setFlag(flags.profileFile, testProfileFile);
-    const profiles = profileManager.loadProfiles(true);
-    expect(profiles).not.to.be.null;
-    for (const entry of profiles) {
-      const profile = entry[1];
-      expect(profile).not.to.be.null;
-      for (const component of ['consensus', 'rpcRelay', 'haproxy', 'envoyProxy', 'explorer', 'mirror', 'minio']) {
-        expect(profile[component]).not.to.be.undefined;
+      const resources = ['templates'];
+      for (const directoryName of resources) {
+        const sourceDirectory = PathEx.joinWithRealPath(PathEx.join('resources'), directoryName);
+        if (!fs.existsSync(sourceDirectory)) {
+          continue;
+        }
+
+        const destinationDirectory = PathEx.resolve(PathEx.join(cacheDirectory, directoryName));
+        if (!fs.existsSync(destinationDirectory)) {
+          fs.mkdirSync(destinationDirectory, {recursive: true});
+        }
+
+        fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
       }
-    }
-  });
 
-  const testCases = [{profileName: 'test', profileFile: testProfileFile}];
+      const applicationPropertiesFile: string = PathEx.join(cacheDirectory, 'templates', 'application.properties');
+      const valuesFileMapping = await profileManager.prepareValuesForSoloChart(
+        consensusNodes,
+        {},
+        deploymentName,
+        applicationPropertiesFile,
+      );
+      const valuesFile = Object.values(valuesFileMapping)[0];
 
-  describe('determine chart values for a profile', () => {
-    for (const input of testCases) {
-      it(`should determine Solo chart values [profile = ${input.profileName}]`, async () => {
-        configManager.setFlag(flags.profileFile, input.profileFile);
-        configManager.setFlag(flags.namespace, 'test-namespace');
+      expect(valuesFile).not.to.be.null;
+      expect(fs.existsSync(valuesFile)).to.be.ok;
 
-        const resources = ['templates', 'profiles'];
-        for (const directoryName of resources) {
-          const sourceDirectory = PathEx.joinWithRealPath(constants.RESOURCES_DIR, directoryName);
-          if (!fs.existsSync(sourceDirectory)) {
-            continue;
-          }
+      // validate the yaml
+      const valuesYaml: any = yaml.parse(fs.readFileSync(valuesFile).toString());
+      expect(valuesYaml.hedera.nodes.length).to.equal(3);
+    });
 
-          const destinationDirectory = PathEx.resolve(PathEx.join(cacheDirectory, directoryName));
-          if (!fs.existsSync(destinationDirectory)) {
-            fs.mkdirSync(destinationDirectory, {recursive: true});
-          }
+    it('prepareValuesForSoloChart should set the value of a key to the contents of a file', async () => {
+      configManager.setFlag(flags.namespace, 'test-namespace');
 
-          fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
-        }
-
-        profileManager.loadProfiles(true);
-        const applicationPropertiesFile: string = PathEx.join(cacheDirectory, 'templates', 'application.properties');
-        const valuesFileMapping = await profileManager.prepareValuesForSoloChart(
-          input.profileName,
-          consensusNodes,
-          {},
-          deploymentName,
-          applicationPropertiesFile,
-        );
-        const valuesFile = Object.values(valuesFileMapping)[0];
-
-        expect(valuesFile).not.to.be.null;
-        expect(fs.existsSync(valuesFile)).to.be.ok;
-
-        // validate the yaml
-        const valuesYaml: any = yaml.parse(fs.readFileSync(valuesFile).toString());
-        expect(valuesYaml.hedera.nodes.length).to.equal(3);
-        expect(valuesYaml.defaults.root.resources.limits.cpu).not.to.be.null;
-        expect(valuesYaml.defaults.root.resources.limits.memory).not.to.be.null;
-
-        // check all sidecars have resources
-        for (const component of constants.HEDERA_NODE_SIDECARS) {
-          expect(valuesYaml.defaults.sidecars[component].resources.limits.cpu).not.to.be.null;
-          expect(valuesYaml.defaults.sidecars[component].resources.limits.memory).not.to.be.null;
-        }
-
-        // check proxies have resources
-        for (const component of ['haproxy', 'envoyProxy']) {
-          expect(valuesYaml.defaults[component].resources.limits.cpu).not.to.be.null;
-          expect(valuesYaml.defaults[component].resources.limits.memory).not.to.be.null;
-        }
-
-        // check minio-tenant has resources
-        expect(valuesYaml['minio-server'].tenant.pools[0].resources.limits.cpu).not.to.be.null;
-        expect(valuesYaml['minio-server'].tenant.pools[0].resources.limits.memory).not.to.be.null;
-      });
-
-      it('prepareValuesForSoloChart should set the value of a key to the contents of a file', async () => {
-        configManager.setFlag(flags.profileFile, testProfileFile);
-        configManager.setFlag(flags.namespace, 'test-namespace');
-
-        // profileManager.loadProfiles(true)
-        const file = PathEx.join(temporaryDirectory, 'application.env');
-        const fileContents = '# row 1\n# row 2\n# row 3';
-        fs.writeFileSync(file, fileContents);
-        configManager.setFlag(flags.applicationEnv, file);
-        const destinationFile: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
-        const applicationPropertiesFile: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
-        fs.cpSync(file, destinationFile, {force: true});
-        const cachedValuesFileMapping = await profileManager.prepareValuesForSoloChart(
-          'test',
-          consensusNodes,
-          {},
-          deploymentName,
-          applicationPropertiesFile,
-        );
-        const cachedValuesFile = Object.values(cachedValuesFileMapping)[0];
-        const valuesYaml: any = yaml.parse(fs.readFileSync(cachedValuesFile).toString());
-        expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
-      });
-
-      it(`should determine mirror node chart values [profile = ${input.profileName}]`, async () => {
-        configManager.setFlag(flags.profileFile, input.profileFile);
-        configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
-        configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);
-        profileManager.loadProfiles(true);
-        const valuesFile = (await profileManager.prepareValuesForMirrorNodeChart(input.profileName)) as string;
-        expect(fs.existsSync(valuesFile)).to.be.ok;
-
-        // validate yaml
-        const valuesYaml: any = yaml.parse(fs.readFileSync(valuesFile).toString());
-        expect(valuesYaml.postgresql.persistence.size).not.to.be.null;
-        expect(valuesYaml.postgresql.postgresql.resources.limits.cpu).not.to.be.null;
-        expect(valuesYaml.postgresql.postgresql.resources.limits.memory).not.to.be.null;
-        for (const component of ['grpc', 'rest', 'web3', 'importer']) {
-          expect(valuesYaml[component].resources.limits.cpu).not.to.be.null;
-          expect(valuesYaml[component].resources.limits.memory).not.to.be.null;
-          expect(valuesYaml[component].readinessProbe.failureThreshold).to.equal(60);
-          expect(valuesYaml[component].livenessProbe.failureThreshold).to.equal(60);
-        }
-      });
-
-      it(`should determine hiero-explorer chart values [profile = ${input.profileName}]`, async () => {
-        configManager.setFlag(flags.profileFile, input.profileFile);
-        configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
-        configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);
-        profileManager.loadProfiles(true);
-        const valuesFile = (await profileManager.prepareValuesHederaExplorerChart(input.profileName)) as string;
-        expect(fs.existsSync(valuesFile)).to.be.ok;
-
-        // validate yaml
-        const valuesYaml: any = yaml.parse(fs.readFileSync(valuesFile).toString());
-        expect(valuesYaml.resources.limits.cpu).not.to.be.null;
-        expect(valuesYaml.resources.limits.memory).not.to.be.null;
-      });
-
-      it(`should determine rpc-relay chart values [profile = ${input.profileName}]`, async () => {
-        configManager.setFlag(flags.profileFile, input.profileFile);
-        profileManager.loadProfiles(true);
-        const valuesFile = (await profileManager.prepareValuesForRpcRelayChart(input.profileName)) as string;
-        expect(fs.existsSync(valuesFile)).to.be.ok;
-        // validate yaml
-        const valuesYaml: any = yaml.parse(fs.readFileSync(valuesFile).toString());
-        expect(valuesYaml.resources.limits.cpu).not.to.be.null;
-        expect(valuesYaml.resources.limits.memory).not.to.be.null;
-      });
-    }
+      const file = PathEx.join(temporaryDirectory, 'application.env');
+      const fileContents = '# row 1\n# row 2\n# row 3';
+      fs.writeFileSync(file, fileContents);
+      configManager.setFlag(flags.applicationEnv, file);
+      const destinationFile: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+      const applicationPropertiesFile: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
+      fs.cpSync(file, destinationFile, {force: true});
+      const cachedValuesFileMapping = await profileManager.prepareValuesForSoloChart(
+        consensusNodes,
+        {},
+        deploymentName,
+        applicationPropertiesFile,
+      );
+      const cachedValuesFile = Object.values(cachedValuesFileMapping)[0];
+      const valuesYaml: any = yaml.parse(fs.readFileSync(cachedValuesFile).toString());
+      expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
+    });
   });
 
   describe('prepareConfigText', () => {

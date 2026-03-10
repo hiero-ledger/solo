@@ -94,8 +94,6 @@ export interface NetworkDeployConfigClass {
   deployment: string;
   nodeAliasesUnparsed: string;
   persistentVolumeClaims: string;
-  profileFile: string;
-  profileName: string;
   releaseTag: string;
   keysDir: string;
   nodeAliases: NodeAliases;
@@ -212,8 +210,6 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.releaseTag,
       flags.settingTxt,
@@ -416,7 +412,6 @@ export class NetworkCommand extends BaseCommand {
 
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
-    const profileName: string = this.configManager.getFlag(flags.profileName);
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
@@ -424,16 +419,11 @@ export class NetworkCommand extends BaseCommand {
       'application.properties',
     );
 
-    const jfrFilePath: string = config.javaFlightRecorderConfiguration;
-    const jfrFile: string =
-      jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
-      profileName,
       config.consensusNodes,
       config.domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
-      jfrFile,
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
@@ -718,8 +708,39 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
+    const flagsWithDisabledPrompts: CommandFlag[] = [
+      flags.apiPermissionProperties,
+      flags.app,
+      flags.applicationEnv,
+      flags.applicationProperties,
+      flags.bootstrapProperties,
+      flags.genesisThrottlesFile,
+      flags.cacheDir,
+      flags.chainId,
+      flags.chartDirectory,
+      flags.debugNodeAlias,
+      flags.loadBalancerEnabled,
+      flags.log4j2Xml,
+      flags.persistentVolumeClaims,
+      flags.settingTxt,
+      flags.grpcTlsCertificatePath,
+      flags.grpcWebTlsCertificatePath,
+      flags.grpcTlsKeyPath,
+      flags.grpcWebTlsKeyPath,
+      flags.haproxyIps,
+      flags.envoyIps,
+      flags.storageType,
+      flags.gcsWriteAccessKey,
+      flags.gcsWriteSecrets,
+      flags.gcsEndpoint,
+      flags.gcsBucket,
+      flags.gcsBucketPrefix,
+      flags.nodeAliasesUnparsed,
+      flags.domainNames,
+    ];
+
     // disable the prompts that we don't want to prompt the user for
-    flags.disablePrompts(NetworkCommand.DEPLOY_FLAGS_LIST.optional);
+    flags.disablePrompts(flagsWithDisabledPrompts);
 
     const allFlags: CommandFlag[] = [
       ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,

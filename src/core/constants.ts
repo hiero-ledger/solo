@@ -330,14 +330,6 @@ export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
 export const LOCAL_HOST: string = '127.0.0.1';
 
-export const PROFILE_LARGE: string = 'large';
-export const PROFILE_MEDIUM: string = 'medium';
-export const PROFILE_SMALL: string = 'small';
-export const PROFILE_TINY: string = 'tiny';
-export const PROFILE_LOCAL: string = 'local';
-
-export const ALL_PROFILES: string[] = [PROFILE_LOCAL, PROFILE_TINY, PROFILE_SMALL, PROFILE_MEDIUM, PROFILE_LARGE];
-export const DEFAULT_PROFILE_FILE: string = PathEx.join('profiles', 'custom-spec.yaml');
 
 export const STANDARD_DATAMASK: string = '***';
 

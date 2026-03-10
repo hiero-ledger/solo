@@ -45,9 +45,6 @@ export class ProfileManager {
   private readonly accountManager: AccountManager;
   private readonly localConfig: LocalConfigRuntimeState;
 
-  private profiles: Map<string, AnyObject>;
-  private profileFile: Optional<string>;
-
   public constructor(
     @inject(InjectTokens.SoloLogger) logger?: SoloLogger,
     @inject(InjectTokens.ConfigManager) configManager?: ConfigManager,
@@ -64,70 +61,6 @@ export class ProfileManager {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-
-    this.profiles = new Map();
-  }
-
-  /**
-   * Load profiles from a profile file and populate the profiles map.
-   *
-   * @param [forceReload = false] - forces the profiles map to override even if it exists.
-   * @returns reference to the populated profiles map.
-   *
-   * @throws {IllegalArgumentError} if the profile file is not found.
-   */
-  loadProfiles(forceReload = false): Map<string, AnyObject> {
-    const profileFile = this.configManager.getFlagFile(flags.profileFile);
-    if (!profileFile) {
-      throw new MissingArgumentError('profileFile is required');
-    }
-
-    // return the cached value as quickly as possible
-    if (this.profiles && this.profileFile === profileFile && !forceReload) {
-      return this.profiles;
-    }
-
-    if (!fs.existsSync(profileFile)) {
-      throw new IllegalArgumentError(`profileFile does not exist: ${profileFile}`);
-    }
-
-    // load profile file
-    this.profiles = new Map();
-    const yamlData = fs.readFileSync(profileFile, 'utf8');
-    const profileItems = yaml.parse(yamlData) as Record<string, AnyObject>;
-
-    // add profiles
-    for (const key in profileItems) {
-      let profile = profileItems[key];
-      profile = profile || {};
-      this.profiles.set(key, profile);
-    }
-
-    this.profileFile = profileFile;
-    return this.profiles;
-  }
-
-  /**
-   * Get profile from the profiles map, loads them on demand if they are not loaded already.
-   *
-   * @param profileName - profile name (key in the map).
-   * @returns the profile.
-   *
-   * @throws {IllegalArgumentError} if profiles can't be loaded or the profile name is not found in the map.
-   */
-  getProfile(profileName: string): AnyObject {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    if (!this.profiles || this.profiles.size <= 0) {
-      this.loadProfiles();
-    }
-
-    if (!this.profiles || !this.profiles.has(profileName)) {
-      throw new IllegalArgumentError(`Profile does not exists with name: ${profileName}`);
-    }
-
-    return this.profiles.get(profileName) as AnyObject;
   }
 
   /**
@@ -343,152 +276,20 @@ export class ProfileManager {
     }
   }
 
-  public async resourcesForConsensusPod(
-    profile: AnyObject,
-    consensusNodes: ConsensusNode[],
-    nodeAliases: NodeAliases,
-    yamlRoot: AnyObject,
-    domainNamesMapping: Record<NodeAlias, string>,
-    deploymentName: DeploymentName,
-    applicationPropertiesPath: string,
-    jfrFile: string = '',
-  ): Promise<AnyObject> {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-
-    await this.prepareStagingDirectory(
-      consensusNodes,
-      nodeAliases,
-      yamlRoot,
-      domainNamesMapping,
-      deploymentName,
-      applicationPropertiesPath,
-    );
-
-    if (profile.consensus) {
-      if (
-        jfrFile !== '' &&
-        profile.consensus.root &&
-        profile.consensus.root.extraEnv &&
-        Array.isArray(profile.consensus.root.extraEnv)
-      ) {
-        const javaOption: AnyObject = profile.consensus.root.extraEnv.find(
-          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
-        );
-
-        if (javaOption) {
-          javaOption.value +=
-            ' -XX:StartFlightRecording=dumponexit=true,' +
-            `settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile},` +
-            `filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
-        }
-      }
-
-      // set default for consensus pod
-      this._setChartItems('defaults.root', profile.consensus.root, yamlRoot);
-
-      // set sidecar resources
-      for (const sidecar of constants.HEDERA_NODE_SIDECARS) {
-        this._setChartItems(`defaults.sidecars.${sidecar}`, profile.consensus[sidecar], yamlRoot);
-      }
-    }
-
-    return yamlRoot;
-  }
-
-  private resourcesForHaProxyPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    if (!profile.haproxy) {
-      return;
-    } // use chart defaults
-
-    return this._setChartItems('defaults.haproxy', profile.haproxy, yamlRoot);
-  }
-
-  private resourcesForEnvoyProxyPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    if (!profile.envoyProxy) {
-      return;
-    } // use chart defaults
-    return this._setChartItems('defaults.envoyProxy', profile.envoyProxy, yamlRoot);
-  }
-
-  private resourcesForHederaExplorerPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    if (!profile.explorer) {
-      return;
-    }
-    return this._setChartItems('', profile.explorer, yamlRoot);
-  }
-
-  private resourcesForMinioTenantPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    // @ts-ignore
-    if (!profile.minio || !profile.minio.tenant) {
-      return {};
-    } // use chart defaults
-
-    for (const poolIndex in profile.minio.tenant.pools) {
-      const pool = profile.minio.tenant.pools[poolIndex];
-      for (const property in pool) {
-        if (property !== 'resources') {
-          this._setValue(`minio-server.tenant.pools.${poolIndex}.${property}`, pool[property], yamlRoot);
-        }
-      }
-
-      this._setChartItems(`minio-server.tenant.pools.${poolIndex}`, pool, yamlRoot);
-    }
-
-    return yamlRoot;
-  }
-
-  public resourcesForNetworkUpgrade(
-    itemPath: string,
-    fileName: string,
-    stagingDirectory: string,
-    yamlRoot: AnyObject,
-  ): void {
-    const filePath: string = PathEx.join(stagingDirectory, 'templates', fileName);
-
-    if (!fs.existsSync(filePath)) {
-      return;
-    }
-
-    this._setFileContentsAsValue(itemPath, filePath, yamlRoot);
-  }
-
   /**
    * Prepare a values file for Solo Helm chart
-   * @param profileName - resource profile name
    * @param consensusNodes - the list of consensus nodes
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
-   * @param jfrFile - the name of the custom JFR settings file to use for recording
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
-    profileName: string,
     consensusNodes: ConsensusNode[],
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
-    jfrFile: string = '',
   ): Promise<Record<ClusterReferenceName, string>> {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile: AnyObject = this.getProfile(profileName);
-
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
     for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
@@ -499,21 +300,16 @@ export class ProfileManager {
       // generate the YAML
       const yamlRoot: AnyObject = {};
 
-      await this.resourcesForConsensusPod(
-        profile,
+      await this.prepareStagingDirectory(
         consensusNodes,
         nodeAliases,
         yamlRoot,
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
-        jfrFile,
       );
-      this.resourcesForHaProxyPod(profile, yamlRoot);
-      this.resourcesForEnvoyProxyPod(profile, yamlRoot);
-      this.resourcesForMinioTenantPod(profile, yamlRoot);
 
-      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
+      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
     }
 
@@ -643,47 +439,12 @@ export class ProfileManager {
   }
 
   /**
-   * Prepare a values file for rpc-relay Helm chart
-   * @param profileName - resource profile name
-   * @returns return the full path to the values file
-   */
-  public async prepareValuesForRpcRelayChart(profileName: string) {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile = this.getProfile(profileName) as AnyObject;
-    if (!profile.rpcRelay) {
-      return '';
-    } // use chart defaults
-
-    // generate the YAML
-    const yamlRoot = {};
-    this._setChartItems('', profile.rpcRelay, yamlRoot);
-
-    const cachedValuesFile = PathEx.join(this.cacheDir, `rpcRelay-${profileName}.yaml`);
-    return this.writeToYaml(cachedValuesFile, yamlRoot);
-  }
-
-  public async prepareValuesHederaExplorerChart(profileName: string) {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile = this.getProfile(profileName) as AnyObject;
-    // generate the YAML
-    const yamlRoot = {};
-    this.resourcesForHederaExplorerPod(profile, yamlRoot);
-
-    const cachedValuesFile = PathEx.join(this.cacheDir, `explorer-${profileName}.yaml`);
-    return this.writeToYaml(cachedValuesFile, yamlRoot);
-  }
-
-  /**
    * Writes the YAML to file.
    *
    * @param cachedValuesFile - the target file to write the YAML root to.
    * @param yamlRoot - object to turn into YAML and write to file.
    */
-  public async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
+  private async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
     return await new Promise<string>((resolve, reject) => {
       fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), error => {
         if (error) {
@@ -693,40 +454,6 @@ export class ProfileManager {
         resolve(cachedValuesFile);
       });
     });
-  }
-
-  /**
-   * Prepare a values file for mirror node Helm chart
-   * @param profileName - resource profile name
-   * @returns the full path to the values file
-   */
-  public async prepareValuesForMirrorNodeChart(profileName: string) {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile = this.getProfile(profileName) as AnyObject;
-    if (!profile.mirror) {
-      return '';
-    } // use chart defaults
-
-    // generate the YAML
-    const yamlRoot = {};
-    if (profile.mirror.postgresql) {
-      if (profile.mirror.postgresql.persistence) {
-        this._setValue('postgresql.persistence.size', profile.mirror.postgresql.persistence.size, yamlRoot);
-      }
-
-      this._setChartItems('postgresql.postgresql', profile.mirror.postgresql.postgresql, yamlRoot);
-    }
-
-    this._setChartItems('importer', profile.mirror.importer, yamlRoot);
-    this._setChartItems('rest', profile.mirror.rest, yamlRoot);
-    this._setChartItems('web3', profile.mirror.web3, yamlRoot);
-    this._setChartItems('grpc', profile.mirror.grpc, yamlRoot);
-    this._setChartItems('monitor', profile.mirror.monitor, yamlRoot);
-
-    const cachedValuesFile = PathEx.join(this.cacheDir, `mirror-${profileName}.yaml`);
-    return this.writeToYaml(cachedValuesFile, yamlRoot);
   }
 
   /**
