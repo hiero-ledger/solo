@@ -139,7 +139,7 @@ kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
-npm run solo -- block node add --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
