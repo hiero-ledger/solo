@@ -227,7 +227,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   smallMemorySettingsDirectory,
                   'application.properties',
                 );
-                config.networkConfiguration['--application-env'] = PathEx.join(smallMemorySettingsDirectory, 'application.env');
+                config.networkConfiguration['--application-env'] = PathEx.join(
+                  smallMemorySettingsDirectory,
+                  'application.env',
+                );
               }
 
               // Initialize deployment toggles with defaults if not specified
