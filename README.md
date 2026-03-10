@@ -21,11 +21,11 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 | Solo Version | Node.js             | Kind       | Solo Chart | Hedera       | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
 |--------------|---------------------|------------|------------|--------------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
+| 0.60.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-03-10   | 2026-06-10     |
 | 0.59.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-27   | 2026-03-27     |
 | 0.58.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-25   | 2026-05-25     |
 | 0.57.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-19   | 2026-03-19     |
 | 0.56.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-12   | 2026-05-12     |
-| 0.55.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-05   | 2026-03-05     |
 | 0.54.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.59.0    | v0.68.6+     | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-01-27   | 2026-04-27     |
 | 0.52.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.67.2+     | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-11   | 2026-03-11     |
 
@@ -51,11 +51,11 @@ Or via npm (requires Node.js >= 22.0.0):
 npm install -g @hashgraph/solo@latest
 ```
 
-For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/).
+For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/main/docs/solo-user-guide/).
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment))
+[solo docs](https://solo.hiero.org/main/docs/solo-user-guide/#one-shot-deployment))
 
 ## Contributing
 

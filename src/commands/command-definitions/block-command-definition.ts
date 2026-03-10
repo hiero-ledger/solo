@@ -60,7 +60,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.add,
               BlockNodeCommand.ADD_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -71,7 +71,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.destroy,
               BlockNodeCommand.DESTROY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -82,7 +82,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.upgrade,
               BlockNodeCommand.UPGRADE_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -93,7 +93,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.addExternal,
               BlockNodeCommand.ADD_EXTERNAL_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -103,7 +103,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.deleteExternal,
               BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )

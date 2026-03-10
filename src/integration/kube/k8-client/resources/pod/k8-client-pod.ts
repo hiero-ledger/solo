@@ -30,6 +30,7 @@ import {type PodCondition} from '../../../resources/pod/pod-condition.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
 import chalk from 'chalk';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import psList, {type ProcessDescriptor} from 'ps-list';
@@ -42,7 +43,7 @@ export class K8ClientPod implements Pod {
     private readonly pods: Pods,
     private readonly kubeClient: CoreV1Api,
     private readonly kubeConfig: KubeConfig,
-    private readonly kubectlExecutable: string,
+    private readonly kubectlInstallationDirectory: string,
     public readonly labels?: Record<string, string>,
     public readonly startupProbeCommand?: string[],
     public readonly containerName?: ContainerName,
@@ -99,6 +100,7 @@ export class K8ClientPod implements Pod {
     podPort: number,
     reuse?: boolean,
     persist: boolean = false,
+    isRetry: boolean = false,
   ): Promise<number> {
     let availablePort: number = localPort;
 
@@ -200,13 +202,36 @@ export class K8ClientPod implements Pod {
       const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
 
       const cmd: string = persist
-        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${this.kubectlExecutable} &`
-        : `${this.kubectlExecutable} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${constants.KUBECTL} ${this.kubectlInstallationDirectory} &`
+        : `${constants.KUBECTL} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
 
-      await new ShellRunner().run(cmd, [], true, true);
+      await new ShellRunner().run(cmd, [], true, true, {
+        PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+      });
 
       return availablePort;
     } catch (error) {
+      if (os.platform() === 'win32' && !isRetry && error?.message?.includes('listen EACCES')) {
+        // handle the case where port forwarding fails on Windows due to an issue with the WinNAT service.
+        // Restarting the WinNAT service can resolve the issue, and then we can retry starting the port forwarder.
+        // Example: listen EACCES: permission denied 127.0.0.1:50211
+        try {
+          await new ShellRunner().run('net stop winnat');
+        } catch (stopError) {
+          const errorMessage: string =
+            `Failed to stop WinNAT service: ${stopError.message}. Please open an administrator level terminal on Windows` +
+            'and run:\nnet stop winnat && net start winnat\nto attempt to resolve port forwarding issues.  Run the corresponding ' +
+            'Solo destroy command and try your Solo deploy commands again.  If you are unable to run as administrator, ' +
+            'you may try rebooting your machine to resolve the issue.';
+          this.logger.error(errorMessage, stopError);
+          throw new SoloError(errorMessage, stopError);
+        }
+        await new ShellRunner().run('net start winnat');
+        this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
+        await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
+        return await this.portForward(localPort, podPort, reuse, persist, true);
+      }
+
       const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}]: ${error.message}`;
       throw new SoloError(message, error);
     }
@@ -321,7 +346,7 @@ export class K8ClientPod implements Pod {
     pods: Pods,
     coreV1Api: CoreV1Api,
     kubeConfig: KubeConfig,
-    kubectlExecutable: string,
+    kubectlInstallationDirectory: string,
   ): Pod {
     if (!v1Pod) {
       return undefined;
@@ -332,7 +357,7 @@ export class K8ClientPod implements Pod {
       pods,
       coreV1Api,
       kubeConfig,
-      kubectlExecutable,
+      kubectlInstallationDirectory,
       v1Pod.metadata.labels,
       v1Pod.spec.containers[0]?.startupProbe?.exec?.command,
       ContainerName.of(v1Pod.spec.containers[0]?.name),
