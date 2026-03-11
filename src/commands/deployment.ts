@@ -43,6 +43,7 @@ import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
+import * as version from '../../version.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -1035,6 +1036,52 @@ export class DeploymentCommand extends BaseCommand {
               {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
               {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
             ];
+
+            // Show deployment name and namespace
+            this.logger.showUser(chalk.cyan('\n=== Deployment Info ==='));
+            this.logger.showUser(`  Deployment: ${chalk.bold(context_.config.deployment)}`);
+            this.logger.showUser(`  Namespace:  ${chalk.bold(context_.namespace?.name ?? 'unknown')}`);
+
+            // Show versions
+            this.logger.showUser(chalk.cyan('\nVersions:'));
+            this.logger.showUser(`  Solo Chart Version:     ${chalk.bold(version.SOLO_CHART_VERSION)}`);
+            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(version.HEDERA_PLATFORM_VERSION)}`);
+            this.logger.showUser(`  Mirror Node Version:    ${chalk.bold(version.MIRROR_NODE_VERSION)}`);
+            this.logger.showUser(`  Explorer Version:       ${chalk.bold(version.EXPLORER_VERSION)}`);
+            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(version.HEDERA_JSON_RPC_RELAY_VERSION)}`);
+            this.logger.showUser(`  Block Node Version:     ${chalk.bold(version.BLOCK_NODE_VERSION)}`);
+
+            // Show deployed components summary
+            const state: typeof this.remoteConfig.configuration.state = this.remoteConfig.configuration.state;
+            this.logger.showUser(chalk.cyan('\nDeployed Components:'));
+            const consensusNodes: BaseStateSchema[] = state.consensusNodes || [];
+            const haProxies: BaseStateSchema[] = state.haProxies || [];
+            const blockNodes: BaseStateSchema[] = state.blockNodes || [];
+            const mirrorNodes: BaseStateSchema[] = state.mirrorNodes || [];
+            const relayNodes: BaseStateSchema[] = state.relayNodes || [];
+            const explorers: BaseStateSchema[] = state.explorers || [];
+
+            if (consensusNodes.length > 0) {
+              const nodeNames: string = consensusNodes.map((n: BaseStateSchema): string => n.metadata.id).join(', ');
+              this.logger.showUser(
+                `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(String(consensusNodes.length))} (${nodeNames})`,
+              );
+            }
+            if (mirrorNodes.length > 0) {
+              this.logger.showUser(`  ${chalk.green('✓')} Mirror Nodes: ${chalk.bold(String(mirrorNodes.length))}`);
+            }
+            if (blockNodes.length > 0) {
+              this.logger.showUser(`  ${chalk.green('✓')} Block Nodes: ${chalk.bold(String(blockNodes.length))}`);
+            }
+            if (relayNodes.length > 0) {
+              this.logger.showUser(`  ${chalk.green('✓')} Relay Nodes: ${chalk.bold(String(relayNodes.length))}`);
+            }
+            if (explorers.length > 0) {
+              this.logger.showUser(`  ${chalk.green('✓')} Explorers: ${chalk.bold(String(explorers.length))}`);
+            }
+            if (haProxies.length > 0) {
+              this.logger.showUser(`  ${chalk.green('✓')} HA Proxies: ${chalk.bold(String(haProxies.length))}`);
+            }
 
             let totalChecked: number = 0;
             let runningCount: number = 0;
