@@ -121,7 +121,7 @@ export class DeploymentTest extends BaseCommandTest {
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
+      DeploymentCommandDefinition.DIAGNOSTICS_LOGS,
       optionFromFlag(Flags.deployment),
       deployment,
     );
