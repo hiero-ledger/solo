@@ -59,6 +59,7 @@ import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
 import * as helpers from '../../../../core/helpers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
+import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -118,6 +119,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public async load(namespace?: NamespaceName, context?: Context): Promise<void> {
+    if (!namespace || !context) {
+      throw new MissingRequiredParametersError(
+        `Namespace and context are required to load remote configuration, received namespace: ${namespace}, context: ${context}`,
+      );
+    }
     if (this.isLoaded()) {
       return;
     }
@@ -305,6 +311,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
+    if (!namespace || !context) {
+      throw new MissingRequiredParametersError(
+        `Namespace and context are required to get the remote config ConfigMap, received namespace: ${namespace}, context: ${context}`,
+      );
+    }
+
     let configMap: ConfigMap;
     try {
       configMap = await this.k8Factory
