@@ -967,8 +967,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
           }
           try {
-            await this.remoteConfig.loadAndValidate(argv);
-            config.skipAll = false;
+            if (config.deployment && config.namespace && config.context) {
+              await this.remoteConfig.loadAndValidate(argv);
+              config.skipAll = false;
+            } else {
+              config.skipAll = true;
+              return;
+            }
           } catch (error) {
             if (error instanceof ResourceNotFoundError) {
               this.logger.showUser(
