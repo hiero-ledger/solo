@@ -26,16 +26,17 @@ import * as constants from '../../../../../src/core/constants.js';
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import path from 'node:path';
 
-const execAsync = promisify(exec);
+const execAsync: (command: string, options?: Parameters<typeof exec>[1]) => Promise<{stdout: string; stderr: string}> =
+  promisify(exec);
 
-describe('KindClient Integration Tests', function () {
+describe('KindClient Integration Tests', function (): void {
   this.timeout(Duration.ofMinutes(1).toMillis());
 
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
   const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kind-test-'));
-  let originalKubeConfigContext: string | null = null;
+  let originalKubeConfigContext: string | undefined;
 
   before(async (): Promise<void> => {
     resetForTest();
@@ -49,7 +50,7 @@ describe('KindClient Integration Tests', function () {
       console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
     } catch {
       console.log('No kubectl context found or kubectl not available');
-      originalKubeConfigContext = null;
+      originalKubeConfigContext = undefined;
     }
 
     // Download and install Kind
@@ -112,7 +113,7 @@ describe('KindClient Integration Tests', function () {
     }
   }).timeout(Duration.ofMinutes(2).toMillis());
 
-  it('should get Kind version', async () => {
+  it('should get Kind version', async (): Promise<void> => {
     const version: SemVer = await kindClient.version();
     expect(version).to.not.be.undefined;
     expect(version.major).to.be.a('number');
@@ -157,18 +158,18 @@ describe('KindClient Integration Tests', function () {
     }
   }).timeout(Duration.ofMinutes(4).toMillis());
 
-  it('should list clusters', async () => {
+  it('should list clusters', async (): Promise<void> => {
     const clusters: KindCluster[] = await kindClient.getClusters();
     expect(clusters).to.be.an('array');
     expect(clusters.length).to.be.greaterThan(0);
 
-    const testCluster: KindCluster = clusters.find(c => c.name === testClusterName);
+    const testCluster: KindCluster = clusters.find((c: KindCluster): boolean => c.name === testClusterName);
     expect(testCluster).to.not.be.undefined;
     expect(testCluster).to.be.instanceOf(KindCluster);
     expect(testCluster!.name).to.equal(testClusterName);
   });
 
-  it('should get cluster nodes', async () => {
+  it('should get cluster nodes', async (): Promise<void> => {
     const response: GetNodesResponse = await kindClient.getNodes(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.nodes).to.be.an('array');
@@ -181,7 +182,7 @@ describe('KindClient Integration Tests', function () {
     }
   });
 
-  it('should get kubeconfig', async () => {
+  it('should get kubeconfig', async (): Promise<void> => {
     const response: GetKubeConfigResponse = await kindClient.getKubeConfig(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.config).to.exist;
@@ -191,14 +192,14 @@ describe('KindClient Integration Tests', function () {
     expect(response.config.contexts).to.exist;
   });
 
-  it('should export kubeconfig', async () => {
+  it('should export kubeconfig', async (): Promise<void> => {
     const response: ExportKubeConfigResponse = await kindClient.exportKubeConfig(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.kubeConfigContext).to.be.a('string');
   });
 
-  it('should export logs', async () => {
-    const response = await kindClient.exportLogs(testClusterName);
+  it('should export logs', async (): Promise<void> => {
+    const response: {exportPath: string} = await kindClient.exportLogs(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.exportPath).to.be.a('string');
 
@@ -207,7 +208,7 @@ describe('KindClient Integration Tests', function () {
     expect(logsExist).to.be.true;
   });
 
-  it('should delete a cluster', async () => {
+  it('should delete a cluster', async (): Promise<void> => {
     const response: ClusterDeleteResponse = await kindClient.deleteCluster(testClusterName);
     expect(response).to.not.be.undefined;
 
