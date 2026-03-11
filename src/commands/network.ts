@@ -1042,6 +1042,44 @@ export class NetworkCommand extends BaseCommand {
     }
   }
 
+  /**
+   * Patch the ServiceMonitor created by the solo-deployment helm chart so that it is discovered
+   * by the kube-prometheus-stack Prometheus operator and targets the correct consensus node services.
+   *
+   * Two fixes are applied via a merge patch:
+   * 1. Adds the `release: <PROMETHEUS_RELEASE_NAME>` label so the Prometheus instance from
+   *    kube-prometheus-stack (which selects ServiceMonitors by `release` label) can discover it.
+   * 2. Corrects `spec.selector.matchLabels` to `solo.hedera.com/type: network-node-svc` so the
+   *    ServiceMonitor targets the non-headless consensus-node services (which expose the prometheus
+   *    metrics port) rather than the hard-coded `network-node` value in the helm chart template.
+   */
+  private async patchServiceMonitorForPrometheus(namespace: NamespaceName, context: Context): Promise<void> {
+    const patch: object = {
+      apiVersion: 'monitoring.coreos.com/v1',
+      kind: 'ServiceMonitor',
+      metadata: {
+        name: constants.SOLO_SERVICE_MONITOR_NAME,
+        namespace: namespace.name,
+        labels: {
+          release: constants.PROMETHEUS_RELEASE_NAME,
+        },
+      },
+      spec: {
+        selector: {
+          matchLabels: {
+            'solo.hedera.com/type': 'network-node-svc',
+          },
+        },
+      },
+    };
+
+    await this.k8Factory.getK8(context).manifests().patchObject(patch);
+    this.logger.debug(
+      `Patched ServiceMonitor '${constants.SOLO_SERVICE_MONITOR_NAME}' in namespace '${namespace.name}': ` +
+        `added label release=${constants.PROMETHEUS_RELEASE_NAME} and fixed selector to network-node-svc`,
+    );
+  }
+
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
@@ -1209,6 +1247,15 @@ export class NetworkCommand extends BaseCommand {
                 clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+            }
+          },
+        },
+        {
+          title: 'Patch ServiceMonitor for Prometheus discovery',
+          skip: ({config: {enableMonitoringSupport}}): boolean => !enableMonitoringSupport,
+          task: async ({config: {namespace, clusterRefs}}): Promise<void> => {
+            for (const [, context] of clusterRefs) {
+              await this.patchServiceMonitorForPrometheus(namespace, context);
             }
           },
         },
