@@ -88,9 +88,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }).timeout(Duration.ofMinutes(5).toMillis());
 
-        after(async (): Promise<void> => {
+        after(async function (): Promise<void> {
           await preDestroy(endToEndTestSuite);
-        });
+        }).timeout(Duration.ofMinutes(5).toMillis());
 
         beforeEach(async (): Promise<void> => {
           testLogger.info(`${testName}: resetting containers for each test`);

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  type CoreV1Event,
   type CoreV1Api,
   type KubeConfig,
   V1Container,
-  type V1Event,
   V1ExecAction,
   V1ObjectMeta,
   V1Pod,
@@ -347,13 +347,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
-    const events: {items?: V1Event[]} = await this.kubeClient.listNamespacedEvent({
+    const events: {items?: CoreV1Event[]} = await this.kubeClient.listNamespacedEvent({
       namespace,
       fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
     });
 
     // eslint-disable-next-line unicorn/no-array-sort
-    const sortedEvents: V1Event[] = [...(events?.items ?? [])].sort((left, right): number => {
+    const sortedEvents: CoreV1Event[] = [...(events?.items ?? [])].sort((left, right): number => {
       const leftTime: number = new Date(
         left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
       ).getTime();
