@@ -252,6 +252,40 @@ describe('ArgumentProcessor', (): void => {
       expect(process.exitCode).to.not.equal(1);
     });
 
+    it('should show clean help for --help on action command with required args', async (): Promise<void> => {
+      const argv: string[] = ['node', 'solo.ts', 'block', 'node', 'add', '--help'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('block node add');
+      expect(output).to.include('Options:');
+      expect(output).to.not.include('Missing required argument');
+      expect(process.exitCode).to.not.equal(1);
+    });
+
+    it('should show clean help for --help on consensus action command', async (): Promise<void> => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy', '--help'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('consensus network destroy');
+      expect(output).to.include('Options:');
+      expect(output).to.not.include('Missing required argument');
+      expect(process.exitCode).to.not.equal(1);
+    });
+
     it('should exit cleanly and show subgroup commands/options for consensus network help', async (): Promise<void> => {
       const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'help'];
       process.exitCode = undefined;
