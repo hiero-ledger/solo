@@ -197,7 +197,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: any = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -246,10 +246,15 @@ export class DeploymentCommand extends BaseCommand {
                 .remoteConfigExists(namespace, context)
                 .catch((): boolean => false);
 
-              const existingConfigMaps: ConfigMap[] = await this.k8Factory
-                .getK8(context)
-                .configMaps()
-                .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
+              let existingConfigMaps: ConfigMap[] = [];
+              try {
+                existingConfigMaps = await this.k8Factory
+                  .getK8(context)
+                  .configMaps()
+                  .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
+              } catch {
+                // Guard
+              }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
                 throw new SoloError(`Deployment ${deployment} has remote resources in cluster: ${clusterReference}`);
