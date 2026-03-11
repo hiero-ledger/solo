@@ -387,5 +387,4 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     return yaml.stringify(describeData);
   }
-
 }
