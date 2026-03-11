@@ -170,6 +170,7 @@ import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-lo
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
+import {CommandFlag} from '../../types/flag-types.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2097,10 +2098,34 @@ export class NodeCommandTasks {
     };
   }
 
-  public upgradeChart(): SoloListrTask<AnyListrContext> {
+  public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<AnyListrContext> {
     return {
-      title: '',
-      task: async ({config}): Promise<void> => {
+      title: 'Update node configuration files',
+      task: async ({config}, task): Promise<void> => {
+        const isDefaultFlagValue: (flag: CommandFlag) => boolean = (flag: CommandFlag): boolean => {
+          const value: string | boolean | number = this.configManager.getFlag(flag);
+          const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
+          return value === defaultValue;
+        };
+
+        if (
+          isDefaultFlagValue(flags.apiPermissionProperties) &&
+          isDefaultFlagValue(flags.applicationEnv) &&
+          isDefaultFlagValue(flags.applicationProperties) &&
+          isDefaultFlagValue(flags.bootstrapProperties) &&
+          isDefaultFlagValue(flags.log4j2Xml) &&
+          isDefaultFlagValue(flags.settingTxt) &&
+          isDefaultFlagValue(flags.profileName) &&
+          isDefaultFlagValue(flags.chainId) &&
+          isDefaultFlagValue(flags.javaFlightRecorderConfiguration)
+        ) {
+          task.skip(
+            `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
+              chalk.grey('no consensus node configuration files to be updated'),
+          );
+          return;
+        }
+
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         const clusterReferencesList: ClusterReferenceName[] = [];

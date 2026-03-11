@@ -236,7 +236,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
-      this.tasks.upgradeChart(),
+      this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
