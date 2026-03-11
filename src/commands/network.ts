@@ -1406,7 +1406,7 @@ export class NetworkCommand extends BaseCommand {
         },
         this.addNodesAndProxies(),
         {
-          title: 'copy over',
+          title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
             await this.downloader.fetchPackage(
