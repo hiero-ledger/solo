@@ -88,7 +88,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
         }).timeout(Duration.ofMinutes(5).toMillis());
 
-        after(async function (): Promise<void> {
+        after(async (): Promise<void> => {
           await preDestroy(endToEndTestSuite);
         }).timeout(Duration.ofMinutes(5).toMillis());
 
