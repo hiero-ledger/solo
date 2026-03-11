@@ -106,6 +106,11 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
+  public static PORT_STATUS_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.quiet],
+  };
+
   /**
    * Create new deployment inside the local config
    */
@@ -930,6 +935,173 @@ export class DeploymentCommand extends BaseCommand {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Display the port-forward status for all components in the deployment (read-only)
+   */
+  public async portStatus(argv: ArgvStruct): Promise<boolean> {
+    interface Config {
+      quiet: boolean;
+      deployment: DeploymentName;
+    }
+
+    interface PortStatusContext {
+      config: Config;
+      namespace?: NamespaceName;
+      clusterReference?: string;
+      context?: string;
+    }
+
+    const tasks: Listr<PortStatusContext, 'default', 'default'> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_): Promise<void> => {
+            await this.localConfig.load();
+
+            this.configManager.update(argv);
+
+            context_.config = {
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+            } as Config;
+
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            if (!deployment) {
+              throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
+            }
+
+            context_.namespace = NamespaceName.of(deployment.namespace);
+          },
+        },
+        {
+          title: 'Load remote configuration',
+          task: async (context_, task): Promise<void> => {
+            if (!context_.namespace) {
+              throw new SoloError('Namespace not set');
+            }
+
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
+
+            if (clusters.length === 0) {
+              throw new SoloError(`No clusters found for deployment ${context_.config.deployment}`);
+            }
+
+            const clusterReferences: string[] = [];
+            for (let index: number = 0; index < clusters.length; index++) {
+              const clusterReferenceFacade: StringFacade = clusters.get(index);
+              if (clusterReferenceFacade) {
+                clusterReferences.push(clusterReferenceFacade.toString());
+              }
+            }
+
+            if (clusterReferences.length === 0) {
+              throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
+            }
+
+            let clusterReference: string = clusterReferences[0];
+            if (clusterReferences.length > 1) {
+              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
+                choices: clusterReferences.map((reference): {name: string; value: string} => ({
+                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
+                  value: reference,
+                })),
+              })) as string;
+            }
+
+            const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            if (!contextValue) {
+              throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
+            }
+
+            const context: string = contextValue.toString();
+            context_.clusterReference = clusterReference;
+            context_.context = context;
+
+            await this.remoteConfig.load(context_.namespace, context);
+          },
+        },
+        {
+          title: 'Display port-forward status',
+          task: async (context_, task): Promise<void> => {
+            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
+              {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
+              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
+              {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
+              {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
+              {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
+              {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
+            ];
+
+            let totalChecked: number = 0;
+            let runningCount: number = 0;
+            let notRunningCount: number = 0;
+
+            this.logger.showUser(chalk.cyan('\n=== Port-Forward Status ===\n'));
+
+            for (const {type, components} of componentsToCheck) {
+              for (const component of components) {
+                if (!component.metadata?.portForwardConfigs || component.metadata.portForwardConfigs.length === 0) {
+                  continue;
+                }
+
+                for (const portForwardConfig of component.metadata.portForwardConfigs) {
+                  totalChecked++;
+                  const {localPort, podPort} = portForwardConfig;
+                  const componentLabel: string = `${type} ${component.metadata.id}`;
+
+                  const isRunning: boolean = await this.isPortForwardRunning(localPort);
+
+                  if (isRunning) {
+                    runningCount++;
+                    this.logger.showUser(
+                      chalk.green(`✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`),
+                    );
+                  } else {
+                    notRunningCount++;
+                    this.logger.showUser(
+                      chalk.yellow(`⚠ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Not Running]`),
+                    );
+                  }
+                }
+              }
+            }
+
+            this.logger.showUser(chalk.cyan('\n=== Summary ==='));
+            this.logger.showUser(`Total port-forwards configured: ${totalChecked}`);
+            if (totalChecked === 0) {
+              this.logger.showUser(chalk.yellow('No port-forwards configured in this deployment'));
+            } else {
+              this.logger.showUser(chalk.green(`Running: ${runningCount}`));
+              if (notRunningCount > 0) {
+                this.logger.showUser(chalk.yellow(`Not running: ${notRunningCount}`));
+                this.logger.showUser(
+                  chalk.yellow(
+                    `\nTip: Run 'solo deployment refresh port-forwards --deployment ${context_.config?.deployment}' to restore missing port-forwards.`,
+                  ),
+                );
+              } else {
+                this.logger.showUser(chalk.green('✓ All port-forwards are running correctly'));
+              }
+            }
+
+            task.title = `Checked ${totalChecked} port-forward(s): ${runningCount} running, ${notRunningCount} not running`;
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error: Error | unknown) {
+      throw new SoloError('Error displaying port-forward status', error);
+    }
+
+    return true;
   }
 
   /**
