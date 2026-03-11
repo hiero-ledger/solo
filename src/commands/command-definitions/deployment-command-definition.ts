@@ -47,7 +47,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   private static readonly REFRESH_SUBCOMMAND_DESCRIPTION: string =
     'Refresh port-forward processes for all components in the deployment.';
 
-  public static readonly PORT_FORWARDS_STATUS_SUBCOMMAND_NAME: string = 'status';
+  public static readonly SHOW_SUBCOMMAND_NAME: string = 'show';
 
   public static readonly DIAGNOSTICS_SUBCOMMAND_NAME: string = 'diagnostics';
   private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION: string =
@@ -79,8 +79,8 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly REFRESH_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} port-forwards` as const;
 
-  public static readonly PORT_STATUS_COMMAND: string =
-    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.PORT_FORWARDS_STATUS_SUBCOMMAND_NAME}` as const;
+  public static readonly SHOW_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -143,27 +143,26 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
         new CommandGroup(
           DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME,
           DeploymentCommandDefinition.REFRESH_SUBCOMMAND_DESCRIPTION,
-        )
-          .addSubcommand(
-            new Subcommand(
-              'port-forwards',
-              'Refresh and restore killed port-forward processes.',
-              this.deploymentCommand,
-              this.deploymentCommand.refresh,
-              DeploymentCommand.REFRESH_FLAGS_LIST,
-              [constants.KUBECTL],
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              DeploymentCommandDefinition.PORT_FORWARDS_STATUS_SUBCOMMAND_NAME,
-              'Display the status of all configured port-forwards without modifying them.',
-              this.deploymentCommand,
-              this.deploymentCommand.portStatus,
-              DeploymentCommand.PORT_STATUS_FLAGS_LIST,
-              [constants.KUBECTL],
-            ),
+        ).addSubcommand(
+          new Subcommand(
+            'port-forwards',
+            'Refresh and restore killed port-forward processes.',
+            this.deploymentCommand,
+            this.deploymentCommand.refresh,
+            DeploymentCommand.REFRESH_FLAGS_LIST,
+            [constants.KUBECTL],
           ),
+        ),
+      )
+      .addDirectSubcommand(
+        new Subcommand(
+          DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME,
+          'Show deployment info, component versions, and port-forward status. If --deployment is omitted, shows all deployments.',
+          this.deploymentCommand,
+          this.deploymentCommand.portStatus,
+          DeploymentCommand.PORT_STATUS_FLAGS_LIST,
+          [constants.KUBECTL],
+        ),
       )
       .addCommandGroup(
         new CommandGroup(

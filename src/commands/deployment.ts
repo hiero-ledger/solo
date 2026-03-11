@@ -108,8 +108,8 @@ export class DeploymentCommand extends BaseCommand {
   };
 
   public static PORT_STATUS_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.quiet],
   };
 
   /**
@@ -939,19 +939,18 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   /**
-   * Display the port-forward status for all components in the deployment (read-only)
+   * Display the port-forward status for all components in one or all deployments (read-only).
+   * If no deployment is specified, iterates over all local deployments.
    */
   public async portStatus(argv: ArgvStruct): Promise<boolean> {
     interface Config {
       quiet: boolean;
-      deployment: DeploymentName;
+      deployment: DeploymentName | undefined;
     }
 
     interface PortStatusContext {
       config: Config;
-      namespace?: NamespaceName;
-      clusterReference?: string;
-      context?: string;
+      deployments: Deployment[];
     }
 
     const tasks: Listr<PortStatusContext, 'default', 'default'> = new Listr(
@@ -968,81 +967,32 @@ export class DeploymentCommand extends BaseCommand {
               deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
             } as Config;
 
-            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
-            if (!deployment) {
-              throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
-            }
-
-            context_.namespace = NamespaceName.of(deployment.namespace);
-          },
-        },
-        {
-          title: 'Load remote configuration',
-          task: async (context_, task): Promise<void> => {
-            if (!context_.namespace) {
-              throw new SoloError('Namespace not set');
-            }
-
-            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
-            const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
-
-            if (clusters.length === 0) {
-              throw new SoloError(`No clusters found for deployment ${context_.config.deployment}`);
-            }
-
-            const clusterReferences: string[] = [];
-            for (let index: number = 0; index < clusters.length; index++) {
-              const clusterReferenceFacade: StringFacade = clusters.get(index);
-              if (clusterReferenceFacade) {
-                clusterReferences.push(clusterReferenceFacade.toString());
+            if (context_.config.deployment) {
+              const deployment: Deployment = this.localConfig.configuration.deploymentByName(
+                context_.config.deployment,
+              );
+              if (!deployment) {
+                throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
               }
+              context_.deployments = [deployment];
+            } else {
+              const allDeployments: Deployment[] = [];
+              if (this.localConfig.configuration.deployments) {
+                for (const d of this.localConfig.configuration.deployments) {
+                  allDeployments.push(d);
+                }
+              }
+              if (allDeployments.length === 0) {
+                throw new SoloError('No deployments found in local config');
+              }
+              context_.deployments = allDeployments;
             }
-
-            if (clusterReferences.length === 0) {
-              throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
-            }
-
-            let clusterReference: string = clusterReferences[0];
-            if (clusterReferences.length > 1) {
-              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
-                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
-                choices: clusterReferences.map((reference): {name: string; value: string} => ({
-                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
-                  value: reference,
-                })),
-              })) as string;
-            }
-
-            const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
-            if (!contextValue) {
-              throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
-            }
-
-            const context: string = contextValue.toString();
-            context_.clusterReference = clusterReference;
-            context_.context = context;
-
-            await this.remoteConfig.load(context_.namespace, context);
           },
         },
         {
-          title: 'Display port-forward status',
+          title: 'Display deployment status',
           task: async (context_, task): Promise<void> => {
-            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
-              {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
-              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
-              {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
-              {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
-              {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
-              {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
-            ];
-
-            // Show deployment name and namespace
-            this.logger.showUser(chalk.cyan('\n=== Deployment Info ==='));
-            this.logger.showUser(`  Deployment: ${chalk.bold(context_.config.deployment)}`);
-            this.logger.showUser(`  Namespace:  ${chalk.bold(context_.namespace?.name ?? 'unknown')}`);
-
-            // Show versions
+            // Show versions once at the top
             this.logger.showUser(chalk.cyan('\nVersions:'));
             this.logger.showUser(`  Solo Chart Version:     ${chalk.bold(version.SOLO_CHART_VERSION)}`);
             this.logger.showUser(`  Consensus Node Version: ${chalk.bold(version.HEDERA_PLATFORM_VERSION)}`);
@@ -1051,93 +1001,160 @@ export class DeploymentCommand extends BaseCommand {
             this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(version.HEDERA_JSON_RPC_RELAY_VERSION)}`);
             this.logger.showUser(`  Block Node Version:     ${chalk.bold(version.BLOCK_NODE_VERSION)}`);
 
-            // Show deployed components summary
-            const state: typeof this.remoteConfig.configuration.state = this.remoteConfig.configuration.state;
-            this.logger.showUser(chalk.cyan('\nDeployed Components:'));
-            const consensusNodes: BaseStateSchema[] = state.consensusNodes || [];
-            const haProxies: BaseStateSchema[] = state.haProxies || [];
-            const blockNodes: BaseStateSchema[] = state.blockNodes || [];
-            const mirrorNodes: BaseStateSchema[] = state.mirrorNodes || [];
-            const relayNodes: BaseStateSchema[] = state.relayNodes || [];
-            const explorers: BaseStateSchema[] = state.explorers || [];
+            let grandTotalChecked: number = 0;
+            let grandRunning: number = 0;
+            let grandNotRunning: number = 0;
 
-            if (consensusNodes.length > 0) {
-              const nodeNames: string = consensusNodes
-                .map((n: BaseStateSchema): string => String(n.metadata.id))
-                .join(', ');
-              this.logger.showUser(
-                `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(String(consensusNodes.length))} (${nodeNames})`,
-              );
-            }
-            if (mirrorNodes.length > 0) {
-              this.logger.showUser(`  ${chalk.green('✓')} Mirror Nodes: ${chalk.bold(String(mirrorNodes.length))}`);
-            }
-            if (blockNodes.length > 0) {
-              this.logger.showUser(`  ${chalk.green('✓')} Block Nodes: ${chalk.bold(String(blockNodes.length))}`);
-            }
-            if (relayNodes.length > 0) {
-              this.logger.showUser(`  ${chalk.green('✓')} Relay Nodes: ${chalk.bold(String(relayNodes.length))}`);
-            }
-            if (explorers.length > 0) {
-              this.logger.showUser(`  ${chalk.green('✓')} Explorers: ${chalk.bold(String(explorers.length))}`);
-            }
-            if (haProxies.length > 0) {
-              this.logger.showUser(`  ${chalk.green('✓')} HA Proxies: ${chalk.bold(String(haProxies.length))}`);
-            }
+            for (const deployment of context_.deployments) {
+              const namespace: NamespaceName = NamespaceName.of(deployment.namespace);
+              const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
 
-            let totalChecked: number = 0;
-            let runningCount: number = 0;
-            let notRunningCount: number = 0;
+              this.logger.showUser(chalk.cyan(`\n=== Deployment: ${chalk.bold(deployment.name)} ===`));
+              this.logger.showUser(`  Namespace: ${chalk.bold(namespace.name)}`);
 
-            this.logger.showUser(chalk.cyan('\n=== Port-Forward Status ===\n'));
+              if (clusters.length === 0) {
+                this.logger.showUser(chalk.yellow('  \u26A0 No clusters configured for this deployment'));
+                continue;
+              }
 
-            for (const {type, components} of componentsToCheck) {
-              for (const component of components) {
-                if (!component.metadata?.portForwardConfigs || component.metadata.portForwardConfigs.length === 0) {
-                  continue;
-                }
+              // Use first cluster reference (auto-select for non-interactive multi-deployment iteration)
+              const clusterReference: string = clusters.get(0).toString();
+              const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
+              if (!contextValue) {
+                this.logger.showUser(
+                  chalk.yellow(`  \u26A0 No context found for cluster reference: ${clusterReference}`),
+                );
+                continue;
+              }
 
-                for (const portForwardConfig of component.metadata.portForwardConfigs) {
-                  totalChecked++;
-                  const {localPort, podPort} = portForwardConfig;
-                  const componentLabel: string = `${type} ${component.metadata.id}`;
+              const clusterContext: string = contextValue.toString();
 
-                  const isRunning: boolean = await this.isPortForwardRunning(localPort);
+              try {
+                await this.remoteConfig.populateFromExisting(namespace, clusterContext);
+              } catch (error: Error | unknown) {
+                const message: string = error instanceof Error ? error.message : String(error);
+                this.logger.showUser(
+                  chalk.yellow(`  \u26A0 Could not load remote config (cluster may be unreachable): ${message}`),
+                );
+                continue;
+              }
 
-                  if (isRunning) {
-                    runningCount++;
-                    this.logger.showUser(
-                      chalk.green(`✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`),
-                    );
-                  } else {
-                    notRunningCount++;
-                    this.logger.showUser(
-                      chalk.yellow(`⚠ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Not Running]`),
-                    );
+              // Show deployed components
+              const state: typeof this.remoteConfig.configuration.state = this.remoteConfig.configuration.state;
+              const consensusNodes: BaseStateSchema[] = state.consensusNodes || [];
+              const haProxies: BaseStateSchema[] = state.haProxies || [];
+              const blockNodes: BaseStateSchema[] = state.blockNodes || [];
+              const mirrorNodes: BaseStateSchema[] = state.mirrorNodes || [];
+              const relayNodes: BaseStateSchema[] = state.relayNodes || [];
+              const explorers: BaseStateSchema[] = state.explorers || [];
+
+              this.logger.showUser(chalk.cyan('\n  Deployed Components:'));
+              if (consensusNodes.length > 0) {
+                const nodeNames: string = consensusNodes.map((n: BaseStateSchema): string => n.metadata.id).join(', ');
+                this.logger.showUser(
+                  `    ${chalk.green('\u2713')} Consensus Nodes: ${chalk.bold(String(consensusNodes.length))} (${nodeNames})`,
+                );
+              }
+              if (mirrorNodes.length > 0) {
+                this.logger.showUser(
+                  `    ${chalk.green('\u2713')} Mirror Nodes: ${chalk.bold(String(mirrorNodes.length))}`,
+                );
+              }
+              if (blockNodes.length > 0) {
+                this.logger.showUser(
+                  `    ${chalk.green('\u2713')} Block Nodes: ${chalk.bold(String(blockNodes.length))}`,
+                );
+              }
+              if (relayNodes.length > 0) {
+                this.logger.showUser(
+                  `    ${chalk.green('\u2713')} Relay Nodes: ${chalk.bold(String(relayNodes.length))}`,
+                );
+              }
+              if (explorers.length > 0) {
+                this.logger.showUser(`    ${chalk.green('\u2713')} Explorers: ${chalk.bold(String(explorers.length))}`);
+              }
+              if (haProxies.length > 0) {
+                this.logger.showUser(
+                  `    ${chalk.green('\u2713')} HA Proxies: ${chalk.bold(String(haProxies.length))}`,
+                );
+              }
+
+              // Show port-forward status
+              const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
+                {type: 'ConsensusNode', components: consensusNodes},
+                {type: 'HaProxy', components: haProxies},
+                {type: 'BlockNode', components: blockNodes},
+                {type: 'MirrorNode', components: mirrorNodes},
+                {type: 'RelayNode', components: relayNodes},
+                {type: 'Explorer', components: explorers},
+              ];
+
+              let totalChecked: number = 0;
+              let runningCount: number = 0;
+              let notRunningCount: number = 0;
+
+              this.logger.showUser(chalk.cyan('\n  Port-Forward Status:'));
+              for (const {type, components} of componentsToCheck) {
+                for (const component of components) {
+                  if (!component.metadata?.portForwardConfigs || component.metadata.portForwardConfigs.length === 0) {
+                    continue;
+                  }
+
+                  for (const portForwardConfig of component.metadata.portForwardConfigs) {
+                    totalChecked++;
+                    const {localPort, podPort} = portForwardConfig;
+                    const componentLabel: string = `${type} ${component.metadata.id}`;
+
+                    const isRunning: boolean = await this.isPortForwardRunning(localPort);
+
+                    if (isRunning) {
+                      runningCount++;
+                      this.logger.showUser(
+                        chalk.green(`    \u2713 ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Running]`),
+                      );
+                    } else {
+                      notRunningCount++;
+                      this.logger.showUser(
+                        chalk.yellow(
+                          `    \u26A0 ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Not Running]`,
+                        ),
+                      );
+                    }
                   }
                 }
               }
+
+              if (totalChecked === 0) {
+                this.logger.showUser(chalk.yellow('    No port-forwards configured'));
+              } else {
+                this.logger.showUser(`    Running: ${chalk.green(String(runningCount))} / ${totalChecked}`);
+                if (notRunningCount > 0) {
+                  this.logger.showUser(
+                    chalk.yellow(
+                      `    Tip: Run 'solo deployment refresh port-forwards --deployment ${deployment.name}' to restore missing port-forwards.`,
+                    ),
+                  );
+                }
+              }
+
+              grandTotalChecked += totalChecked;
+              grandRunning += runningCount;
+              grandNotRunning += notRunningCount;
             }
 
-            this.logger.showUser(chalk.cyan('\n=== Summary ==='));
-            this.logger.showUser(`Total port-forwards configured: ${totalChecked}`);
-            if (totalChecked === 0) {
-              this.logger.showUser(chalk.yellow('No port-forwards configured in this deployment'));
-            } else {
-              this.logger.showUser(chalk.green(`Running: ${runningCount}`));
-              if (notRunningCount > 0) {
-                this.logger.showUser(chalk.yellow(`Not running: ${notRunningCount}`));
-                this.logger.showUser(
-                  chalk.yellow(
-                    `\nTip: Run 'solo deployment refresh port-forwards --deployment ${context_.config?.deployment}' to restore missing port-forwards.`,
-                  ),
-                );
+            this.logger.showUser(chalk.cyan('\n=== Overall Summary ==='));
+            this.logger.showUser(`Deployments checked: ${context_.deployments.length}`);
+            this.logger.showUser(`Total port-forwards: ${grandTotalChecked}`);
+            if (grandTotalChecked > 0) {
+              this.logger.showUser(chalk.green(`Running: ${grandRunning}`));
+              if (grandNotRunning > 0) {
+                this.logger.showUser(chalk.yellow(`Not running: ${grandNotRunning}`));
               } else {
-                this.logger.showUser(chalk.green('✓ All port-forwards are running correctly'));
+                this.logger.showUser(chalk.green('\u2713 All port-forwards are running correctly'));
               }
             }
 
-            task.title = `Checked ${totalChecked} port-forward(s): ${runningCount} running, ${notRunningCount} not running`;
+            task.title = `Checked ${context_.deployments.length} deployment(s): ${grandTotalChecked} port-forward(s), ${grandRunning} running`;
           },
         },
       ],
