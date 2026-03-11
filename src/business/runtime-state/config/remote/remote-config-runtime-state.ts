@@ -119,11 +119,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public async load(namespace?: NamespaceName, context?: Context): Promise<void> {
-    if (!namespace || !context) {
-      throw new MissingRequiredParametersError(
-        `Namespace and context are required to load remote configuration, received namespace: ${namespace}, context: ${context}`,
-      );
-    }
     if (this.isLoaded()) {
       return;
     }
