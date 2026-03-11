@@ -169,7 +169,7 @@ export class ClusterCommandTasks {
         const clusterReference = context_.config.clusterRef;
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const deployments = this.localConfig.configuration.deployments;
-        const context: string | undefined = clusterReferences.get(clusterReference);
+        const context: StringFacade | undefined = clusterReferences.get(clusterReference);
 
         if (!context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
@@ -241,7 +241,7 @@ export class ClusterCommandTasks {
     return {
       title: 'Install Prometheus Stack chart',
       task: async (context_): Promise<void> => {
-        const clusterSetupNamespace: string = context_.config.clusterSetupNamespace;
+        const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
 
         const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
           clusterSetupNamespace,
@@ -386,7 +386,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallMinioOperator(): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    void argv;
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -403,7 +404,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPrometheusStack(): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    void argv;
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
