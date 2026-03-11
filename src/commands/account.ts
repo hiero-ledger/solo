@@ -555,7 +555,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
         {
-          title: 'Idenitfy nodes',
+          title: 'Identify nodes',
           task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<void> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
@@ -584,7 +584,7 @@ export class AccountCommand extends BaseCommand {
               namespace,
               nodeAliases: resolvedNodeAliases,
             };
-            console.log(`context_.config  = ${JSON.stringify(context_.config)}`);
+            this.logger.debug(`context_.config  = ${JSON.stringify(context_.config)}`);
           },
         },
         {
@@ -848,7 +848,7 @@ end;
           title: 'Clear consensus node saved state',
           task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
             const subTasks: SoloListrTask<ResetContext>[] = [];
-            console.log(`context_.config  = ${JSON.stringify(context_.config)}`);
+            this.logger.debug(`context_.config  = ${JSON.stringify(context_.config)}`);
             const nodeAliases: NodeAliases = context_.config.nodeAliases;
             if (!nodeAliases || nodeAliases.length === 0) {
               throw new SoloError('No consensus nodes found to reset; check your deployment or --node-aliases input.');

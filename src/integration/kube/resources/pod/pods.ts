@@ -80,6 +80,12 @@ export interface Pods {
   ): Promise<Pod>;
 
   /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
+
+  /**
    * Read logs for the given pod across all containers.
    * @param podReference - the reference to the pod
    * @param timestamps - include timestamps in output

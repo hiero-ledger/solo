@@ -3,5 +3,10 @@
     "name": "Ledger Reset Smoke",
     "directory": "ledger-reset-smoke",
     "local-java-build": false
+  },
+  {
+    "name": "Ledger Reset Smoke",
+    "directory": "ledger-reset-smoke",
+    "local-java-build": false
   }
 ]
