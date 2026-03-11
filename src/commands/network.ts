@@ -143,6 +143,7 @@ export interface NetworkDeployConfigClass {
   podLog: string;
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
+  patchServiceMonitor: boolean;
   enableMonitoringSupport: boolean;
   javaFlightRecorderConfiguration: string;
   wrapsEnabled: boolean;
@@ -246,6 +247,7 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
       flags.serviceMonitor,
       flags.podLog,
+      flags.patchServiceMonitor,
       flags.enableMonitoringSupport,
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
@@ -1252,7 +1254,8 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Patch ServiceMonitor for Prometheus discovery',
-          skip: ({config: {enableMonitoringSupport}}): boolean => !enableMonitoringSupport,
+          skip: ({config: {enableMonitoringSupport, patchServiceMonitor}}): boolean =>
+            !enableMonitoringSupport || !patchServiceMonitor,
           task: async ({config: {namespace, clusterRefs}}): Promise<void> => {
             for (const [, context] of clusterRefs) {
               await this.patchServiceMonitorForPrometheus(namespace, context);

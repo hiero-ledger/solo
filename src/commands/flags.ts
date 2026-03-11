@@ -2047,6 +2047,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly patchServiceMonitor: CommandFlag = {
+    constName: 'patchServiceMonitor',
+    name: 'patch-service-monitor',
+    definition: {
+      describe:
+        'Patch the ServiceMonitor with the Prometheus release label and correct service selector after deployment. ' +
+        'Required for kube-prometheus-stack to discover and scrape consensus node metrics.',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly podLog: CommandFlag = {
     constName: 'podLog',
     name: 'pod-log',
@@ -3038,6 +3051,7 @@ export class Flags {
     Flags.id,
     Flags.mirrorNodeId,
     Flags.serviceMonitor,
+    Flags.patchServiceMonitor,
     Flags.podLog,
     Flags.nlgArguments,
     Flags.javaHeap,
