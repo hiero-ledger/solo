@@ -3,6 +3,7 @@
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {
+  type Context,
   type ClusterReferenceName,
   type ClusterReferences,
   type DeploymentName,
@@ -721,7 +722,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
   }
 
-  private static async verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+  private static async verifyPodShouldBeRunning(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context?: Context,
+  ): Promise<void> {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
@@ -731,7 +736,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace, context);
 
     const podName: string = await container
       .resolve(NodeCommandTasks)
@@ -742,7 +747,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     expect(podName).to.equal(`network-${nodeAlias}-0`);
   }
 
-  private static async verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+  private static async verifyPodShouldNotBeActive(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context: Context,
+  ): Promise<void> {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
@@ -752,7 +761,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace, context);
 
     await expect(
       container
@@ -788,8 +797,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      await verifyPodShouldBeRunning(namespace, nodeAlias);
-      await verifyPodShouldNotBeActive(namespace, nodeAlias);
+      await verifyPodShouldBeRunning(namespace, nodeAlias, context);
+      await verifyPodShouldNotBeActive(namespace, nodeAlias, context);
       // stop the node to shut off the auto-restart
       await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
@@ -802,7 +811,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
   }
 
   public static PemStop(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger, consensusNodesCount, deployment} = options;
+    const {namespace, testName, testLogger, consensusNodesCount, deployment, contexts} = options;
     const {
       checkNetwork,
       refresh,
@@ -820,8 +829,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
       await sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
 
       for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
-        await verifyPodShouldBeRunning(namespace, nodeAlias);
-        await verifyPodShouldNotBeActive(namespace, nodeAlias);
+        await verifyPodShouldBeRunning(namespace, nodeAlias, contexts ? contexts[0] : undefined);
+        await verifyPodShouldNotBeActive(namespace, nodeAlias, contexts ? contexts[0] : undefined);
       }
 
       await refresh(options);
