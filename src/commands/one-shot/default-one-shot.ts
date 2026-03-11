@@ -6,10 +6,15 @@ import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
 import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
-import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {
+  ClusterReferenceName,
+  type Realm,
+  type Shard,
+  type SoloListrTask,
+  SoloListrTaskWrapper,
+} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
@@ -49,7 +54,6 @@ import {
 import * as helpers from '../../core/helpers.js';
 import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
-import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -63,12 +67,17 @@ import {type Lock} from '../../core/lock/lock.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
 import {NoKubeConfigContextError} from '../../business/runtime-state/errors/no-kube-config-context-error.js';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
   private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
-
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
+  private static readonly ONE_SHOT_DEPLOYMENT: string = 'one-shot';
+  private static readonly ONE_SHOT_NAMESPACE: NamespaceName = NamespaceName.of(
+    DefaultOneShotCommand.ONE_SHOT_DEPLOYMENT,
+  );
+  private static readonly ONE_SHOT_CLUSTER_REF: ClusterReferenceName = DefaultOneShotCommand.ONE_SHOT_DEPLOYMENT;
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
@@ -77,7 +86,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet],
+    optional: [flags.quiet, flags.deployment],
   };
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
@@ -167,8 +176,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               ) as OneShotSingleDeployConfigClass;
               config = context_.config;
 
-              const uniquePostfix: string = uuid4().slice(-8);
-
               // Initialize component config sections to empty objects to prevent undefined errors
               config.consensusNodeConfiguration = {};
               config.mirrorNodeConfiguration = {};
@@ -210,10 +217,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.relayNodeConfiguration = profileItems.relayNode;
                 }
               }
-              config.clusterRef = config.clusterRef || `solo-${uniquePostfix}`;
+              config.clusterRef = config.clusterRef || DefaultOneShotCommand.ONE_SHOT_CLUSTER_REF;
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-              config.deployment = config.deployment || `solo-deployment-${uniquePostfix}`;
-              config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
+              config.deployment = config.deployment || DefaultOneShotCommand.ONE_SHOT_DEPLOYMENT;
+              config.namespace = config.namespace || DefaultOneShotCommand.ONE_SHOT_NAMESPACE;
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
@@ -940,21 +947,27 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
-          config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
+          config.deployment = config.deployment || DefaultOneShotCommand.ONE_SHOT_DEPLOYMENT;
+          config.clusterRef = config.clusterRef || DefaultOneShotCommand.ONE_SHOT_CLUSTER_REF;
+          config.namespace = config.namespace || DefaultOneShotCommand.ONE_SHOT_NAMESPACE;
 
-          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
-
-          if (!config.deployment) {
-            if (this.localConfig.configuration.deployments.length === 0) {
-              this.logger.showUser('No deployments found in local config, have they already been deleted?');
+          // get the cluster ref and namespace from the local config
+          if (config.deployment) {
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(config.deployment);
+            if (deployment) {
+              config.clusterRef = deployment.clusters[0]?.ref || config.clusterRef;
+              config.namespace = NamespaceName.of(deployment.namespace) || config.namespace;
+            } else {
+              this.logger.showUser(
+                `Deployment: ${config.deployment} not found in local config, has it already been deleted?`,
+              );
               config.skipAll = true;
               return;
             }
-            config.deployment = this.localConfig.configuration.deployments.get(0).name;
-            this.configManager.setFlag(flags.deployment, config.deployment);
           }
 
-          config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
+
           try {
             const kubeContextConnectionSuccessful: boolean = await this.k8Factory
               .default()
