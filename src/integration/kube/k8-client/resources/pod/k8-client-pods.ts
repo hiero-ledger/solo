@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  type CoreV1Event,
   type CoreV1Api,
   type KubeConfig,
   V1Container,
@@ -303,14 +304,31 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
   }
 
+  public async delete(podReference: PodReference): Promise<void> {
+    try {
+      await this.kubeClient.deleteNamespacedPod({
+        namespace: podReference.namespace.toString(),
+        name: podReference.name.toString(),
+      });
+    } catch (error) {
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.DELETE,
+        ResourceType.POD,
+        podReference.namespace,
+        podReference.name.toString(),
+      );
+    }
+  }
+
   public async readLogs(podReference: PodReference, timestamps: boolean = true): Promise<string> {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
     const containerNames: string[] = [
-      ...(pod.spec?.initContainers?.map(container => container.name) ?? []),
-      ...(pod.spec?.containers?.map(container => container.name) ?? []),
-      ...(pod.spec?.ephemeralContainers?.map(container => container.name) ?? []),
+      ...(pod.spec?.initContainers?.map((container: V1Container): string => container.name) ?? []),
+      ...(pod.spec?.containers?.map((container: V1Container): string => container.name) ?? []),
+      ...(pod.spec?.ephemeralContainers?.map((container: V1Container): string => container.name) ?? []),
     ].filter(Boolean);
 
     if (containerNames.length === 0) {
@@ -346,13 +364,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
-    const events = await this.kubeClient.listNamespacedEvent({
+    const events: {items?: CoreV1Event[]} = await this.kubeClient.listNamespacedEvent({
       namespace,
       fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
     });
 
     // eslint-disable-next-line unicorn/no-array-sort
-    const sortedEvents = [...(events?.items ?? [])].sort((left, right): number => {
+    const sortedEvents: CoreV1Event[] = [...(events?.items ?? [])].sort((left, right): number => {
       const leftTime: number = new Date(
         left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
       ).getTime();

@@ -90,7 +90,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         after(async (): Promise<void> => {
           await preDestroy(endToEndTestSuite);
-        });
+        }).timeout(Duration.ofMinutes(5).toMillis());
 
         beforeEach(async (): Promise<void> => {
           testLogger.info(`${testName}: resetting containers for each test`);
