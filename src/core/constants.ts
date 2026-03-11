@@ -441,7 +441,7 @@ export const CERT_MANAGER_CRDS: string[] = [
 ];
 
 export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
-  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps';
+  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps-v0.2.0';
 
 export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
 
