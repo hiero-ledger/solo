@@ -75,7 +75,7 @@ describe('KubectlDependencyManager', (): void => {
       undefined,
     );
     // Create the local executable file for testing
-    const localPath = PathEx.join(localInstallationDirectory, constants.KUBECTL);
+    const localPath: string = PathEx.join(localInstallationDirectory, constants.KUBECTL);
     fs.writeFileSync(localPath, '');
     expect(kubectlDependencyManager.isInstalledLocally()).to.be.ok;
   });
@@ -127,7 +127,17 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KUBECTL}`).alwaysReturned(false);
+      const originalShellRun: ShellRunner['run'] = ShellRunner.prototype.run;
+      sandbox.stub(ShellRunner.prototype, 'run').callsFake(async function (
+        this: ShellRunner,
+        cmd: string,
+      ): Promise<string[]> {
+        if (cmd === `which ${constants.KUBECTL}`) {
+          throw new Error('kubectl not found');
+        }
+
+        return originalShellRun.call(this, cmd);
+      });
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, constants.KUBECTL))).to.be.ok;
       expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
@@ -140,17 +150,29 @@ describe('KubectlDependencyManager', (): void => {
       cpSyncStub.restore();
       chmodSyncStub.restore();
       rmSyncStub.restore();
+      const originalShellRun: ShellRunner['run'] = ShellRunner.prototype.run;
+      sandbox.stub(ShellRunner.prototype, 'run').callsFake(async function (
+        this: ShellRunner,
+        cmd: string,
+      ): Promise<string[]> {
+        if (cmd === `which ${constants.KUBECTL}`) {
+          throw new Error('kubectl not found');
+        }
+
+        return originalShellRun.call(this, cmd);
+      });
       const kubectlInstallationDirectory: string = getTemporaryDirectory();
       container.register(InjectTokens.KubectlInstallationDirectory, {useValue: kubectlInstallationDirectory});
       kubectlDependencyManager = new KubectlDependencyManager(undefined, undefined, process.arch, undefined);
-      const originalRunMethod: any = kubectlDependencyManager.run.bind(kubectlDependencyManager);
+      const originalInstallationMeetsRequirements: KubectlDependencyManager['installationMeetsRequirements'] =
+        kubectlDependencyManager.installationMeetsRequirements.bind(kubectlDependencyManager);
       sandbox
         .stub(KubectlDependencyManager.prototype, 'installationMeetsRequirements')
         .callsFake(async (executablePath: string): Promise<boolean> => {
           if (executablePath === constants.KUBECTL) {
             return false; // global installation does not meet requirements
           }
-          return originalRunMethod(executablePath);
+          return originalInstallationMeetsRequirements(executablePath);
         });
       expect(await kubectlDependencyManager.install(getTemporaryDirectory())).to.be.true;
       expect(downloaderFetchPackageSpy.calledOnce).to.be.true;
@@ -231,8 +253,9 @@ describe('KubectlDependencyManager', (): void => {
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
-        expect(error.message).to.include('Failed to check kubectl version');
+      } catch (error: unknown) {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 
@@ -242,8 +265,9 @@ describe('KubectlDependencyManager', (): void => {
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
-        expect(error.message).to.include('Failed to check kubectl version');
+      } catch (error: unknown) {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 
@@ -253,8 +277,9 @@ describe('KubectlDependencyManager', (): void => {
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
-        expect(error.message).to.include('Failed to check kubectl version');
+      } catch (error: unknown) {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 
@@ -269,7 +294,7 @@ describe('KubectlDependencyManager', (): void => {
       );
 
       // @ts-expect-error TS2341: Property processDownloadedPackage is private
-      const linuxResult = await kubectlDependencyManager.processDownloadedPackage('/tmp/kubectl', '/tmp');
+      const linuxResult: string[] = await kubectlDependencyManager.processDownloadedPackage('/tmp/kubectl', '/tmp');
       expect(linuxResult).to.contain('/tmp/kubectl');
 
       // Now test with Windows platform
@@ -282,7 +307,7 @@ describe('KubectlDependencyManager', (): void => {
       );
 
       // @ts-expect-error TS2341: Property processDownloadedPackage is private
-      const windowsResult = await kubectlDependencyManager.processDownloadedPackage('/tmp/kubectl.exe', '/tmp');
+      const windowsResult: string[] = await kubectlDependencyManager.processDownloadedPackage('/tmp/kubectl.exe');
       expect(windowsResult).to.contain('/tmp/kubectl.exe');
     });
 
@@ -296,7 +321,7 @@ describe('KubectlDependencyManager', (): void => {
       );
 
       // @ts-expect-error TS2341: Property getArtifactName is private
-      const artifactName = kubectlDependencyManager.getArtifactName();
+      const artifactName: string = kubectlDependencyManager.getArtifactName();
       expect(artifactName).to.include('1.25.0');
       expect(artifactName).to.include(OperatingSystem.OS_LINUX);
       expect(artifactName).to.include('amd64');
