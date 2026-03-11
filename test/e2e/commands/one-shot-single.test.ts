@@ -63,7 +63,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         resetForTest(namespace.name, testCacheDirectory, false);
         for (const item of contexts) {
           const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          await k8Client.namespaces().delete(namespace);
+          try {
+            await k8Client.namespaces().delete(namespace);
+          } catch {
+            // allowed to fail if the namespace doesn't exist
+          }
         }
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
