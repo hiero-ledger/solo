@@ -175,11 +175,10 @@ export class ClusterCommandTasks {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
-        const deploymentsWithSelectedCluster = Object.entries(deployments)
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))
-          .map(([deploymentName, deployment]) => ({
-            name: deploymentName,
+        const deploymentsWithSelectedCluster = [...deployments]
+          .filter(deployment => deployment.clusters.some(cluster => cluster.toString() === clusterReference))
+          .map(deployment => ({
+            name: deployment.name,
             namespace: deployment.namespace || 'default',
           }));
 

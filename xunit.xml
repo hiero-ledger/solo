@@ -1,0 +1,4 @@
+<testsuite name="Mocha Tests" tests="2" failures="0" errors="0" skipped="0" timestamp="Wed, 11 Mar 2026 15:34:38 GMT" time="0.052">
+<testcase classname="ClusterCommand unit tests Chart Install Function is called correctly" name="Install function is called with expected parameters" file="/home/runner/work/solo/solo/test/unit/commands/cluster.test.ts" time="0.014"/>
+<testcase classname="ClusterCommand unit tests Chart Install Function is called correctly" name="Should use local chart directory" file="/home/runner/work/solo/solo/test/unit/commands/cluster.test.ts" time="0.006"/>
+</testsuite>
