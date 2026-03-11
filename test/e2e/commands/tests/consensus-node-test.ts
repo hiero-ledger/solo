@@ -244,7 +244,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloConsensusNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
+  private static soloConsensusNodeUpgradeArgv(
+    options: BaseTestOptions,
+    zipFile?: string,
+    applicationPropertiesPath?: string,,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
 
@@ -263,6 +267,10 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
     if (zipFile) {
       argv.push(optionFromFlag(flags.upgradeZipFile), zipFile);
+    }
+
+    if (applicationPropertiesPath) {
+      argv.push(optionFromFlag(flags.applicationProperties), applicationPropertiesPath)
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
@@ -701,6 +709,58 @@ export class ConsensusNodeTest extends BaseCommandTest {
         .setAccountId(new AccountId(shard, realm, 1002))
         .execute(accountManager._nodeClient);
       expect(accountInfo2).not.to.be.null;
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static upgradeConfigs(options: BaseTestOptions): void {
+    const {testName, namespace, contexts} = options;
+    const {soloConsensusNodeUpgradeArgv} = ConsensusNodeTest;
+    const temporaryDirectory: string = getTemporaryDirectory();
+
+    it(`${testName}: consensus node upgrade [upgrade configs]`, async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+        InjectTokens.LocalConfigRuntimeState,
+      );
+      await localConfig.load();
+
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+      await remoteConfig.load(namespace, contexts[0]);
+
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+      const containerReference: Container = k8Factory
+        .default()
+        .containers()
+        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+
+      const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+
+      // prepare temporary application.properties to utilize for argv
+      await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
+
+      const testApplicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
+
+      const applicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
+
+      const updatedContent: string = applicationProperties.replaceAll(
+        'contracts.chainId=298',
+        'contracts.chainId=299',
+      );
+
+      fs.writeFileSync(testApplicationPropertiesPath, updatedContent);
+
+      await main(soloConsensusNodeUpgradeArgv(options, undefined, testApplicationPropertiesPath));
+
+      const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+
+      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`, temporaryDirectory);
+      const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+
+      expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

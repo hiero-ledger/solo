@@ -2098,7 +2098,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<AnyListrContext> {
+  public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
       task: async ({config}, task): Promise<void> => {
@@ -2108,71 +2108,111 @@ export class NodeCommandTasks {
           return value === defaultValue;
         };
 
-        if (
-          isDefaultFlagValue(flags.apiPermissionProperties) &&
-          isDefaultFlagValue(flags.applicationEnv) &&
-          isDefaultFlagValue(flags.applicationProperties) &&
-          isDefaultFlagValue(flags.bootstrapProperties) &&
-          isDefaultFlagValue(flags.log4j2Xml) &&
-          isDefaultFlagValue(flags.settingTxt) &&
-          isDefaultFlagValue(flags.profileName) &&
-          isDefaultFlagValue(flags.chainId) &&
-          isDefaultFlagValue(flags.javaFlightRecorderConfiguration)
-        ) {
+        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
               chalk.grey('no consensus node configuration files to be updated'),
           );
+
           return;
         }
 
-        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-
-        const clusterReferencesList: ClusterReferenceName[] = [];
-        const valuesArguments: Record<ClusterReferenceName, string> = {};
-        for (const [clusterReference] of clusterReferences) {
-          if (!clusterReferencesList.includes(clusterReference)) {
-            clusterReferencesList.push(clusterReference);
-            valuesArguments[clusterReference] = '';
-          }
-        }
-
-        const node: ConsensusNode = config.consensusNodes[0];
-
-        const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
-          NamespaceName.of(node.namespace),
-          node.name,
+        const stagingDirectory: string = Templates.renderStagingDir(
+          this.configManager.getFlag(flags.cacheDir),
+          this.configManager.getFlag(flags.releaseTag),
         );
 
-        const targetPath: string = PathEx.join(config.cacheDir, 'templates');
+        for (const flag of flags.nodeConfigFileFlags.values()) {
+          if (isDefaultFlagValue(flag)) {
+            continue;
+          }
 
-        const sourcePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
-        await container.copyFrom(sourcePath, targetPath);
+          const sourceFilePath: string = this.configManager.getFlagFile(flag);
+          const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
+          const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
+          if (!fs.existsSync(sourceAbsoluteFilePath)) {
+            throw new SoloError(
+              `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
+            );
+          }
 
-        // prepare values files for each cluster
-        const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
-        const profileName: string = this.configManager.getFlag(flags.profileName);
+          const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
+          const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
+          this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
-        config.javaFlightRecorderConfiguration = this.configManager.getFlag(flags.javaFlightRecorderConfiguration);
-        if (config.javaFlightRecorderConfiguration === '') {
-          config.javaFlightRecorderConfiguration = getEnvironmentVariable('JAVA_FLIGHT_RECORDER_CONFIGURATION') || '';
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
         }
 
-        const jfrFilePath: string = config.javaFlightRecorderConfiguration;
-        const jfrFile: string =
-          jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
+        const yamlRoot: AnyObject = {};
 
-        const applicationPropertiesPath: string = PathEx.join(config.cacheDir, 'templates', 'application.properties');
-
-        const profileValuesFile: Record<ClusterReferenceName, string> =
-          await this.profileManager.prepareValuesForSoloChart(
-            profileName,
-            config.consensusNodes,
-            config.domainNamesMapping,
-            config.deployment,
-            applicationPropertiesPath,
-            jfrFile,
+        if (!isDefaultFlagValue(flags.log4j2Xml)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.log4j2Xml',
+            'log4j2.xml',
+            stagingDirectory,
+            yamlRoot,
           );
+        }
+
+        if (!isDefaultFlagValue(flags.settingTxt)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.settingsTxt',
+            'settings.txt',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!isDefaultFlagValue(flags.applicationProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationProperties',
+            'application.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!isDefaultFlagValue(flags.apiPermissionProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.apiPermissionsProperties',
+            'api-permission.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!isDefaultFlagValue(flags.bootstrapProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.bootstrapProperties',
+            'bootstrap.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!isDefaultFlagValue(flags.applicationEnv)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationEnv',
+            'application.env',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        const profileValuesFile: Record<ClusterReferenceName, string> = {};
+
+        const clusterReferences: ClusterReferenceName[] = [];
+
+        for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
+          clusterReferences.push(clusterReference);
+
+          const cachedValuesFile: string = PathEx.join(
+            config.cacheDir,
+            `solo-${config.profileName}-${clusterReference}.yaml`,
+          );
+
+          profileValuesFile[clusterReference] = await this.profileManager.writeToYaml(cachedValuesFile, yamlRoot);
+        }
 
         const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
           this.remoteConfig.getClusterRefs(),
@@ -2181,16 +2221,9 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
-        for (const clusterReference of Object.keys(valuesFiles)) {
-          valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
-          this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
-            valuesArg: valuesArgumentMap,
-          });
-        }
-
         // Update all charts
         await Promise.all(
-          clusterReferencesList.map(async (clusterReference: string): Promise<void> => {
+          clusterReferences.map(async (clusterReference: string): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
             config.soloChartVersion = Version.getValidSemanticVersion(
@@ -2198,15 +2231,17 @@ export class NodeCommandTasks {
               false,
               'Solo chart version',
             );
+
             await this.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
               config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
-              valuesArgumentMap[clusterReference],
+              valuesFiles[clusterReference],
               context,
             );
+
             showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );

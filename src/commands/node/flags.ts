@@ -56,15 +56,14 @@ export const UPGRADE_FLAGS: CommandFlags = {
     flags.upgradeVersion,
 
     // Node config file flags
+    flags.networkDeploymentValuesFile,
+    flags.profileName,
     flags.apiPermissionProperties,
     flags.applicationEnv,
     flags.applicationProperties,
     flags.bootstrapProperties,
     flags.log4j2Xml,
     flags.settingTxt,
-    flags.profileName,
-    flags.chainId,
-    flags.javaFlightRecorderConfiguration,
   ],
 };
 

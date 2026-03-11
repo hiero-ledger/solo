@@ -89,6 +89,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         ConsensusNodeTest.upgrade(options);
 
+        ConsensusNodeTest.upgradeConfigs(options);
+
         describe('Write log metrics', async (): Promise<void> => {
           it('Should write log metrics', async (): Promise<void> => {
             await new MetricsServerImpl().logMetrics(
