@@ -53,7 +53,6 @@ export class HelmExecution {
     this.process = spawn(command.join(' '), {
       shell: true,
       env: {...process.env, ...environmentVariables},
-      windowsVerbatimArguments: OperatingSystem.isWin32(),
     });
   }
 
