@@ -1062,7 +1062,9 @@ export class DeploymentCommand extends BaseCommand {
             const explorers: BaseStateSchema[] = state.explorers || [];
 
             if (consensusNodes.length > 0) {
-              const nodeNames: string = consensusNodes.map((n: BaseStateSchema): string => n.metadata.id).join(', ');
+              const nodeNames: string = consensusNodes
+                .map((n: BaseStateSchema): string => String(n.metadata.id))
+                .join(', ');
               this.logger.showUser(
                 `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(String(consensusNodes.length))} (${nodeNames})`,
               );
