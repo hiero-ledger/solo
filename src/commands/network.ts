@@ -1409,35 +1409,54 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            await this.downloader.fetchPackage(
-              constants.WRAPS_LIB_DOWNLOAD_URL,
-              'unusued',
-              constants.SOLO_CACHE_DIR,
-              false,
-              '',
-              false,
-            );
-
-            const tarFilePath: string = PathEx.join(
-              constants.SOLO_CACHE_DIR,
-              `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
-            );
-
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-            // Create extraction dir
-            fs.mkdirSync(extractedDirectory);
+            if (fs.existsSync(extractedDirectory)) {
+              this.logger.debug('Wraps library already installed');
+            } else {
+              await this.downloader.fetchPackage(
+                constants.WRAPS_LIB_DOWNLOAD_URL,
+                'unusued',
+                constants.SOLO_CACHE_DIR,
+                false,
+                '',
+                false,
+              );
 
-            // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-            this.zippy.untar(tarFilePath, extractedDirectory);
+              const tarFilePath: string = PathEx.join(
+                constants.SOLO_CACHE_DIR,
+                `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
+              );
+
+              // Create extraction dir
+              fs.mkdirSync(extractedDirectory);
+
+              // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+              this.zippy.untar(tarFilePath, extractedDirectory);
+            }
+
+            // Having any files except for those inside the folder causes an error in CN
+            const allowedFiles: Set<string> = new Set([
+              'decider_pp.bin',
+              'decider_vp.bin',
+              'nova_pp.bin',
+              'nova_vp.bin',
+            ]);
+
+            const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+            for (const file of fs.readdirSync(sourcePath)) {
+              if (!allowedFiles.has(file)) {
+                const filePath: string = PathEx.join(sourcePath, file);
+                fs.unlinkSync(filePath); // delete unwanted file
+              }
+            }
 
             for (const consensusNode of config.consensusNodes) {
               const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
                 config.namespace,
                 consensusNode.name,
               );
-
-              const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
               await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
             }
