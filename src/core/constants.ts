@@ -121,9 +121,6 @@ export const PROMETHEUS_STACK_CHART_URL: string =
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
 export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
 export const SOLO_SERVICE_MONITOR_NAME: string = 'solo-service-monitor';
-export const CONSENSUS_NODE_METRICS_PORT: number = 9999;
-export const PROMETHEUS_METRICS_SERVICE_PORT: number = 9090;
-export const PROMETHEUS_METRICS_PORT_NAME: string = 'prometheus';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 

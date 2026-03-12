@@ -64,7 +64,6 @@ import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
-import {type ServicePort} from '../integration/kube/resources/service/service-port.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -1083,64 +1082,6 @@ export class NetworkCommand extends BaseCommand {
     );
   }
 
-  /**
-   * Patch each consensus-node Service (label `solo.hedera.com/type: network-node-svc`) so that
-   * Prometheus can scrape the metrics endpoint exposed by the Hedera node on port 9999.
-   *
-   * The consensus node exposes a Prometheus-compatible `/metrics` endpoint on pod port 9999.
-   * Without this patch the Services have no port that Prometheus can target.  We add a named
-   * port `prometheus` (service port 9090 → targetPort 9999) so the ServiceMonitor endpoint
-   * definition can reference it by name and scraping works automatically.
-   */
-  private async patchConsensusNodeServicesForPrometheus(namespace: NamespaceName, context: Context): Promise<void> {
-    const k8: K8 = this.k8Factory.getK8(context);
-    const services: Service[] = await k8.services().list(namespace, ['solo.hedera.com/type=network-node-svc']);
-
-    for (const svc of services) {
-      const existingPorts: ServicePort[] = svc.spec?.ports ?? [];
-
-      // Skip if the prometheus port is already present
-      if (existingPorts.some((p): boolean => p.name === constants.PROMETHEUS_METRICS_PORT_NAME)) {
-        this.logger.debug(
-          `Service '${svc.metadata.name}' already has port '${constants.PROMETHEUS_METRICS_PORT_NAME}', skipping`,
-        );
-        continue;
-      }
-
-      const updatedPorts: object[] = [
-        ...existingPorts.map((p): object => ({
-          name: p.name,
-          port: p.port,
-          targetPort: p.targetPort ?? p.port,
-          protocol: p.protocol ?? 'TCP',
-        })),
-        {
-          name: constants.PROMETHEUS_METRICS_PORT_NAME,
-          port: constants.PROMETHEUS_METRICS_SERVICE_PORT,
-          targetPort: constants.CONSENSUS_NODE_METRICS_PORT,
-          protocol: 'TCP',
-        },
-      ];
-
-      const patch: object = {
-        apiVersion: 'v1',
-        kind: 'Service',
-        metadata: {
-          name: svc.metadata.name,
-          namespace: namespace.name,
-        },
-        spec: {ports: updatedPorts},
-      };
-
-      await k8.manifests().patchObject(patch);
-      this.logger.debug(
-        `Patched Service '${svc.metadata.name}' in namespace '${namespace.name}': ` +
-          `added port ${constants.PROMETHEUS_METRICS_PORT_NAME}=${constants.PROMETHEUS_METRICS_SERVICE_PORT}` +
-          `->targetPort=${constants.CONSENSUS_NODE_METRICS_PORT}`,
-      );
-    }
-  }
-
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
@@ -1318,7 +1259,6 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {namespace, clusterRefs}}): Promise<void> => {
             for (const [, context] of clusterRefs) {
               await this.patchServiceMonitorForPrometheus(namespace, context);
-              await this.patchConsensusNodeServicesForPrometheus(namespace, context);
             }
           },
         },
