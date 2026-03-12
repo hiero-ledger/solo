@@ -209,7 +209,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               }
               config.clusterRef = config.clusterRef || 'solo';
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-              config.deployment = config.deployment || 'solo-deployment';
+              config.deployment = config.deployment || 'solo';
               config.namespace = config.namespace || NamespaceName.of('solo');
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
