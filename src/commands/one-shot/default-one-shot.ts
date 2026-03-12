@@ -235,7 +235,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
 
-              // Apply small-memory node configuration by concatenating defaults with small-memory overrides
+              // If not `one-shot falcon deploy` apply small-memory node configuration by concatenating defaults with small-memory overrides
               if (!config.valuesFile) {
                 const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
                 const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
