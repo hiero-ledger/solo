@@ -5,7 +5,6 @@ import {HelmExecutionException} from '../helm-execution-exception.js';
 import {HelmParserException} from '../helm-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
-import {OperatingSystem} from '../../../business/utils/operating-system.js';
 
 /**
  * Represents the execution of a helm command and is responsible for parsing the response.

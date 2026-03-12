@@ -6,7 +6,6 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import * as constants from '../../../core/constants.js';
-import path from 'node:path';
 import {ExecutionBuilder} from '../../execution-builder.js';
 
 @injectable()
