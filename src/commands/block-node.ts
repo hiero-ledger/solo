@@ -769,11 +769,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
-            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode).version;
-            config.migrationPlan = this.buildBlockNodeUpgradeMigrationPlan(
-              config.currentVersion,
-              config.upgradeVersion,
-            );
+            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.version ?? '0.0.0';
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);

@@ -19,7 +19,7 @@ export interface ComponentUpgradeMigrationConfig {
   boundaries: ComponentUpgradeBoundaryRule[];
 }
 
-interface ComponentUpgradeMigrationConfigFile {
+export interface ComponentUpgradeMigrationConfigFile {
   components: Record<string, ComponentUpgradeMigrationConfig>;
 }
 
@@ -47,6 +47,11 @@ const DEFAULT_COMPONENT_UPGRADE_MIGRATION_CONFIG: ComponentUpgradeMigrationConfi
 };
 
 let cachedConfig: ComponentUpgradeMigrationConfigFile | undefined;
+
+/** Resets the cached migration config. Intended for use in tests only. */
+export function resetUpgradeMigrationConfigCache(): void {
+  cachedConfig = undefined;
+}
 
 function loadUpgradeMigrationConfig(): ComponentUpgradeMigrationConfigFile {
   if (cachedConfig) {

@@ -91,7 +91,7 @@ npm run solo -- init --dev
 # The old released Solo command executed above may have installed either naming scheme.
 unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # using new solo to redeploy solo deployment chart to new version
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
