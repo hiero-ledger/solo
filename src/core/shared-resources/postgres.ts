@@ -188,11 +188,8 @@ export class PostgresSharedResource {
           'chmod 600 /tmp/.pgpass',
           'export PGPASSFILE=/tmp/.pgpass',
           '',
-          '# Grant CREATEROLE to owner user',
-          `psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -c "ALTER USER ${ownerUsername} WITH CREATEROLE;"`,
           '',
           '# export the other API user passwords used by init script',
-          'export CREATE_MIRROR_API_USER=true',
           `export GRAPHQL_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_GRAPHQL_DB_PASSWORD`])}`,
           `export GRPC_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_GRPC_DB_PASSWORD`])}`,
           `export IMPORTER_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`])}`,
@@ -206,10 +203,10 @@ export class PostgresSharedResource {
 
         const wrapper = wrapperLines.join('\n');
 
-        const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, 'wrapperScriptName');
+        const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, wrapperScriptName);
         fs.writeFileSync(temporaryLocal, wrapper);
         await k8Container.copyTo(temporaryLocal, '/tmp');
-        await k8Container.execContainer('chmod +x /tmp/wrapperScriptName');
+        await k8Container.execContainer(`chmod +x /tmp/${wrapperScriptName}`);
 
         const outputStream: PassThrough = new PassThrough();
         outputStream.on('data', (chunk: Buffer) => {
@@ -221,9 +218,9 @@ export class PostgresSharedResource {
           this.logger.info(`${wrapperScriptName}: ${chunk.toString()}`);
         });
 
-        await k8Container.execContainer('/bin/bash /tmp/wrapperScriptName', outputStream, errorStream);
-        // await k8Container.execContainer('rm /tmp/.pgpass');
-        // await k8Container.execContainer('rm /tmp/wrapperScriptName');
+        await k8Container.execContainer(`/bin/bash /tmp/${wrapperScriptName}`, outputStream, errorStream);
+        await k8Container.execContainer('rm /tmp/.pgpass');
+        await k8Container.execContainer(`rm /tmp/${wrapperScriptName}`);
         fs.rmSync(temporaryLocal);
         break;
       } catch (error) {

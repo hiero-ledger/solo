@@ -471,43 +471,45 @@ export class MirrorNodeCommand extends BaseCommand {
 
     // if the useExternalDatabase populate all the required values before installing the chart
     let host, ownerPassword, ownerUsername, readonlyPassword, readonlyUsername;
+    valuesArgument += helpers.populateHelmArguments({
+      // Disable default database deployment
+      'stackgres.enabled': false,
+      'postgresql.enabled': false,
+      'db.name': 'mirror_node',
+    });
+
     if (config.useExternalDatabase) {
       host = config.externalDatabaseHost;
       ownerPassword = config.externalDatabaseOwnerPassword;
       ownerUsername = config.externalDatabaseOwnerUsername;
       readonlyUsername = config.externalDatabaseReadonlyUsername;
       readonlyPassword = config.externalDatabaseReadonlyPassword;
+
+      valuesArgument += helpers.populateHelmArguments({
+        // Set the host and name
+        'db.host': host,
+
+        // set the usernames
+        'db.owner.username': ownerUsername,
+        'importer.db.username': ownerUsername,
+
+        'grpc.db.username': readonlyUsername,
+        'restjava.db.username': readonlyUsername,
+        'web3.db.username': readonlyUsername,
+
+        // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
+        'rest.db.username': readonlyUsername,
+
+        // set the passwords
+        'db.owner.password': ownerPassword,
+        'importer.db.password': ownerPassword,
+
+        'grpc.db.password': readonlyPassword,
+        'restjava.db.password': readonlyPassword,
+        'web3.db.password': readonlyPassword,
+        'rest.db.password': readonlyPassword,
+      });
     }
-
-    valuesArgument += helpers.populateHelmArguments({
-      // Disable default database deployment
-      'stackgres.enabled': false,
-      'postgresql.enabled': false,
-
-      // Set the host and name
-      'db.host': host,
-      'db.name': 'mirror_node',
-
-      // set the usernames
-      'db.owner.username': ownerUsername,
-      'importer.db.username': ownerUsername,
-
-      'grpc.db.username': readonlyUsername,
-      'restjava.db.username': readonlyUsername,
-      'web3.db.username': readonlyUsername,
-
-      // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
-      // 'rest.db.username': readonlyUsername,
-
-      // set the passwords
-      'db.owner.password': ownerPassword,
-      'importer.db.password': ownerPassword,
-
-      'grpc.db.password': readonlyPassword,
-      'restjava.db.password': readonlyPassword,
-      'web3.db.password': readonlyPassword,
-      'rest.db.password': readonlyPassword,
-    });
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
 
@@ -843,14 +845,19 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   .getK8(config.clusterContext)
                   .secrets()
                   .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-                const passwordsSecret: Secret = secrets.find(
+                const sharedPostgresPasswordsSecret: Secret = secrets.find(
                   secret => secret.name === 'solo-shared-resources-passwords',
                 );
 
+                const mirrorPasswordsSecrets: Secret = await this.k8Factory
+                  .getK8(config.clusterContext)
+                  .secrets()
+                  .read(config.namespace, 'mirror-passwords');
+
                 const DB_OWNER: string = 'postgres';
-                const DB_OWNER_PASSWORD: string = Base64.decode(passwordsSecret.data['password']);
+                const DB_OWNER_PASSWORD: string = Base64.decode(sharedPostgresPasswordsSecret.data['password']);
                 const MIRROR_IMPORTER_DB_NAME: string = Base64.decode(
-                  passwordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
+                  mirrorPasswordsSecrets.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
                 );
 
                 const targetDirectory: string = '/tmp';
@@ -1161,29 +1168,21 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   context_.config.soloSharedDatabaseHost = `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`;
                   context_.config.soloSharedDatabaseOwnerUsername = 'mirror_node_owner';
                   context_.config.soloSharedDatabaseOwnerPassword = randAlphaNumber();
-                  context_.config.soloSharedDatabaseReadonlyUsername = 'mirror_node';
-                  context_.config.soloSharedDatabaseReadonlyPassword = randAlphaNumber();
 
                   const host: string = context_.config.soloSharedDatabaseHost;
-                  // const ownerPassword: string = context_.config.soloSharedDatabaseOwnerPassword;
-                  // const ownerUsername: string = context_.config.soloSharedDatabaseOwnerUsername;
-                  // const readonlyUsername: string = context_.config.soloSharedDatabaseReadonlyUsername;
-                  // const readonlyPassword: string = context_.config.soloSharedDatabaseReadonlyPassword;
+                  const ownerPassword: string = context_.config.soloSharedDatabaseOwnerPassword;
+                  const ownerUsername: string = context_.config.soloSharedDatabaseOwnerUsername;
 
-                  // Update values
+                  // Update values — only set owner credentials; service-specific users (mirror_grpc,
+                  // mirror_rest_java, mirror_web3, mirror_rest, etc.) use chart defaults which match
+                  // the usernames created by init-postgres.sh. Their passwords are generated by the
+                  // chart, stored in mirror-passwords, and read by initializeMirrorNode().
                   context_.config.valuesArg += helpers.populateHelmArguments({
                     'db.host': host,
-                    // 'db.owner.username': ownerUsername,
-                    // 'importer.db.username': ownerUsername,
-                    // 'grpc.db.username': readonlyUsername,
-                    // 'restjava.db.username': readonlyUsername,
-                    // 'web3.db.username': readonlyUsername,
-                    // 'db.owner.password': ownerPassword,
-                    // 'importer.db.password': ownerPassword,
-                    // 'grpc.db.password': readonlyPassword,
-                    // 'restjava.db.password': readonlyPassword,
-                    // 'web3.db.password': readonlyPassword,
-                    // 'rest.db.password': readonlyPassword,
+                    'db.owner.username': ownerUsername,
+                    'importer.db.username': ownerUsername,
+                    'db.owner.password': ownerPassword,
+                    'importer.db.password': ownerPassword,
                   });
                 },
               },
