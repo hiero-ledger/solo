@@ -4,6 +4,7 @@ import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {format} from 'node:util';
+import crypto from 'node:crypto';
 import {SoloError} from './errors/solo-error.js';
 import * as semver from 'semver';
 import {Templates} from './templates.js';
@@ -621,8 +622,22 @@ export function remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): str
 export function randAlphaNumber(stringLength: number = 40): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let out: string = '';
-  for (let index: number = 0; index < stringLength; index++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
+  if (stringLength <= 0) {
+    return out;
+  }
+
+  const charCount: number = chars.length;
+  const maxByte: number = 256 - (256 % charCount);
+
+  while (out.length < stringLength) {
+    const buf: Buffer = crypto.randomBytes(stringLength);
+    for (let index: number = 0; index < buf.length && out.length < stringLength; index++) {
+      const randomByte: number = buf[index];
+      if (randomByte < maxByte) {
+        const charIndex: number = randomByte % charCount;
+        out += chars[charIndex];
+      }
+    }
   }
   return out;
 }
