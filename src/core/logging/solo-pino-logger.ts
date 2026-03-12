@@ -109,6 +109,10 @@ export class SoloPinoLogger implements SoloLogger {
     this.developmentMode = developmentMode;
   }
 
+  public isDevMode(): boolean {
+    return this.developmentMode ?? false;
+  }
+
   public nextTraceId(): void {
     this.traceId = uuidv4();
   }

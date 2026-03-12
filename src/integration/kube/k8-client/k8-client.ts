@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as k8s from '@kubernetes/client-node';
-import {SoloError} from '../../../core/errors/solo-error.js';
 import {type K8} from '../k8.js';
 import {type Namespaces} from '../../../types/namespace/namespaces.js';
 import {K8ClientClusters} from './resources/cluster/k8-client-clusters.js';
@@ -36,6 +35,7 @@ import {type Optional} from '../../../types/index.js';
 import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
 import {type Rbacs} from '../resources/rbac/rbacs.js';
 import {K8ClientRbacs} from './resources/rbac/k8-client-rbacs.js';
+import {NoKubeConfigContextError} from '../../../business/runtime-state/errors/no-kube-config-context-error.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -124,16 +124,24 @@ export class K8Client implements K8 {
       kubeConfig.loadFromDefault();
       if (context) {
         if (!kubeConfig.getContextObject(context)) {
-          throw new SoloError(`No kube config context found with name ${context}`);
+          throw new NoKubeConfigContextError(`No kube config context found with name ${context}`);
         }
         kubeConfig.setCurrentContext(context);
       }
     } catch (error) {
-      //* Try loading from cluster if loading from default fails
-      try {
-        kubeConfig.loadFromCluster();
-      } catch (fromClusterError) {
-        throw new SoloError('Failed to load Kubernetes configuration from cluster', fromClusterError, error);
+      if (process.env.KUBERNETES_SERVICE_HOST) {
+        //* Try loading from cluster if loading from default fails
+        try {
+          kubeConfig.loadFromCluster();
+        } catch (fromClusterError) {
+          throw new NoKubeConfigContextError(
+            'Failed to load Kubernetes configuration from cluster',
+            fromClusterError,
+            error,
+          );
+        }
+      } else {
+        throw new NoKubeConfigContextError('Failed to load Kubernetes configuration from default location', error);
       }
     }
 
