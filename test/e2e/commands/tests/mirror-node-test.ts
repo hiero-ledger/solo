@@ -297,6 +297,31 @@ export class MirrorNodeTest extends BaseCommandTest {
   private static postgresContainerName: string = `${this.postgresName}-0`;
   private static postgresMirrorNodeDatabaseName: string = 'mirror_node';
 
+  /**
+   * Grants the readonly role to mirror_rest so the REST service can SELECT from tables
+   * created by Flyway migrations after V1.0.
+   *
+   * The importer's V1.0__Init.sql creates mirror_rest without the readonly role, so it
+   * has no access to any table added after that migration.  The init.sh script sets default
+   * privileges that automatically grant SELECT on new tables to the readonly role; granting
+   * readonly to mirror_rest propagates those privileges.
+   *
+   * This must be called after main() returns (importer pod ready = migrations complete =
+   * mirror_rest exists) and before verifyMirrorNodeDeployWasSuccessful.
+   */
+  private static async grantReadonlyRoleToMirrorRestUser(): Promise<void> {
+    // Use a dollar-quoted block so the grant is safe even if mirror_rest already has the role.
+    const grantSql: string =
+      "DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') THEN GRANT readonly TO mirror_rest; END IF; END $grant$;";
+    const grantCommand: string =
+      `kubectl exec ${MirrorNodeTest.postgresContainerName} -n ${MirrorNodeTest.nameSpace}` +
+      ` -- env PGPASSWORD=${MirrorNodeTest.postgresPassword}` +
+      ` psql -U ${MirrorNodeTest.postgresUsername}` +
+      ` -d ${MirrorNodeTest.postgresMirrorNodeDatabaseName}` +
+      ` -c "${grantSql}"`;
+    await new ShellRunner().run(grantCommand);
+  }
+
   public static deployWithExternalDatabase(options: BaseTestOptions): void {
     const {
       testName,
@@ -334,6 +359,12 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
 
       await main(argv);
+
+      // The importer's V1.0__Init.sql migration creates the mirror_rest user without the readonly
+      // role, so it lacks SELECT on tables created after V1.0 (e.g. entity, transaction, node).
+      // Grant the readonly role now (after importer pod is ready = migrations are complete).
+      await MirrorNodeTest.grantReadonlyRoleToMirrorRestUser();
+
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
