@@ -165,6 +165,48 @@ echo "========================================"
 echo ""
 
 # ---------------------------------------------------------------------------
+# Inspect consensus-node Services for the prometheus port (9090 -> 9999)
+# ---------------------------------------------------------------------------
+info "Inspecting consensus node Services for prometheus port (9090->9999)..."
+SVCS_JSON=$(kubectl get svc -n "${NAMESPACE}" \
+  -l "solo.hedera.com/type=network-node-svc" -o json 2>/dev/null) || SVCS_JSON='{"items":[]}'
+
+SVC_COUNT=$(echo "${SVCS_JSON}" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('items',[])))")
+info "Found ${SVC_COUNT} network-node-svc service(s)."
+
+echo ""
+echo "========================================"
+if [[ "${SVC_COUNT}" -eq 0 ]]; then
+  echo "⚠️   WARN: No 'network-node-svc' Services found – cannot check prometheus port."
+else
+  PASS=true
+  while IFS= read -r name; do
+    HAS_PORT=$(kubectl get svc "${name}" -n "${NAMESPACE}" -o json 2>/dev/null | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ports = d.get('spec', {}).get('ports', [])
+found = any(p.get('name') == 'prometheus' and p.get('targetPort') == 9999 for p in ports)
+print('yes' if found else 'no')
+")
+    if [[ "${HAS_PORT}" == "yes" ]]; then
+      echo "✅  PASS: Service '${name}' has port prometheus=9090->targetPort=9999."
+    else
+      echo "❌  FAIL: Service '${name}' is MISSING prometheus port (9090->9999)."
+      echo "         Prometheus scraping will fail even if the ServiceMonitor is discovered!"
+      PASS=false
+    fi
+  done < <(echo "${SVCS_JSON}" | python3 -c "import json,sys; [print(i['metadata']['name']) for i in json.load(sys.stdin)['items']]")
+
+  if [[ "${PASS}" == "false" ]]; then
+    echo ""
+    echo "         This is the port 9999 bug. Re-run with PATCH_SERVICE_MONITOR=true to apply the fix:"
+    echo "           PATCH_SERVICE_MONITOR=true bash scripts/reproduce-service-monitor-issue.sh"
+  fi
+fi
+echo "========================================"
+echo ""
+
+# ---------------------------------------------------------------------------
 # Cleanup (optional – skip by setting KEEP_CLUSTER=true)
 # ---------------------------------------------------------------------------
 if [[ "${KEEP_CLUSTER:-false}" != "true" ]]; then

@@ -3,4 +3,6 @@
 export interface ServicePort {
   readonly name?: string;
   readonly port: number;
+  readonly targetPort?: number | string;
+  readonly protocol?: string;
 }

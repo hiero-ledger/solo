@@ -159,6 +159,9 @@ describe('NetworkCommand unit tests', (): void => {
         applyManifest: sinon.stub().resolves(),
         patchObject: sinon.stub().resolves(),
       });
+      options.k8Factory.getK8().services = sinon.stub().returns({
+        list: sinon.stub().resolves([]),
+      });
       options.k8Factory.getK8().logger = options.logger;
 
       options.k8Factory.default().clusters = sinon.stub().returns({
