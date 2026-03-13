@@ -92,7 +92,7 @@ export class SharedResourceManager {
       };
 
       const values: string = Object.entries(valuesArgumentsMap || {})
-        .map(([key, value]) => String.raw`--set \"${key}=${value}\"`)
+        .map(([key, value]) => `--set ${key}=${value}`)
         .join(' ');
 
       await this.chartManager.install(
