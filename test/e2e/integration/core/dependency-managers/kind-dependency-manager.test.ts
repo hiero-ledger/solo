@@ -144,6 +144,7 @@ describe('KindDependencyManager', (): void => {
         kindDependencyManager.uninstallLocal();
         expect(kindDependencyManager.isInstalledLocally()).not.to.be.ok;
 
+        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KIND}`).alwaysReturned(false);
         expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(kindDependencyManager.isInstalledLocally()).to.be.ok;
 
