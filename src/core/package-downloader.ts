@@ -23,6 +23,10 @@ import {ReadStream} from 'node:fs';
 import {Hash} from 'node:crypto';
 import {ClientRequest} from 'node:http';
 
+const URL_EXISTS_TIMEOUT_MS: number = 5000;
+const DOWNLOAD_CONNECT_TIMEOUT_MS: number = 10_000;
+const DOWNLOAD_RESPONSE_TIMEOUT_MS: number = 120_000;
+
 @injectable()
 export class PackageDownloader {
   public constructor(@inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger) {
@@ -46,8 +50,8 @@ export class PackageDownloader {
         // attempt to send a HEAD request to check URL exists
 
         const request: ClientRequest = url.startsWith('http://')
-          ? http.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}})
-          : https.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}});
+          ? http.request(url, {method: 'HEAD', timeout: URL_EXISTS_TIMEOUT_MS, headers: {Connection: 'close'}})
+          : https.request(url, {method: 'HEAD', timeout: URL_EXISTS_TIMEOUT_MS, headers: {Connection: 'close'}});
 
         request.on('response', (response): void => {
           const statusCode: number = response.statusCode;
@@ -104,7 +108,16 @@ export class PackageDownloader {
     }
 
     try {
-      await streamPipeline(got.stream(url, {followRedirect: true}), fs.createWriteStream(destinationPath));
+      await streamPipeline(
+        got.stream(url, {
+          followRedirect: true,
+          timeout: {
+            connect: DOWNLOAD_CONNECT_TIMEOUT_MS,
+            response: DOWNLOAD_RESPONSE_TIMEOUT_MS,
+          },
+        }),
+        fs.createWriteStream(destinationPath),
+      );
 
       return destinationPath;
     } catch (error) {
