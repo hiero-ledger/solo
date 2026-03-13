@@ -460,7 +460,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
-    let host, ownerPassword, ownerUsername, readonlyPassword, readonlyUsername;
+    let host: string, ownerPassword: string, ownerUsername: string, readonlyPassword: string, readonlyUsername: string;
     valuesArgument += helpers.populateHelmArguments({
       // Disable default database deployment
       'stackgres.enabled': false,
@@ -665,7 +665,9 @@ export class MirrorNodeCommand extends BaseCommand {
                 .getK8(context_.config.clusterContext)
                 .secrets()
                 .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-              const secret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-redis');
+              const secret: Secret = secrets.find(
+                (secret: Secret): boolean => secret.name === 'solo-shared-resources-redis',
+              );
 
               // Update values
               context_.config.valuesArg += helpers.populateHelmArguments({
@@ -710,7 +712,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 },
               });
             },
-            skip: context_ => !!context_.config.useExternalDatabase,
+            skip: (context_): boolean => !!context_.config.useExternalDatabase,
           },
         ];
 
@@ -930,7 +932,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   .secrets()
                   .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
                 const sharedPostgresPasswordsSecret: Secret = secrets.find(
-                  secret => secret.name === 'solo-shared-resources-passwords',
+                  (secret: Secret): boolean => secret.name === 'solo-shared-resources-passwords',
                 );
 
                 const mirrorPasswordsSecrets: Secret = await this.k8Factory
@@ -1157,33 +1159,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                 !config.externalDatabaseReadonlyUsername ||
                 !config.externalDatabaseReadonlyPassword)
             ) {
-              const missingFlags: CommandFlag[] = [];
-              if (!config.externalDatabaseHost) {
-                missingFlags.push(flags.externalDatabaseHost);
-              }
-              if (!config.externalDatabaseOwnerUsername) {
-                missingFlags.push(flags.externalDatabaseOwnerUsername);
-              }
-              if (!config.externalDatabaseOwnerPassword) {
-                missingFlags.push(flags.externalDatabaseOwnerPassword);
-              }
-
-              if (!config.externalDatabaseReadonlyUsername) {
-                missingFlags.push(flags.externalDatabaseReadonlyUsername);
-              }
-              if (!config.externalDatabaseReadonlyPassword) {
-                missingFlags.push(flags.externalDatabaseReadonlyPassword);
-              }
-
-              if (missingFlags.length > 0) {
-                const errorMessage: string =
-                  'There are missing values that need to be provided when' +
-                  `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
-
-                throw new SoloError(
-                  `${errorMessage} ${missingFlags.map((flag): string => `--${flag.name}`).join(', ')}`,
-                );
-              }
+              this.validateExternalDatabaseFlags(config);
             }
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
@@ -1382,31 +1358,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                 !config.externalDatabaseReadonlyUsername ||
                 !config.externalDatabaseReadonlyPassword)
             ) {
-              const missingFlags: CommandFlag[] = [];
-              if (!config.externalDatabaseHost) {
-                missingFlags.push(flags.externalDatabaseHost);
-              }
-              if (!config.externalDatabaseOwnerUsername) {
-                missingFlags.push(flags.externalDatabaseOwnerUsername);
-              }
-              if (!config.externalDatabaseOwnerPassword) {
-                missingFlags.push(flags.externalDatabaseOwnerPassword);
-              }
-
-              if (!config.externalDatabaseReadonlyUsername) {
-                missingFlags.push(flags.externalDatabaseReadonlyUsername);
-              }
-              if (!config.externalDatabaseReadonlyPassword) {
-                missingFlags.push(flags.externalDatabaseReadonlyPassword);
-              }
-
-              if (missingFlags.length > 0) {
-                const errorMessage: string =
-                  'There are missing values that need to be provided when' +
-                  `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
-
-                throw new SoloError(`${errorMessage} ${missingFlags.map(flag => `--${flag.name}`).join(', ')}`);
-              }
+              this.validateExternalDatabaseFlags(config);
             }
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
@@ -1455,6 +1407,36 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
     }
 
     return true;
+  }
+
+  private validateExternalDatabaseFlags(config: MirrorNodeUpgradeConfigClass): void {
+    const missingFlags: CommandFlag[] = [];
+    if (!config.externalDatabaseHost) {
+      missingFlags.push(flags.externalDatabaseHost);
+    }
+    if (!config.externalDatabaseOwnerUsername) {
+      missingFlags.push(flags.externalDatabaseOwnerUsername);
+    }
+    if (!config.externalDatabaseOwnerPassword) {
+      missingFlags.push(flags.externalDatabaseOwnerPassword);
+    }
+
+    if (!config.externalDatabaseReadonlyUsername) {
+      missingFlags.push(flags.externalDatabaseReadonlyUsername);
+    }
+    if (!config.externalDatabaseReadonlyPassword) {
+      missingFlags.push(flags.externalDatabaseReadonlyPassword);
+    }
+
+    if (missingFlags.length > 0) {
+      const errorMessage: string =
+        'There are missing values that need to be provided when' +
+        `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
+
+      throw new SoloError(
+        `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
+      );
+    }
   }
 
   private getEnvironmentVariablePrefix(version: string): string {

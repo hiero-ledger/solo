@@ -17,7 +17,7 @@ import {type Container} from '../../integration/kube/resources/container/contain
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 import * as constants from '../../core/constants.js';
 import fs, {createWriteStream, WriteStream} from 'node:fs';
-import {SOLO_CACHE_DIR} from '../../core/constants.js';
+import {SOLO_CACHE_DIR} from '../constants.js';
 import {MIRROR_NODE_VERSION} from '../../../version.js';
 import {SemanticVersion} from '../../integration/helm/base/api/version/semantic-version.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
@@ -98,12 +98,12 @@ export class PostgresSharedResource {
               break;
             }
             // value is a Uint8Array chunk
-            await new Promise<void>((resolve, reject) => {
-              fileStream.write(Buffer.from(value), error => (error ? reject(error) : resolve()));
+            await new Promise<void>((resolve, reject): void => {
+              fileStream.write(Buffer.from(value), (error: Error): void => (error ? reject(error) : resolve()));
             });
           }
           fileStream.end();
-          await new Promise<void>((resolve, reject) => {
+          await new Promise<void>((resolve, reject): void => {
             fileStream.on('finish', resolve);
             fileStream.on('error', reject);
           });
@@ -213,8 +213,8 @@ export class PostgresSharedResource {
         });
 
         await k8Container.execContainer(`/bin/bash /tmp/${wrapperScriptName}`, outputStream, errorStream);
-        // await k8Container.execContainer('rm /tmp/.pgpass');
-        // await k8Container.execContainer(`rm /tmp/${wrapperScriptName}`);
+        await k8Container.execContainer('rm /tmp/.pgpass');
+        await k8Container.execContainer(`rm /tmp/${wrapperScriptName}`);
         fs.rmSync(temporaryLocal);
         break;
       } catch (error) {

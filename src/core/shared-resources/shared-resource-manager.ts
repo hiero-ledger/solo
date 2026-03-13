@@ -41,14 +41,6 @@ export class SharedResourceManager {
     this.redisEnabled = true;
   }
 
-  public disablePostgres(): void {
-    this.postgresEnabled = false;
-  }
-
-  public disableRedis(): void {
-    this.redisEnabled = false;
-  }
-
   public async uninstallChart(namespace: NamespaceName, context?: string): Promise<void> {
     const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
       namespace,
@@ -92,7 +84,7 @@ export class SharedResourceManager {
       };
 
       const values: string = Object.entries(valuesArgumentsMap || {})
-        .map(([key, value]) => `--set ${key}=${value}`)
+        .map(([key, value]): string => `--set ${key}=${value}`)
         .join(' ');
 
       await this.chartManager.install(
