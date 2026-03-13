@@ -3105,12 +3105,12 @@ export class Flags {
       }
 
       // remove flags that use the default value
-      const flag = Flags.allFlags.find(flag => flag.name === name);
+      const flag: CommandFlag = Flags.allFlags.find((flag: CommandFlag): boolean => flag.name === name);
       if (!flag || (flag.definition.defaultValue && flag.definition.defaultValue === value)) {
         continue;
       }
 
-      const flagName = flag.name;
+      const flagName: string = flag.name;
 
       // if the flag is boolean based, render it without value
       if (value === true) {

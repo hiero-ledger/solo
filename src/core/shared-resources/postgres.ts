@@ -25,6 +25,8 @@ import {PassThrough, pipeline} from 'node:stream';
 import {promisify} from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import * as Base64 from 'js-base64';
+import {sleep} from '../helpers.js';
+import {Duration} from '../time/duration.js';
 
 @injectable()
 export class PostgresSharedResource {
@@ -144,7 +146,7 @@ export class PostgresSharedResource {
       .read(namespace, 'mirror-passwords');
 
     const maxAttempts: number = 3;
-    const backoff: number = 2000;
+    const backoff: number = 2;
     let attempt: number = 1;
     while (attempt < maxAttempts) {
       try {
@@ -228,7 +230,7 @@ export class PostgresSharedResource {
             error,
           );
         }
-        await new Promise(resolve => setTimeout(resolve, backoff * attempt)); // wait before retrying
+        await sleep(Duration.ofSeconds(backoff * attempt)); // wait before retrying
       }
     }
   }

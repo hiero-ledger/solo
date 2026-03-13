@@ -2,9 +2,6 @@
 
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
-import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type HelmClient} from '../../integration/helm/helm-client.js';
@@ -19,17 +16,11 @@ export class SharedResourceManager {
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
-    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig?: RemoteConfigRuntimeStateApi,
-    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.ChartManager) protected readonly chartManager?: ChartManager,
   ) {
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
   }
 
