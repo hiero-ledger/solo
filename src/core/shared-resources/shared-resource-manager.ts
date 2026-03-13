@@ -49,6 +49,23 @@ export class SharedResourceManager {
     this.redisEnabled = false;
   }
 
+  public async uninstallChart(namespace: NamespaceName, context?: string): Promise<void> {
+    const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
+      namespace,
+      constants.SOLO_SHARED_RESOURCES_CHART,
+      context,
+    );
+
+    if (!isChartInstalled) {
+      this.logger?.info(
+        `Shared resources chart is not installed in namespace ${namespace.name}, skipping uninstallation.`,
+      );
+      return;
+    }
+
+    await this.chartManager.uninstall(namespace, constants.SOLO_SHARED_RESOURCES_CHART, context);
+  }
+
   public async installChart(
     namespace: NamespaceName,
     chartDirectory: string,
