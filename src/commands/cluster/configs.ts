@@ -25,8 +25,8 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 
 @injectable()
 export class ClusterCommandConfigs {
-  private static readonly CONNECT_CONFIGS_NAME = 'connectConfig';
-  private static readonly DEFAULT_CONFIGS_NAME = 'defaultConfig';
+  private static readonly CONNECT_CONFIGS_NAME: string = 'connectConfig';
+  private static readonly DEFAULT_CONFIGS_NAME: string = 'defaultConfig';
 
   constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,

@@ -58,6 +58,11 @@ import {
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import * as versions from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -110,11 +115,6 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
@@ -1488,6 +1488,55 @@ export class NodeCommandTasks {
     };
   }
 
+  public waitForTss(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Wait for TSS',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
+      task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
+        const subTasks: SoloListrTask<NodeStartContext>[] = [];
+
+        for (const node of config.consensusNodes) {
+          subTasks.push({
+            title: `Waiting for node: ${node.name}`,
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = constants.TSS_READY_MAX_ATTEMPTS;
+              let attempt: number = 0;
+              let success: boolean = false;
+
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                if (output.includes('TSS protocol ready to sign blocks')) {
+                  await sleep(Duration.ofSeconds(constants.TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS));
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(constants.TSS_READY_BACKOFF_SECONDS));
+                }
+              }
+
+              if (!success) {
+                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
@@ -1628,20 +1677,13 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
+  public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task): any => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         const config: any = context_.config;
         const nodeAliases: any = config[nodeAliasesProperty];
-        const subTasks: (
-          | {title: string; task: (context_) => Promise<void>}
-          | {
-              title: string;
-              task: () => Promise<void>;
-            }
-          | {title: string; task: () => Promise<void>}
-        )[] = [
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
             task: async (context_): Promise<void> => {
@@ -1698,13 +1740,13 @@ export class NodeCommandTasks {
     };
   }
 
-  public startNodes(nodeAliasesProperty: string): {title: 'Starting nodes'; task: (context_, task) => any} {
+  public startNodes(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Starting nodes',
       task: (context_, task): any => {
         const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
-        const subTasks: any[] = [];
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
 
         for (const nodeAlias of nodeAliases) {
           subTasks.push({
@@ -1737,11 +1779,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): {
-    title: 'Enable port forwarding for debug port and/or GRPC port';
-    task: (context_) => Promise<void>;
-    skip: (context_) => boolean;
-  } {
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async ({config}): Promise<void> => {
@@ -1764,21 +1802,39 @@ export class NodeCommandTasks {
             .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
 
           if (pods.length === 0) {
-            throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
+            throw new SoloError('No HAProxy pods found');
           }
 
-          await this.remoteConfig.configuration.components.managePortForward(
-            undefined,
-            pods[0].podReference,
-            constants.GRPC_PORT, // Pod port
-            constants.GRPC_PORT, // Local port
-            this.k8Factory.getK8(config.clusterContext),
-            this.logger,
-            ComponentTypes.ConsensusNode,
-            'Consensus Node gRPC',
-            config.isChartInstalled, // Reuse existing port if chart is already installed
-            Templates.nodeIdFromNodeAlias(nodeAlias),
-          );
+          for (const pod of pods) {
+            const podReference: PodReference = pod.podReference;
+            const nodeIdLabel: string | undefined = pod.labels?.['solo.hedera.com/node-id'];
+            let nodeId: number;
+
+            if (nodeIdLabel !== undefined && Number.isInteger(Number(nodeIdLabel))) {
+              nodeId = Number(nodeIdLabel);
+            } else {
+              const podName: string = podReference.name.toString();
+              const match: RegExpMatchArray | null = podName.match(/^haproxy-(node\d+)-/);
+              if (!match) {
+                this.logger.warn(`Skipping HAProxy pod with unknown node alias format: ${podName}`);
+                continue;
+              }
+              nodeId = Templates.nodeIdFromNodeAlias(match[1] as NodeAlias);
+            }
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              undefined,
+              podReference,
+              constants.GRPC_PORT, // Pod port
+              constants.GRPC_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
+              this.k8Factory.getK8(config.clusterContext),
+              this.logger,
+              ComponentTypes.HaProxy,
+              'Consensus Node gRPC',
+              config.isChartInstalled, // Reuse existing port if chart is already installed
+              nodeId,
+            );
+          }
           await this.remoteConfig.persist();
         }
       },
@@ -1789,16 +1845,16 @@ export class NodeCommandTasks {
   public checkAllNodesAreActive(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are ACTIVE',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };
   }
 
-  public checkAllNodesAreFrozen(nodeAliasesProperty: string) {
+  public checkAllNodesAreFrozen(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are FROZEN',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         return this._checkNodeActivenessTask(
           context_,
           task,
@@ -1812,7 +1868,7 @@ export class NodeCommandTasks {
   public checkNodeProxiesAreActive(): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
     return {
       title: 'Check node proxies are ACTIVE',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         // this is more reliable than checking the nodes logs for ACTIVE, as the
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.nodeAliases) as SoloListr<AnyListrContext>;
@@ -1828,7 +1884,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Check all node proxies are ACTIVE',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         // this is more reliable than checking the nodes logs for ACTIVE, as the
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.allNodeAliases) as SoloListr<AnyListrContext>;
@@ -1842,7 +1898,7 @@ export class NodeCommandTasks {
   ): SoloListrTask<T> {
     return {
       title: 'Trigger stake weight calculate',
-      task: async context_ => {
+      task: async (context_): Promise<void> => {
         const config = context_.config;
         this.logger.info(
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
@@ -1883,7 +1939,7 @@ export class NodeCommandTasks {
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
-        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of accountMap.keys()) {
           const accountId: string = accountMap.get(nodeAlias);
           config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
@@ -2782,17 +2838,15 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
           const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-          const targetBasePath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-          const targetWrapsPath: string = PathEx.join(targetBasePath, constants.WRAPS_DIRECTORY_NAME);
+          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${constants.WRAPS_DIRECTORY_NAME}`;
 
           if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
           }
 
-          await rootContainer.copyTo(sourcePath, targetPath);
+          await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
         }
       },
     };
@@ -2996,7 +3050,7 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
       }
@@ -3086,7 +3140,7 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-      const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+      const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
       valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
     }
@@ -3137,7 +3191,7 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-          const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+          const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
           valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
         }
