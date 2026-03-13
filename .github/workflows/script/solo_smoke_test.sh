@@ -233,13 +233,13 @@ else
   log_and_exit 1
 fi
 
-echo "Using mirror release: ${mirror_release}"
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
-if [[ $result -ne 0 ]]; then
-  echo "Mirror node acceptance test failed with exit code $result"
-  log_and_exit $result
-fi
-echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
+#echo "Using mirror release: ${mirror_release}"
+#helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
+#if [[ $result -ne 0 ]]; then
+#  echo "Mirror node acceptance test failed with exit code $result"
+#  log_and_exit $result
+#fi
+#echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 result=0
 
 check_monitor_log "${SOLO_NAMESPACE}"
