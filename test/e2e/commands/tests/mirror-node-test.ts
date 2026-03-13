@@ -311,8 +311,7 @@ export class MirrorNodeTest extends BaseCommandTest {
    */
   private static async grantReadonlyRoleToMirrorRestUser(): Promise<void> {
     // Use a dollar-quoted block so the grant is safe even if mirror_rest already has the role.
-    const grantSql: string =
-      "DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') THEN GRANT readonly TO mirror_rest; END IF; END $grant$;";
+    const grantSql: string = String.raw`DO \$grant\$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') THEN GRANT readonly TO mirror_rest; END IF; END \$grant\$;`;
     const grantCommand: string =
       `kubectl exec ${MirrorNodeTest.postgresContainerName} -n ${MirrorNodeTest.nameSpace}` +
       ` -- env PGPASSWORD=${MirrorNodeTest.postgresPassword}` +
