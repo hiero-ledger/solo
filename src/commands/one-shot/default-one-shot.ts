@@ -62,6 +62,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {type Lock} from '../../core/lock/lock.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
+import {NoKubeConfigContextError} from '../../business/runtime-state/errors/no-kube-config-context-error.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -1006,13 +1007,36 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
           remoteConfigLoaded = await this.loadRemoteConfigOrWarn(argv);
           try {
-            await this.remoteConfig.loadAndValidate(argv);
-            config.skipAll = false;
+            const kubeContextConnectionSuccessful: boolean = await this.k8Factory
+              .default()
+              .contexts()
+              .testContextConnection(config.context);
+            if (!kubeContextConnectionSuccessful) {
+              config.skipAll = true;
+              return;
+            }
           } catch (error) {
-            if (error instanceof ResourceNotFoundError) {
+            this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
+          }
+          try {
+            if (config.deployment && config.namespace && config.context) {
+              await this.remoteConfig.loadAndValidate(argv);
+              config.skipAll = false;
+            } else {
+              config.skipAll = true;
+              return;
+            }
+          } catch (error) {
+            if (
+              error instanceof ResourceNotFoundError ||
+              error.cause instanceof ResourceNotFoundError ||
+              error instanceof NoKubeConfigContextError ||
+              error.cause instanceof NoKubeConfigContextError
+            ) {
               this.logger.showUser(
                 'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
               );
+              this.logger.error('Error loading remote config:', error);
               config.skipAll = true;
               return;
             } else {
