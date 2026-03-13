@@ -5,31 +5,11 @@ import {describe, it} from 'mocha';
 import net from 'node:net';
 import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
+import sinon from 'sinon';
 
 // Mock logger for testing
-const mockLogger: SoloLogger = {
-  debug: (): void => {},
-  error: (): void => {},
-  info: (): void => {},
-  warn: (): void => {},
-  showUser: (): void => {},
-  showUserError: (): void => {},
-  setDevMode: (): void => {},
-  nextTraceId: (): void => {},
-  prepMeta: (meta?: object): object => meta || {},
-  showList: (): void => {},
-  showJSON: (): void => {},
-  addMessageGroup: (): void => {},
-  addMessageGroupMessage: (): void => {},
-  showMessageGroup: (): void => {},
-  getMessageGroupKeys: (): string[] => [],
-  showAllMessageGroups: (): void => {},
-  getMessageGroup: (): string[] => [],
-  flush: (callback: (error?: Error) => void): void => {
-    callback();
-  },
-};
-
+const mockLogger: SoloLogger = sinon.createStubInstance(SoloPinoLogger) as unknown as SoloLogger;
 describe('Port Utils', (): void => {
   describe('findAvailablePort', (): void => {
     it('should find the next available port when the initial port is in use', async (): Promise<void> => {
