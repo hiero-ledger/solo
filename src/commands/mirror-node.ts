@@ -1103,7 +1103,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
         //   },
         // },
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node add',
     );
