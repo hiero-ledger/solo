@@ -631,6 +631,91 @@ export class MirrorNodeCommand extends BaseCommand {
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
+  private enableSharedResourcesTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable shared resources',
+      task: async (_, task): Promise<SoloListr<AnyListrContext>> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
+          {
+            title: 'Install Shared Resources chart',
+            task: async (context_): Promise<void> => {
+              this.sharedResourceManager.enablePostgres();
+              this.sharedResourceManager.enableRedis();
+              await this.sharedResourceManager.installChart(
+                context_.config.namespace,
+                context_.config.chartDirectory,
+                context_.config.soloChartVersion,
+                context_.config.clusterContext,
+              );
+            },
+          },
+          {
+            title: 'Load redis credentials',
+            task: async (context_): Promise<void> => {
+              const secrets: Secret[] = await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .secrets()
+                .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+              const secret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-redis');
+
+              // Update values
+              context_.config.valuesArg += helpers.populateHelmArguments({
+                'redis.enabled': false,
+                'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
+                'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
+                'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
+              });
+            },
+          },
+          {
+            title: 'Initialize Postgres pod',
+            task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
+              const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+                {
+                  title: 'Wait for Postgres pod to be ready',
+                  task: async (context_): Promise<void> => {
+                    await this.postgresSharedResource.waitForPodReady(
+                      context_.config.namespace,
+                      context_.config.clusterContext,
+                    );
+                  },
+                },
+                {
+                  title: 'Set database connection details',
+                  task: async (context_: MirrorNodeDeployContext): Promise<void> => {
+                    // Only set the host. All passwords and usernames are
+                    // generated and persisted by the mirror-node chart via the mirror-passwords secret.
+                    // initializeMirrorNode() reads from that secret so everything stays consistent.
+                    context_.config.valuesArg += helpers.populateHelmArguments({
+                      'db.host': `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`,
+                    });
+                  },
+                },
+              ];
+
+              // set up the sub-tasks
+              return task.newListr(subTasks, {
+                concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+            skip: context_ => !!context_.config.useExternalDatabase,
+          },
+        ];
+
+        // set up the sub-tasks
+        return task.newListr(subTasks, {
+          concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+          rendererOptions: {
+            collapseSubtasks: false,
+          },
+        });
+      },
+    };
+  }
+
   private enableMirrorNodeTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
@@ -1100,73 +1185,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        {
-          title: 'Install Shared Resources chart',
-          task: async (context_): Promise<void> => {
-            this.sharedResourceManager.enablePostgres();
-            this.sharedResourceManager.enableRedis();
-            await this.sharedResourceManager.installChart(
-              context_.config.namespace,
-              context_.config.chartDirectory,
-              context_.config.soloChartVersion,
-              context_.config.clusterContext,
-            );
-          },
-        },
-        {
-          title: 'Load redis credentials',
-          task: async (context_): Promise<void> => {
-            const secrets: Secret[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .secrets()
-              .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-            const secret: Secret = secrets.find(secret => secret.name === 'solo-shared-resources-redis');
-
-            // Update values
-            context_.config.valuesArg += helpers.populateHelmArguments({
-              'redis.enabled': false,
-              'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
-              'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
-              'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
-            });
-          },
-        },
-        {
-          title: 'Initialize Postgres pod',
-          task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
-            const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
-              {
-                title: 'Wait for Postgres pod to be ready',
-                task: async (context_): Promise<void> => {
-                  await this.postgresSharedResource.waitForPodReady(
-                    context_.config.namespace,
-                    context_.config.clusterContext,
-                  );
-                },
-              },
-              {
-                title: 'Set database connection details',
-                task: async (context_: MirrorNodeDeployContext): Promise<void> => {
-                  // Only set the host. All passwords and usernames are
-                  // generated and persisted by the mirror-node chart via the mirror-passwords secret.
-                  // initializeMirrorNode() reads from that secret so everything stays consistent.
-                  context_.config.valuesArg += helpers.populateHelmArguments({
-                    'db.host': `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`,
-                  });
-                },
-              },
-            ];
-
-            // set up the sub-tasks
-            return task.newListr(subTasks, {
-              concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
-              rendererOptions: {
-                collapseSubtasks: false,
-              },
-            });
-          },
-          skip: context_ => !!context_.config.useExternalDatabase,
-        },
+        this.enableSharedResourcesTask(),
         this.enableMirrorNodeTask(),
         {
           title: 'Run database initialization script',
