@@ -135,19 +135,13 @@ export class PostgresSharedResource {
       .secrets()
       .list(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
     const postgresPasswordsSecret: Secret = sharedResourcesSecrets.find(
-      secret => secret.name === 'solo-shared-resources-passwords',
+      (secret: Secret): boolean => secret.name === 'solo-shared-resources-passwords',
     );
 
-    const mirrorSecrets: Secret[] = await this.k8Factory
+    const mirrorPasswordsSecret: Secret = await this.k8Factory
       .getK8(context)
       .secrets()
-      .list(namespace, [
-        'app.kubernetes.io/name=mirror',
-        'app.kubernetes.io/component=hedera-mirror',
-        'app.kubernetes.io/part-of=hedera-mirror-node',
-      ]);
-
-    const mirrorPasswordsSecret: Secret = mirrorSecrets.find(secret => secret.name === 'mirror-passwords');
+      .read(namespace, 'mirror-passwords');
 
     const maxAttempts: number = 3;
     const backoff: number = 2000;
@@ -201,7 +195,7 @@ export class PostgresSharedResource {
           'exec /bin/bash /tmp/init-postgres.sh',
         ];
 
-        const wrapper = wrapperLines.join('\n');
+        const wrapper: string = wrapperLines.join('\n');
 
         const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, wrapperScriptName);
         fs.writeFileSync(temporaryLocal, wrapper);
@@ -209,18 +203,18 @@ export class PostgresSharedResource {
         await k8Container.execContainer(`chmod +x /tmp/${wrapperScriptName}`);
 
         const outputStream: PassThrough = new PassThrough();
-        outputStream.on('data', (chunk: Buffer) => {
+        outputStream.on('data', (chunk: Buffer): void => {
           this.logger.info(`${wrapperScriptName}: ${chunk.toString()}`);
         });
 
         const errorStream: PassThrough = new PassThrough();
-        errorStream.on('data', (chunk: Buffer) => {
+        errorStream.on('data', (chunk: Buffer): void => {
           this.logger.info(`${wrapperScriptName}: ${chunk.toString()}`);
         });
 
         await k8Container.execContainer(`/bin/bash /tmp/${wrapperScriptName}`, outputStream, errorStream);
-        await k8Container.execContainer('rm /tmp/.pgpass');
-        await k8Container.execContainer(`rm /tmp/${wrapperScriptName}`);
+        // await k8Container.execContainer('rm /tmp/.pgpass');
+        // await k8Container.execContainer(`rm /tmp/${wrapperScriptName}`);
         fs.rmSync(temporaryLocal);
         break;
       } catch (error) {
