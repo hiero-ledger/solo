@@ -271,7 +271,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }
 
     if (applicationPropertiesPath) {
-      argv.push(optionFromFlag(flags.applicationProperties), applicationPropertiesPath)
+      argv.push(optionFromFlag(flags.applicationProperties), applicationPropertiesPath);
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
