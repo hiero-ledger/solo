@@ -485,7 +485,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.destroySubmitTransactionsTaskList(),
         ...this.destroyExecuteTaskList(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in destroying nodes',
       leaseWrapper.lease,
     );
