@@ -31,7 +31,7 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
-### Release-To-Docs Automation
+## Release-To-Docs Automation
 
 When a new Solo release is published, documentation regeneration is triggered
 automatically in the separate `solo-docs` repository.
@@ -73,7 +73,7 @@ For detailed platform-specific instructions, see the [Solo User Guide](https://s
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/main/docs/solo-user-guide/#one-shot-deployment))
+[Solo docs: One-shot deployment](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment)
 
 ## Contributing
 
