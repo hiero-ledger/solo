@@ -2243,10 +2243,7 @@ export class NodeCommandTasks {
         for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
           clusterReferences.push(clusterReference);
 
-          const cachedValuesFile: string = PathEx.join(
-            config.cacheDir,
-            `solo-${config.profileName}-${clusterReference}.yaml`,
-          );
+          const cachedValuesFile: string = PathEx.join(config.cacheDir, `solo-${clusterReference}.yaml`);
 
           profileValuesFile[clusterReference] = await this.profileManager.writeToYaml(cachedValuesFile, yamlRoot);
         }

@@ -35,5 +35,4 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
 
   // Flags used for chart upgrades
   valuesFile: string;
-  profileName: string;
 }
