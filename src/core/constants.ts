@@ -316,13 +316,6 @@ export const LISTR_DEFAULT_OPTIONS: {
       timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
     },
   },
-  DESTROY: {
-    concurrent: false,
-    rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
-    fallbackRendererOptions: {
-      timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-    },
-  },
   WITH_CONCURRENCY: {
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
