@@ -646,6 +646,15 @@ export class MirrorNodeCommand extends BaseCommand {
                 context_.config.chartDirectory,
                 context_.config.soloChartVersion,
                 context_.config.clusterContext,
+                {
+                  'redis.image.registry': 'gcr.io',
+                  'redis.image.repository': 'mirrornode/redis',
+                  'redis.image.tag': '8.2.2',
+                  'redis.sentinel.image.registry': 'gcr.io',
+                  'redis.sentinel.image.repository': 'mirrornode/redis-sentinel',
+                  'redis.sentinel.image.tag': '8.2.2',
+                  'redis.sentinel.masterSet': 'mirror',
+                },
               );
             },
           },
@@ -1548,18 +1557,13 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
         {
           title: 'Destroy shared resources',
           task: async (context_): Promise<void> => {
-            await this.sharedResourceManager.uninstallChart(
-              context_.config.namespace,
-              context_.config.clusterContext,
-            );
+            await this.sharedResourceManager.uninstallChart(context_.config.namespace, context_.config.clusterContext);
 
             // Delete PVCs left behind by the shared resources chart (Postgres data volume)
             const pvcs: string[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pvcs()
-              .list(context_.config.namespace, [
-                'app.kubernetes.io/instance=solo-shared-resources',
-              ]);
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
 
             for (const pvc of pvcs) {
               await this.k8Factory
