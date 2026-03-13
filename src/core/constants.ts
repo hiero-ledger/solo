@@ -307,7 +307,6 @@ type ListrOptionsType = {
 
 export const LISTR_DEFAULT_OPTIONS: {
   DEFAULT: ListrOptionsType;
-  DESTROY: ListrOptionsType;
   WITH_CONCURRENCY: ListrOptionsType;
 } = {
   DEFAULT: {
