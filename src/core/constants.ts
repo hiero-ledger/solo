@@ -445,7 +445,7 @@ export const CERT_MANAGER_CRDS: string[] = [
 ];
 
 export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
-  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps';
+  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps-v0.2.0';
 
 export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
 
@@ -453,3 +453,9 @@ export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECT
 export const WRAPS_LIB_DOWNLOAD_URL: string =
   getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
   `https://builds.hedera.com/tss/hiero/wraps/v0.2/${WRAPS_DIRECTORY_NAME}.tar.gz`;
+
+export const TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS: number =
+  +getEnvironmentVariable('TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS') || 10;
+
+export const TSS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('TSS_READY_MAX_ATTEMPTS') || 60;
+export const TSS_READY_BACKOFF_SECONDS: number = +getEnvironmentVariable('TSS_READY_BACKOFF_SECONDS') || 3;

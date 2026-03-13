@@ -20,7 +20,7 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
   public asBoolean(key: string): boolean | null {
     const value: string = this._properties.get(key);
     if (value === null || value === undefined || typeof value !== 'string') {
-      return null;
+      return undefined;
     }
     return value.toLowerCase() === 'true';
   }
@@ -28,7 +28,7 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
   public asNumber(key: string): number | null {
     const value: string = this._properties.get(key);
     if (value === null || value === undefined) {
-      return null;
+      return undefined;
     }
     return Number(value);
   }
@@ -36,13 +36,13 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
   public asObject<T>(cls: ClassConstructor<T>, key?: string): T | null {
     const value: string | undefined = this._properties.get(key ?? '');
     if (!value) {
-      return null;
+      return undefined;
     }
 
     try {
       const parsedValue: unknown = JSON.parse(value);
       if (typeof parsedValue !== 'object' || parsedValue === null) {
-        return null;
+        return undefined;
       }
 
       // Create a new instance and assign properties manually
@@ -50,21 +50,21 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
       Object.assign(instance, parsedValue);
       return instance;
     } catch {
-      return null;
+      return undefined;
     }
   }
 
   public asObjectArray<T>(cls: ClassConstructor<T>, key?: string): T[] {
     const value: string | undefined = this._properties.get(key ?? '');
     if (!value) {
-      return null;
+      return undefined;
     }
 
     try {
       const parsedValue: unknown = JSON.parse(value);
 
       if (!Array.isArray(parsedValue)) {
-        return null;
+        return undefined;
       }
 
       return parsedValue
@@ -75,14 +75,14 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
           return instance;
         });
     } catch {
-      return null;
+      return undefined;
     }
   }
 
   public asString(key: string): string | null {
     const value: string = this._properties.get(key);
     if (value === null || value === undefined || typeof value !== 'string') {
-      return null;
+      return undefined;
     }
     return value;
   }
@@ -90,7 +90,7 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
   public asStringArray(key: string): string[] | null {
     const value: string = this._properties.get(key);
     if (value === null || value === undefined) {
-      return null;
+      return undefined;
     }
 
     const parsedValue: unknown = JSON.parse(value);
@@ -99,7 +99,7 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
       (parsedValue as Array<string>).length === 0 ||
       typeof (parsedValue as Array<string>)[0] !== 'string'
     ) {
-      return null;
+      return undefined;
     }
     return parsedValue as Array<string>;
   }

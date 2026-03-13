@@ -31,9 +31,6 @@ export class SoloError extends Error {
       this.cause = cause;
       this.statusCode = this.cause.statusCode ?? this.cause.code;
       delete this.cause.headers; // remove headers to avoid leaking sensitive info
-      if (this.cause instanceof Error) {
-        this.stack += `\nCaused by: ${(this.cause as Error).stack}`;
-      }
     }
   }
 }
