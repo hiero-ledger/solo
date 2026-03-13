@@ -6,11 +6,16 @@ import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {ResourceNotFoundError} from './errors/resource-operation-errors.js';
 import {StatusCodes} from 'http-status-codes';
 import {KubeApiError} from './errors/kube-api-error.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
 interface ApiError extends Error {
   code?: number;
+  statusCode?: number;
   body?: unknown;
   headers?: unknown;
+  input?: unknown;
 }
 
 export class KubeApiResponse {
@@ -34,11 +39,13 @@ export class KubeApiResponse {
       throw new ResourceNotFoundError(resourceOperation, resourceType, namespace, name);
     }
 
+    const isDeveloperMode: boolean = container.resolve<SoloLogger>(InjectTokens.SoloLogger).isDevMode();
     if (KubeApiResponse.isFailingStatus(errorResponse)) {
       throw new KubeApiError(
         `failed to ${resourceOperation} ${resourceType} '${name}' in namespace '${namespace}'`,
-        +errorResponse?.code,
-        undefined,
+        errorResponse?.code || errorResponse?.statusCode,
+        errorResponse?.input,
+        isDeveloperMode ? errorResponse : undefined,
         {
           resourceType: resourceType,
           resourceOperation: resourceOperation,
@@ -50,8 +57,9 @@ export class KubeApiResponse {
 
     throw new KubeApiError(
       `error occurred during ${resourceOperation} ${resourceType} '${name}' in namespace '${namespace}'`,
-      +errorResponse?.code,
-      undefined,
+      errorResponse?.code || errorResponse?.statusCode,
+      errorResponse?.input,
+      isDeveloperMode ? errorResponse : undefined,
       {
         resourceType: resourceType,
         resourceOperation: resourceOperation,
@@ -66,7 +74,9 @@ export class KubeApiResponse {
    * @param errorResponse
    */
   public static isFailingStatus(errorResponse: ApiError): boolean {
-    return (+errorResponse?.code || StatusCodes.INTERNAL_SERVER_ERROR) > StatusCodes.ACCEPTED;
+    return (
+      (errorResponse?.code || errorResponse?.statusCode || StatusCodes.INTERNAL_SERVER_ERROR) > StatusCodes.ACCEPTED
+    );
   }
 
   /**
@@ -74,7 +84,7 @@ export class KubeApiResponse {
    * @param errorResponse
    */
   public static isNotFound(errorResponse: ApiError): boolean {
-    return +errorResponse?.code === StatusCodes.NOT_FOUND;
+    return errorResponse?.code === StatusCodes.NOT_FOUND || errorResponse?.statusCode === StatusCodes.NOT_FOUND;
   }
 
   /**
@@ -82,6 +92,6 @@ export class KubeApiResponse {
    * @param errorResponse
    */
   public static isCreatedStatus(errorResponse: ApiError): boolean {
-    return +errorResponse?.code === StatusCodes.CREATED;
+    return errorResponse?.code === StatusCodes.CREATED || errorResponse?.statusCode === StatusCodes.CREATED;
   }
 }

@@ -58,6 +58,11 @@ import {
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import * as versions from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -110,11 +115,6 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
@@ -1507,9 +1507,9 @@ export class NodeCommandTasks {
     };
   }
 
-  public waitForLedgerId(): SoloListrTask<NodeStartContext> {
+  public waitForTss(): SoloListrTask<NodeStartContext> {
     return {
-      title: 'Wait for ledger id',
+      title: 'Wait for TSS',
       skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
       task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
         const subTasks: SoloListrTask<NodeStartContext>[] = [];
@@ -1517,10 +1517,16 @@ export class NodeCommandTasks {
         for (const node of config.consensusNodes) {
           subTasks.push({
             title: `Waiting for node: ${node.name}`,
-            task: async (): Promise<void> => {
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = constants.TSS_READY_MAX_ATTEMPTS;
+              let attempt: number = 0;
               let success: boolean = false;
 
-              while (!success) {
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
                 const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
                   NamespaceName.of(node.namespace),
                   node.name,
@@ -1530,11 +1536,16 @@ export class NodeCommandTasks {
 
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
-                if (output.includes('HandleWorkflow - Externalizing ledger id')) {
+                if (output.includes('TSS protocol ready to sign blocks')) {
+                  await sleep(Duration.ofSeconds(constants.TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS));
                   success = true;
                 } else {
-                  await sleep(Duration.ofSeconds(20));
+                  await sleep(Duration.ofSeconds(constants.TSS_READY_BACKOFF_SECONDS));
                 }
+              }
+
+              if (!success) {
+                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
               }
             },
           });
@@ -2846,17 +2857,15 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
           const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-          const targetBasePath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-          const targetWrapsPath: string = PathEx.join(targetBasePath, constants.WRAPS_DIRECTORY_NAME);
+          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${constants.WRAPS_DIRECTORY_NAME}`;
 
           if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
           }
 
-          await rootContainer.copyTo(sourcePath, targetPath);
+          await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
         }
       },
     };
@@ -3060,7 +3069,7 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
       }
@@ -3150,7 +3159,7 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-      const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+      const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
       valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
     }
@@ -3201,7 +3210,7 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-          const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+          const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
           valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
         }
