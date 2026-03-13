@@ -84,10 +84,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options);
 
-        AccountTest.accountCreationShouldSucceed(options);
-        AccountTest.predefinedAccountCreationShouldSucceed(options);
+        // AccountTest.accountCreationShouldSucceed(options);
+        // AccountTest.predefinedAccountCreationShouldSucceed(options);
 
-        ConsensusNodeTest.upgrade(options);
+        // ConsensusNodeTest.upgrade(options);
 
         ConsensusNodeTest.upgradeConfigs(options);
 

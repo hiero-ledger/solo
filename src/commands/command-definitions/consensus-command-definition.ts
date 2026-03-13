@@ -37,8 +37,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
 
   public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
   private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
-    'List, create, manage, or destroy consensus node instances. ' +
-    'Operates on a single consensus node instance at a time.';
+    'List, create, manage, or destroy consensus node instances. Operates on a single consensus node instance at a time.';
 
   public static readonly STATE_SUBCOMMAND_NAME: string = 'state';
   private static readonly STATE_SUBCOMMAND_DESCRIPTION: string =

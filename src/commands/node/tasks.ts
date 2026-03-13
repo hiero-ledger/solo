@@ -13,12 +13,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {
-  DEFAULT_NETWORK_NODE_NAME,
-  getEnvironmentVariable,
-  HEDERA_HAPI_PATH,
-  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
-} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -171,6 +166,7 @@ import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jf
 import {PackageDownloader} from '../../core/package-downloader.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
 import {CommandFlag} from '../../types/flag-types.js';
+import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2109,17 +2105,17 @@ export class NodeCommandTasks {
     };
   }
 
+  private isDefaultFlagValue(flag: CommandFlag): boolean {
+    const value: string | boolean | number = this.configManager.getFlag(flag);
+    const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
+    return value === defaultValue;
+  }
+
   public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
       task: async ({config}, task): Promise<void> => {
-        const isDefaultFlagValue: (flag: CommandFlag) => boolean = (flag: CommandFlag): boolean => {
-          const value: string | boolean | number = this.configManager.getFlag(flag);
-          const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
-          return value === defaultValue;
-        };
-
-        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !isDefaultFlagValue(flag))) {
+        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
               chalk.grey('no consensus node configuration files to be updated'),
@@ -2134,7 +2130,7 @@ export class NodeCommandTasks {
         );
 
         for (const flag of flags.nodeConfigFileFlags.values()) {
-          if (isDefaultFlagValue(flag)) {
+          if (this.isDefaultFlagValue(flag)) {
             continue;
           }
 
@@ -2156,7 +2152,7 @@ export class NodeCommandTasks {
 
         const yamlRoot: AnyObject = {};
 
-        if (!isDefaultFlagValue(flags.log4j2Xml)) {
+        if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.log4j2Xml',
             'log4j2.xml',
@@ -2165,7 +2161,7 @@ export class NodeCommandTasks {
           );
         }
 
-        if (!isDefaultFlagValue(flags.settingTxt)) {
+        if (!this.isDefaultFlagValue(flags.settingTxt)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.settingsTxt',
             'settings.txt',
@@ -2174,7 +2170,7 @@ export class NodeCommandTasks {
           );
         }
 
-        if (!isDefaultFlagValue(flags.applicationProperties)) {
+        if (!this.isDefaultFlagValue(flags.applicationProperties)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationProperties',
             'application.properties',
@@ -2183,7 +2179,7 @@ export class NodeCommandTasks {
           );
         }
 
-        if (!isDefaultFlagValue(flags.apiPermissionProperties)) {
+        if (!this.isDefaultFlagValue(flags.apiPermissionProperties)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.apiPermissionsProperties',
             'api-permission.properties',
@@ -2192,7 +2188,7 @@ export class NodeCommandTasks {
           );
         }
 
-        if (!isDefaultFlagValue(flags.bootstrapProperties)) {
+        if (!this.isDefaultFlagValue(flags.bootstrapProperties)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.bootstrapProperties',
             'bootstrap.properties',
@@ -2201,13 +2197,41 @@ export class NodeCommandTasks {
           );
         }
 
-        if (!isDefaultFlagValue(flags.applicationEnv)) {
+        if (!this.isDefaultFlagValue(flags.applicationEnv)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationEnv',
             'application.env',
             stagingDirectory,
             yamlRoot,
           );
+        }
+
+        for (const node of config.consensusNodes) {
+          const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+            NamespaceName.of(node.namespace),
+            node.name,
+          );
+
+          if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'log4j2.xml');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+
+          if (!this.isDefaultFlagValue(flags.settingTxt)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'settings.txt');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+
+          if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
+            const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
         }
 
         const profileValuesFile: Record<ClusterReferenceName, string> = {};

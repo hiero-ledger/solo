@@ -248,7 +248,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
   private static soloConsensusNodeUpgradeArgv(
     options: BaseTestOptions,
     zipFile?: string,
-    applicationPropertiesPath?: string,,
+    applicationPropertiesPath?: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
@@ -747,21 +747,17 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       const applicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
 
-      const updatedContent: string = applicationProperties.replaceAll(
-        'contracts.chainId=298',
-        'contracts.chainId=299',
-      );
+      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
 
       fs.writeFileSync(testApplicationPropertiesPath, updatedContent);
 
       await main(soloConsensusNodeUpgradeArgv(options, undefined, testApplicationPropertiesPath));
 
-      const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
 
-      await container.copyFrom(`${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`, temporaryDirectory);
-      const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const upgradedApplicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
 
-      expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
+      expect(updatedContent).to.equal(upgradedApplicationProperties);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

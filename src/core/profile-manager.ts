@@ -34,7 +34,6 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import semver from 'semver/preload.js';
-import {CommandFlag} from '../types/flag-types.js';
 
 @injectable()
 export class ProfileManager {
