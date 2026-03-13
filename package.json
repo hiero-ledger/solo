@@ -1,6 +1,6 @@
 {
   "name": "@hashgraph/solo",
-  "version": "0.60.0",
+  "version": "0.61.0",
   "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
   "main": "./dist/src/index.js",
   "type": "module",
@@ -12,6 +12,7 @@
   },
   "scripts": {
     "solo-test": "tsx --no-deprecation --no-warnings solo.ts",
+    "solo-test-debug": "tsx --inspect-brk --no-deprecation --no-warnings solo.ts",
     "solo": "node --no-deprecation --no-warnings dist/solo.js",
     "prepare": "node c8-nyc-bridge.mjs"
   },
