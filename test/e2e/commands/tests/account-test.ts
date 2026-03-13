@@ -14,7 +14,7 @@ import {LedgerCommandDefinition} from '../../../../src/commands/command-definiti
 
 export class AccountTest extends BaseCommandTest {
   public static accountCreationShouldSucceed(options: BaseTestOptions): void {
-    const {testName, namespace, testLogger: logger} = options;
+    const {testName, namespace, testLogger: logger, contexts} = options;
 
     it(`${testName}: account creation should succeed`, async (): Promise<void> => {
       const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
@@ -22,7 +22,7 @@ export class AccountTest extends BaseCommandTest {
         InjectTokens.RemoteConfigRuntimeState,
       );
 
-      await remoteConfig.load(namespace);
+      await remoteConfig.load(namespace, contexts ? contexts[0] : undefined);
 
       accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
     });
