@@ -269,14 +269,14 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: any = null;
+        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | null = null;
 
         fileTransaction =
           start === 0
             ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
             : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
-        const resp: any = await fileTransaction.execute(nodeClient);
-        const receipt: any = await resp.getReceipt(nodeClient);
+        const resp: TransactionResponse = await fileTransaction.execute(nodeClient);
+        const receipt: TransactionReceipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
           `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
@@ -448,7 +448,7 @@ export class NodeCommandTasks {
   ): SoloListr<AnyListrContext> {
     const {
       config: {namespace},
-    }: any = context_;
+    } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
     const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
@@ -635,12 +635,11 @@ export class NodeCommandTasks {
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gossip keys',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: ({config}, task): any => {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateGossipKeys(
+        const subTasks: SoloListrTask<NodeKeysContext | NodeAddContext>[] = this.keyManager.taskGenerateGossipKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -659,7 +658,7 @@ export class NodeCommandTasks {
   private _generateGrpcTlsKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gRPC TLS Keys',
-      task: (context_, task): any => {
+      task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
         const config: any = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
@@ -679,13 +678,13 @@ export class NodeCommandTasks {
   public copyGrpcTlsCertificates(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Copy gRPC TLS Certificates',
-      task: (context_, task): any =>
+      task: ({config}, task): SoloListr<AnyListrContext> =>
         this.certificateManager.buildCopyTlsCertificatesTasks(
           task,
-          context_.config.grpcTlsCertificatePath,
-          context_.config.grpcWebTlsCertificatePath,
-          context_.config.grpcTlsKeyPath,
-          context_.config.grpcWebTlsKeyPath,
+          config.grpcTlsCertificatePath,
+          config.grpcWebTlsCertificatePath,
+          config.grpcTlsKeyPath,
+          config.grpcWebTlsKeyPath,
         ),
       skip: (context_): boolean =>
         !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
@@ -749,7 +748,7 @@ export class NodeCommandTasks {
     }
   }
 
-  public prepareUpgradeZip(): SoloListrTask<any> {
+  public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
@@ -847,14 +846,17 @@ export class NodeCommandTasks {
     return {
       title: 'Send prepare upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {nodeClient, freezeAdminPrivateKey, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
         try {
           const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
           // query the balance
-          const balance: any = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+          const balance: AccountBalance = await new AccountBalanceQuery()
+            .setAccountId(freezeAccountId)
+            .execute(nodeClient);
+
           this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
@@ -893,8 +895,8 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
         try {
           const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
@@ -943,7 +945,7 @@ export class NodeCommandTasks {
             this.remoteConfig.getClusterRefs(),
             deployment,
           );
-          const futureDate = new Date();
+          const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
@@ -951,13 +953,13 @@ export class NodeCommandTasks {
 
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeOnlyTransaction: any = await new FreezeTransaction()
+          const freezeOnlyTransaction: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const freezeOnlyReceipt: any = await freezeOnlyTransaction.getReceipt(nodeClient);
+          const freezeOnlyReceipt: TransactionReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
 
           this.logger.debug(
             `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
