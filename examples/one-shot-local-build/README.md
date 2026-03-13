@@ -1,6 +1,6 @@
 # One-Shot Local Build Example
 
-This example demonstrates how to deploy a complete Hiero Hashgraph network using locally built
+This example demonstrates how to deploy a complete Hiero Ledger network using locally built
 and locally cloned component sources via the Solo **one-shot falcon** command. It is designed to
 help developers recreate the one-shot single deploy performance test with their own local builds.
 
@@ -27,7 +27,7 @@ help developers recreate the one-shot single deploy performance test with their 
 ### Download Archive
 
 You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases).
-Replace `<release_version>` with the desired release tag (e.g., `v0.30.0`):
+Replace `<release_version>` with the desired release tag (e.g., `v0.62.0`):
 
 ```
 https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-one-shot-local-build.zip
@@ -39,11 +39,11 @@ Browse the source code and configuration files for this example in the [GitHub r
 
 ## Prerequisites
 
-* [Task](https://taskfile.dev/) — task runner (`npm install -g @go-task/cli`)
+* [Task](https://taskfile.dev/) - Task runner
 * [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/)
 * [kubectl](https://kubernetes.io/docs/tasks/tools/)
 * [kind](https://kind.sigs.k8s.io/) — Kubernetes in Docker
-* [Java 21](https://adoptium.net/) — required to build the consensus node
+* [Java 25](https://adoptium.net/) — required to build the consensus node
 * [Gradle](https://gradle.org/) — used by the consensus node build (wrapper included in repo)
 * Git — to clone the component repositories
 
@@ -76,7 +76,7 @@ task checkout-repos
 # 2. Build Helm chart dependencies for all local chart directories
 task build-chart-deps
 
-# 3. Build the consensus node (requires Java 21 and Gradle)
+# 3. Build the consensus node (requires Java 25 and Gradle)
 task build-consensus-node
 
 # 4. Generate the runtime values YAML with actual paths
