@@ -65,7 +65,7 @@ import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {type ConfigMap} from '../integration/kube/k8-client/resources/config-map/config-map.js';
+import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
