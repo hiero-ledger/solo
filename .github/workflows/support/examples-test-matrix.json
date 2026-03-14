@@ -8,5 +8,10 @@
     "name": "Ledger Reset Smoke",
     "directory": "ledger-reset-smoke",
     "local-java-build": false
+  },
+  {
+    "name": "One Shot Local Build",
+    "directory": "one-shot-local-build",
+    "local-java-build": true
   }
 ]
