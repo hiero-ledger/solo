@@ -72,18 +72,21 @@ export abstract class BaseCommand extends ShellRunner {
    *
    * Order of precedence:
    * 1. Chart's default values file (if chartDirectory is set)
-   * 2. Profile values file
-   * 3. User's values file
+   * 2. Base values files (applied after chart defaults, before the generated profile values file)
+   * 3. Profile values file
+   * 4. User's values file
    * @param clusterReferences
-   * @param valuesFileInput - the values file input string
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - mapping of clusterRef to the profile values file full path
+   * @param valuesFileInput - the values file input string
+   * @param baseValuesFiles - optional list of values file paths inserted between chart defaults and profile values
    */
   public static prepareValuesFilesMapMultipleCluster(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
     profileValuesFile?: Record<ClusterReferenceName, string>,
     valuesFileInput?: string,
+    baseValuesFiles?: string[],
   ): Record<ClusterReferenceName, string> {
     // initialize the map with an empty array for each cluster-ref
     const valuesFiles: Record<ClusterReferenceName, string> = {[Flags.KEY_COMMON]: ''};
@@ -97,6 +100,15 @@ export abstract class BaseCommand extends ShellRunner {
       const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in valuesFiles) {
         valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
+      }
+    }
+
+    // add base values files (e.g. component defaults) after chart defaults but before profile values
+    if (baseValuesFiles) {
+      for (const file of baseValuesFiles) {
+        for (const clusterReference in valuesFiles) {
+          valuesFiles[clusterReference] += ` --values ${file}`;
+        }
       }
     }
 

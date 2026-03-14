@@ -282,6 +282,7 @@ export class ProfileManager {
    * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
+   * @param jfrFile - the name of the custom JFR settings file to use for recording (basename only)
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
@@ -289,6 +290,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    jfrFile: string = '',
   ): Promise<Record<ClusterReferenceName, string>> {
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
@@ -308,6 +310,23 @@ export class ProfileManager {
         deploymentName,
         applicationPropertiesPath,
       );
+
+      // If a JFR settings file is provided, override defaults.root.extraEnv with the
+      // full JAVA_OPTS including the -XX:StartFlightRecording flag so that the recorder
+      // starts automatically when the consensus node JVM launches.
+      if (jfrFile !== '') {
+        const javaOpts: string =
+          `${constants.DEFAULT_JAVA_OPTS}` +
+          ` -XX:StartFlightRecording=dumponexit=true` +
+          `,settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile}` +
+          `,filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
+        this._setValue('defaults.root.extraEnv.0.name', 'JAVA_HEAP_MIN', yamlRoot);
+        this._setValue('defaults.root.extraEnv.0.value', constants.DEFAULT_JAVA_HEAP_MIN, yamlRoot);
+        this._setValue('defaults.root.extraEnv.1.name', 'JAVA_HEAP_MAX', yamlRoot);
+        this._setValue('defaults.root.extraEnv.1.value', constants.DEFAULT_JAVA_HEAP_MAX, yamlRoot);
+        this._setValue('defaults.root.extraEnv.2.name', 'JAVA_OPTS', yamlRoot);
+        this._setValue('defaults.root.extraEnv.2.value', javaOpts, yamlRoot);
+      }
 
       const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);

@@ -419,11 +419,14 @@ export class NetworkCommand extends BaseCommand {
       'application.properties',
     );
 
+    const jfrFilePath: string = config.javaFlightRecorderConfiguration;
+    const jfrFile: string = jfrFilePath === '' ? '' : path.basename(jfrFilePath);
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
       config.consensusNodes,
       config.domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
+      jfrFile,
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
@@ -431,6 +434,7 @@ export class NetworkCommand extends BaseCommand {
       config.chartDirectory,
       this.profileValuesFile,
       config.valuesFile,
+      [constants.SOLO_DEPLOYMENT_VALUES_FILE],
     );
 
     for (const clusterReference of Object.keys(valuesFiles)) {
