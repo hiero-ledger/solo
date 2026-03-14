@@ -165,6 +165,8 @@ import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-lo
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
+import {CommandFlag} from '../../types/flag-types.js';
+import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -269,14 +271,14 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: any = null;
+        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | null = null;
 
         fileTransaction =
           start === 0
             ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
             : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
-        const resp: any = await fileTransaction.execute(nodeClient);
-        const receipt: any = await resp.getReceipt(nodeClient);
+        const resp: TransactionResponse = await fileTransaction.execute(nodeClient);
+        const receipt: TransactionReceipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
           `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
@@ -445,7 +447,7 @@ export class NodeCommandTasks {
   ): SoloListr<AnyListrContext> {
     const {
       config: {namespace},
-    }: any = context_;
+    } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
     const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
@@ -632,12 +634,11 @@ export class NodeCommandTasks {
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gossip keys',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: ({config}, task): any => {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateGossipKeys(
+        const subTasks: SoloListrTask<NodeKeysContext | NodeAddContext>[] = this.keyManager.taskGenerateGossipKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -656,7 +657,7 @@ export class NodeCommandTasks {
   private _generateGrpcTlsKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gRPC TLS Keys',
-      task: (context_, task): any => {
+      task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
         const config: any = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
@@ -676,13 +677,13 @@ export class NodeCommandTasks {
   public copyGrpcTlsCertificates(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Copy gRPC TLS Certificates',
-      task: (context_, task): any =>
+      task: ({config}, task): SoloListr<AnyListrContext> =>
         this.certificateManager.buildCopyTlsCertificatesTasks(
           task,
-          context_.config.grpcTlsCertificatePath,
-          context_.config.grpcWebTlsCertificatePath,
-          context_.config.grpcTlsKeyPath,
-          context_.config.grpcWebTlsKeyPath,
+          config.grpcTlsCertificatePath,
+          config.grpcWebTlsCertificatePath,
+          config.grpcTlsKeyPath,
+          config.grpcWebTlsKeyPath,
         ),
       skip: (context_): boolean =>
         !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
@@ -746,7 +747,7 @@ export class NodeCommandTasks {
     }
   }
 
-  public prepareUpgradeZip(): SoloListrTask<any> {
+  public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
@@ -844,14 +845,17 @@ export class NodeCommandTasks {
     return {
       title: 'Send prepare upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {nodeClient, freezeAdminPrivateKey, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
         try {
           const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
           // query the balance
-          const balance: any = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+          const balance: AccountBalance = await new AccountBalanceQuery()
+            .setAccountId(freezeAccountId)
+            .execute(nodeClient);
+
           this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
@@ -890,8 +894,8 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
         try {
           const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
@@ -948,13 +952,13 @@ export class NodeCommandTasks {
 
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeOnlyTransaction: any = await new FreezeTransaction()
+          const freezeOnlyTransaction: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const freezeOnlyReceipt: any = await freezeOnlyTransaction.getReceipt(nodeClient);
+          const freezeOnlyReceipt: TransactionReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
 
           this.logger.debug(
             `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
@@ -2104,6 +2108,182 @@ export class NodeCommandTasks {
     };
   }
 
+  private isDefaultFlagValue(flag: CommandFlag): boolean {
+    const value: string | boolean | number = this.configManager.getFlag(flag);
+    const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
+    return value === defaultValue;
+  }
+
+  public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Update node configuration files',
+      task: async ({config}, task): Promise<void> => {
+        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
+          task.skip(
+            `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
+              chalk.grey('no consensus node configuration files to be updated'),
+          );
+
+          return;
+        }
+
+        const stagingDirectory: string = Templates.renderStagingDir(
+          this.configManager.getFlag(flags.cacheDir),
+          this.configManager.getFlag(flags.releaseTag),
+        );
+
+        for (const flag of flags.nodeConfigFileFlags.values()) {
+          if (this.isDefaultFlagValue(flag)) {
+            continue;
+          }
+
+          const sourceFilePath: string = this.configManager.getFlagFile(flag);
+          const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
+          const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
+          if (!fs.existsSync(sourceAbsoluteFilePath)) {
+            throw new SoloError(
+              `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
+            );
+          }
+
+          const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
+          const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
+          this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
+
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+        }
+
+        const yamlRoot: AnyObject = {};
+
+        if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.log4j2Xml',
+            'log4j2.xml',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.settingTxt)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.settingsTxt',
+            'settings.txt',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationProperties',
+            'application.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.apiPermissionProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.apiPermissionsProperties',
+            'api-permission.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.bootstrapProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.bootstrapProperties',
+            'bootstrap.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.applicationEnv)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationEnv',
+            'application.env',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        for (const node of config.consensusNodes) {
+          const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+            NamespaceName.of(node.namespace),
+            node.name,
+          );
+
+          if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'log4j2.xml');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+
+          if (!this.isDefaultFlagValue(flags.settingTxt)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'settings.txt');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+
+          if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
+            const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+        }
+
+        const profileValuesFile: Record<ClusterReferenceName, string> = {};
+
+        const clusterReferences: ClusterReferenceName[] = [];
+
+        for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
+          clusterReferences.push(clusterReference);
+
+          const cachedValuesFile: string = PathEx.join(config.cacheDir, `solo-${clusterReference}.yaml`);
+
+          profileValuesFile[clusterReference] = await this.profileManager.writeToYaml(cachedValuesFile, yamlRoot);
+        }
+
+        const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+          this.remoteConfig.getClusterRefs(),
+          config.chartDirectory,
+          profileValuesFile,
+          config.valuesFile,
+        );
+
+        // Update all charts
+        await Promise.all(
+          clusterReferences.map(async (clusterReference: string): Promise<void> => {
+            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
+
+            await this.chartManager.upgrade(
+              config.namespace,
+              constants.SOLO_DEPLOYMENT_CHART,
+              constants.SOLO_DEPLOYMENT_CHART,
+              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.soloChartVersion,
+              valuesFiles[clusterReference],
+              context,
+            );
+
+            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+          }),
+        );
+      },
+    };
+  }
+
   public getHelmChartValues(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get Helm chart values from all releases',
@@ -2984,7 +3164,9 @@ export class NodeCommandTasks {
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
-          clusterReferencesList.push(clusterReference);
+          if (!clusterReferencesList.includes(clusterReference)) {
+            clusterReferencesList.push(clusterReference);
+          }
         }
 
         // Update all charts

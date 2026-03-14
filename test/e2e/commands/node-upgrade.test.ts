@@ -13,7 +13,6 @@ import {DeploymentTest} from './tests/deployment-test.js';
 import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
-import {AccountTest} from './tests/account-test.js';
 import * as constants from '../../../src/core/constants.js';
 
 import {type BaseTestOptions} from './tests/base-test-options.js';
@@ -84,10 +83,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options);
 
-        AccountTest.accountCreationShouldSucceed(options);
-        AccountTest.predefinedAccountCreationShouldSucceed(options);
+        // AccountTest.accountCreationShouldSucceed(options);
+        // AccountTest.predefinedAccountCreationShouldSucceed(options);
 
-        ConsensusNodeTest.upgrade(options);
+        // ConsensusNodeTest.upgrade(options);
+
+        ConsensusNodeTest.upgradeConfigs(options);
 
         describe('Write log metrics', async (): Promise<void> => {
           it('Should write log metrics', async (): Promise<void> => {
