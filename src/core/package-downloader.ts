@@ -22,15 +22,46 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {ReadStream} from 'node:fs';
 import {Hash} from 'node:crypto';
 import {ClientRequest} from 'node:http';
+import {Duration} from './time/duration.js';
 
-const URL_EXISTS_TIMEOUT_MS: number = 5000;
-const DOWNLOAD_CONNECT_TIMEOUT_MS: number = 10_000;
-const DOWNLOAD_RESPONSE_TIMEOUT_MS: number = 120_000;
+const URL_EXISTS_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_URL_EXISTS_TIMEOUT_MS';
+const DOWNLOAD_CONNECT_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_DOWNLOAD_CONNECT_TIMEOUT_MS';
+const DOWNLOAD_RESPONSE_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS';
+const DEFAULT_URL_EXISTS_TIMEOUT: Duration = Duration.ofSeconds(5);
+const DEFAULT_DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration.ofSeconds(10);
+const DEFAULT_DOWNLOAD_RESPONSE_TIMEOUT: Duration = Duration.ofMinutes(2);
 
 @injectable()
 export class PackageDownloader {
   public constructor(@inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+  }
+
+  private resolveTimeout(name: string, fallback: Duration): Duration {
+    const configuredValue: string | undefined = constants.getEnvironmentVariable(name);
+    if (!configuredValue) {
+      return fallback;
+    }
+
+    const milliseconds: number = Number(configuredValue);
+    if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
+      this.logger.warn(`Invalid ${name} value '${configuredValue}', using default ${fallback.toMillis()}ms.`);
+      return fallback;
+    }
+
+    return Duration.ofMillis(milliseconds);
+  }
+
+  private getUrlExistsTimeout(): Duration {
+    return this.resolveTimeout(URL_EXISTS_TIMEOUT_ENV, DEFAULT_URL_EXISTS_TIMEOUT);
+  }
+
+  private getDownloadConnectTimeout(): Duration {
+    return this.resolveTimeout(DOWNLOAD_CONNECT_TIMEOUT_ENV, DEFAULT_DOWNLOAD_CONNECT_TIMEOUT);
+  }
+
+  private getDownloadResponseTimeout(): Duration {
+    return this.resolveTimeout(DOWNLOAD_RESPONSE_TIMEOUT_ENV, DEFAULT_DOWNLOAD_RESPONSE_TIMEOUT);
   }
 
   private isValidURL(url: string): boolean {
@@ -48,10 +79,11 @@ export class PackageDownloader {
       try {
         this.logger.debug(`Checking URL: ${url}`);
         // attempt to send a HEAD request to check URL exists
+        const timeout: number = this.getUrlExistsTimeout().toMillis();
 
         const request: ClientRequest = url.startsWith('http://')
-          ? http.request(url, {method: 'HEAD', timeout: URL_EXISTS_TIMEOUT_MS, headers: {Connection: 'close'}})
-          : https.request(url, {method: 'HEAD', timeout: URL_EXISTS_TIMEOUT_MS, headers: {Connection: 'close'}});
+          ? http.request(url, {method: 'HEAD', timeout, headers: {Connection: 'close'}})
+          : https.request(url, {method: 'HEAD', timeout, headers: {Connection: 'close'}});
 
         request.on('response', (response): void => {
           const statusCode: number = response.statusCode;
@@ -108,12 +140,14 @@ export class PackageDownloader {
     }
 
     try {
+      const connectTimeout: number = this.getDownloadConnectTimeout().toMillis();
+      const responseTimeout: number = this.getDownloadResponseTimeout().toMillis();
       await streamPipeline(
         got.stream(url, {
           followRedirect: true,
           timeout: {
-            connect: DOWNLOAD_CONNECT_TIMEOUT_MS,
-            response: DOWNLOAD_RESPONSE_TIMEOUT_MS,
+            connect: connectTimeout,
+            response: responseTimeout,
           },
         }),
         fs.createWriteStream(destinationPath),
