@@ -6,13 +6,13 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import * as constants from '../../../core/constants.js';
-import path from 'node:path';
+import {ExecutionBuilder} from '../../execution-builder.js';
 
 @injectable()
 /**
  * A builder for creating a helm command execution.
  */
-export class HelmExecutionBuilder {
+export class HelmExecutionBuilder extends ExecutionBuilder {
   private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
   private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
@@ -58,6 +58,7 @@ export class HelmExecutionBuilder {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.HelmInstallationDirectory) private readonly helmInstallationDirectory?: string,
   ) {
+    super();
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.helmInstallationDirectory = patchInject(
       helmInstallationDirectory,
@@ -173,7 +174,7 @@ export class HelmExecutionBuilder {
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
-    environment['PATH'] = `${this.helmInstallationDirectory}${path.delimiter}${environment['PATH']}`;
+    this.prefixPath(environment, this.helmInstallationDirectory);
 
     return new HelmExecution(command, environment, this.logger);
   }

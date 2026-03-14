@@ -1,6 +1,35 @@
 #!/bin/bash
 set -eo pipefail
 
+collect_failure_diagnostics() {
+  local rc="${1}"
+
+  echo "::group::Failure diagnostics"
+  echo "launch_network.sh failed with exit code ${rc}"
+
+  if command -v npm &> /dev/null; then
+    echo "Collecting Solo deployment diagnostics for ${SOLO_DEPLOYMENT}..."
+    npm run solo -- deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
+    echo "Solo diagnostics collection finished. Check ~/.solo/logs for downloaded artifacts."
+  else
+    echo "npm is not available; skipping Solo diagnostics collection"
+  fi
+
+  echo "::endgroup::"
+}
+
+on_exit() {
+  local rc=$?
+
+  if [[ ${rc} -ne 0 ]]; then
+    collect_failure_diagnostics "${rc}"
+  fi
+
+  exit "${rc}"
+}
+
+trap on_exit EXIT
+
 releaseTag="${1}"
 if [[ -z "${releaseTag}" ]]; then
   echo "Usage: $0 <releaseTag>"

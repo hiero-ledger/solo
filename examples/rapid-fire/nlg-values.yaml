@@ -7,7 +7,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: "artifacts.swirldslabs.io/load-generator-docker/network-load-generator"
+  repository: "swirldslabs.jfrog.io/load-generator-docker/network-load-generator"
   tag: ""
   imagePullPolicy: Always
 

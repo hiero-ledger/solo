@@ -240,6 +240,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
     }
 
     // If not installed, download and install
+    this.logger.showUser(
+      `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally. ` +
+        `Downloading and installing it into ${this.installationDirectory}...`,
+    );
     this.logger.debug(`Downloading and installing ${this.executableName} executable...`);
     const packageFile: string = await this.downloader!.fetchPackage(
       this.getDownloadURL(),
@@ -267,6 +271,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
     } catch (error) {
       throw new SoloError(`Failed to install ${this.executableName}: ${error.message}`);
     }
+
+    this.logger.showUser(
+      `Installed ${this.executableName} ${this.getRequiredVersion()} into ${this.installationDirectory}.`,
+    );
 
     return this.isInstalledLocally();
   }
