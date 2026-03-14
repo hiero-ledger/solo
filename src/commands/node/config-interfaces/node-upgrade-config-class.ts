@@ -24,4 +24,15 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
   treasuryKey: PrivateKey;
   curDate: Date;
   upgradeVersion: string;
+
+  // Node Config Flags
+  apiPermissionProperties: string;
+  applicationEnv: string;
+  applicationProperties: string;
+  bootstrapProperties: string;
+  log4j2Xml: string;
+  settingTxt: string;
+
+  // Flags used for chart upgrades
+  valuesFile: string;
 }
