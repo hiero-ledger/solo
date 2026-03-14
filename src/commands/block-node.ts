@@ -862,6 +862,24 @@ export class BlockNodeCommand extends BaseCommand {
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
         },
+        {
+          title: 'Check block node pod is ready',
+          task: async ({config}): Promise<void> => {
+            try {
+              await this.k8Factory
+                .getK8(config.context)
+                .pods()
+                .waitForReadyStatus(
+                  config.namespace,
+                  Templates.renderBlockNodeLabels(config.id),
+                  constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+                  constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                );
+            } catch (error) {
+              throw new SoloError(`Block node ${config.releaseName} is not ready after upgrade: ${error.message}`, error);
+            }
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
