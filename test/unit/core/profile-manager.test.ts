@@ -20,6 +20,7 @@ import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type AnyObject} from '../../../src/types/aliases.js';
 
 describe('ProfileManager', (): void => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
@@ -68,7 +69,7 @@ describe('ProfileManager', (): void => {
 
   let stagingDirectory: string = '';
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest(namespace.name);
     temporaryDirectory = getTemporaryDirectory();
     configManager = container.resolve(InjectTokens.ConfigManager);
@@ -113,22 +114,22 @@ describe('ProfileManager', (): void => {
     await localConfig.load();
   });
 
-  after(() => {
+  after((): void => {
     fs.rmSync(temporaryDirectory, {recursive: true});
   });
 
-  describe('determine chart values', () => {
-    it('should determine Solo chart values', async () => {
+  describe('determine chart values', (): void => {
+    it('should determine Solo chart values', async (): Promise<void> => {
       configManager.setFlag(flags.namespace, 'test-namespace');
 
-      const resources = ['templates'];
+      const resources: string[] = ['templates'];
       for (const directoryName of resources) {
-        const sourceDirectory = PathEx.joinWithRealPath(PathEx.join('resources'), directoryName);
+        const sourceDirectory: string = PathEx.joinWithRealPath(PathEx.join('resources'), directoryName);
         if (!fs.existsSync(sourceDirectory)) {
           continue;
         }
 
-        const destinationDirectory = PathEx.resolve(PathEx.join(cacheDirectory, directoryName));
+        const destinationDirectory: string = PathEx.resolve(PathEx.join(cacheDirectory, directoryName));
         if (!fs.existsSync(destinationDirectory)) {
           fs.mkdirSync(destinationDirectory, {recursive: true});
         }
@@ -137,47 +138,47 @@ describe('ProfileManager', (): void => {
       }
 
       const applicationPropertiesFile: string = PathEx.join(cacheDirectory, 'templates', 'application.properties');
-      const valuesFileMapping = await profileManager.prepareValuesForSoloChart(
+      const valuesFileMapping: Record<string, string> = await profileManager.prepareValuesForSoloChart(
         consensusNodes,
         {},
         deploymentName,
         applicationPropertiesFile,
       );
-      const valuesFile = Object.values(valuesFileMapping)[0];
+      const valuesFile: string = Object.values(valuesFileMapping)[0];
 
       expect(valuesFile).not.to.be.null;
       expect(fs.existsSync(valuesFile)).to.be.ok;
 
       // validate the yaml
-      const valuesYaml: any = yaml.parse(fs.readFileSync(valuesFile).toString());
+      const valuesYaml: AnyObject = yaml.parse(fs.readFileSync(valuesFile, 'utf8')) as AnyObject;
       expect(valuesYaml.hedera.nodes.length).to.equal(3);
     });
 
-    it('prepareValuesForSoloChart should set the value of a key to the contents of a file', async () => {
+    it('prepareValuesForSoloChart should set the value of a key to the contents of a file', async (): Promise<void> => {
       configManager.setFlag(flags.namespace, 'test-namespace');
 
-      const file = PathEx.join(temporaryDirectory, 'application.env');
-      const fileContents = '# row 1\n# row 2\n# row 3';
+      const file: string = PathEx.join(temporaryDirectory, 'application.env');
+      const fileContents: string = '# row 1\n# row 2\n# row 3';
       fs.writeFileSync(file, fileContents);
       configManager.setFlag(flags.applicationEnv, file);
       const destinationFile: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
       const applicationPropertiesFile: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
       fs.cpSync(file, destinationFile, {force: true});
-      const cachedValuesFileMapping = await profileManager.prepareValuesForSoloChart(
+      const cachedValuesFileMapping: Record<string, string> = await profileManager.prepareValuesForSoloChart(
         consensusNodes,
         {},
         deploymentName,
         applicationPropertiesFile,
       );
-      const cachedValuesFile = Object.values(cachedValuesFileMapping)[0];
-      const valuesYaml: any = yaml.parse(fs.readFileSync(cachedValuesFile).toString());
+      const cachedValuesFile: string = Object.values(cachedValuesFileMapping)[0];
+      const valuesYaml: AnyObject = yaml.parse(fs.readFileSync(cachedValuesFile, 'utf8')) as AnyObject;
       expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
     });
   });
 
-  describe('prepareConfigText', () => {
-    it('should write and return the path to the config.txt file', async () => {
-      const destinationPath = PathEx.join(temporaryDirectory, 'staging');
+  describe('prepareConfigText', (): void => {
+    it('should write and return the path to the config.txt file', async (): Promise<void> => {
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'staging');
       fs.mkdirSync(destinationPath, {recursive: true});
     });
   });

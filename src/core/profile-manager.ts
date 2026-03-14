@@ -70,27 +70,27 @@ export class ProfileManager {
    * @param yamlRoot - root of the YAML object
    * @returns
    */
-  _setValue(itemPath: string, value: any, yamlRoot: AnyObject): AnyObject {
+  public _setValue(itemPath: string, value: unknown, yamlRoot: AnyObject): AnyObject {
     // find the location where to set the value in the YAML
     const itemPathParts: string[] = itemPath.split('.');
-    let parent = yamlRoot;
-    let current = parent;
-    let previousItemPath = '';
-    for (let itemPathPart of itemPathParts) {
+    let parent: AnyObject = yamlRoot;
+    let current: AnyObject = parent;
+    let previousItemPath: string | number = '';
+    for (const itemPathPart of itemPathParts) {
       if (helpers.isNumeric(itemPathPart)) {
-        // @ts-ignore
-        itemPathPart = Number.parseInt(itemPathPart); // numeric path part can only be array index i.e., an integer
+        const itemPathIndex: number = Number.parseInt(itemPathPart, 10); // numeric path part can only be array index
         if (!Array.isArray(parent[previousItemPath])) {
           parent[previousItemPath] = [];
         }
 
-        if (!parent[previousItemPath][itemPathPart]) {
-          parent[previousItemPath][itemPathPart] = {};
+        const parentArray: AnyObject[] = parent[previousItemPath] as AnyObject[];
+        if (!parentArray[itemPathIndex]) {
+          parentArray[itemPathIndex] = {};
         }
 
-        parent = parent[previousItemPath];
-        previousItemPath = itemPathPart;
-        current = parent[itemPathPart];
+        parent = parentArray as unknown as AnyObject;
+        previousItemPath = itemPathIndex;
+        current = parent[itemPathIndex] as AnyObject;
       } else {
         if (!current[itemPathPart]) {
           current[itemPathPart] = {};
@@ -112,15 +112,15 @@ export class ProfileManager {
    * @param items - the element object
    * @param yamlRoot - root of the YAML object to update
    */
-  _setChartItems(itemPath: string, items: any, yamlRoot: AnyObject) {
+  public _setChartItems(itemPath: string, items: AnyObject | undefined, yamlRoot: AnyObject): void {
     if (!items) {
       return;
     }
 
-    const dotItems = dot.dot(items);
+    const dotItems: AnyObject = dot.dot(items) as AnyObject;
 
     for (const key in dotItems) {
-      let itemKey = key;
+      let itemKey: string = key;
 
       // if it is an array key like extraEnv[0].JAVA_OPTS, convert it into a dot separated key as extraEnv.0.JAVA_OPTS
       if (key.includes('[')) {
@@ -176,7 +176,6 @@ export class ProfileManager {
         domainNamesMapping,
         this.configManager.getFlag(flags.app),
         this.configManager.getFlag(flags.chainId),
-        this.configManager.getFlag(flags.loadBalancerEnabled),
       );
     }
 
@@ -276,6 +275,21 @@ export class ProfileManager {
     }
   }
 
+  public resourcesForNetworkUpgrade(
+    itemPath: string,
+    fileName: string,
+    stagingDirectory: string,
+    yamlRoot: AnyObject,
+  ): void {
+    const filePath: string = PathEx.join(stagingDirectory, 'templates', fileName);
+
+    if (!fs.existsSync(filePath)) {
+      return;
+    }
+
+    this._setFileContentsAsValue(itemPath, filePath, yamlRoot);
+  }
+
   /**
    * Prepare a values file for Solo Helm chart
    * @param consensusNodes - the list of consensus nodes
@@ -315,9 +329,9 @@ export class ProfileManager {
       // full JAVA_OPTS including the -XX:StartFlightRecording flag so that the recorder
       // starts automatically when the consensus node JVM launches.
       if (jfrFile !== '') {
-        const javaOpts: string =
+        const javaOptions: string =
           `${constants.DEFAULT_JAVA_OPTS}` +
-          ` -XX:StartFlightRecording=dumponexit=true` +
+          ' -XX:StartFlightRecording=dumponexit=true' +
           `,settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile}` +
           `,filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
         this._setValue('defaults.root.extraEnv.0.name', 'JAVA_HEAP_MIN', yamlRoot);
@@ -325,7 +339,7 @@ export class ProfileManager {
         this._setValue('defaults.root.extraEnv.1.name', 'JAVA_HEAP_MAX', yamlRoot);
         this._setValue('defaults.root.extraEnv.1.value', constants.DEFAULT_JAVA_HEAP_MAX, yamlRoot);
         this._setValue('defaults.root.extraEnv.2.name', 'JAVA_OPTS', yamlRoot);
-        this._setValue('defaults.root.extraEnv.2.value', javaOpts, yamlRoot);
+        this._setValue('defaults.root.extraEnv.2.value', javaOptions, yamlRoot);
       }
 
       const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
@@ -335,13 +349,13 @@ export class ProfileManager {
     return filesMapping;
   }
 
-  private async bumpHederaConfigVersion(applicationPropertiesPath: string) {
+  private async bumpHederaConfigVersion(applicationPropertiesPath: string): Promise<void> {
     const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
     const lines: string[] = fileContents.split('\n');
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
-        const version = Number.parseInt(line.split('=')[1]) + 1;
+        const version: number = Number.parseInt(line.split('=')[1], 10) + 1;
         lines[lines.indexOf(line)] = `hedera.config.version=${version}`;
         break;
       }
@@ -392,7 +406,7 @@ export class ProfileManager {
     applicationPropertiesPath: string,
     realm: Realm,
     shard: Shard,
-  ) {
+  ): Promise<void> {
     const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
     const lines: string[] = fileContents.split('\n');
 
@@ -446,14 +460,14 @@ export class ProfileManager {
     applicationPropertiesPath: string,
     configTxtPath?: string,
   ): Promise<string> {
-    const yamlRoot = {};
+    const yamlRoot: AnyObject = {};
     if (configTxtPath) {
       this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
     }
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 
-    const cachedValuesFile = PathEx.join(this.cacheDir, 'solo-node-transaction.yaml');
+    const cachedValuesFile: string = PathEx.join(this.cacheDir, 'solo-node-transaction.yaml');
     return this.writeToYaml(cachedValuesFile, yamlRoot);
   }
 
@@ -463,9 +477,9 @@ export class ProfileManager {
    * @param cachedValuesFile - the target file to write the YAML root to.
    * @param yamlRoot - object to turn into YAML and write to file.
    */
-  private async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
-    return await new Promise<string>((resolve, reject) => {
-      fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), error => {
+  public async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject): Promise<string> {
+    return await new Promise<string>((resolve, reject): void => {
+      fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), (error): void => {
         if (error) {
           reject(error);
         }
@@ -481,8 +495,8 @@ export class ProfileManager {
    * @param valueFilePath - path to the file whose contents will be stored in the YAML object
    * @param yamlRoot - root of the YAML object
    */
-  private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject) {
-    const fileContents = fs.readFileSync(valueFilePath, 'utf8');
+  private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject): void {
+    const fileContents: string = fs.readFileSync(valueFilePath, 'utf8');
     this._setValue(itemPath, fileContents, yamlRoot);
   }
 
@@ -498,17 +512,16 @@ export class ProfileManager {
    * @param [loadBalancerEnabled] - whether the load balancer is enabled (flag is not set by default)
    * @returns the config.txt file path
    */
-  async prepareConfigTxt(
+  public async prepareConfigTxt(
     nodeAccountMap: Map<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
     destinationPath: string,
     releaseTagOverride: string,
     domainNamesMapping: Record<NodeAlias, string>,
-    appName = constants.HEDERA_APP_NAME,
-    chainId = constants.HEDERA_CHAIN_ID,
-    _loadBalancerEnabled: boolean = false,
-  ) {
-    let releaseTag = releaseTagOverride;
+    appName: string = constants.HEDERA_APP_NAME,
+    chainId: string = constants.HEDERA_CHAIN_ID,
+  ): Promise<string> {
+    let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
       throw new MissingArgumentError('nodeAccountMap the map of node IDs to account IDs is required');
     }
@@ -521,23 +534,23 @@ export class ProfileManager {
       throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
     }
 
-    const configFilePath = PathEx.join(destinationPath, 'config.txt');
+    const configFilePath: string = PathEx.join(destinationPath, 'config.txt');
     if (fs.existsSync(configFilePath)) {
       fs.unlinkSync(configFilePath);
     }
 
     // init variables
-    const internalPort = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
-    const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
-    const nodeStakeAmount = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
+    const internalPort: number = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
+    const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+    const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
     // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion = parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const releaseVersion: SemVer = parse(releaseTag, {includePrerelease: true}) as SemVer;
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
-      let nodeSeq = 0;
+      let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
         const internalIP: string = helpers.getInternalAddress(
           releaseVersion,
@@ -551,7 +564,7 @@ export class ProfileManager {
           externalPort,
         );
 
-        const account = nodeAccountMap.get(consensusNode.name as NodeAlias);
+        const account: string | undefined = nodeAccountMap.get(consensusNode.name as NodeAlias);
 
         configLines.push(
           `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${address.hostString()}, ${address.port}, ${account}`,

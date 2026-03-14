@@ -420,7 +420,8 @@ export class NetworkCommand extends BaseCommand {
     );
 
     const jfrFilePath: string = config.javaFlightRecorderConfiguration;
-    const jfrFile: string = jfrFilePath === '' ? '' : path.basename(jfrFilePath);
+    const jfrFile: string =
+      jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
       config.consensusNodes,
       config.domainNamesMapping,
