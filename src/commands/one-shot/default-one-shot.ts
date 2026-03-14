@@ -362,6 +362,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 optionFromFlag(Flags.deployment),
                 config.deployment,
               );
+              this.appendConfigToArgv(argv, config.blockNodeConfiguration);
               return argvPushGlobalFlags(argv);
             },
             this.taskList,
