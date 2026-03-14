@@ -43,6 +43,7 @@ virtualMap.copyFlushCandidateThreshold,        10240
 merkleDb.longListReservedBufferSize,             65536
 virtualMap.numHashThreads,                          1
 virtualMap.numCleanerThreads,                       1
+platformStatus.observingStatusDelay,                5s
 
                                           #############################
                                           #       State Retention     #
