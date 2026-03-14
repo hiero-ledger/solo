@@ -249,17 +249,6 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
-
-/** Default JVM heap settings for the consensus node root container. */
-export const DEFAULT_JAVA_HEAP_MIN: string = '256m';
-export const DEFAULT_JAVA_HEAP_MAX: string = '6g';
-
-/** Default JVM options for the consensus node root container. */
-export const DEFAULT_JAVA_OPTS: string =
-  '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m' +
-  ' --add-opens java.base/jdk.internal.misc=ALL-UNNAMED' +
-  ' --add-opens java.base/java.nio=ALL-UNNAMED' +
-  ' -Dio.netty.tryReflectionSetAccessible=true';
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';

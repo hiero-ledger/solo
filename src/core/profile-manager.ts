@@ -325,21 +325,28 @@ export class ProfileManager {
         applicationPropertiesPath,
       );
 
-      // If a JFR settings file is provided, override defaults.root.extraEnv with the
-      // full JAVA_OPTS including the -XX:StartFlightRecording flag so that the recorder
-      // starts automatically when the consensus node JVM launches.
+      // If a JFR settings file is provided, read the defaults from solo-values.yaml,
+      // find the JAVA_OPTS entry in defaults.root.extraEnv, and append the
+      // -XX:StartFlightRecording flags so that the recorder starts automatically
+      // when the consensus node JVM launches.
       if (jfrFile !== '') {
-        const javaOptions: string =
-          `${constants.DEFAULT_JAVA_OPTS}` +
-          ' -XX:StartFlightRecording=dumponexit=true' +
-          `,settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile}` +
-          `,filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
-        this._setValue('defaults.root.extraEnv.0.name', 'JAVA_HEAP_MIN', yamlRoot);
-        this._setValue('defaults.root.extraEnv.0.value', constants.DEFAULT_JAVA_HEAP_MIN, yamlRoot);
-        this._setValue('defaults.root.extraEnv.1.name', 'JAVA_HEAP_MAX', yamlRoot);
-        this._setValue('defaults.root.extraEnv.1.value', constants.DEFAULT_JAVA_HEAP_MAX, yamlRoot);
-        this._setValue('defaults.root.extraEnv.2.name', 'JAVA_OPTS', yamlRoot);
-        this._setValue('defaults.root.extraEnv.2.value', javaOptions, yamlRoot);
+        const soloValuesYaml: AnyObject = yaml.parse(
+          fs.readFileSync(constants.SOLO_DEPLOYMENT_VALUES_FILE, 'utf8'),
+        ) as AnyObject;
+        const extraEnv: AnyObject[] =
+          (soloValuesYaml?.defaults?.root?.extraEnv as AnyObject[]) ?? [];
+        const javaOption: AnyObject | undefined = extraEnv.find(
+          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
+        );
+        if (javaOption) {
+          javaOption.value +=
+            ' -XX:StartFlightRecording=dumponexit=true' +
+            `,settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile}` +
+            `,filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
+        } else {
+          this.logger.warn(`JAVA_OPTS not found in ${constants.SOLO_DEPLOYMENT_VALUES_FILE}; JFR settings file '${jfrFile}' will not be applied`);
+        }
+        this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
       }
 
       const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
