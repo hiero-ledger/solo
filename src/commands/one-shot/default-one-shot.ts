@@ -77,7 +77,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet],
+    optional: [flags.quiet, flags.deployment],
   };
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
@@ -954,7 +954,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.configManager.setFlag(flags.deployment, config.deployment);
           }
 
-          config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+          try {
+            config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+          } catch (error) {
+            if (error.message?.includes('not found in local config')) {
+              this.logger.showUser(
+                `Deployment: ${config.deployment}, not found in local config, has it already been deleted?`,
+              );
+              config.skipAll = true;
+              return;
+            } else {
+              throw error;
+            }
+          }
+
           try {
             const kubeContextConnectionSuccessful: boolean = await this.k8Factory
               .default()
@@ -1223,7 +1236,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async info(_argv: ArgvStruct): Promise<boolean> {
-    const tasks = new Listr(
+    const tasks: any = new Listr(
       [
         {
           title: 'Check for cached deployment',
