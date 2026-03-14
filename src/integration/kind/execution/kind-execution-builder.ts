@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {KindExecution} from './kind-execution.js';
-import path from 'node:path';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {inject, injectable} from 'tsyringe-neo';
+import {ExecutionBuilder} from '../../execution-builder.js';
 
 /**
  * A builder for creating a kind command execution.
  */
 @injectable()
-export class KindExecutionBuilder {
+export class KindExecutionBuilder extends ExecutionBuilder {
   private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
   private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
@@ -55,6 +55,7 @@ export class KindExecutionBuilder {
   public constructor(
     @inject(InjectTokens.KindInstallationDirectory) private readonly kindInstallationDirectory?: string,
   ) {
+    super();
     this.kindInstallationDirectory = patchInject(
       kindInstallationDirectory,
       InjectTokens.KindInstallationDirectory,
@@ -170,7 +171,8 @@ export class KindExecutionBuilder {
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
-    environment['PATH'] = `${this.kindInstallationDirectory}${path.delimiter}${environment['PATH']}`;
+
+    this.prefixPath(environment, this.kindInstallationDirectory);
 
     return new KindExecution(command, environment);
   }
@@ -180,7 +182,7 @@ export class KindExecutionBuilder {
    * @returns the command array
    */
   private buildCommand(): string[] {
-    const command: string[] = [`"${this.kindExecutable}"`, ...this._subcommands, ...this._flags];
+    const command: string[] = [`${this.kindExecutable}`, ...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
       command.push(`--${key}`, value);
