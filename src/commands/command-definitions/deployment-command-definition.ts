@@ -159,8 +159,8 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME,
           'Show deployment info, component versions, and port-forward status. If --deployment is omitted, shows all deployments.',
           this.deploymentCommand,
-          this.deploymentCommand.portStatus,
-          DeploymentCommand.PORT_STATUS_FLAGS_LIST,
+          this.deploymentCommand.showDeploymentStatus,
+          DeploymentCommand.SHOW_FLAGS_LIST,
           [constants.KUBECTL],
         ),
       )

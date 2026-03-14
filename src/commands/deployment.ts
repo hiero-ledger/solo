@@ -107,7 +107,7 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
-  public static PORT_STATUS_FLAGS_LIST: CommandFlags = {
+  public static SHOW_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deployment, flags.quiet],
   };
@@ -939,10 +939,10 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   /**
-   * Display the port-forward status for all components in one or all deployments (read-only).
+   * Display the full deployment status including component info, versions, and port-forward status.
    * If no deployment is specified, iterates over all local deployments.
    */
-  public async portStatus(argv: ArgvStruct): Promise<boolean> {
+  public async showDeploymentStatus(argv: ArgvStruct): Promise<boolean> {
     interface Config {
       quiet: boolean;
       deployment: DeploymentName | undefined;
