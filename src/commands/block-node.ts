@@ -679,7 +679,7 @@ export class BlockNodeCommand extends BaseCommand {
         this.removeBlockNodeComponentFromRemoteConfig(),
         this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'block node destroy',
     );

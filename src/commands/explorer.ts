@@ -960,7 +960,7 @@ export class ExplorerCommand extends BaseCommand {
         }),
         restoreConfig(this.disableMirrorNodeExplorerComponents()),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'explorer node destroy',
     );

@@ -1765,7 +1765,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'consensus network destroy',
     );

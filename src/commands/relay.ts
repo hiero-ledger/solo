@@ -895,7 +895,7 @@ export class RelayCommand extends BaseCommand {
         }),
         restoreConfig(this.disableRelayComponent()),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DESTROY,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'relay node destroy',
     );
