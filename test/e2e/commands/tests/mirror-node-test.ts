@@ -29,6 +29,7 @@ import {ContainerName} from '../../../../src/integration/kube/resources/containe
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
+import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
