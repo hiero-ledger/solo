@@ -29,7 +29,6 @@ import {ContainerName} from '../../../../src/integration/kube/resources/containe
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
-import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -313,6 +312,38 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
   }
 
+  /**
+   * Grants the readonly role to mirror_rest so the REST service can SELECT from tables
+   * created by Flyway migrations after V1.0.
+   *
+   * The importer's V1.0__Init.sql creates mirror_rest without the readonly role, so it
+   * has no access to any table added after that migration.  The init.sh script sets default
+   * privileges that automatically grant SELECT on new tables to the readonly role; granting
+   * readonly to mirror_rest propagates those privileges.
+   *
+   * This must be called after main() returns (importer pod ready = migrations complete =
+   * mirror_rest exists) and before verifyMirrorNodeDeployWasSuccessful.
+   */
+  private static async grantReadonlyRoleToMirrorRestUser(k8: K8): Promise<void> {
+    // Use a dollar-quoted block so the grant is safe even if mirror_rest already has the role.
+    const grantSql: string =
+      `DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') ` +
+      `AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') ` +
+      `THEN GRANT readonly TO mirror_rest; END IF; END $grant$;`;
+    const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
+    await postgresContainer.execContainer([
+      'env',
+      `PGPASSWORD=${MirrorNodeTest.postgresPassword}`,
+      'psql',
+      '-U',
+      MirrorNodeTest.postgresUsername,
+      '-d',
+      MirrorNodeTest.postgresMirrorNodeDatabaseName,
+      '-c',
+      grantSql,
+    ]);
+  }
+
   public static deployWithExternalDatabase(options: BaseTestOptions): void {
     const {
       testName,
@@ -350,6 +381,14 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
 
       await main(argv);
+
+      // The importer's V1.0__Init.sql migration creates the mirror_rest user without the readonly
+      // role, so it lacks SELECT on tables created after V1.0 (e.g. entity, transaction, node).
+      // Grant the readonly role now (after importer pod is ready = migrations are complete).
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      await MirrorNodeTest.grantReadonlyRoleToMirrorRestUser(k8);
+
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
