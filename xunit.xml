@@ -1,0 +1,537 @@
+<testsuite name="Mocha Tests" tests="521" failures="0" errors="2" skipped="0" timestamp="Sun, 15 Mar 2026 16:59:24 GMT" time="1.819">
+<testcase classname="MutableFacadeArray" name="should add a new element" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="should addAll elements" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="set should update an element" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="indexOf should return the index of an element" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="some should return true if at least one element matches the predicate" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="map should return an array of mapped values" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0.001"/>
+<testcase classname="MutableFacadeArray" name="remove should remove an element" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="includes should return true if the element is in the array" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="clear should remove all elements" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeArray" name="should iterate over elements" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-array.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="set should add a new element and get should retrieve it" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="addNew should add a new element and return it, and allow subsequent update" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="set should update an existing element" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="has should return true if the key exists" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="delete should remove an element" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="clear should remove all elements" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="keys should return an iterator of keys" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0.001"/>
+<testcase classname="MutableFacadeMap" name="values should return an iterator of values" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="entries should return an iterator of [key, value] pairs" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="MutableFacadeMap" name="should iterate over [key, value] pairs using for...of" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0.001"/>
+<testcase classname="MutableFacadeMap" name="forEach should iterate over elements providing value, key, and map" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/collection/mutable-facade-map.test.ts" time="0"/>
+<testcase classname="StringFacade" name="should create a StringFacade instance" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/facade/string-facade.test.ts" time="0"/>
+<testcase classname="StringFacade" name="should compare two StringFacade instances" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/facade/string-facade.test.ts" time="0.001"/>
+<testcase classname="StringFacade" name="should not compare different StringFacade instances" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/facade/string-facade.test.ts" time="0"/>
+<testcase classname="StringFacade" name="should return the string representation of the backing object" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/facade/string-facade.test.ts" time="0"/>
+<testcase classname="StringFacade" name="should return false when comparing with null" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/facade/string-facade.test.ts" time="0"/>
+<testcase classname="StringFacade" name="should return true if the same instance is compared" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/facade/string-facade.test.ts" time="0"/>
+<testcase classname="LocalConfigRuntimeState" name="should create a new configuration file" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/local-config-runtime-state.test.ts" time="0.003"/>
+<testcase classname="LocalConfigRuntimeState" name="should load configuration successfully" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/local-config-runtime-state.test.ts" time="0.007"/>
+<testcase classname="LocalConfigRuntimeState" name="should return deployments" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/local-config-runtime-state.test.ts" time="0.004"/>
+<testcase classname="LocalConfigRuntimeState" name="should throw DeploymentNotFoundError if deployment is not found" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/local-config-runtime-state.test.ts" time="0.001"/>
+<testcase classname="LocalConfigRuntimeState" name="should return the realm of a deployment" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/local-config-runtime-state.test.ts" time="0.004"/>
+<testcase classname="LocalConfigRuntimeState" name="should return the shard of a deployment" file="/home/runner/work/solo/solo/test/unit/business/runtime-state/local-config-runtime-state.test.ts" time="0.005"/>
+<testcase classname="Comparators number comparator" name="should return -1 when the first number is less than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/comparators.test.ts" time="0"/>
+<testcase classname="Comparators number comparator" name="should return 1 when the first number is greater than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/comparators.test.ts" time="0.001"/>
+<testcase classname="Comparators number comparator" name="should return 0 when the numbers are equal" file="/home/runner/work/solo/solo/test/unit/business/utils/comparators.test.ts" time="0"/>
+<testcase classname="Comparators configSource comparator" name="should return -1 when the first configSource ordinal is less than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/comparators.test.ts" time="0"/>
+<testcase classname="Comparators configSource comparator" name="should return 1 when the first configSource ordinal is greater than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/comparators.test.ts" time="0"/>
+<testcase classname="Comparators configSource comparator" name="should return 0 when the configSource ordinals are equal" file="/home/runner/work/solo/solo/test/unit/business/utils/comparators.test.ts" time="0"/>
+<testcase classname="PathEx joinWithRealPath" name="should join paths and return the real path" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx joinWithRealPath" name="should throw an error if the path does not exist" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx safeJoinWithBaseDirConfinement" name="should securely join paths within the base directory" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx safeJoinWithBaseDirConfinement" name="should throw SoloError for path traversal outside the base directory" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx realPathSync" name="should return the real path for an existing path" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx realPathSync" name="should throw an error for a non-existent path" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx join" name="should join paths and normalize the result" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="PathEx resolve" name="should resolve paths to an absolute path" file="/home/runner/work/solo/solo/test/unit/business/utils/path-ex.test.ts" time="0"/>
+<testcase classname="ReflectAssist constructor" name="should throw UnsupportedOperationError when instantiated" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0.001"/>
+<testcase classname="ReflectAssist isRefreshable" name="should return true for objects with a refresh method" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist isRefreshable" name="should return false for objects without a refresh method" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist isPersistable" name="should return true for objects with a persist method" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist isPersistable" name="should return false for objects without a persist method" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist isObjectStorageBackend" name="should return true for objects with a readObject method" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist isObjectStorageBackend" name="should return false for objects without a readObject method" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist coerce" name="should parse valid JSON strings" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist coerce" name="should return the original string for invalid JSON" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist merge" name="should merge two objects" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist merge" name="should return the second object if the first is null" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist merge" name="should return the first object if the second is null" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist merge" name="should add missing properties to the first object and not delete the existing ones" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="ReflectAssist merge" name="should handle camelCase properties correctly" file="/home/runner/work/solo/solo/test/unit/business/utils/reflect-assist.test.ts" time="0"/>
+<testcase classname="Regex constructor" name="should throw UnsupportedOperationError when instantiated" file="/home/runner/work/solo/solo/test/unit/business/utils/regex.test.ts" time="0.001"/>
+<testcase classname="Regex escape" name="should escape special regex characters" file="/home/runner/work/solo/solo/test/unit/business/utils/regex.test.ts" time="0"/>
+<testcase classname="Regex escape" name="should return the same string if no special characters are present" file="/home/runner/work/solo/solo/test/unit/business/utils/regex.test.ts" time="0"/>
+<testcase classname="Regex escape" name="should handle an empty string" file="/home/runner/work/solo/solo/test/unit/business/utils/regex.test.ts" time="0"/>
+<testcase classname="Regex escape" name="should escape only special characters" file="/home/runner/work/solo/solo/test/unit/business/utils/regex.test.ts" time="0"/>
+<testcase classname="StringEx constructor" name="should throw UnsupportedOperationError when instantiated" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isUppercase" name="should return true for uppercase strings" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isUppercase" name="should return false for lowercase strings" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isEmpty" name="should return true for empty strings" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0.001"/>
+<testcase classname="StringEx isEmpty" name="should return false for non-empty strings" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isUnderscored" name="should return true for strings containing underscores" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isUnderscored" name="should return false for strings without underscores" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isDashed" name="should return true for strings containing dashes" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx isDashed" name="should return false for strings without dashes" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx nounCase" name="should capitalize the first letter of a string" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx nounCase" name="should return an empty string if the input is empty" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx verbCase" name="should lowercase the first letter of a string" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx verbCase" name="should return an empty string if the input is empty" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx kebabToCamelCase" name="should convert kebab-case to camelCase" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx kebabToCamelCase" name="should return the original string if it is not kebab-case" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0.001"/>
+<testcase classname="StringEx snakeToCamelCase" name="should convert snake_case to camelCase" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx snakeToCamelCase" name="should return the original string if it is not snake_case" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx snakeToDotCase" name="should convert snake_case to dot.case" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx snakeToDotCase" name="should return the original string if it is not snake_case" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx camelCaseToKebab" name="should convert camelCase to kebab-case" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="StringEx camelCaseToKebab" name="should return the original string if it is not camelCase" file="/home/runner/work/solo/solo/test/unit/business/utils/string-ex.test.ts" time="0"/>
+<testcase classname="VersionRange constructor" name="should create a valid VersionRange with numeric bounds" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange constructor" name="should create a valid VersionRange with SemVer bounds" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange constructor" name="should throw a RangeError if begin is greater than or equal to end" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange fromIntegerBounds" name="should create a VersionRange from integer bounds" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange fromIntegerBounds" name="should throw a RangeError for invalid bounds" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0.001"/>
+<testcase classname="VersionRange fromIntegerVersion" name="should create a VersionRange for a single integer version" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange fromSemVerBounds" name="should create a VersionRange from SemVer bounds" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange fromSemVerBounds" name="should throw a RangeError for invalid SemVer bounds" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange patchVersionBounds" name="should create a VersionRange for all patch releases of a SemVer" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange minorVersionBounds" name="should create a VersionRange for all minor and patch releases of a SemVer" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange equals" name="should return true for equal VersionRanges" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange equals" name="should return false for different VersionRanges" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange compare" name="should return 0 for equal VersionRanges" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange compare" name="should return -1 when the first range is less than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange compare" name="should return 1 when the first range is greater than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange contains" name="should return true if a version is within the range" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange contains" name="should return false if a version is outside the range" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="VersionRange toString" name="should return the string representation of the range" file="/home/runner/work/solo/solo/test/unit/business/utils/version-range.test.ts" time="0"/>
+<testcase classname="Version constructor" name="should create a Version instance with a valid SemVer" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version constructor" name="should create a Version instance with a valid numeric version" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version constructor" name="should throw a RangeError for an invalid SemVer" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version constructor" name="should throw a RangeError for an invalid numeric version" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version equals" name="should return true for equal SemVer versions" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version equals" name="should return false for different SemVer versions" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version equals" name="should return true for equal numeric versions" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version equals" name="should return false for different numeric versions" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version compare" name="should return 0 for equal SemVer versions" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version compare" name="should return -1 when the first SemVer is less than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0.001"/>
+<testcase classname="Version compare" name="should return 1 when the first SemVer is greater than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version compare" name="should return 0 for equal numeric versions" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version compare" name="should return -1 when the first numeric version is less than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version compare" name="should return 1 when the first numeric version is greater than the second" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version toString" name="should return the string representation of a SemVer version" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="Version toString" name="should return the string representation of a numeric version" file="/home/runner/work/solo/solo/test/unit/business/utils/version.test.ts" time="0"/>
+<testcase classname="BaseCommand runShell" name="should fail during invalid program check" file="/home/runner/work/solo/solo/test/unit/commands/base.test.ts" time="0.016"/>
+<testcase classname="BaseCommand runShell" name="should succeed during valid program check" file="/home/runner/work/solo/solo/test/unit/commands/base.test.ts" time="0.006"/>
+<testcase classname="BaseCommand runShell" name="getConfig tracks property usage" file="/home/runner/work/solo/solo/test/unit/commands/base.test.ts" time="0.001"/>
+<testcase classname="BaseCommand get consensus nodes" name="should return consensus nodes" file="/home/runner/work/solo/solo/test/unit/commands/base.test.ts" time="0.001"/>
+<testcase classname="BaseCommand get consensus nodes" name="should return contexts" file="/home/runner/work/solo/solo/test/unit/commands/base.test.ts" time="0"/>
+<testcase classname="BaseCommand get consensus nodes" name="should return clusters references" file="/home/runner/work/solo/solo/test/unit/commands/base.test.ts" time="0"/>
+<testcase classname="ClusterCommand unit tests Chart Install Function is called correctly" name="Install function is called with expected parameters" file="/home/runner/work/solo/solo/test/unit/commands/cluster.test.ts" time="0.009"/>
+<testcase classname="ClusterCommand unit tests Chart Install Function is called correctly" name="Should use local chart directory" file="/home/runner/work/solo/solo/test/unit/commands/cluster.test.ts" time="0.005"/>
+<testcase classname="NetworkCommand unit tests Chart Install Function is called correctly" name="Install function is called with expected parameters" file="/home/runner/work/solo/solo/test/unit/commands/network.test.ts" time="0.012"/>
+<testcase classname="NetworkCommand unit tests Chart Install Function is called correctly" name="Should use local chart directory" file="/home/runner/work/solo/solo/test/unit/commands/network.test.ts" time="0.007"/>
+<testcase classname="NetworkCommand unit tests Chart Install Function is called correctly" name="Should use prepare config correctly for all clusters" file="/home/runner/work/solo/solo/test/unit/commands/network.test.ts" time="0.003"/>
+<testcase classname="ArgumentProcessor Missing Subcommands - Level 1 (Command Groups)" name="should show help when running command without subcommand" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.024"/>
+<testcase classname="ArgumentProcessor Missing Subcommands - Level 1 (Command Groups)" name="should exit cleanly and show subcommands/options for consensus" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.006"/>
+<testcase classname="ArgumentProcessor Missing Subcommands - Level 2 (Command Subgroups)" name="should show help when running subgroup without action" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.005"/>
+<testcase classname="ArgumentProcessor Missing Subcommands - Level 2 (Command Subgroups)" name="should exit cleanly and show subgroup commands/options for consensus network" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.004"/>
+<testcase classname="ArgumentProcessor Invalid Commands" name="should show error and help for unknown top-level command" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.006"/>
+<testcase classname="ArgumentProcessor Invalid Commands" name="should show error for unknown second-level command" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.004"/>
+<testcase classname="ArgumentProcessor Invalid Commands" name="should show error for unknown third-level command" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.005"/>
+<testcase classname="ArgumentProcessor Missing Required Arguments - Level 3 (Actions)" name="should show error when missing required argument" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.027"/>
+<testcase classname="ArgumentProcessor Missing Required Arguments - Level 3 (Actions)" name="should fail for destroy without deployment and include exact message" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.005"/>
+<testcase classname="ArgumentProcessor Unknown Arguments" name="should show error for unknown flag at action level" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.035"/>
+<testcase classname="ArgumentProcessor Help Flag Behavior" name="should show help when --help flag is used" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.004"/>
+<testcase classname="ArgumentProcessor Help Flag Behavior" name="should show clean help for trailing help shorthand on action command" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.004"/>
+<testcase classname="ArgumentProcessor Help Flag Behavior" name="should show clean help for --help on action command with required args" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.018"/>
+<testcase classname="ArgumentProcessor Help Flag Behavior" name="should show clean help for --help on consensus action command" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.004"/>
+<testcase classname="ArgumentProcessor Help Flag Behavior" name="should exit cleanly and show subgroup commands/options for consensus network help" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.005"/>
+<testcase classname="ArgumentProcessor Help Flag Behavior" name="should exit cleanly and show subcommands/options for consensus help" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.003"/>
+<testcase classname="ArgumentProcessor No Command Provided" name="should show help when no command is provided" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.004"/>
+<testcase classname="ArgumentProcessor Error Message Quality" name="should provide clear error message for missing required argument" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.023"/>
+<testcase classname="ArgumentProcessor Error Message Quality" name="should provide clear error message for unknown command" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.003"/>
+<testcase classname="ArgumentProcessor Error Message Quality" name="should not show ERROR banner when displaying help for missing subcommand" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.003"/>
+<testcase classname="ArgumentProcessor Error Message Quality" name="should throw SoloError for actual errors" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.023"/>
+<testcase classname="ArgumentProcessor Exit Code Behavior" name="should not set error exit code when showing help for missing subcommand" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.003"/>
+<testcase classname="ArgumentProcessor Exit Code Behavior" name="should set error exit code for missing required arguments" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.029"/>
+<testcase classname="ArgumentProcessor Exit Code Behavior" name="should set error exit code for unknown arguments" file="/home/runner/work/solo/solo/test/unit/core/argument-processor.test.ts" time="0.033"/>
+<testcase classname="Certificate Manager" name="should throw if and error if nodeAlias is not provided" file="/home/runner/work/solo/solo/test/unit/core/certificate-manager.test.ts" time="0"/>
+<testcase classname="Certificate Manager" name="should throw if and error if path is not provided" file="/home/runner/work/solo/solo/test/unit/core/certificate-manager.test.ts" time="0"/>
+<testcase classname="Certificate Manager" name="should throw if and error if type is not valid" file="/home/runner/work/solo/solo/test/unit/core/certificate-manager.test.ts" time="0"/>
+<testcase classname="ConfigManager update values using argv" name="should update string flag value" file="/home/runner/work/solo/solo/test/unit/core/config-manager.test.ts" time="0.001"/>
+<testcase classname="ConfigManager update values using argv" name="should update number flag value" file="/home/runner/work/solo/solo/test/unit/core/config-manager.test.ts" time="0"/>
+<testcase classname="ConfigManager update values using argv" name="should update boolean flag value" file="/home/runner/work/solo/solo/test/unit/core/config-manager.test.ts" time="0"/>
+<testcase classname="ConfigManager should apply precedence" name="should take user input as the first preference" file="/home/runner/work/solo/solo/test/unit/core/config-manager.test.ts" time="0"/>
+<testcase classname="ConfigManager should apply precedence" name="should take default as the last preference" file="/home/runner/work/solo/solo/test/unit/core/config-manager.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should be able to create a instance" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0.001"/>
+<testcase classname="ComponentsDataWrapper" name="should not be able to add new component with the .addNewComponent() method if it already exist" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should be able to add new component with the .addNewComponent() method" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should be able to change node state with the .changeNodeState(()" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should not be able to edit component with the .editComponent() if it doesn&#x27;t exist " file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should be able to remove component with the .removeComponent()" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should not be able to remove component with the .removeComponent() if it doesn&#x27;t exist " file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="ComponentsDataWrapper" name="should be able to get components with .getComponent()" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0.001"/>
+<testcase classname="ComponentsDataWrapper" name="should fail if trying to get component that doesn&#x27;t exist with .getComponent()" file="/home/runner/work/solo/solo/test/unit/core/config/remote/components-data-wrapper.test.ts" time="0"/>
+<testcase classname="DependencyManager checkDependency" name="should fail during invalid dependency check" file="/home/runner/work/solo/solo/test/unit/core/dependency-managers/dependency-manager.test.ts" time="0"/>
+<testcase classname="Errors" name="should construct correct SoloError" file="/home/runner/work/solo/solo/test/unit/core/errors.test.ts" time="0.001"/>
+<testcase classname="Errors" name="should construct correct ResourceNotFoundError" file="/home/runner/work/solo/solo/test/unit/core/errors.test.ts" time="0"/>
+<testcase classname="Errors" name="should construct correct MissingArgumentError" file="/home/runner/work/solo/solo/test/unit/core/errors.test.ts" time="0.001"/>
+<testcase classname="Errors" name="should construct correct IllegalArgumentError" file="/home/runner/work/solo/solo/test/unit/core/errors.test.ts" time="0"/>
+<testcase classname="Errors" name="should construct correct DataValidationError" file="/home/runner/work/solo/solo/test/unit/core/errors.test.ts" time="0"/>
+<testcase classname="Helpers" name="should parse node aliases for input" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0.001"/>
+<testcase classname="Helpers" name="should parse node aliases for input" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="should parse node aliases for input" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="should clone array for input" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="should clone array for input" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="should clone array for input" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="Should parse argv to args with boolean flag correctly" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="Should parse argv to args with flag correctly" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="Helpers" name="Should ipv4ToByteArray convert IPv4 address to string" file="/home/runner/work/solo/solo/test/unit/core/helpers.test.ts" time="0"/>
+<testcase classname="KeyManager" name="should generate signing key" file="/home/runner/work/solo/solo/test/unit/core/key-manager.test.ts" time="0.372"/>
+<testcase classname="KeyManager" name="should generate TLS key" file="/home/runner/work/solo/solo/test/unit/core/key-manager.test.ts" time="0.45"/>
+<testcase classname="DefaultKindClientBuilder constructor" name="should create an instance without errors" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-client-builder.test.ts" time="0"/>
+<testcase classname="DefaultKindClientBuilder executable" name="should set the executable path and return this for chaining" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-client-builder.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClientBuilder build" name="should build a KindClient with the provided executable path" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-client-builder.test.ts" time="0"/>
+<testcase classname="DefaultKindClientBuilder build" name="should throw an error if version check fails" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-client-builder.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - buildNodeImage" name="should build a node image and return the response correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/build-node-images.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - buildNodeImage" name="should throw if responseAs throws" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/build-node-images.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - buildNodeImage" name="should pass options to execution builder correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/build-node-images.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - buildNodeImage" name="should work with no options provided" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/build-node-images.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - buildNodeImage" name="should handle partial options" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/build-node-images.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - createCluster" name="should create a cluster and parse the response correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - createCluster" name="should throw if responseAs throws" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - createCluster" name="should extract cluster name with special characters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - createCluster" name="should handle missing context information gracefully" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - createCluster" name="should pass cluster name and options to execution builder" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - createCluster" name="should handle boolean options correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - createCluster" name="should handle string options correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - createCluster" name="should handle no options provided" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/create-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - deleteCluster" name="should delete a cluster and parse the response correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/delete-cluster.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - deleteCluster" name="should throw if responseAs throws" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/delete-cluster.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - deleteCluster" name="should handle output with multiple deleted nodes" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/delete-cluster.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - deleteCluster" name="should handle output without deleted nodes information" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/delete-cluster.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - deleteCluster" name="should pass cluster name and options to execution builder" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/delete-cluster.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - deleteCluster" name="should handle no options provided" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/delete-cluster.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - exportKubeConfig" name="should export kubeconfig and parse the response correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-kubeconfig.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportKubeConfig" name="should throw if responseAs throws" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-kubeconfig.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportKubeConfig" name="should pass cluster name to execution builder correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-kubeconfig.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportKubeConfig" name="should work when no cluster name is provided" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-kubeconfig.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportKubeConfig" name="should handle malformed output response" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-kubeconfig.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - exportLogs" name="should export logs and parse the response correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-logs.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportLogs" name="should throw if responseAs throws" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-logs.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportLogs" name="should pass cluster name to execution builder correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-logs.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - exportLogs" name="should handle undefined cluster name" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/export-logs.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - getClusters" name="getClusters should call executeAsList and return clusters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-clusters.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - getClusters" name="getClusters should propagate errors from executeAsList" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-clusters.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getKubeConfig" name="should get kubeconfig with default parameters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-kubeconfig.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - getKubeConfig" name="should get kubeconfig for a specified cluster name" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-kubeconfig.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getKubeConfig" name="should get kubeconfig with internal flag set" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-kubeconfig.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getKubeConfig" name="should parse kubeconfig data correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-kubeconfig.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getKubeConfig" name="should handle error when parsing invalid YAML" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-kubeconfig.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - getNodes" name="should get nodes and parse the response correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getNodes" name="should handle &#x22;no nodes found&#x22; response" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getNodes" name="should handle multiple nodes from multiple clusters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getNodes" name="should throw if responseAs throws" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getNodes" name="should pass context name to execution builder correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - getNodes" name="should handle additional options correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - getNodes" name="should handle undefined context name" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - getNodes" name="should properly combine context name and options" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/get-nodes.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should call the correct subcommands when loading a docker image" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should throw if responseAs rejects" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should pass nodes parameter when provided in options" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should handle all parameters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should parse complex image names correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should handle malformed output format gracefully" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should handle output with only image name but no ID" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadDockerImage" name="should handle multi-line output format" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-docker-image.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should call the correct subcommands when loading an image archive" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should handle empty image name gracefully" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should throw if responseAs rejects" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="imageName overrides provided name in options parameter" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should pass nodes parameter when provided in options" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should handle both cluster name and nodes parameters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should handle archive paths with special characters" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should handle malformed output format gracefully" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should handle relative paths for archive files" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient.loadImageArchive" name="should handle absolute paths for archive files" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/load-image-archive.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - version" name="should return SemVer from KindVersion" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/version.test.ts" time="0.001"/>
+<testcase classname="DefaultKindClient - version" name="should throw if execution is a Promise" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/version.test.ts" time="0"/>
+<testcase classname="DefaultKindClient - version" name="should throw if result is not KindVersion" file="/home/runner/work/solo/solo/test/unit/core/kind/default-kind-cluster/version.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder constructor" name="should create an instance without errors" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0.001"/>
+<testcase classname="KindExecutionBuilder subcommands" name="should add a subcommand" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder subcommands" name="should throw error if subcommand is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder argument" name="should add an argument with value" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder argument" name="should throw error if argument name is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder argument" name="should throw error if argument value is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder flag" name="should add a flag" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder flag" name="should throw error if flag is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0.001"/>
+<testcase classname="KindExecutionBuilder withPositional" name="should add a positional argument" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder withPositional" name="should throw error if positional is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder optionsWithMultipleValues" name="should add an option with multiple values" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0.001"/>
+<testcase classname="KindExecutionBuilder optionsWithMultipleValues" name="should throw error if option name is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder optionsWithMultipleValues" name="should throw error if values array is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder environmentVariable" name="should add an environment variable" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder environmentVariable" name="should throw error if variable name is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder environmentVariable" name="should throw error if variable value is null" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0"/>
+<testcase classname="KindExecutionBuilder build" name="should build a KindExecution with the configured parameters" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution-builder.test.ts" time="0.008"/>
+<testcase classname="KindExecution constructor" name="should initialize the mock process correctly" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0.001"/>
+<testcase classname="KindExecution waitForCompletion" name="should resolve when process exits with code 0" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0"/>
+<testcase classname="KindExecution waitForCompletion" name="should reject when process exits with non-zero code" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0.001"/>
+<testcase classname="KindExecution waitForCompletion" name="should reject when process has an error" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0"/>
+<testcase classname="KindExecution waitForCompletion" name="should timeout if the process takes too long" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0.003"/>
+<testcase classname="KindExecution responseAs" name="should parse successful response into the specified class" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0"/>
+<testcase classname="KindExecution responseAs" name="should reject if the process exits with error" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0.001"/>
+<testcase classname="KindExecution responseAs" name="should reject if parsing fails" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0"/>
+<testcase classname="KindExecution responseAsList" name="should parse successful response into a list of the specified class" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0.001"/>
+<testcase classname="KindExecution responseAsList" name="should handle empty output" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0"/>
+<testcase classname="KindExecution responseAsList" name="should reject if parsing fails" file="/home/runner/work/solo/solo/test/unit/core/kind/execution/kind-execution.test.ts" time="0.001"/>
+<testcase classname="BuildNodeImagesRequest apply" name="should add build node-image subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/build/build-node-images-request.test.ts" time="0"/>
+<testcase classname="BuildNodeImagesRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/build/build-node-images-request.test.ts" time="0"/>
+<testcase classname="ClusterCreateRequest constructor" name="should create an instance with valid options" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster-create-request.test.ts" time="0"/>
+<testcase classname="ClusterCreateRequest constructor" name="should throw an error if options are null" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster-create-request.test.ts" time="0"/>
+<testcase classname="ClusterCreateRequest apply" name="should add correct subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster-create-request.test.ts" time="0"/>
+<testcase classname="ClusterCreateRequest apply" name="should delegate to options.apply" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster-create-request.test.ts" time="0"/>
+<testcase classname="ClusterDeleteRequest constructor" name="should create an instance with valid options" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster/cluster-delete-request.test.ts" time="0"/>
+<testcase classname="ClusterDeleteRequest constructor" name="should throw an error if options are null" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster/cluster-delete-request.test.ts" time="0.001"/>
+<testcase classname="ClusterDeleteRequest apply" name="should add correct subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster/cluster-delete-request.test.ts" time="0"/>
+<testcase classname="ClusterDeleteRequest apply" name="should delegate to options.apply" file="/home/runner/work/solo/solo/test/unit/core/kind/request/cluster/cluster-delete-request.test.ts" time="0.001"/>
+<testcase classname="ExportKubeConfigRequest apply" name="should add export kubeconfig subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/export/export-kubeconfig-request.test.ts" time="0"/>
+<testcase classname="ExportKubeConfigRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/export/export-kubeconfig-request.test.ts" time="0.001"/>
+<testcase classname="ExportLogsRequest apply" name="should add export logs subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/export/export-logs-request.test.ts" time="0"/>
+<testcase classname="ExportLogsRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/export/export-logs-request.test.ts" time="0.001"/>
+<testcase classname="GetClustersRequest apply" name="should add get clusters subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/get/get-clusters-request.test.ts" time="0"/>
+<testcase classname="GetKubeConfigRequest apply" name="should add get kubeconfig subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/get/get-kubeconfig-request.test.ts" time="0"/>
+<testcase classname="GetKubeConfigRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/get/get-kubeconfig-request.test.ts" time="0"/>
+<testcase classname="GetNodesRequest apply" name="should add get nodes subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/get/get-nodes-request.test.ts" time="0"/>
+<testcase classname="GetNodesRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/get/get-nodes-request.test.ts" time="0"/>
+<testcase classname="LoadDockerImageRequest apply" name="should add load docker-image subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/load/docker-image-request.test.ts" time="0"/>
+<testcase classname="LoadDockerImageRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/load/docker-image-request.test.ts" time="0"/>
+<testcase classname="LoadImageArchiveRequest apply" name="should add load image-archive subcommands to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/load/image-archive-request.test.ts" time="0"/>
+<testcase classname="LoadImageArchiveRequest apply" name="should delegate to options.apply when options are provided" file="/home/runner/work/solo/solo/test/unit/core/kind/request/load/image-archive-request.test.ts" time="0"/>
+<testcase classname="VersionRequest apply" name="should add version subcommand to the builder" file="/home/runner/work/solo/solo/test/unit/core/kind/request/version-request.test.ts" time="0"/>
+<testcase classname="Namespace Name" name="should throw an error if namespace is not valid" file="/home/runner/work/solo/solo/test/unit/core/kube/namespace-name.test.ts" time="0"/>
+<testcase classname="Namespace Name" name="should match a NamespaceName" file="/home/runner/work/solo/solo/test/unit/core/kube/namespace-name.test.ts" time="0.001"/>
+<testcase classname="Namespace Name" name="should not match a NamespaceName" file="/home/runner/work/solo/solo/test/unit/core/kube/namespace-name.test.ts" time="0"/>
+<testcase classname="Logging" name="should log at correct severity with traceId in meta" file="/home/runner/work/solo/solo/test/unit/core/logging.test.ts" time="0.001"/>
+<testcase classname="Port Utils findAvailablePort" name="should find the next available port when the initial port is in use" file="/home/runner/work/solo/solo/test/unit/core/network/port-utilities.test.ts" time="0.007"/>
+<testcase classname="Port Utils findAvailablePort" name="should return the initial port if it is available" file="/home/runner/work/solo/solo/test/unit/core/network/port-utilities.test.ts" time="0.001"/>
+<testcase classname="PackageDownloader urlExists" name="should return true if source URL is valid" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.007"><failure>expected false to equal true
+
+      + expected - actual
+
+      -false
+      +true
+      
+AssertionError: expected false to equal true
+    at &#x3C;anonymous&#x3E; (/home/runner/work/solo/solo/node_modules/chai-as-promised/lib/chai-as-promised.js:355:18)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Context.&#x3C;anonymous&#x3E; (/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts:38:7)</failure></testcase>
+<testcase classname="PackageDownloader urlExists" name="should return false if source URL is invalid" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.002"/>
+<testcase classname="PackageDownloader fetchFile" name="should fail if source URL is missing" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.001"/>
+<testcase classname="PackageDownloader fetchFile" name="should fail if destination path is missing" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0"/>
+<testcase classname="PackageDownloader fetchFile" name="should fail with a malformed URL" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0"/>
+<testcase classname="PackageDownloader fetchFile" name="should fail with an invalid URL" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.002"/>
+<testcase classname="PackageDownloader fetchFile" name="should succeed with a valid release artifact URL" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.001"><failure>package URL &#x27;https://builds.hedera.com/node/software/v0.42/build-v0.42.5.sha384&#x27; does not exist
+ResourceNotFoundError: package URL &#x27;https://builds.hedera.com/node/software/v0.42/build-v0.42.5.sha384&#x27; does not exist
+    at PackageDownloader.fetchFile (/home/runner/work/solo/solo/src/core/package-downloader.ts:139:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Context.&#x3C;anonymous&#x3E; (/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts:79:9)</failure></testcase>
+<testcase classname="PackageDownloader fetchFile" name="should pass env override download timeouts to got.stream" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.003"/>
+<testcase classname="PackageDownloader fetchPlatform" name="should fail if platform release tag is missing" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0"/>
+<testcase classname="PackageDownloader fetchPlatform" name="should fail if platform release artifact is not found" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.002"/>
+<testcase classname="PackageDownloader fetchPlatform" name="should fail if platform release tag is invalid" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0.001"/>
+<testcase classname="PackageDownloader fetchPlatform" name="should fail if destination directory is null" file="/home/runner/work/solo/solo/test/unit/core/package-downloader.test.ts" time="0"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should fail for missing path" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0.001"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should fail for invalid path" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should fail if directory does not have data/apps directory" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0.001"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should fail if directory does not have data/libs directory" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should fail if directory does not have data/app directory is empty" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0.001"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should fail if directory does not have data/apps directory is empty" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0.001"/>
+<testcase classname="PackageInstaller validatePlatformReleaseDir" name="should succeed with non-empty data/apps and data/libs directory" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0.001"/>
+<testcase classname="PackageInstaller extractPlatform" name="should fail for missing pod name" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0"/>
+<testcase classname="PackageInstaller extractPlatform" name="should fail for missing tag" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0"/>
+<testcase classname="PackageInstaller copyGossipKeys" name="should fail for missing podName" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0"/>
+<testcase classname="PackageInstaller copyGossipKeys" name="should fail for missing stagingDir path" file="/home/runner/work/solo/solo/test/unit/core/platform-installer.test.ts" time="0"/>
+<testcase classname="ProfileManager" name="should throw error for missing profile file" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.001"/>
+<testcase classname="ProfileManager" name="should be able to load a profile file" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.004"/>
+<testcase classname="ProfileManager determine chart values for a profile" name="should determine Solo chart values [profile = test]" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.019"/>
+<testcase classname="ProfileManager determine chart values for a profile" name="prepareValuesForSoloChart should set the value of a key to the contents of a file" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.008"/>
+<testcase classname="ProfileManager determine chart values for a profile" name="should determine mirror node chart values [profile = test]" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.007"/>
+<testcase classname="ProfileManager determine chart values for a profile" name="should determine hiero-explorer chart values [profile = test]" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.008"/>
+<testcase classname="ProfileManager determine chart values for a profile" name="should determine rpc-relay chart values [profile = test]" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0.003"/>
+<testcase classname="ProfileManager prepareConfigText" name="should write and return the path to the config.txt file" file="/home/runner/work/solo/solo/test/unit/core/profile-manager.test.ts" time="0"/>
+<testcase classname="ShellRunner" name="should run command" file="/home/runner/work/solo/solo/test/unit/core/shell-runner.test.ts" time="0.012"/>
+<testcase classname="core/templates" name="should render FQDN for a consensus node" file="/home/runner/work/solo/solo/test/unit/core/templates.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plus zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plus zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plusSeconds zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plusSeconds zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plusMillis zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plusMillis zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plusNanos zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="plusNanos zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minus zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minus zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minusSeconds zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minusSeconds zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minusMillis zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minusMillis zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minusNanos zero returns this" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="Duration Java TCK" name="minusNanos zero singleton" file="/home/runner/work/solo/solo/test/unit/core/time/duration.test.ts" time="0"/>
+<testcase classname="MathEx" name="testLongExact" file="/home/runner/work/solo/solo/test/unit/core/util/math-ex.test.ts" time="0.001"/>
+<testcase classname="MathEx" name="testLongFloorDivMod" file="/home/runner/work/solo/solo/test/unit/core/util/math-ex.test.ts" time="0"/>
+<testcase classname="Zippy unzip" name="should fail if source file is missing" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0"/>
+<testcase classname="Zippy unzip" name="should fail if destination file is missing" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0"/>
+<testcase classname="Zippy unzip" name="should fail if source file is invalid" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.001"/>
+<testcase classname="Zippy unzip" name="should fail for a directory" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0"/>
+<testcase classname="Zippy unzip" name="should fail for a non-zip file" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.001"/>
+<testcase classname="Zippy unzip" name="should succeed for valid inputs" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.004"/>
+<testcase classname="Zippy untar" name="should fail if source file is missing" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.001"/>
+<testcase classname="Zippy untar" name="should fail if destination file is missing" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0"/>
+<testcase classname="Zippy untar" name="should fail if source file is invalid" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0"/>
+<testcase classname="Zippy untar" name="should fail for a directory" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.001"/>
+<testcase classname="Zippy untar" name="should fail for a non-tar file" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.001"/>
+<testcase classname="Zippy untar" name="should succeed for valid inputs" file="/home/runner/work/solo/solo/test/unit/core/zippy.test.ts" time="0.007"/>
+<testcase classname="ConfigMapStorageBackend" name="should throw if configMap is missing" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend delete" name="should delete a key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend delete" name="should throw if key not found" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend delete" name="should trigger unexpected errors in delete" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend isSupported" name="should return true for supported operations" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend isSupported" name="should return false for unsupported operations" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend list" name="should return all keys in the configMap data" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend list" name="should return an empty array if data is missing" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend readBytes" name="should return Buffer for existing key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend readBytes" name="should throw if key not found" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0.001"/>
+<testcase classname="ConfigMapStorageBackend readBytes" name="should throw if configMap.data is empty or undefined in readBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend readBytes" name="should trigger unexpected errors in readBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend writeBytes" name="should write buffer data to the configMap" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0.001"/>
+<testcase classname="ConfigMapStorageBackend writeBytes" name="should add new key if not present" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend writeBytes" name="should throw if data is missing" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="ConfigMapStorageBackend writeBytes" name="should trigger unexpected errors in writeBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/config-map-storage-backend.test.ts" time="0.001"/>
+<testcase classname="EnvironmentStorageBackend" name="test isSupported" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0"/>
+<testcase classname="EnvironmentStorageBackend" name="test list" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0.001"/>
+<testcase classname="EnvironmentStorageBackend" name="list with no process.env" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0.001"/>
+<testcase classname="EnvironmentStorageBackend" name="readBytes from environment variable with prefix" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0"/>
+<testcase classname="EnvironmentStorageBackend" name="readBytes from environment variable" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0"/>
+<testcase classname="EnvironmentStorageBackend" name="readBytes with empty key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0"/>
+<testcase classname="EnvironmentStorageBackend" name="readBytes with no process.env" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0.001"/>
+<testcase classname="EnvironmentStorageBackend" name="writeBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0"/>
+<testcase classname="EnvironmentStorageBackend" name="delete" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/environment-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test empty string constructor" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test path that does not exist" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0.001"/>
+<testcase classname="File Storage Backend" name="test path that is not a directory" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test isSupported" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test list" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0.001"/>
+<testcase classname="File Storage Backend" name="test list on new temp directory that is empty" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test readBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test readBytes with empty key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test readBytes with non-existent file" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0.001"/>
+<testcase classname="File Storage Backend" name="test writeBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test writeBytes with empty key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test writeBytes with null data" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test writeBytes with a file that already exists as a directory" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0.001"/>
+<testcase classname="File Storage Backend" name="test delete" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test delete with empty key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test delete with non-existent file" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0"/>
+<testcase classname="File Storage Backend" name="test delete with a directory as key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/file-storage-backend.test.ts" time="0.001"/>
+<testcase classname="YamlConfigMapStorageBackend readObject" name="should parse YAML from readBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="YamlConfigMapStorageBackend readObject" name="should throw if readBytes returns empty buffer" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="YamlConfigMapStorageBackend readObject" name="should throw if readBytes returns undefined" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="YamlConfigMapStorageBackend readObject" name="should throw on invalid YAML" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0.001"/>
+<testcase classname="YamlConfigMapStorageBackend writeObject" name="should write YAML string to writeBytes" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0.001"/>
+<testcase classname="YamlConfigMapStorageBackend writeObject" name="should throw if data is null or undefined" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0"/>
+<testcase classname="YamlConfigMapStorageBackend writeObject" name="should throw if writeBytes throws" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-config-map-storage-backend.test.ts" time="0.001"/>
+<testcase classname="YAML File Storage Backend" name="test readObject and writeObject" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-file-storage-backend.test.ts" time="0"/>
+<testcase classname="YAML File Storage Backend" name="test readObject with empty file" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-file-storage-backend.test.ts" time="0"/>
+<testcase classname="YAML File Storage Backend" name="test readObject with invalid yaml file" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-file-storage-backend.test.ts" time="0.001"/>
+<testcase classname="YAML File Storage Backend" name="test writeObject with null data" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-file-storage-backend.test.ts" time="0"/>
+<testcase classname="YAML File Storage Backend" name="test writeObject with invalid key" file="/home/runner/work/solo/solo/test/unit/data/backend/impl/yaml-file-storage-backend.test.ts" time="0"/>
+<testcase classname="EnvironmentConfigSource" name="test prefix is working correctly" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/environment-config-source.test.ts" time="0.002"/>
+<testcase classname="LayeredConfigProvider" name="should not throw an error when registering a valid initial config (issue #2094)" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config-provider.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="addSource should throw IllegalArgumentError if source is null" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="addSource should throw DuplicateConfigSourceError if source is already present" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="addSource should not throw if source is not present" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0.001"/>
+<testcase classname="LayeredConfig" name="should sort sources by ordinal" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="should return the correct property names" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0.001"/>
+<testcase classname="LayeredConfig" name="should return the correct properties after a refresh" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="should return as a boolean" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="should return as a number" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="should return as a string" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0.001"/>
+<testcase classname="LayeredConfig" name="should return a string array" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="should return an object" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="should return an object array" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredConfig" name="primitiveScalar should throw IllegalArgumentError" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-config.test.ts" time="0"/>
+<testcase classname="LayeredModelConfigSource" name="constructor with null ObjectMapper throws error" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-model-config-source.test.ts" time="0"/>
+<testcase classname="LayeredModelConfigSource" name="test modelData getter and setter" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/layered-model-config-source.test.ts" time="0"/>
+<testcase classname="LocalConfigSource" name="constructor with null ObjectMapper throws error" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/local-config-source.test.ts" time="0.001"/>
+<testcase classname="LocalConfigSource" name="asBoolean with null value returns null" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/local-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should call backend.writeObject on persist" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should instantiate without error" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0.001"/>
+<testcase classname="RemoteConfigSource" name="should have name &#x22;RemoteConfigSource&#x22;" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should have ordinal 300" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should call load() when refresh() is called" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should throw if putObject called with missing key" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should throw if putObjectArray called with missing key" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0.001"/>
+<testcase classname="RemoteConfigSource" name="should throw if putScalar called with missing key" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="RemoteConfigSource" name="should throw if putScalarArray called with missing key" file="/home/runner/work/solo/solo/test/unit/data/configuration/impl/remote-config-source.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="constructor with null lexer should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="constructor with null formatter should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="has with null key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="valueFor with null key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="nodeFor with null key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="nodeFor with empty key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="from with empty data should return empty forest" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="from with data should return forest" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="valueFor with a key that does not exist should return null" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0.001"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="valueFor an internal node should return null" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="toObject with empty data should return empty object" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="toObject with data should return object" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using ConfigKeyFormatter" name="toObject with simple data should return object" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="constructor with null lexer should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="constructor with null formatter should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="has with null key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="valueFor with null key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="nodeFor with null key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="nodeFor with empty key should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="from with empty data should return empty forest" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0.001"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="from with data should return forest" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="valueFor with a key that does not exist should return null" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="valueFor an internal node should return null" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="toObject with empty data should return empty object" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="toObject with data should return object" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer: Forest Using EnvironmentKeyFormatter" name="toObject with simple data should return object" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/forest.test.ts" time="0"/>
+<testcase classname="Lexer" name="with empty token in constructor should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0"/>
+<testcase classname="Lexer" name="with empty formatter in constructor should throw error" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0"/>
+<testcase classname="Lexer" name="get rootNodes should return empty array" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0"/>
+<testcase classname="Lexer" name="rootNodeFor with array segment" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0"/>
+<testcase classname="Lexer" name="processKeys with an array segment" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0"/>
+<testcase classname="Lexer" name="processKeys works with overlapping paths" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0.002"/>
+<testcase classname="Lexer" name="addValue works with overlapping paths" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0.001"/>
+<testcase classname="Lexer" name="replaceValue works with overlapping paths" file="/home/runner/work/solo/solo/test/unit/data/key/lexer/lexer.test.ts" time="0.002"/>
+<testcase classname="ClassToObjectMapper" name="should map class to object with missing field" file="/home/runner/work/solo/solo/test/unit/data/mapper/impl/class-to-object-mapper.test.ts" time="0"/>
+<testcase classname="RemoteConfigSchema" name="should instantiate without error" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-schema.test.ts" time="0"/>
+<testcase classname="RemoteConfigSchema" name="should return the correct name" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-schema.test.ts" time="0"/>
+<testcase classname="RemoteConfigSchema" name="should return the correct version" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-schema.test.ts" time="0"/>
+<testcase classname="RemoteConfigSchema" name="should return the correct classConstructor" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-schema.test.ts" time="0"/>
+<testcase classname="RemoteConfigSchema" name="should return a migrations array containing RemoteConfigV1Migration" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-schema.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration range" name="should return version range for schema version 0" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration version" name="should return version 1" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should migrate real config from v0-35-1-remote-config.yaml file" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0.004"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should throw IllegalArgumentError when source is null" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should throw IllegalArgumentError when source is undefined" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0.001"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should throw InvalidSchemaVersionError when schemaVersion is not 0" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should set metadata with lastUpdated information" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should migrate version information correctly" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0.001"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should use default version values when metadata versions are not present" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should migrate clusters correctly" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should delete namespace and deploymentName from metadata" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should migrate component state correctly" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0.001"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should migrate command history correctly" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should set the schema version to 1" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="RemoteConfigV1Migration migrate" name="should perform a complete migration with all properties" file="/home/runner/work/solo/solo/test/unit/data/schema/migration/impl/remote/remote-config-v1-migration.test.ts" time="0"/>
+<testcase classname="LocalConfig Class Transformer" name="should transform plain to class" file="/home/runner/work/solo/solo/test/unit/data/schema/model/local/local-config.test.ts" time="0.001"/>
+<testcase classname="LocalConfig Class Transformer" name="should transform class to plain" file="/home/runner/work/solo/solo/test/unit/data/schema/model/local/local-config.test.ts" time="0.001"/>
+<testcase classname="RemoteConfig Class Transformer" name="should transform plain to class" file="/home/runner/work/solo/solo/test/unit/data/schema/model/remote/remote-config.test.ts" time="0.002"/>
+<testcase classname="RemoteConfig Class Transformer" name="should transform class to plain" file="/home/runner/work/solo/solo/test/unit/data/schema/model/remote/remote-config.test.ts" time="0.001"/>
+<testcase classname="RemoteConfig Class Transformer" name="should be able to go from a class to an object back to a class" file="/home/runner/work/solo/solo/test/unit/data/schema/model/remote/remote-config.test.ts" time="0.002"/>
+</testsuite>
