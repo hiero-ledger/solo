@@ -451,6 +451,21 @@ export class ProfileManager {
     return yamlRoot;
   }
 
+  public resourcesForNetworkUpgrade(
+    itemPath: string,
+    fileName: string,
+    stagingDirectory: string,
+    yamlRoot: AnyObject,
+  ): void {
+    const filePath: string = PathEx.join(stagingDirectory, 'templates', fileName);
+
+    if (!fs.existsSync(filePath)) {
+      return;
+    }
+
+    this._setFileContentsAsValue(itemPath, filePath, yamlRoot);
+  }
+
   /**
    * Prepare a values file for Solo Helm chart
    * @param profileName - resource profile name
@@ -668,7 +683,7 @@ export class ProfileManager {
    * @param cachedValuesFile - the target file to write the YAML root to.
    * @param yamlRoot - object to turn into YAML and write to file.
    */
-  private async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
+  public async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
     return await new Promise<string>((resolve, reject) => {
       fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), error => {
         if (error) {
