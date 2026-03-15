@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import chalk from 'chalk';
+import * as fs from 'node:fs';
 import {BaseCommand} from './base.js';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
@@ -609,225 +610,165 @@ export class AccountCommand extends BaseCommand {
         },
         {
           title: 'Scale down block node StatefulSet(s)',
-          skip: (): boolean =>
-            this.remoteConfig.configuration.state.blockNodes.length === 0 &&
-            this.remoteConfig.configuration.state.mirrorNodes.length === 0,
-          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
-            const subTasks: SoloListrTask<ResetContext>[] = [
-              {
-                title: 'Scale down block node StatefulSet(s)',
-                skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
-                task: async (): Promise<void> => {
-                  for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(blockNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
-                    }
+          skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+              }
 
-                    const namespace: string = blockNode.metadata.namespace.toString();
-                    const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-                    await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 0);
-                  }
-                },
-              },
-              {
-                title: 'Scale down mirror importer deployment(s)',
-                skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
-                task: async (): Promise<void> => {
-                  for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(mirrorNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
-                    }
-
-                    const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-                    const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
-                    const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
-                    await this.k8Factory
-                      .getK8(context)
-                      .manifests()
-                      .scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
-                  }
-                },
-              },
-            ];
-
-            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+              const namespace: string = blockNode.metadata.namespace.toString();
+              const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
+              await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 0);
+            }
           },
         },
         {
           title: 'Scale down mirror importer deployment(s)',
-          skip: (): boolean => true,
-          task: async (): Promise<void> => {},
+          skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+              }
+
+              const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+              const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
+              const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
+              await this.k8Factory
+                .getK8(context)
+                .manifests()
+                .scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
+            }
+          },
         },
         {
           title: 'Reset mirror object storage streams',
           skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
-          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
-            const subTasks: SoloListrTask<ResetContext>[] = [
-              {
-                title: 'Reset mirror object storage streams',
-                task: async (): Promise<void> => {
-                  for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(mirrorNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
-                    }
+          task: async (): Promise<void> => {
+            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+              }
 
-                    const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-                    const k8: K8 = this.k8Factory.getK8(context);
-                    const minioPods: Pod[] = await k8.pods().list(namespace, ['v1.min.io/tenant=minio']);
+              const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+              const k8: K8 = this.k8Factory.getK8(context);
+              const minioPods: Pod[] = await k8.pods().list(namespace, ['v1.min.io/tenant=minio']);
 
-                    for (const minioPod of minioPods) {
-                      await k8
-                        .containers()
-                        .readByRef(ContainerReference.of(minioPod.podReference, ContainerName.of('minio')))
-                        .execContainer(['sh', '-c', 'rm -rf /export/data/solo-streams/*']);
-                    }
-                  }
-                },
-              },
-              {
-                title: 'Truncate mirror postgres data',
-                task: async (): Promise<void> => {
-                  const truncateSql: string = String.raw`
-do
-' 
-declare
-    t record;
-begin
-for t in select table_name
-from information_schema.tables
-where table_schema = ''public'' and table_name !~ ''.*(flyway|transaction_type|citus_).*'' and table_type <> ''VIEW''
-    loop
-    execute format(''lock table %s in access exclusive mode'', t.table_name);
-    execute format(''truncate %s restart identity cascade'', t.table_name);
-    commit;
-    end loop;
-end;
-';
-`;
-                  for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(mirrorNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
-                    }
-
-                    const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-                    const k8: K8 = this.k8Factory.getK8(context);
-                    const postgresPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=postgres']);
-                    if (postgresPods.length === 0) {
-                      throw new SoloError(`postgres pod not found in namespace ${namespace}`);
-                    }
-
-                    const postgresPod: Pod = postgresPods[0];
-                    const postgresContainerReference: ContainerReference = ContainerReference.of(
-                      postgresPod.podReference,
-                      ContainerName.of('postgresql'),
-                    );
-
-                    const environmentOutput: string = await k8
-                      .containers()
-                      .readByRef(postgresContainerReference)
-                      .execContainer('/bin/bash -c printenv');
-                    const environmentLines: string[] = environmentOutput.split('\n');
-                    const prefixLine: string | undefined = environmentLines.find((line: string): boolean =>
-                      /_MIRROR_IMPORTER_DB_OWNER=/.test(line),
-                    );
-                    if (!prefixLine) {
-                      throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror postgres environment.');
-                    }
-
-                    const environmentVariablePrefix: string = prefixLine.split('_MIRROR_IMPORTER_DB_OWNER=')[0];
-                    const databaseOwner: string = helpers.getEnvironmentValue(
-                      environmentLines,
-                      `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`,
-                    );
-                    const databaseOwnerPassword: string = helpers.getEnvironmentValue(
-                      environmentLines,
-                      `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`,
-                    );
-                    const databaseName: string = helpers.getEnvironmentValue(
-                      environmentLines,
-                      `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
-                    );
-
-                    await k8
-                      .containers()
-                      .readByRef(postgresContainerReference)
-                      .execContainer([
-                        'psql',
-                        `postgresql://${databaseOwner}:${databaseOwnerPassword}@localhost:5432/${databaseName}`,
-                        '-v',
-                        'ON_ERROR_STOP=1',
-                        '-c',
-                        truncateSql,
-                      ]);
-                  }
-                },
-              },
-              {
-                title: 'Flush mirror redis cache',
-                task: async (): Promise<void> => {
-                  for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(mirrorNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
-                    }
-
-                    const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-                    const k8: K8 = this.k8Factory.getK8(context);
-                    const redisPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=redis']);
-
-                    for (const redisPod of redisPods) {
-                      const redisContainerReference: ContainerReference = ContainerReference.of(
-                        redisPod.podReference,
-                        ContainerName.of('redis'),
-                      );
-
-                      await k8
-                        .containers()
-                        .readByRef(redisContainerReference)
-                        .execContainer([
-                          'sh',
-                          '-c',
-                          'PASSWORD_FILE="${REDIS_PASSWORD_FILE:-/opt/bitnami/redis/secrets/redis-password}"; ' +
-                            'PASSWORD="${REDIS_PASSWORD:-$(cat "$PASSWORD_FILE" 2>/dev/null)}"; ' +
-                            'if [ -z "$PASSWORD" ]; then echo "REDIS password not found" >&2; exit 1; fi; ' +
-                            'if command -v redis-cli >/dev/null 2>&1; then ' +
-                            '  redis-cli -a "$PASSWORD" --no-auth-warning FLUSHALL; ' +
-                            'else ' +
-                            '  /opt/bitnami/redis/bin/redis-cli -a "$PASSWORD" --no-auth-warning FLUSHALL; ' +
-                            'fi',
-                        ]);
-                    }
-                  }
-                },
-              },
-            ];
-
-            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+              for (const minioPod of minioPods) {
+                await k8
+                  .containers()
+                  .readByRef(ContainerReference.of(minioPod.podReference, ContainerName.of('minio')))
+                  .execContainer(['sh', '-c', 'rm -rf /export/data/solo-streams/*']);
+              }
+            }
           },
         },
         {
           title: 'Truncate mirror postgres data',
-          skip: (): boolean => true,
-          task: async (): Promise<void> => {},
+          skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
+          task: async (): Promise<void> => {
+            const truncateSql: string = fs.readFileSync(constants.MIRROR_POSTGRES_TRUNCATE_SQL_FILE, 'utf8');
+            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+              }
+
+              const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+              const k8: K8 = this.k8Factory.getK8(context);
+              const postgresPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=postgres']);
+              if (postgresPods.length === 0) {
+                throw new SoloError(`postgres pod not found in namespace ${namespace}`);
+              }
+
+              const postgresPod: Pod = postgresPods[0];
+              const postgresContainerReference: ContainerReference = ContainerReference.of(
+                postgresPod.podReference,
+                ContainerName.of('postgresql'),
+              );
+
+              const environmentOutput: string = await k8
+                .containers()
+                .readByRef(postgresContainerReference)
+                .execContainer('/bin/bash -c printenv');
+              const environmentLines: string[] = environmentOutput.split('\n');
+              const prefixLine: string | undefined = environmentLines.find((line: string): boolean =>
+                /_MIRROR_IMPORTER_DB_OWNER=/.test(line),
+              );
+              if (!prefixLine) {
+                throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror postgres environment.');
+              }
+
+              const environmentVariablePrefix: string = prefixLine.split('_MIRROR_IMPORTER_DB_OWNER=')[0];
+              const databaseOwner: string = helpers.getEnvironmentValue(
+                environmentLines,
+                `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`,
+              );
+              const databaseOwnerPassword: string = helpers.getEnvironmentValue(
+                environmentLines,
+                `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`,
+              );
+              const databaseName: string = helpers.getEnvironmentValue(
+                environmentLines,
+                `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
+              );
+
+              await k8
+                .containers()
+                .readByRef(postgresContainerReference)
+                .execContainer([
+                  'psql',
+                  `postgresql://${databaseOwner}:${databaseOwnerPassword}@localhost:5432/${databaseName}`,
+                  '-v',
+                  'ON_ERROR_STOP=1',
+                  '-c',
+                  truncateSql,
+                ]);
+            }
+          },
         },
         {
           title: 'Flush mirror redis cache',
-          skip: (): boolean => true,
-          task: async (): Promise<void> => {},
+          skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+              }
+
+              const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+              const k8: K8 = this.k8Factory.getK8(context);
+              const redisPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=redis']);
+
+              for (const redisPod of redisPods) {
+                const redisContainerReference: ContainerReference = ContainerReference.of(
+                  redisPod.podReference,
+                  ContainerName.of('redis'),
+                );
+
+                await k8
+                  .containers()
+                  .readByRef(redisContainerReference)
+                  .execContainer([
+                    'sh',
+                    '-c',
+                    'PASSWORD_FILE="${REDIS_PASSWORD_FILE:-/opt/bitnami/redis/secrets/redis-password}"; ' +
+                      'PASSWORD="${REDIS_PASSWORD:-$(cat "$PASSWORD_FILE" 2>/dev/null)}"; ' +
+                      'if [ -z "$PASSWORD" ]; then echo "REDIS password not found" >&2; exit 1; fi; ' +
+                      'if command -v redis-cli >/dev/null 2>&1; then ' +
+                      '  redis-cli -a "$PASSWORD" --no-auth-warning FLUSHALL; ' +
+                      'else ' +
+                      '  /opt/bitnami/redis/bin/redis-cli -a "$PASSWORD" --no-auth-warning FLUSHALL; ' +
+                      'fi',
+                  ]);
+              }
+            }
+          },
         },
         {
           title: 'Delete ledger account secrets',
@@ -1000,69 +941,48 @@ end;
         },
         {
           title: 'Scale up block node StatefulSet(s)',
-          skip: (): boolean =>
-            this.remoteConfig.configuration.state.blockNodes.length === 0 &&
-            this.remoteConfig.configuration.state.mirrorNodes.length === 0,
-          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
-            const subTasks: SoloListrTask<ResetContext>[] = [
-              {
-                title: 'Scale up block node StatefulSet(s)',
-                skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
-                task: async (): Promise<void> => {
-                  for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(blockNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
-                    }
+          skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+              }
 
-                    const namespace: string = blockNode.metadata.namespace.toString();
-                    const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-                    await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 1);
-                  }
-                },
-              },
-              {
-                title: 'Scale up mirror importer deployment(s)',
-                skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
-                task: async (): Promise<void> => {
-                  for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
-                    const context: Context | undefined = this.remoteConfig
-                      .getClusterRefs()
-                      .get(mirrorNode.metadata.cluster);
-                    if (!context) {
-                      throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
-                    }
-
-                    const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-                    const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
-                    const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
-                    const k8: K8 = this.k8Factory.getK8(context);
-
-                    await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
-
-                    // Guard startup ordering: wait until postgres is Ready before importer startup work proceeds.
-                    await k8
-                      .pods()
-                      .waitForReadyStatus(
-                        namespaceName,
-                        ['app.kubernetes.io/name=postgres', `app.kubernetes.io/instance=${mirrorNodeReleaseName}`],
-                        constants.PODS_READY_MAX_ATTEMPTS,
-                        constants.PODS_READY_DELAY,
-                      );
-                  }
-                },
-              },
-            ];
-
-            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+              const namespace: string = blockNode.metadata.namespace.toString();
+              const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
+              await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 1);
+            }
           },
         },
         {
           title: 'Scale up mirror importer deployment(s)',
-          skip: (): boolean => true,
-          task: async (): Promise<void> => {},
+          skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
+          task: async (): Promise<void> => {
+            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+              if (!context) {
+                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+              }
+
+              const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+              const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
+              const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
+              const k8: K8 = this.k8Factory.getK8(context);
+
+              await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
+
+              // Guard startup ordering: wait until postgres is Ready before importer startup work proceeds.
+              await k8
+                .pods()
+                .waitForReadyStatus(
+                  namespaceName,
+                  ['app.kubernetes.io/name=postgres', `app.kubernetes.io/instance=${mirrorNodeReleaseName}`],
+                  constants.PODS_READY_MAX_ATTEMPTS,
+                  constants.PODS_READY_DELAY,
+                );
+            }
+          },
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
