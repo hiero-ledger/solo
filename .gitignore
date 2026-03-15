@@ -465,6 +465,7 @@ secring.*
 .env
 *.run
 junit*.xml
+xunit.xml
 node_modules/
 coverage/
 deleteme.yaml
