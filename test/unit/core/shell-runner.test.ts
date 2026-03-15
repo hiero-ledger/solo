@@ -45,4 +45,20 @@ describe('ShellRunner', (): void => {
     expect(readableSpy).to.have.been.calledWith('data', sinon.match.any);
     expect(childProcessSpy).to.have.been.calledWith('exit', sinon.match.any);
   }).timeout(Duration.ofSeconds(10).toMillis());
+
+  it('should complete successfully within timeout', async (): Promise<void> => {
+    const commandToRun: string = OperatingSystem.isWin32() ? 'echo hello' : 'echo hello';
+    const result: string[] = await shellRunner.run(commandToRun, [], false, false, {}, 10_000);
+    expect(result).to.include('hello');
+  }).timeout(Duration.ofSeconds(15).toMillis());
+
+  it('should reject with timeout error when command exceeds timeoutMs', async (): Promise<void> => {
+    // Use a sleep command that will exceed the short timeout
+    const commandToRun: string = OperatingSystem.isWin32() ? 'timeout /t 10' : 'sleep 10';
+    const timeoutMs: number = 500;
+
+    await expect(shellRunner.run(commandToRun, [], false, false, {}, timeoutMs)).to.be.rejectedWith(
+      `Command timed out after ${timeoutMs}ms`,
+    );
+  }).timeout(Duration.ofSeconds(10).toMillis());
 });
