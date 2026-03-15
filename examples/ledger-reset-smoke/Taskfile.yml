@@ -82,12 +82,13 @@ tasks:
           fi
 
   reset:
-    desc: "Reset ledger to genesis without restarting nodes"
+    desc: "Reset ledger to genesis with consensus pod restart enabled"
     cmds:
       - |
         set -euo pipefail
         mkdir -p "{{.SOLO_HOME}}/logs/ledger-reset"
-        time $SOLO_COMMAND ledger system reset --deployment "{{.SOLO_DEPLOYMENT}}" --node-aliases "{{.NODE_ALIASES}}"
+        SOLO_LEDGER_RESET_SKIP_POD_RESTART=false \
+          time $SOLO_COMMAND ledger system reset --deployment "{{.SOLO_DEPLOYMENT}}" --node-aliases "{{.NODE_ALIASES}}"
 
   post-reset-test:
     desc: "Create an account (balance {{.EXPECTED_BALANCE_2}}) and verify via mirror REST"

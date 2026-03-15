@@ -3745,6 +3745,7 @@ export class NodeCommandTasks {
     configInit: ConfigBuilder,
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
+    validateRemoteConfig: boolean = true,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
@@ -3753,7 +3754,7 @@ export class NodeCommandTasks {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
 
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);

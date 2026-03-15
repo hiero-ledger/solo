@@ -648,7 +648,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
@@ -710,7 +710,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
