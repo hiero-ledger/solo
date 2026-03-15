@@ -110,6 +110,8 @@ interface BlockNodeUpgradeConfigClass {
   valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
+  /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
+  recreateInstallTime?: Date;
 }
 
 interface BlockNodeUpgradeContext {
@@ -874,6 +876,7 @@ export class BlockNodeCommand extends BaseCommand {
                   Templates.renderBlockNodeLabels(config.id),
                   constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                  config.recreateInstallTime,
                 );
             } catch (error) {
               throw new SoloError(
@@ -1163,11 +1166,10 @@ export class BlockNodeCommand extends BaseCommand {
     const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
     await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-    // Wait for the old pod to be fully terminated before creating the new StatefulSet.
-    // helm uninstall returns immediately (no --wait), but the pod has a 30-second graceful
-    // shutdown period. The new StatefulSet will not create a replacement pod until the old
-    // pod with the same ordinal name is completely gone (StatefulSet at-most-one semantics).
-    await this.waitForBlockNodePodsDeleted(config.namespace, config.id, config.context);
+    // Record the time just before creating the new StatefulSet. The readiness check will
+    // use this as a lower bound on pod creationTimestamp so it ignores the still-terminating
+    // predecessor pod and waits for a genuinely new pod to become ready.
+    config.recreateInstallTime = new Date();
 
     await this.chartManager.install(
       config.namespace,
@@ -1177,29 +1179,6 @@ export class BlockNodeCommand extends BaseCommand {
       validatedUpgradeVersion,
       valuesArgument,
       config.context,
-    );
-  }
-
-  /**
-   * Polls until no pods with the block-node label exist in the namespace.
-   * Used before re-installing the chart so the new StatefulSet pod is not blocked
-   * by a terminating predecessor.
-   */
-  private async waitForBlockNodePodsDeleted(namespace: NamespaceName, id: ComponentId, context: string): Promise<void> {
-    const labels: string[] = Templates.renderBlockNodeLabels(id);
-    const maxAttempts: number = constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS;
-    const delay: number = constants.BLOCK_NODE_PODS_RUNNING_DELAY;
-
-    for (let attempt: number = 0; attempt < maxAttempts; attempt++) {
-      const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
-      if (pods.length === 0) {
-        return;
-      }
-      await new Promise<void>((resolve): ReturnType<typeof setTimeout> => setTimeout(resolve, delay));
-    }
-
-    this.logger.warn(
-      `Block node pods with labels ${labels.join(',')} did not terminate within ${maxAttempts} attempts; proceeding with install`,
     );
   }
 
