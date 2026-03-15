@@ -333,9 +333,8 @@ export class ProfileManager {
         const soloValuesYaml: AnyObject = yaml.parse(
           fs.readFileSync(constants.SOLO_DEPLOYMENT_VALUES_FILE, 'utf8'),
         ) as AnyObject;
-        const extraEnv: AnyObject[] =
-          (soloValuesYaml?.defaults?.root?.extraEnv as AnyObject[]) ?? [];
-        const javaOption: AnyObject | undefined = extraEnv.find(
+        const extraEnvironment: AnyObject[] = (soloValuesYaml?.defaults?.root?.extraEnv as AnyObject[]) ?? [];
+        const javaOption: AnyObject | undefined = extraEnvironment.find(
           (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
         );
         if (javaOption) {
@@ -344,7 +343,9 @@ export class ProfileManager {
             `,settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile}` +
             `,filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
         } else {
-          this.logger.warn(`JAVA_OPTS not found in ${constants.SOLO_DEPLOYMENT_VALUES_FILE}; JFR settings file '${jfrFile}' will not be applied`);
+          this.logger.warn(
+            `JAVA_OPTS not found in ${constants.SOLO_DEPLOYMENT_VALUES_FILE}; JFR settings file '${jfrFile}' will not be applied`,
+          );
         }
         this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
       }
