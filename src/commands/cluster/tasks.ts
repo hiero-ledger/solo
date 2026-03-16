@@ -169,17 +169,18 @@ export class ClusterCommandTasks {
         const clusterReference = context_.config.clusterRef;
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const deployments = this.localConfig.configuration.deployments;
-        const context = clusterReferences.get(clusterReference);
+        const context: StringFacade | undefined = clusterReferences.get(clusterReference);
 
         if (!context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
-        const deploymentsWithSelectedCluster = Object.entries(deployments)
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))
-          .map(([deploymentName, deployment]) => ({
-            name: deploymentName,
+        const deploymentsWithSelectedCluster: {name: string; namespace: string}[] = [...deployments]
+          .filter((deployment): boolean =>
+            deployment.clusters.some((cluster): boolean => cluster.toString() === clusterReference),
+          )
+          .map((deployment): {name: string; namespace: string} => ({
+            name: deployment.name,
             namespace: deployment.namespace || 'default',
           }));
 
@@ -239,10 +240,10 @@ export class ClusterCommandTasks {
   public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install Prometheus Stack chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
+      task: async (context_): Promise<void> => {
+        const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
 
-        const isPrometheusInstalled = await this.chartManager.isChartInstalled(
+        const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
           clusterSetupNamespace,
           constants.PROMETHEUS_RELEASE_NAME,
           context_.config.context,
@@ -385,7 +386,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    void argv;
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -402,7 +404,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    void argv;
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {

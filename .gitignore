@@ -495,3 +495,4 @@ deleteme.yaml
 /.codacy/cli.sh
 /.codacy/codacy.yaml
 .task/checksum/
+xunit.xml
