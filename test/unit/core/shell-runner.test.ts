@@ -47,14 +47,14 @@ describe('ShellRunner', (): void => {
   }).timeout(Duration.ofSeconds(10).toMillis());
 
   it('should complete successfully within timeout', async (): Promise<void> => {
-    const commandToRun: string = OperatingSystem.isWin32() ? 'echo hello' : 'echo hello';
-    const result: string[] = await shellRunner.run(commandToRun, [], false, false, {}, 10_000);
+    const result: string[] = await shellRunner.run('echo hello', [], false, false, {}, 10_000);
     expect(result).to.include('hello');
   }).timeout(Duration.ofSeconds(15).toMillis());
 
   it('should reject with timeout error when command exceeds timeoutMs', async (): Promise<void> => {
-    // Use a sleep command that will exceed the short timeout
-    const commandToRun: string = OperatingSystem.isWin32() ? 'timeout /t 10' : 'sleep 10';
+    // Use a node one-liner as a cross-platform long-running command: works on all platforms
+    // (Windows `timeout /t N` exits immediately when stdin is non-interactive in CI environments)
+    const commandToRun: string = 'node -e "setTimeout(()=>{}, 10000)"';
     const timeoutMs: number = 500;
 
     await expect(shellRunner.run(commandToRun, [], false, false, {}, timeoutMs)).to.be.rejectedWith(
