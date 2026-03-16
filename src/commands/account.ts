@@ -56,12 +56,11 @@ import {
 } from './one-shot/predefined-accounts.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {NetworkNodes} from '../core/network-nodes.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {container} from 'tsyringe-neo';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {PathEx} from '../business/utils/path-ex.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
 import * as CommandHelpers from './command-helpers.js';
@@ -521,40 +520,10 @@ export class AccountCommand extends BaseCommand {
       config: Config;
     }
 
-    const shouldDumpConsensusStates: boolean = process.env.SOLO_LEDGER_RESET_DUMP_STATES === 'true';
     const shouldSkipConsensusPodRestart: boolean = process.env.SOLO_LEDGER_RESET_SKIP_POD_RESTART !== 'false';
 
     const tasks: Listr<ResetContext, ListrRendererValue, ListrRendererValue> = new Listr(
       [
-        {
-          title: 'Freeze consensus network',
-          task: async (
-            context_,
-            task,
-          ): Promise<
-            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
-            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
-          > => {
-            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
-
-            return invokeSoloCommand(
-              'Freeze consensus network',
-              'consensus network freeze',
-              (): string[] => {
-                const argv: string[] = CommandHelpers.newArgv();
-                argv.push(
-                  'consensus',
-                  'network',
-                  'freeze',
-                  CommandHelpers.optionFromFlag(flags.deployment),
-                  deployment,
-                );
-                return argv;
-              },
-              this.taskList,
-            ).task(context_, task);
-          },
-        },
         {
           title: 'Identify nodes',
           task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<void> => {
@@ -589,23 +558,44 @@ export class AccountCommand extends BaseCommand {
           },
         },
         {
-          title: 'Dump consensus node states',
-          skip: (): boolean => !shouldDumpConsensusStates,
+          title: 'Stop consensus nodes',
+          task: async (
+            context_,
+            task,
+          ): Promise<
+            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
+            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
+          > =>
+            invokeSoloCommand(
+              'Stop consensus nodes',
+              'consensus node stop',
+              (): string[] => {
+                const commandArgv: string[] = CommandHelpers.newArgv();
+                commandArgv.push(
+                  'consensus',
+                  'node',
+                  'stop',
+                  CommandHelpers.optionFromFlag(flags.deployment),
+                  context_.config.deployment,
+                  CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                  context_.config.nodeAliases.join(','),
+                );
+                return commandArgv;
+              },
+              this.taskList,
+            ).task(context_, task),
+        },
+        {
+          title: 'Change node state to frozen in remote config',
           task: async (context_): Promise<void> => {
-            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
-            const outputDirectory: string = PathEx.joinWithRealPath(constants.SOLO_LOGS_DIR, 'ledger-reset');
-
             for (const nodeAlias of context_.config.nodeAliases) {
-              const resolvedContext: string =
-                this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
-                this.k8Factory.default().contexts().readCurrent();
-              await networkNodes.getStatesFromPod(
-                context_.config.namespace,
-                nodeAlias,
-                resolvedContext,
-                outputDirectory,
+              this.remoteConfig.configuration.components.changeNodePhase(
+                Templates.renderComponentIdFromNodeAlias(nodeAlias),
+                DeploymentPhase.FROZEN,
               );
             }
+
+            await this.remoteConfig.persist();
           },
         },
         {
@@ -840,44 +830,55 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Recreate consensus node pods and reset persisted state',
           skip: (): boolean => shouldSkipConsensusPodRestart,
-          task: async (context_): Promise<void> => {
+          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
             const nodeAliases: NodeAliases = context_.config.nodeAliases;
-            for (const nodeAlias of nodeAliases) {
-              const resolvedContext: string =
-                this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
-                this.k8Factory.default().contexts().readCurrent();
-              const k8: K8 = this.k8Factory.getK8(resolvedContext);
-              const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
-              const pods: Pod[] = await k8.pods().list(context_.config.namespace, labels);
-              for (const pod of pods) {
-                const podName: string = pod.podReference.name.toString();
-                await k8.pods().delete(pod.podReference);
+            const subTasks: SoloListrTask<ResetContext>[] = nodeAliases.map(
+              (nodeAlias): SoloListrTask<ResetContext> => ({
+                title: `Recreate ${nodeAlias}`,
+                task: async (): Promise<void> => {
+                  const resolvedContext: string =
+                    this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
+                    this.k8Factory.default().contexts().readCurrent();
+                  const k8: K8 = this.k8Factory.getK8(resolvedContext);
+                  const labels: string[] = [
+                    `solo.hedera.com/node-name=${nodeAlias}`,
+                    'solo.hedera.com/type=network-node',
+                  ];
+                  const pods: Pod[] = await k8.pods().list(context_.config.namespace, labels);
+                  for (const pod of pods) {
+                    const podName: string = pod.podReference.name.toString();
+                    await k8.pods().delete(pod.podReference);
 
-                // Ensure uploader-side stream state is fully reset by recreating stream PVCs.
-                // Deleting these claims after pod deletion avoids stale stream/signature chain data.
-                const resetPvcNames: string[] = [
-                  `hgcapp-record-streams-pvc-${podName}`,
-                  `hgcapp-event-streams-pvc-${podName}`,
-                  `hgcapp-blockstream-pvc-${podName}`,
-                  `hgcapp-data-saved-pvc-${podName}`,
-                  `hgcapp-state-pvc-${podName}`,
-                ];
-                await Promise.all(
-                  resetPvcNames.map(async (pvcName: string): Promise<void> => {
-                    try {
-                      await k8.pvcs().delete(PvcReference.of(context_.config.namespace, PvcName.of(pvcName)));
-                    } catch (error) {
-                      this.logger.debug(
-                        `Skipping reset PVC deletion for ${pvcName}: ${error instanceof Error ? error.message : String(error)}`,
-                      );
-                    }
-                  }),
-                );
-              }
-              await k8.pods().waitForReadyStatus(context_.config.namespace, labels, 120, 1000);
-              await new Promise(resolve => setTimeout(resolve, Duration.ofSeconds(15).toMillis()));
-              await k8.pods().waitForReadyStatus(context_.config.namespace, labels, 30, 1000);
-            }
+                    // Reset the PVC-backed stream and saved-state storage, but leave stable pod readiness
+                    // checks to the later node-start path. That path already waits for a stable ready pod
+                    // immediately before exec'ing into it, so only waiting for replacement pod creation
+                    // here avoids paying the same 15s settle cost twice.
+                    const resetPvcNames: string[] = [
+                      `hgcapp-record-streams-pvc-${podName}`,
+                      `hgcapp-event-streams-pvc-${podName}`,
+                      `hgcapp-blockstream-pvc-${podName}`,
+                      `hgcapp-data-saved-pvc-${podName}`,
+                      `hgcapp-state-pvc-${podName}`,
+                    ];
+                    await Promise.all(
+                      resetPvcNames.map(async (pvcName: string): Promise<void> => {
+                        try {
+                          await k8.pvcs().delete(PvcReference.of(context_.config.namespace, PvcName.of(pvcName)));
+                        } catch (error) {
+                          this.logger.debug(
+                            `Skipping reset PVC deletion for ${pvcName}: ${error instanceof Error ? error.message : String(error)}`,
+                          );
+                        }
+                      }),
+                    );
+                  }
+
+                  await k8.pods().waitForRunningPhase(context_.config.namespace, labels, 120, 1000);
+                },
+              }),
+            );
+
+            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
           },
         },
         {
@@ -912,95 +913,111 @@ export class AccountCommand extends BaseCommand {
           },
         },
         {
-          title: 'Scale up block node StatefulSet(s)',
-          skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
-          task: async (): Promise<void> => {
-            for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
-              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
-              if (!context) {
-                throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
-              }
+          title: 'Bring services back online',
+          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> =>
+            task.newListr(
+              [
+                {
+                  title: 'Scale up block node StatefulSet(s)',
+                  skip: (): boolean => this.remoteConfig.configuration.state.blockNodes.length === 0,
+                  task: async (): Promise<void> => {
+                    for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+                      const context: Context | undefined = this.remoteConfig
+                        .getClusterRefs()
+                        .get(blockNode.metadata.cluster);
+                      if (!context) {
+                        throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+                      }
 
-              const namespace: string = blockNode.metadata.namespace.toString();
-              const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-              await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 1);
-            }
-          },
-        },
-        {
-          title: 'Scale up mirror importer deployment(s)',
-          skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
-          task: async (): Promise<void> => {
-            for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
-              const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
-              if (!context) {
-                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
-              }
+                      const namespace: string = blockNode.metadata.namespace.toString();
+                      const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
+                      await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 1);
+                    }
+                  },
+                },
+                {
+                  title: 'Scale up mirror importer deployment(s)',
+                  skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
+                  task: async (): Promise<void> => {
+                    for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+                      const context: Context | undefined = this.remoteConfig
+                        .getClusterRefs()
+                        .get(mirrorNode.metadata.cluster);
+                      if (!context) {
+                        throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+                      }
 
-              const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-              const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
-              const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
-              const k8: K8 = this.k8Factory.getK8(context);
+                      const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+                      const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
+                      const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
+                      const k8: K8 = this.k8Factory.getK8(context);
 
-              await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
+                      await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
 
-              // Guard startup ordering: wait until postgres is Ready before importer startup work proceeds.
-              await k8
-                .pods()
-                .waitForReadyStatus(
-                  namespaceName,
-                  ['app.kubernetes.io/name=postgres', `app.kubernetes.io/instance=${mirrorNodeReleaseName}`],
-                  constants.PODS_READY_MAX_ATTEMPTS,
-                  constants.PODS_READY_DELAY,
-                );
+                      // The importer depends on postgres, but consensus node start no longer strictly validates
+                      // mirror components, so importer recovery can proceed in parallel with node startup.
+                      await k8
+                        .pods()
+                        .waitForReadyStatus(
+                          namespaceName,
+                          ['app.kubernetes.io/name=postgres', `app.kubernetes.io/instance=${mirrorNodeReleaseName}`],
+                          constants.PODS_READY_MAX_ATTEMPTS,
+                          constants.PODS_READY_DELAY,
+                        );
 
-              await k8
-                .pods()
-                .waitForReadyStatus(
-                  namespaceName,
-                  [
-                    'app.kubernetes.io/name=importer',
-                    'app.kubernetes.io/component=importer',
-                    `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
-                  ],
-                  constants.PODS_READY_MAX_ATTEMPTS,
-                  constants.PODS_READY_DELAY,
-                );
-            }
-          },
-        },
-        {
-          title: 'Start consensus node services',
-          task: async (
-            context_,
-            task,
-          ): Promise<
-            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
-            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
-          > => {
-            const nodeAliases: NodeAliases = context_.config.nodeAliases;
-            if (!nodeAliases || nodeAliases.length === 0) {
-              throw new SoloError('No consensus nodes found to start; check your deployment or --node-aliases input.');
-            }
-            return invokeSoloCommand(
-              'Start consensus nodes',
-              'consensus node start',
-              (): string[] => {
-                const argv: string[] = CommandHelpers.newArgv();
-                argv.push(
-                  'consensus',
-                  'node',
-                  'start',
-                  CommandHelpers.optionFromFlag(flags.deployment),
-                  context_.config.deployment,
-                  CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                  nodeAliases.join(','),
-                );
-                return argv;
-              },
-              this.taskList,
-            ).task(context_, task);
-          },
+                      await k8
+                        .pods()
+                        .waitForReadyStatus(
+                          namespaceName,
+                          [
+                            'app.kubernetes.io/name=importer',
+                            'app.kubernetes.io/component=importer',
+                            `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
+                          ],
+                          constants.PODS_READY_MAX_ATTEMPTS,
+                          constants.PODS_READY_DELAY,
+                        );
+                    }
+                  },
+                },
+                {
+                  title: 'Start consensus node services',
+                  task: async (
+                    context_,
+                    task,
+                  ): Promise<
+                    | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
+                    | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
+                  > => {
+                    const nodeAliases: NodeAliases = context_.config.nodeAliases;
+                    if (!nodeAliases || nodeAliases.length === 0) {
+                      throw new SoloError(
+                        'No consensus nodes found to start; check your deployment or --node-aliases input.',
+                      );
+                    }
+                    return invokeSoloCommand(
+                      'Start consensus nodes',
+                      'consensus node start',
+                      (): string[] => {
+                        const argv: string[] = CommandHelpers.newArgv();
+                        argv.push(
+                          'consensus',
+                          'node',
+                          'start',
+                          CommandHelpers.optionFromFlag(flags.deployment),
+                          context_.config.deployment,
+                          CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                          nodeAliases.join(','),
+                        );
+                        return argv;
+                      },
+                      this.taskList,
+                    ).task(context_, task);
+                  },
+                },
+              ],
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+            ),
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
