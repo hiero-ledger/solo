@@ -1166,9 +1166,14 @@ export class BlockNodeCommand extends BaseCommand {
     const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
     await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-    // Record the time just before creating the new StatefulSet. The readiness check will
-    // use this as a lower bound on pod creationTimestamp so it ignores the still-terminating
-    // predecessor pod and waits for a genuinely new pod to become ready.
+    // Wait for the old pod to be fully terminated before creating the new StatefulSet.
+    // helm uninstall returns immediately (no --wait), but the pod has a graceful shutdown period.
+    // The new StatefulSet will not create a replacement pod until the old pod with the same
+    // ordinal name is completely gone (StatefulSet at-most-one semantics), and the PVC cannot
+    // be reattached while the old pod still holds a ReadWriteOnce volume mount.
+    await this.waitForBlockNodePodsDeleted(config.namespace, config.id, config.context);
+
+    // Record the install time so the readiness check can ignore any stale pod references.
     config.recreateInstallTime = new Date();
 
     await this.chartManager.install(
@@ -1179,6 +1184,29 @@ export class BlockNodeCommand extends BaseCommand {
       validatedUpgradeVersion,
       valuesArgument,
       config.context,
+    );
+  }
+
+  /**
+   * Polls until no pods with the block-node label exist in the namespace.
+   * Used before re-installing the chart so the new StatefulSet pod is not blocked
+   * by a terminating predecessor.
+   */
+  private async waitForBlockNodePodsDeleted(namespace: NamespaceName, id: ComponentId, context: string): Promise<void> {
+    const labels: string[] = Templates.renderBlockNodeLabels(id);
+    const maxAttempts: number = constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS;
+    const delay: number = constants.BLOCK_NODE_PODS_RUNNING_DELAY;
+
+    for (let attempt: number = 0; attempt < maxAttempts; attempt++) {
+      const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
+      if (pods.length === 0) {
+        return;
+      }
+      await new Promise<void>((resolve): ReturnType<typeof setTimeout> => setTimeout(resolve, delay));
+    }
+
+    this.logger.warn(
+      `Block node pods with labels ${labels.join(',')} did not terminate within ${maxAttempts} attempts; proceeding with install`,
     );
   }
 
