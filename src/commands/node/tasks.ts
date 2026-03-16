@@ -1155,12 +1155,17 @@ export class NodeCommandTasks {
     }
   }
 
-  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
+  public loadConfiguration(
+    argv: ArgvStruct,
+    leaseWrapper: LeaseWrapper,
+    leaseManager: LockManager,
+    validateRemoteConfig: boolean = true,
+  ) {
     return {
       title: 'Load configuration',
       task: async () => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
         if (!this.oneShotState.isActive()) {
           leaseWrapper.lease = await leaseManager.create();
         }
@@ -2051,7 +2056,12 @@ export class NodeCommandTasks {
                 const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (constants.ENABLE_S6_IMAGE) {
-                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
+                  await container.execContainer([
+                    'bash',
+                    '-c',
+                    `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
+                      '/command/s6-svc -D /run/service/network-node',
+                  ]);
 
                   // Wait for graceful shutdown
                   await new Promise(resolve => setTimeout(resolve, 3000));

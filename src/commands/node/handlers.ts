@@ -876,7 +876,7 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
@@ -934,8 +934,8 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager, false),
+        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
@@ -958,7 +958,13 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.initialize(
+          argv,
+          this.configs.restartConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+          true,
+          false,
+        ),
         this.tasks.identifyExistingNodes(),
         this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),

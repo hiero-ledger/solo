@@ -838,7 +838,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
         {
-          title: 'Restart consensus node pods',
+          title: 'Recreate consensus node pods and reset persisted state',
           skip: (): boolean => shouldSkipConsensusPodRestart,
           task: async (context_): Promise<void> => {
             const nodeAliases: NodeAliases = context_.config.nodeAliases;
@@ -855,23 +855,28 @@ export class AccountCommand extends BaseCommand {
 
                 // Ensure uploader-side stream state is fully reset by recreating stream PVCs.
                 // Deleting these claims after pod deletion avoids stale stream/signature chain data.
-                const streamPvcNames: string[] = [
+                const resetPvcNames: string[] = [
                   `hgcapp-record-streams-pvc-${podName}`,
                   `hgcapp-event-streams-pvc-${podName}`,
                   `hgcapp-blockstream-pvc-${podName}`,
+                  `hgcapp-data-saved-pvc-${podName}`,
+                  `hgcapp-state-pvc-${podName}`,
                 ];
-                for (const pvcName of streamPvcNames) {
-                  try {
-                    await k8.pvcs().delete(PvcReference.of(context_.config.namespace, PvcName.of(pvcName)));
-                  } catch (error) {
-                    this.logger.debug(
-                      `Skipping stream PVC deletion for ${pvcName}: ${error instanceof Error ? error.message : String(error)}`,
-                    );
-                  }
-                }
+                await Promise.all(
+                  resetPvcNames.map(async (pvcName: string): Promise<void> => {
+                    try {
+                      await k8.pvcs().delete(PvcReference.of(context_.config.namespace, PvcName.of(pvcName)));
+                    } catch (error) {
+                      this.logger.debug(
+                        `Skipping reset PVC deletion for ${pvcName}: ${error instanceof Error ? error.message : String(error)}`,
+                      );
+                    }
+                  }),
+                );
               }
-              await k8.pods().waitForRunningPhase(context_.config.namespace, labels, 120, 1000);
               await k8.pods().waitForReadyStatus(context_.config.namespace, labels, 120, 1000);
+              await new Promise(resolve => setTimeout(resolve, Duration.ofSeconds(15).toMillis()));
+              await k8.pods().waitForReadyStatus(context_.config.namespace, labels, 30, 1000);
             }
           },
         },
@@ -904,39 +909,6 @@ export class AccountCommand extends BaseCommand {
           task: async (): Promise<void> => {
             this.remoteConfig.configuration.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
             await this.remoteConfig.persist();
-          },
-        },
-        {
-          title: 'Start consensus nodes',
-          task: async (
-            context_,
-            task,
-          ): Promise<
-            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
-            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
-          > => {
-            const nodeAliases: NodeAliases = context_.config.nodeAliases;
-            if (!nodeAliases || nodeAliases.length === 0) {
-              throw new SoloError('No consensus nodes found to start; check your deployment or --node-aliases input.');
-            }
-            return invokeSoloCommand(
-              'Start consensus nodes',
-              'consensus node start',
-              (): string[] => {
-                const argv: string[] = CommandHelpers.newArgv();
-                argv.push(
-                  'consensus',
-                  'node',
-                  'start',
-                  CommandHelpers.optionFromFlag(flags.deployment),
-                  context_.config.deployment,
-                  CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                  nodeAliases.join(','),
-                );
-                return argv;
-              },
-              this.taskList,
-            ).task(context_, task);
           },
         },
         {
@@ -981,7 +953,53 @@ export class AccountCommand extends BaseCommand {
                   constants.PODS_READY_MAX_ATTEMPTS,
                   constants.PODS_READY_DELAY,
                 );
+
+              await k8
+                .pods()
+                .waitForReadyStatus(
+                  namespaceName,
+                  [
+                    'app.kubernetes.io/name=importer',
+                    'app.kubernetes.io/component=importer',
+                    `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
+                  ],
+                  constants.PODS_READY_MAX_ATTEMPTS,
+                  constants.PODS_READY_DELAY,
+                );
             }
+          },
+        },
+        {
+          title: 'Start consensus node services',
+          task: async (
+            context_,
+            task,
+          ): Promise<
+            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
+            | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
+          > => {
+            const nodeAliases: NodeAliases = context_.config.nodeAliases;
+            if (!nodeAliases || nodeAliases.length === 0) {
+              throw new SoloError('No consensus nodes found to start; check your deployment or --node-aliases input.');
+            }
+            return invokeSoloCommand(
+              'Start consensus nodes',
+              'consensus node start',
+              (): string[] => {
+                const argv: string[] = CommandHelpers.newArgv();
+                argv.push(
+                  'consensus',
+                  'node',
+                  'start',
+                  CommandHelpers.optionFromFlag(flags.deployment),
+                  context_.config.deployment,
+                  CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                  nodeAliases.join(','),
+                );
+                return argv;
+              },
+              this.taskList,
+            ).task(context_, task);
           },
         },
       ],
