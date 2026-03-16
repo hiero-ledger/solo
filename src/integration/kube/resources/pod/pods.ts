@@ -38,6 +38,23 @@ export interface Pods {
   waitForReadyStatus(namespace: NamespaceName, labels: string[], maxAttempts?: number, delay?: number): Promise<Pod[]>;
 
   /**
+   * Wait for the newest ready pod matching the labels to remain the newest ready pod
+   * after a short settle window.
+   * @param namespace - namespace
+   * @param labels - pod labels
+   * @param settleDurationMs - settle window in milliseconds
+   * @param maxAttempts - maximum attempts to check
+   * @param delay - delay between checks in milliseconds
+   */
+  waitForStableReadyPod(
+    namespace: NamespaceName,
+    labels: string[],
+    settleDurationMs: number,
+    maxAttempts?: number,
+    delay?: number,
+  ): Promise<Pod>;
+
+  /**
    * Check if pod's phase is running
    * @param namespace - namespace
    * @param labels - pod labels

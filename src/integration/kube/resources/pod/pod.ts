@@ -46,6 +46,11 @@ export interface Pod {
   readonly podIp?: string;
 
   /**
+   * The creation timestamp of the pod
+   */
+  readonly creationTimestamp?: Date;
+
+  /**
    * The deletion timestamp of the pod
    */
   readonly deletionTimestamp?: Date;

@@ -110,6 +110,64 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   }
 
   /**
+   * Wait for a ready pod to become stable enough for follow-up operations such as exec or port-forward.
+   *
+   * This is stricter than waitForReadyStatus():
+   * 1. wait until a matching pod first reports Ready
+   * 2. select the newest non-terminating ready pod
+   * 3. wait through a settle window
+   * 4. verify that no newer replacement pod appeared during that window
+   *
+   * The extra settle check is important for StatefulSet and restart flows where Kubernetes can briefly
+   * expose a Ready pod and then replace it again. Returning too early from those flows can cause callers
+   * to exec into a pod that is already being replaced.
+   *
+   * @param namespace - namespace containing the target pod(s)
+   * @param labels - labels used to select the target pod(s)
+   * @param settleDurationMs - settle window used to confirm the newest ready pod stays current
+   * @param [maxAttempts] - maximum attempts for the initial ready check
+   * @param [delay] - delay between poll attempts in milliseconds
+   * @returns the newest stable ready pod
+   */
+  public async waitForStableReadyPod(
+    namespace: NamespaceName,
+    labels: string[],
+    settleDurationMs: number,
+    maxAttempts: number = 120,
+    delay: number = 1000,
+  ): Promise<Pod> {
+    const startTime: number = Date.now();
+    await this.waitForReadyStatus(namespace, labels, maxAttempts, delay);
+
+    // Capture the newest ready pod before the settle window, then re-read it afterwards.
+    // If a newer pod appears in between, the workload is still churning and callers should not exec into it yet.
+    const initialPod: Pod = await this.getSingleNewestStablePod(namespace, labels);
+    const initialCreationTime: number = initialPod.creationTimestamp?.getTime() || 0;
+
+    await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, settleDurationMs));
+    await this.waitForReadyStatus(namespace, labels, 30, delay);
+
+    const settledPod: Pod = await this.getSingleNewestStablePod(namespace, labels);
+    const settledCreationTime: number = settledPod.creationTimestamp?.getTime() || 0;
+
+    if (settledCreationTime > initialCreationTime) {
+      throw new SoloError(
+        `Newest pod changed during settle window for labels ${labels.join(',')}: ` +
+          `${initialPod.podReference?.name.toString() || '<unknown>'}@${new Date(initialCreationTime).toISOString()} -> ` +
+          `${settledPod.podReference?.name.toString() || '<unknown>'}@${new Date(settledCreationTime).toISOString()}`,
+      );
+    }
+
+    const elapsedMs: number = Date.now() - startTime;
+    this.logger.info(
+      `Stable ready pod ${settledPod.podReference?.name.toString() || '<unknown>'} ` +
+        `confirmed in ${elapsedMs} ms [namespace=${namespace.name}, labels=${labels.join(',')}]`,
+    );
+
+    return settledPod;
+  }
+
+  /**
    * Check pods for conditions
    * @param namespace - namespace
    * @param conditionsMap - a map of conditions and values
@@ -146,6 +204,29 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       // condition not found
       return false;
     });
+  }
+
+  private async getSingleNewestStablePod(namespace: NamespaceName, labels: string[]): Promise<Pod> {
+    const pods: Pod[] = await this.list(namespace, labels).then((matchingPods: Pod[]): Pod[] =>
+      matchingPods.filter((pod: Pod): boolean => !pod.deletionTimestamp && !!pod.podReference && !!pod.podIp),
+    );
+
+    if (pods.length === 0) {
+      throw new SoloError(`Expected at least one stable pod with labels: ${labels.join(',')}`);
+    }
+
+    const newestCreationTime: number = pods[0].creationTimestamp?.getTime() || 0;
+    const newestPods: Pod[] = pods.filter(
+      (pod: Pod): boolean => (pod.creationTimestamp?.getTime() || 0) === newestCreationTime,
+    );
+
+    if (newestPods.length !== 1) {
+      throw new SoloError(
+        `Expected exactly one newest stable pod, found ${newestPods.length} with labels: ${labels.join(',')}`,
+      );
+    }
+
+    return newestPods[0];
   }
 
   public async waitForRunningPhase(

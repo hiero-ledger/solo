@@ -51,6 +51,7 @@ export class K8ClientPod implements Pod {
     public readonly containerCommand?: string[],
     public readonly conditions?: PodCondition[],
     public readonly podIp?: string,
+    public readonly creationTimestamp?: Date,
     public readonly deletionTimestamp?: Date,
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
@@ -367,6 +368,7 @@ export class K8ClientPod implements Pod {
         (condition): K8ClientPodCondition => new K8ClientPodCondition(condition.type, condition.status),
       ),
       v1Pod.status?.podIP,
+      v1Pod.metadata?.creationTimestamp ? new Date(v1Pod.metadata.creationTimestamp) : undefined,
       v1Pod.metadata.deletionTimestamp ? new Date(v1Pod.metadata.deletionTimestamp) : undefined,
     );
   }
