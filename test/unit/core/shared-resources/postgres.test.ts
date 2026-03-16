@@ -17,8 +17,8 @@ import * as constants from '../../../../src/core/constants.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {type AnyObject} from '../../../../src/types/aliases.js';
 
-const encode: (s: string) => string = (s: string): string => Base64.encode(s);
 describe('PostgresSharedResource', (): void => {
+  const encode: (s: string) => string = (s: string): string => Base64.encode(s);
   const namespace: NamespaceName = NamespaceName.of('test-namespace');
   const context: string = 'test-context';
 
@@ -244,6 +244,9 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('creates cache directory and downloads init script when not cached', async (): Promise<void> => {
+      const fakeStream = {write: sinon.stub().callsArg(1), end: sinon.stub(), on: sinon.stub()};
+      sinon.stub(fs, 'createWriteStream').returns(fakeStream as any);
+
       existsSyncStub.restore();
       // First call (directory check) returns false, second (file check) returns false
       existsSyncStub = sinon.stub(fs, 'existsSync');
