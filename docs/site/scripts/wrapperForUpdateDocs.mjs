@@ -37,7 +37,7 @@ void async function main() {
   await update();
 
   // print the generated file
-  console.log("::group::Updated step-by-step-guide.md");
-  await run(`cat ${path.join(projectRoot, "docs/site/content/en/docs/step-by-step-guide.md")}`);
+  console.log("::group::Updated solo-user-guide.md");
+  await run(`cat ${path.join(projectRoot, "docs/site/content/en/docs/solo-user-guide.md")}`);
   console.log("::endgroup::");
 }();

@@ -169,17 +169,18 @@ export class ClusterCommandTasks {
         const clusterReference = context_.config.clusterRef;
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const deployments = this.localConfig.configuration.deployments;
-        const context = clusterReferences.get(clusterReference);
+        const context: StringFacade | undefined = clusterReferences.get(clusterReference);
 
         if (!context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
-        const deploymentsWithSelectedCluster = Object.entries(deployments)
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))
-          .map(([deploymentName, deployment]) => ({
-            name: deploymentName,
+        const deploymentsWithSelectedCluster: {name: string; namespace: string}[] = [...deployments]
+          .filter((deployment): boolean =>
+            deployment.clusters.some((cluster): boolean => cluster.toString() === clusterReference),
+          )
+          .map((deployment): {name: string; namespace: string} => ({
+            name: deployment.name,
             namespace: deployment.namespace || 'default',
           }));
 
@@ -239,10 +240,10 @@ export class ClusterCommandTasks {
   public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install Prometheus Stack chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
+      task: async (context_): Promise<void> => {
+        const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
 
-        const isPrometheusInstalled = await this.chartManager.isChartInstalled(
+        const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
           clusterSetupNamespace,
           constants.PROMETHEUS_RELEASE_NAME,
           context_.config.context,
@@ -278,51 +279,6 @@ export class ClusterCommandTasks {
         }
       },
       skip: context_ => !context_.config.deployPrometheusStack,
-    };
-  }
-
-  public installGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    return {
-      title: 'Install Grafana Agent chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isGrafanaAgentInstalled = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context_.config.context,
-        );
-
-        if (isGrafanaAgentInstalled) {
-          this.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
-        } else {
-          try {
-            await this.chartManager.install(
-              clusterSetupNamespace,
-              constants.GRAFANA_AGENT_RELEASE_NAME,
-              constants.GRAFANA_AGENT_CHART,
-              constants.GRAFANA_AGENT_CHART,
-              versions.GRAFANA_AGENT_VERSION,
-              '',
-              context_.config.context,
-            );
-            this.logger.showUser('✅ Grafana Agent chart installed successfully');
-          } catch (error) {
-            this.logger.debug('Error installing Grafana Agent chart', error);
-            try {
-              await this.chartManager.uninstall(
-                clusterSetupNamespace,
-                constants.GRAFANA_AGENT_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloError('Error installing Grafana Agent chart', error);
-          }
-        }
-      },
-      skip: context_ => !context_.config.deployGrafanaAgent,
     };
   }
 
@@ -407,12 +363,6 @@ export class ClusterCommandTasks {
           subtasks.push(this.installPrometheusStack(argv));
         }
 
-        if (context_.config.deployGrafanaAgent) {
-          subtasks.push(this.installGrafanaAgent(argv));
-        } else {
-          console.log('Skipping Grafana Agent chart installation');
-        }
-
         const result = await task.newListr(subtasks, {concurrent: false});
 
         if (argv.dev) {
@@ -436,7 +386,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    void argv;
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -453,7 +404,8 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPrometheusStack(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    void argv;
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -468,26 +420,6 @@ export class ClusterCommandTasks {
           this.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
         } else {
           this.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
-        }
-      },
-    };
-  }
-
-  public uninstallGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    return {
-      title: 'Uninstall Grafana Agent chart',
-      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const isGrafanaAgentInstalled: boolean = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context,
-        );
-
-        if (isGrafanaAgentInstalled) {
-          await this.chartManager.uninstall(clusterSetupNamespace, constants.GRAFANA_AGENT_RELEASE_NAME, context);
-          this.logger.showUser('✅ Grafana Agent chart uninstalled successfully');
-        } else {
-          this.logger.showUser('⏭️  Grafana Agent chart not installed, skipping');
         }
       },
     };
@@ -518,12 +450,7 @@ export class ClusterCommandTasks {
         }
 
         return task.newListr(
-          [
-            this.uninstallGrafanaAgent(argv),
-            this.uninstallPrometheusStack(argv),
-            this.uninstallMinioOperator(argv),
-            this.uninstallPodMonitorRole(argv),
-          ],
+          [this.uninstallPrometheusStack(argv), this.uninstallMinioOperator(argv), this.uninstallPodMonitorRole(argv)],
           {concurrent: false},
         );
       },

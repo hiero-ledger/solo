@@ -784,7 +784,25 @@ VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 
                 const importExchangeRatesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
 VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
-                const sqlQuery: string = [importFeesQuery, importExchangeRatesQuery].join('\n');
+
+                // When using an external database the importer's V1.0__Init.sql migration
+                // creates mirror_rest without the readonly role, so it lacks SELECT on any
+                // table added by a migration after V1.0.  Prepend a safe grant so that
+                // whoever runs this script (manually or via runSql) gives mirror_rest the
+                // access it needs.  The DO block is idempotent: it is a no-op when the
+                // grant already exists or when either role is absent.
+                const grantReadonlyQuery: string = `DO $grant$
+BEGIN
+  IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly')
+     AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest')
+  THEN
+    GRANT readonly TO mirror_rest;
+  END IF;
+END $grant$;`;
+
+                const sqlQuery: string = config.useExternalDatabase
+                  ? [grantReadonlyQuery, importFeesQuery, importExchangeRatesQuery].join('\n')
+                  : [importFeesQuery, importExchangeRatesQuery].join('\n');
 
                 const cacheDirectory: string = config.cacheDir;
                 // Build the path

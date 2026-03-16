@@ -142,24 +142,24 @@ tasks:
       - printf "\r::endgroup::--------------\n"
 
   build:guide:
-    desc: "Build the Step-by-Step Guide"
+    desc: "Build Solo User Guide"
     silent: true
     dir: ../..
     sources:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/content/en/templates/step-by-step-guide.template.md
+      - docs/site/content/en/templates/solo-user-guide.template.md
       - docs/site/content/en/templates/advanced-deployments.template.md
       - docs/site/content/en/templates/example-index.template.md
       - docs/site/scripts/wrapperForUpdateDocs.mjs
       - docs/site/scripts/executeUpdateDocs.mjs
     generates:
-      - docs/site/content/en/docs/step-by-step-guide.md
+      - docs/site/content/en/docs/solo-user-guide.md
       - docs/site/content/en/docs/advanced-deployments.md
     cmds:
-      - printf "\r::group::Building the Step-by-Step Guide\n"
-      - rm -f docs/site/content/en/step-by-step-guide.md
+      - printf "\r::group::Building Solo User Guide\n"
+      - rm -f docs/site/content/en/solo-user-guide.md
       - (cd docs/site/ && npm install)
       - task: "build:solo"
       - |

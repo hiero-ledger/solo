@@ -420,6 +420,10 @@ export class Templates {
     ];
   }
 
+  public static renderMirrorIngressControllerLabels(): string[] {
+    return [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL];
+  }
+
   public static renderEnvoyProxyLabels(id: ComponentId): string[] {
     const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
@@ -467,6 +471,35 @@ export class Templates {
 
   public static renderNodeSvcLabelsFromNodeId(nodeId: NodeId): string[] {
     return [`solo.hedera.com/node-id=${nodeId},solo.hedera.com/type=network-node-svc`];
+  }
+
+  /**
+   * Build label selectors for deployment refresh by component type.
+   */
+  public static renderComponentLabelSelectors(componentType: string, id: ComponentId): string[] {
+    switch (componentType) {
+      case 'ConsensusNode': {
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'HaProxy': {
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'BlockNode': {
+        return Templates.renderBlockNodeLabels(id);
+      }
+      case 'MirrorNode': {
+        return Templates.renderMirrorIngressControllerLabels();
+      }
+      case 'RelayNode': {
+        return Templates.renderRelayLabels(id);
+      }
+      case 'Explorer': {
+        return Templates.renderExplorerLabels(id);
+      }
+      default: {
+        return [];
+      }
+    }
   }
 
   public static parseExternalBlockAddress(raw: string): [string, number] {

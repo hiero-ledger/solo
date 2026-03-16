@@ -63,7 +63,7 @@ export class BaseCommandTest {
       argv.setCommand(
         DeploymentCommandDefinition.COMMAND_NAME,
         DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
-        DeploymentCommandDefinition.DIAGNOSTIC_LOGS,
+        DeploymentCommandDefinition.DIAGNOSTICS_LOGS,
       );
 
       const nodeCmd: NodeCommand = container.resolve<NodeCommand>(InjectTokens.NodeCommand);

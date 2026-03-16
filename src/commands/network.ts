@@ -9,6 +9,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
@@ -79,7 +80,6 @@ import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import semver from 'semver/preload.js';
-import {getEnvironmentVariable} from '../core/constants.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 
@@ -492,7 +492,7 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
       }
@@ -718,41 +718,8 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
-    const flagsWithDisabledPrompts: CommandFlag[] = [
-      flags.apiPermissionProperties,
-      flags.app,
-      flags.applicationEnv,
-      flags.applicationProperties,
-      flags.bootstrapProperties,
-      flags.genesisThrottlesFile,
-      flags.cacheDir,
-      flags.chainId,
-      flags.chartDirectory,
-      flags.debugNodeAlias,
-      flags.loadBalancerEnabled,
-      flags.log4j2Xml,
-      flags.persistentVolumeClaims,
-      flags.profileName,
-      flags.profileFile,
-      flags.settingTxt,
-      flags.grpcTlsCertificatePath,
-      flags.grpcWebTlsCertificatePath,
-      flags.grpcTlsKeyPath,
-      flags.grpcWebTlsKeyPath,
-      flags.haproxyIps,
-      flags.envoyIps,
-      flags.storageType,
-      flags.gcsWriteAccessKey,
-      flags.gcsWriteSecrets,
-      flags.gcsEndpoint,
-      flags.gcsBucket,
-      flags.gcsBucketPrefix,
-      flags.nodeAliasesUnparsed,
-      flags.domainNames,
-    ];
-
     // disable the prompts that we don't want to prompt the user for
-    flags.disablePrompts(flagsWithDisabledPrompts);
+    flags.disablePrompts(NetworkCommand.DEPLOY_FLAGS_LIST.optional);
 
     const allFlags: CommandFlag[] = [
       ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,
@@ -876,13 +843,6 @@ export class NetworkCommand extends BaseCommand {
       }),
     );
 
-    task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-      }),
-    );
-
     if (deleteSecrets && deletePvcs) {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
@@ -890,6 +850,13 @@ export class NetworkCommand extends BaseCommand {
         }),
       );
     } else {
+      task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
+      await Promise.all(
+        contexts.map(async (context): Promise<void> => {
+          await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+        }),
+      );
+
       if (deletePvcs) {
         task.title = `Deleting PVCs in namespace ${namespace}`;
         await this.deletePvcs(namespace, contexts);
@@ -1404,30 +1371,51 @@ export class NetworkCommand extends BaseCommand {
         },
         this.addNodesAndProxies(),
         {
-          title: 'copy over',
+          title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            await this.downloader.fetchPackage(
-              constants.WRAPS_LIB_DOWNLOAD_URL,
-              'unusued',
-              constants.SOLO_CACHE_DIR,
-              false,
-              '',
-              false,
-            );
-
-            const tarFilePath: string = PathEx.join(
-              constants.SOLO_CACHE_DIR,
-              `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
-            );
-
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-            // Create extraction dir
-            fs.mkdirSync(extractedDirectory);
+            if (fs.existsSync(extractedDirectory)) {
+              this.logger.debug('Wraps library already installed');
+            } else {
+              await this.downloader.fetchPackage(
+                constants.WRAPS_LIB_DOWNLOAD_URL,
+                'unusued',
+                constants.SOLO_CACHE_DIR,
+                false,
+                '',
+                false,
+              );
 
-            // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-            this.zippy.untar(tarFilePath, extractedDirectory);
+              const tarFilePath: string = PathEx.join(
+                constants.SOLO_CACHE_DIR,
+                `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
+              );
+
+              // Create extraction dir
+              fs.mkdirSync(extractedDirectory);
+
+              // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+              this.zippy.untar(tarFilePath, extractedDirectory);
+            }
+
+            // Having any files except for those inside the folder causes an error in CN
+            const allowedFiles: Set<string> = new Set([
+              'decider_pp.bin',
+              'decider_vp.bin',
+              'nova_pp.bin',
+              'nova_vp.bin',
+            ]);
+
+            const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+            for (const file of fs.readdirSync(sourcePath)) {
+              if (!allowedFiles.has(file)) {
+                const filePath: string = PathEx.join(sourcePath, file);
+                fs.unlinkSync(filePath); // delete unwanted file
+              }
+            }
 
             for (const consensusNode of config.consensusNodes) {
               const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
@@ -1435,10 +1423,7 @@ export class NetworkCommand extends BaseCommand {
                 consensusNode.name,
               );
 
-              const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-              const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
-
-              await rootContainer.copyTo(sourcePath, targetPath);
+              await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
             }
           },
         },

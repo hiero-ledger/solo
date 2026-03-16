@@ -3,6 +3,7 @@
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {
+  type Context,
   type ClusterReferenceName,
   type ClusterReferences,
   type DeploymentName,
@@ -244,7 +245,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloConsensusNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
+  private static soloConsensusNodeUpgradeArgv(
+    options: BaseTestOptions,
+    zipFile?: string,
+    applicationPropertiesPath?: string,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
 
@@ -263,6 +268,10 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
     if (zipFile) {
       argv.push(optionFromFlag(flags.upgradeZipFile), zipFile);
+    }
+
+    if (applicationPropertiesPath) {
+      argv.push(optionFromFlag(flags.applicationProperties), applicationPropertiesPath);
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
@@ -316,7 +325,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+      DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),
@@ -726,6 +735,54 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
+  public static upgradeConfigs(options: BaseTestOptions): void {
+    const {testName, namespace, contexts} = options;
+    const {soloConsensusNodeUpgradeArgv} = ConsensusNodeTest;
+    const temporaryDirectory: string = getTemporaryDirectory();
+
+    it(`${testName}: consensus node upgrade [upgrade configs]`, async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+        InjectTokens.LocalConfigRuntimeState,
+      );
+      await localConfig.load();
+
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+      await remoteConfig.load(namespace, contexts[0]);
+
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+      const containerReference: Container = k8Factory
+        .default()
+        .containers()
+        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+
+      const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+
+      // prepare temporary application.properties to utilize for argv
+      await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
+
+      const testApplicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
+
+      const applicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
+
+      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
+
+      fs.writeFileSync(testApplicationPropertiesPath, updatedContent);
+
+      await main(soloConsensusNodeUpgradeArgv(options, undefined, testApplicationPropertiesPath));
+
+      await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
+
+      const upgradedApplicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
+
+      expect(updatedContent).to.equal(upgradedApplicationProperties);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
   public static destroy(options: BaseTestOptions): void {
     const {testName} = options;
     const {soloConsensusNodeDestroyArgv} = ConsensusNodeTest;
@@ -743,7 +800,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
   }
 
-  private static async verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+  private static async verifyPodShouldBeRunning(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context?: Context,
+  ): Promise<void> {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
@@ -753,7 +814,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace, context);
 
     const podName: string = await container
       .resolve(NodeCommandTasks)
@@ -764,7 +825,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     expect(podName).to.equal(`network-${nodeAlias}-0`);
   }
 
-  private static async verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+  private static async verifyPodShouldNotBeActive(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context: Context,
+  ): Promise<void> {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
@@ -774,7 +839,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace, context);
 
     await expect(
       container
@@ -810,8 +875,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      await verifyPodShouldBeRunning(namespace, nodeAlias);
-      await verifyPodShouldNotBeActive(namespace, nodeAlias);
+      await verifyPodShouldBeRunning(namespace, nodeAlias, context);
+      await verifyPodShouldNotBeActive(namespace, nodeAlias, context);
       // stop the node to shut off the auto-restart
       await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
@@ -824,7 +889,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
   }
 
   public static PemStop(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger, consensusNodesCount, deployment} = options;
+    const {namespace, testName, testLogger, consensusNodesCount, deployment, contexts} = options;
     const {
       checkNetwork,
       refresh,
@@ -842,8 +907,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
       await sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
 
       for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
-        await verifyPodShouldBeRunning(namespace, nodeAlias);
-        await verifyPodShouldNotBeActive(namespace, nodeAlias);
+        await verifyPodShouldBeRunning(namespace, nodeAlias, contexts ? contexts[0] : undefined);
+        await verifyPodShouldNotBeActive(namespace, nodeAlias, contexts ? contexts[0] : undefined);
       }
 
       await refresh(options);

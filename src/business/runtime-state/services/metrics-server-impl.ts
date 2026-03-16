@@ -173,11 +173,12 @@ export class MetricsServerImpl implements MetricsServer {
         clusterMetric.postgresPodName,
       );
       namespace = clusterMetric.namespace?.name ? clusterMetric.namespace : namespace;
-    }
-
-    const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
-    if (namespace && namespace.name) {
-      await remoteConfigRuntimeState.load(namespace);
+      const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+      if (namespace && namespace.name) {
+        await remoteConfigRuntimeState.load(namespace, clusterMetric.context);
+      }
     }
 
     return new AggregatedMetrics(

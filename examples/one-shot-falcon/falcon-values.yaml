@@ -86,7 +86,7 @@ mirrorNode:
   --profile: ""
   --force-port-forward: true
   --quiet-mode: false
-  --pinger: false
+  --pinger: true
   --operator-id: ""
   --operator-key: ""
   --use-external-database: false

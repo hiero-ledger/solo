@@ -1,6 +1,35 @@
 #!/bin/bash
 set -eo pipefail
 
+collect_failure_diagnostics() {
+  local rc="${1}"
+
+  echo "::group::Failure diagnostics"
+  echo "launch_network.sh failed with exit code ${rc}"
+
+  if command -v npm &> /dev/null; then
+    echo "Collecting Solo deployment diagnostics for ${SOLO_DEPLOYMENT}..."
+    npm run solo -- deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
+    echo "Solo diagnostics collection finished. Check ~/.solo/logs for downloaded artifacts."
+  else
+    echo "npm is not available; skipping Solo diagnostics collection"
+  fi
+
+  echo "::endgroup::"
+}
+
+on_exit() {
+  local rc=$?
+
+  if [[ ${rc} -ne 0 ]]; then
+    collect_failure_diagnostics "${rc}"
+  fi
+
+  exit "${rc}"
+}
+
+trap on_exit EXIT
+
 releaseTag="${1}"
 if [[ -z "${releaseTag}" ]]; then
   echo "Usage: $0 <releaseTag>"
@@ -89,9 +118,10 @@ npm run solo -- init --dev
 # Do not force legacy release-name override when upgrading with current workspace Solo.
 # The old released Solo command executed above may have installed either naming scheme.
 unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
-# using new solo to redeploy solo deployment chart to new version
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+
+# using new solo to redeploy solo deployment chart to new version
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
