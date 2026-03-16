@@ -1308,7 +1308,7 @@ END $grant$;`;
                   'There are missing values that need to be provided when' +
                   `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
-                throw new SoloError(`${errorMessage} ${missingFlags.map(flag => `--${flag.name}`).join(', ')}`);
+                throw new SoloError(`${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`);
               }
             }
 
@@ -1646,7 +1646,7 @@ END $grant$;`;
   }
 
   private async adoptMirrorIngressControllerRbacOwnership(config: MirrorNodeDeployConfigClass): Promise<void> {
-    const rbac = this.k8Factory.getK8(config.clusterContext).rbac();
+    const rbac: any = this.k8Factory.getK8(config.clusterContext).rbac();
     const rbacNames: Set<string> = new Set([
       constants.MIRROR_INGRESS_CONTROLLER,
       `${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`,

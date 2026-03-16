@@ -2,7 +2,7 @@
 
 import {type Rbacs} from '../../../resources/rbac/rbacs.js';
 import {type ClusterRole} from '../../../resources/rbac/cluster-role.js';
-import {type RbacAuthorizationV1Api} from '@kubernetes/client-node';
+import {type RbacAuthorizationV1Api, type V1ClusterRole, type V1ClusterRoleBinding} from '@kubernetes/client-node';
 import {K8ClientClusterRole} from './k8-client-cluster-role.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
@@ -79,7 +79,7 @@ export class K8ClientRbacs implements Rbacs {
     };
 
     try {
-      const clusterRole = await this.k8sRbacApi.readClusterRole({name});
+      const clusterRole: V1ClusterRole = await this.k8sRbacApi.readClusterRole({name});
       clusterRole.metadata ??= {};
       clusterRole.metadata.annotations = {...clusterRole.metadata.annotations, ...annotations};
       clusterRole.metadata.labels = {...clusterRole.metadata.labels, ...labels};
@@ -91,7 +91,7 @@ export class K8ClientRbacs implements Rbacs {
     }
 
     try {
-      const clusterRoleBinding = await this.k8sRbacApi.readClusterRoleBinding({name});
+      const clusterRoleBinding: V1ClusterRoleBinding = await this.k8sRbacApi.readClusterRoleBinding({name});
       clusterRoleBinding.metadata ??= {};
       clusterRoleBinding.metadata.annotations = {...clusterRoleBinding.metadata.annotations, ...annotations};
       clusterRoleBinding.metadata.labels = {...clusterRoleBinding.metadata.labels, ...labels};

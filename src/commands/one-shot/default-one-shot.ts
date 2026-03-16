@@ -855,8 +855,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           balance: string;
           group: string;
           publicAddress?: string;
-        }[] = createdAccounts.map(account => {
-          const formattedAccount = {
+        }[] = createdAccounts.map((account): {
+          accountId: string;
+          privateKey: string;
+          publicKey: string;
+          balance: string;
+          group: string;
+          publicAddress?: string;
+        } => {
+          const formattedAccount: {
+            accountId: string;
+            privateKey: string;
+            publicKey: string;
+            balance: string;
+            group: string;
+            publicAddress?: string;
+          } = {
             accountId: account.accountId.toString(),
             privateKey: `0x${account.data.privateKey.toStringRaw()}`,
             publicKey: `0x${PublicKey.fromString(account.publicKey).toStringRaw()}`,
@@ -882,7 +896,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           }));
 
         // Create the structured output with both systemAccounts and createdAccounts
-        const outputData = {
+        const outputData: {
+          systemAccounts: { name: string; accountId: string; publicKey: string; privateKey?: string }[];
+          createdAccounts: {
+            accountId: string;
+            privateKey: string;
+            publicKey: string;
+            balance: string;
+            group: string;
+            publicAddress?: string;
+          }[];
+        } = {
           systemAccounts: formattedSystemAccounts,
           createdAccounts: formattedCreatedAccounts,
         };
@@ -926,7 +950,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     let hasExplorers: boolean = false;
     let hasRelays: boolean = false;
 
-    const taskArray: any[] = [
+    const taskArray: SoloListrTask<AnyListrContext>[] = [
       {
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
@@ -951,7 +975,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
           if (!config.deployment) {
-            const deployments = this.localConfig.configuration.deployments;
+            const deployments: any = this.localConfig.configuration.deployments;
             if (deployments.length === 0) {
               this.logger.showUser('No deployments found in local config, have they already been deleted?');
               config.skipAll = true;
@@ -961,9 +985,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             if (deployments.length > 1) {
               const selectedDeployment: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
                 message: 'Select deployment to destroy',
-                choices: deployments.map((deployment: any) => {
+                choices: deployments.map((deployment: any): { name: string; value: string } => {
                   const clusterNames: string[] = (deployment.clusters ?? [])
-                    .map((cluster: any) => cluster?.toString())
+                    .map((cluster: any): string => cluster?.toString())
                     .filter(Boolean);
                   return {
                     name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames || 'unknown'})`,
@@ -979,7 +1003,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.deployment = selectedDeployment;
             } else {
               // Only one deployment exists, use it directly
-              const deployment = deployments.get(0);
+              const deployment: any = deployments.get(0);
               if (!deployment || !deployment.name) {
                 throw new SoloError('Invalid deployment configuration: deployment name is missing');
               }
@@ -990,11 +1014,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           }
 
           const selectedDeployment: any = this.localConfig.configuration.deployments.find(
-            (deployment: any) => deployment.name === config.deployment,
+            (deployment: any): boolean => deployment.name === config.deployment,
           );
           if (selectedDeployment?.clusters?.length) {
             const firstCluster: any = selectedDeployment.clusters?.find(
-              (cluster: any) => cluster !== null && cluster !== undefined,
+              (cluster: any): boolean => cluster !== null && cluster !== undefined,
             );
             if (firstCluster) {
               config.clusterRef ??= firstCluster.toString();
@@ -1260,7 +1284,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
-    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+    const tasks: any = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
 
     try {
       await tasks.run();
@@ -1294,17 +1318,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         {
           title: 'Check for cached deployment',
           task: async (context_, _task): Promise<void> => {
-            const deploymentFromFlag = this.configManager.getFlag(flags.deployment);
+            const deploymentFromFlag: string = this.configManager.getFlag(flags.deployment);
             if (deploymentFromFlag) {
               context_.deploymentName = deploymentFromFlag;
               this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentFromFlag)} (from flag)`));
               return;
             }
 
-            const cacheFile = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
+            const cacheFile: string = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
 
             if (fs.existsSync(cacheFile)) {
-              const deploymentName = fs.readFileSync(cacheFile, 'utf8').trim();
+              const deploymentName: string = fs.readFileSync(cacheFile, 'utf8').trim();
               if (deploymentName) {
                 context_.deploymentName = deploymentName;
                 this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentName)} (from cache)`));
@@ -1313,7 +1337,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             await this.localConfig.load();
-            const deployments = this.localConfig.configuration.deployments;
+            const deployments: any = this.localConfig.configuration.deployments;
             if (deployments.length === 1) {
               context_.deploymentName = deployments.get(0).name;
               this.logger.showUser(
@@ -1323,7 +1347,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             if (deployments.length > 1) {
-              const deploymentNames = deployments.map(d => d.name).join(', ');
+              const deploymentNames: string = deployments.map((d: any): string => d.name).join(', ');
               throw new SoloError(
                 'No cached deployment found and multiple local deployments exist.\n' +
                   `Please specify ${optionFromFlag(flags.deployment)}.\n` +
@@ -1343,7 +1367,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           task: async (context_, _task): Promise<void> => {
             await this.localConfig.load();
 
-            const deployment = this.localConfig.configuration.deployments.find(d => d.name === context_.deploymentName);
+            const deployment: any = this.localConfig.configuration.deployments.find((d: any): boolean => d.name === context_.deploymentName);
 
             if (!deployment) {
               this.logger.showUser(
@@ -1359,7 +1383,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.showUser(chalk.cyan(`\nNamespace: ${chalk.bold(deployment.namespace)}`));
 
             if (deployment.clusters && deployment.clusters.length > 0) {
-              const clusterNames = deployment.clusters.map(c => c.toString()).join(', ');
+              const clusterNames: string = deployment.clusters.map((c: any): string => c.toString()).join(', ');
               this.logger.showUser(chalk.cyan(`Clusters: ${chalk.bold(clusterNames)}`));
             }
           },
@@ -1372,14 +1396,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const deployment = context_.deployment;
+            const deployment: any = context_.deployment;
             if (!deployment.clusters || deployment.clusters.length === 0) {
               this.logger.showUser(chalk.yellow('\n⚠️  No clusters attached to this deployment.'));
               return;
             }
 
-            const clusterReference = deployment.clusters.get(0).toString();
-            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            const clusterReference: string = deployment.clusters.get(0).toString();
+            const clusterContext: any = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
             if (!clusterContext) {
               this.logger.showUser(
@@ -1390,8 +1414,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             try {
               this.k8Factory.default().contexts().updateCurrent(clusterContext.toString());
-              const namespaces = await this.k8Factory.default().namespaces().list();
-              const targetNamespace = namespaces.find(ns => ns.name === deployment.namespace);
+              const namespaces: any[] = await this.k8Factory.default().namespaces().list();
+              const targetNamespace: any = namespaces.find((ns: any): boolean => ns.name === deployment.namespace);
 
               if (!targetNamespace) {
                 this.logger.showUser(
@@ -1419,13 +1443,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const deployment = context_.deployment;
+            const deployment: any = context_.deployment;
 
             try {
-              const namespaceName = NamespaceName.of(deployment.namespace);
-              const configMaps = await this.k8Factory.default().configMaps().list(namespaceName, []);
+              const namespaceName: NamespaceName = NamespaceName.of(deployment.namespace);
+              const configMaps: any[] = await this.k8Factory.default().configMaps().list(namespaceName, []);
 
-              const remoteConfigMap = configMaps.find(cm => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME);
+              const remoteConfigMap: any = configMaps.find((cm: any): boolean => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME);
 
               if (!remoteConfigMap) {
                 this.logger.showUser(
@@ -1465,7 +1489,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.logger.showUser(chalk.cyan('\nDeployed Components:'));
 
                 if (components.consensusNodes && components.consensusNodes.length > 0) {
-                  const nodeNames: string = components.consensusNodes.map(n => n.name).join(', ');
+                  const nodeNames: string = components.consensusNodes.map((n: any): string => n.name).join(', ');
                   this.logger.showUser(
                     `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`,
                   );
