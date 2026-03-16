@@ -685,7 +685,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const title: string = isMultiple ? 'One Shot Multiple User Notes' : 'One Shot User Notes';
 
     this.logger.addMessageGroup(messageGroupKey, title);
-    const data = [
+    const data: string[] = [
       `Cluster Reference: ${context_.config.clusterRef}`,
       `Deployment Name: ${context_.config.deployment}`,
       `Namespace Name: ${context_.config.namespace.name}`,
@@ -722,7 +722,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const messageGroupKey: string = 'versions-used';
     this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
 
-    const data = [
+    const data: string[] = [
       `Solo Chart Version: ${version.SOLO_CHART_VERSION}`,
       `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`,
       `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`,
@@ -855,36 +855,40 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           balance: string;
           group: string;
           publicAddress?: string;
-        }[] = createdAccounts.map((account): {
-          accountId: string;
-          privateKey: string;
-          publicKey: string;
-          balance: string;
-          group: string;
-          publicAddress?: string;
-        } => {
-          const formattedAccount: {
+        }[] = createdAccounts.map(
+          (
+            account,
+          ): {
             accountId: string;
             privateKey: string;
             publicKey: string;
             balance: string;
             group: string;
             publicAddress?: string;
-          } = {
-            accountId: account.accountId.toString(),
-            privateKey: `0x${account.data.privateKey.toStringRaw()}`,
-            publicKey: `0x${PublicKey.fromString(account.publicKey).toStringRaw()}`,
-            balance: account.data.balance.toString(),
-            group: account.data.group,
-          };
+          } => {
+            const formattedAccount: {
+              accountId: string;
+              privateKey: string;
+              publicKey: string;
+              balance: string;
+              group: string;
+              publicAddress?: string;
+            } = {
+              accountId: account.accountId.toString(),
+              privateKey: `0x${account.data.privateKey.toStringRaw()}`,
+              publicKey: `0x${PublicKey.fromString(account.publicKey).toStringRaw()}`,
+              balance: account.data.balance.toString(),
+              group: account.data.group,
+            };
 
-          // Add alias field for ECDSA_ALIAS accounts
-          if (account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS && account.alias) {
-            formattedAccount['publicAddress'] = account.alias;
-          }
+            // Add alias field for ECDSA_ALIAS accounts
+            if (account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS && account.alias) {
+              formattedAccount['publicAddress'] = account.alias;
+            }
 
-          return formattedAccount;
-        });
+            return formattedAccount;
+          },
+        );
 
         // Format system accounts data
         const formattedSystemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[] =
@@ -897,7 +901,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
         // Create the structured output with both systemAccounts and createdAccounts
         const outputData: {
-          systemAccounts: { name: string; accountId: string; publicKey: string; privateKey?: string }[];
+          systemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[];
           createdAccounts: {
             accountId: string;
             privateKey: string;
@@ -985,7 +989,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             if (deployments.length > 1) {
               const selectedDeployment: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
                 message: 'Select deployment to destroy',
-                choices: deployments.map((deployment: any): { name: string; value: string } => {
+                choices: deployments.map((deployment: any): {name: string; value: string} => {
                   const clusterNames: string[] = (deployment.clusters ?? [])
                     .map((cluster: any): string => cluster?.toString())
                     .filter(Boolean);
@@ -1284,7 +1288,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
-    const tasks: any = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+    const tasks: any = this.taskList.newOneShotSingleDestroyTaskList(
+      taskArray,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
 
     try {
       await tasks.run();
@@ -1367,7 +1374,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           task: async (context_, _task): Promise<void> => {
             await this.localConfig.load();
 
-            const deployment: any = this.localConfig.configuration.deployments.find((d: any): boolean => d.name === context_.deploymentName);
+            const deployment: any = this.localConfig.configuration.deployments.find(
+              (d: any): boolean => d.name === context_.deploymentName,
+            );
 
             if (!deployment) {
               this.logger.showUser(
@@ -1449,7 +1458,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               const namespaceName: NamespaceName = NamespaceName.of(deployment.namespace);
               const configMaps: any[] = await this.k8Factory.default().configMaps().list(namespaceName, []);
 
-              const remoteConfigMap: any = configMaps.find((cm: any): boolean => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME);
+              const remoteConfigMap: any = configMaps.find(
+                (cm: any): boolean => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME,
+              );
 
               if (!remoteConfigMap) {
                 this.logger.showUser(

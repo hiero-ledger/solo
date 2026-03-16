@@ -16,6 +16,7 @@ import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
@@ -1308,7 +1309,9 @@ END $grant$;`;
                   'There are missing values that need to be provided when' +
                   `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
-                throw new SoloError(`${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`);
+                throw new SoloError(
+                  `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
+                );
               }
             }
 
@@ -1646,7 +1649,7 @@ END $grant$;`;
   }
 
   private async adoptMirrorIngressControllerRbacOwnership(config: MirrorNodeDeployConfigClass): Promise<void> {
-    const rbac: any = this.k8Factory.getK8(config.clusterContext).rbac();
+    const rbac: Rbacs = this.k8Factory.getK8(config.clusterContext).rbac();
     const rbacNames: Set<string> = new Set([
       constants.MIRROR_INGRESS_CONTROLLER,
       `${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`,
