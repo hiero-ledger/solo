@@ -32,7 +32,6 @@ export class ShellRunner {
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,
-        windowsVerbatimArguments: OperatingSystem.isWin32(), // ensure arguments are passed verbatim on Windows
         windowsHide: OperatingSystem.isWin32(), // hide the console window on Windows
       });
 
