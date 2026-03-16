@@ -485,17 +485,10 @@ export class BlockNodeCommand extends BaseCommand {
               config.namespace,
             );
 
-            // TODO: remove once all components are created at REQUESTED deployment phase
             config.newBlockNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
-
-            this.remoteConfig.configuration.components.addNewComponent(
-              config.newBlockNodeComponent,
-              ComponentTypes.BlockNode,
-            );
-
-            await this.remoteConfig.persist();
           },
         },
+        this.addBlockNodeComponent(),
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
@@ -1078,6 +1071,22 @@ export class BlockNodeCommand extends BaseCommand {
     this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
+  }
+
+  /** Adds the block node component to remote config. */
+  private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Add block node component in remote config',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async ({config}): Promise<void> => {
+        this.remoteConfig.configuration.components.addNewComponent(
+          config.newBlockNodeComponent,
+          ComponentTypes.BlockNode,
+        );
+
+        await this.remoteConfig.persist();
+      },
+    };
   }
 
   /** Adds the block node component to remote config. */

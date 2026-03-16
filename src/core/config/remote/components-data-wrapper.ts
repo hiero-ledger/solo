@@ -4,7 +4,7 @@ import {SoloError} from '../../errors/solo-error.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
-import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';

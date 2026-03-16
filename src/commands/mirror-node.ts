@@ -185,6 +185,12 @@ interface InferredData {
   isLegacyChartInstalled: boolean;
 }
 
+enum MirrorNodeCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
+}
+
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
   public constructor(
@@ -498,7 +504,10 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext, commandType: 'add' | 'upgrade'): Promise<void> {
+  private async deployMirrorNode(
+    {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
+    commandType: MirrorNodeCommandType,
+  ): Promise<void> {
     if (
       config.isChartInstalled &&
       semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
@@ -545,14 +554,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
-    if (commandType === 'add') {
-      this.remoteConfig.configuration.components.addNewComponent(
-        (config as MirrorNodeDeployConfigClass).newMirrorNodeComponent,
+    if (commandType === MirrorNodeCommandType.ADD) {
+      this.remoteConfig.configuration.components.changeComponentPhase(
+        (config as MirrorNodeDeployConfigClass).newMirrorNodeComponent.metadata.id,
         ComponentTypes.MirrorNode,
+        DeploymentPhase.DEPLOYED,
       );
-
-      // update explorer version in remote config
-      this.remoteConfig.updateComponentVersion(ComponentTypes.MirrorNode, new SemVer(config.explorerVersion));
 
       await this.remoteConfig.persist();
     }
@@ -635,7 +642,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
-  private enableMirrorNodeTask(): SoloListrTask<AnyListrContext> {
+  private enableMirrorNodeTask(commandType: MirrorNodeCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
       task: (_, parentTask): SoloListr<AnyListrContext> =>
@@ -691,7 +698,7 @@ export class MirrorNodeCommand extends BaseCommand {
             {
               title: 'Deploy mirror-node',
               task: async (context_): Promise<void> => {
-                await this.deployMirrorNode(context_);
+                await this.deployMirrorNode(context_, commandType);
               },
             },
           ],
@@ -989,7 +996,6 @@ END $grant$;`;
               config.namespace,
             );
 
-            // TODO: remove once all components are created at REQUESTED deployment phase
             config.newMirrorNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
 
             config.id = config.newMirrorNodeComponent.metadata.id;
@@ -1133,7 +1139,7 @@ END $grant$;`;
           },
         },
         this.addMirrorNodeComponents(),
-        this.enableMirrorNodeTask(),
+        this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
         this.enablePortForwardingTask(),
@@ -1344,7 +1350,7 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.enableMirrorNodeTask(),
+        this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
@@ -1577,11 +1583,13 @@ END $grant$;`;
           context_.config.newMirrorNodeComponent,
           ComponentTypes.MirrorNode,
         );
+
         // update mirror node version in remote config
         this.remoteConfig.updateComponentVersion(
           ComponentTypes.MirrorNode,
           new SemVer(context_.config.mirrorNodeVersion),
         );
+
         await this.remoteConfig.persist();
       },
     };

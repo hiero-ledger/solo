@@ -645,7 +645,6 @@ export class RelayCommand extends BaseCommand {
               nodeIds,
             );
 
-            // TODO: remove once all components are created at REQUESTED deployment phase
             config.newRelayComponent.metadata.phase = DeploymentPhase.REQUESTED;
 
             config.id = config.newRelayComponent.metadata.id;

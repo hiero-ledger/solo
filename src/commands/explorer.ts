@@ -148,6 +148,12 @@ interface InferredData {
   isLegacyChartInstalled: boolean;
 }
 
+enum ExplorerCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
+}
+
 @injectable()
 export class ExplorerCommand extends BaseCommand {
   public constructor(
@@ -380,7 +386,7 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private installExplorerTask(commandType: 'add' | 'upgrade'): SoloListrTask<AnyListrContext> {
+  private installExplorerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
@@ -406,12 +412,14 @@ export class ExplorerCommand extends BaseCommand {
           config.clusterContext,
         );
 
-        if (commandType === 'add') {
+        if (commandType === ExplorerCommandType.ADD) {
           this.remoteConfig.configuration.components.changeComponentPhase(
             (config as ExplorerDeployConfigClass).newExplorerComponent.metadata.id,
             ComponentTypes.Explorer,
             DeploymentPhase.DEPLOYED,
           );
+
+          await this.remoteConfig.persist();
         }
 
         showVersionBanner(this.logger, config.releaseName, config.explorerVersion);
@@ -704,7 +712,6 @@ export class ExplorerCommand extends BaseCommand {
               config.namespace,
             );
 
-            // TODO: remove once all components are created at REQUESTED deployment phase
             config.newExplorerComponent.metadata.phase = DeploymentPhase.REQUESTED;
 
             config.id = config.newExplorerComponent.metadata.id;
@@ -722,7 +729,7 @@ export class ExplorerCommand extends BaseCommand {
         restoreConfig(this.loadRemoteConfigTask(argv)),
         restoreConfig(this.addExplorerComponents()),
         restoreConfig(this.installCertManagerTask()),
-        restoreConfig(this.installExplorerTask('add')),
+        restoreConfig(this.installExplorerTask(ExplorerCommandType.ADD)),
         restoreConfig(this.installExplorerIngressControllerTask()),
         restoreConfig(this.checkExplorerPodIsReadyTask()),
         restoreConfig(this.checkExplorerIngressControllerPodIsReadyTask()),
@@ -828,7 +835,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(),
-        this.installExplorerTask('upgrade'),
+        this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
@@ -1044,8 +1051,10 @@ export class ExplorerCommand extends BaseCommand {
           config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
+
         // update explorer version in remote config
         this.remoteConfig.updateComponentVersion(ComponentTypes.Explorer, new SemVer(config.explorerVersion));
+
         await this.remoteConfig.persist();
       },
     };
