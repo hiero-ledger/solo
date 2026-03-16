@@ -67,26 +67,26 @@ export class SharedResourceManager {
         `Shared resources chart is already installed in namespace ${namespace.name}, skipping installation.`,
       );
       return;
-    } else {
-      valuesArgumentsMap = {
-        ...valuesArgumentsMap,
-        'postgres.enabled': this.postgresEnabled.toString(),
-        'redis.enabled': this.redisEnabled.toString(),
-      };
-
-      const values: string = Object.entries(valuesArgumentsMap || {})
-        .map(([key, value]): string => `--set ${key}=${value}`)
-        .join(' ');
-
-      await this.chartManager.install(
-        namespace,
-        constants.SOLO_SHARED_RESOURCES_CHART,
-        constants.SOLO_SHARED_RESOURCES_CHART,
-        chartDirectory,
-        soloChartVersion,
-        values,
-        context,
-      );
     }
+
+    valuesArgumentsMap = {
+      ...valuesArgumentsMap,
+      'postgres.enabled': this.postgresEnabled.toString(),
+      'redis.enabled': this.redisEnabled.toString(),
+    };
+
+    const values: string = Object.entries(valuesArgumentsMap)
+      .map(([key, value]): string => `--set ${key}=${value}`)
+      .join(' ');
+
+    await this.chartManager.install(
+      namespace,
+      constants.SOLO_SHARED_RESOURCES_CHART,
+      constants.SOLO_SHARED_RESOURCES_CHART,
+      chartDirectory || constants.SOLO_TESTING_CHART_URL,
+      soloChartVersion,
+      values,
+      context,
+    );
   }
 }
