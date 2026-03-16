@@ -65,6 +65,7 @@ import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -718,41 +719,8 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
-    const flagsWithDisabledPrompts: CommandFlag[] = [
-      flags.apiPermissionProperties,
-      flags.app,
-      flags.applicationEnv,
-      flags.applicationProperties,
-      flags.bootstrapProperties,
-      flags.genesisThrottlesFile,
-      flags.cacheDir,
-      flags.chainId,
-      flags.chartDirectory,
-      flags.debugNodeAlias,
-      flags.loadBalancerEnabled,
-      flags.log4j2Xml,
-      flags.persistentVolumeClaims,
-      flags.profileName,
-      flags.profileFile,
-      flags.settingTxt,
-      flags.grpcTlsCertificatePath,
-      flags.grpcWebTlsCertificatePath,
-      flags.grpcTlsKeyPath,
-      flags.grpcWebTlsKeyPath,
-      flags.haproxyIps,
-      flags.envoyIps,
-      flags.storageType,
-      flags.gcsWriteAccessKey,
-      flags.gcsWriteSecrets,
-      flags.gcsEndpoint,
-      flags.gcsBucket,
-      flags.gcsBucketPrefix,
-      flags.nodeAliasesUnparsed,
-      flags.domainNames,
-    ];
-
     // disable the prompts that we don't want to prompt the user for
-    flags.disablePrompts(flagsWithDisabledPrompts);
+    flags.disablePrompts(NetworkCommand.DEPLOY_FLAGS_LIST.optional);
 
     const allFlags: CommandFlag[] = [
       ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,
@@ -1576,27 +1544,66 @@ export class NetworkCommand extends BaseCommand {
     }
 
     const k8: K8 = k8Factory.getK8(context);
-
-    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-
-    await container.execContainer('pwd');
-
     const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
 
-    await container.execContainer(`mkdir -p ${targetDirectory}`);
+    // Attempt to obtain the root-container. When migrating from a version that did not use the
+    // S6 image (where ENABLE_S6_IMAGE defaulted to false), the running pods will not yet have a
+    // root-container sidecar.  In that case we fall back to ConfigMap-only operations; the
+    // mounted ConfigMap volumes will be synced into the pod automatically once it restarts with
+    // the updated image.
+    let container: Container | undefined;
+    try {
+      container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+      await container.execContainer('pwd'); // verify the container is actually accessible
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      if (!message.includes('container not found')) {
+        throw error;
+      }
+      logger.warn(
+        `root-container not found for ${nodeAlias}; ` +
+          'falling back to ConfigMap-only operations for block-nodes configuration',
+      );
+      container = undefined;
+    }
 
-    // Copy the file and rename it to block-nodes.json in the destination
-    await container.copyTo(blockNodesJsonPath, targetDirectory);
+    if (container) {
+      await container.execContainer(`mkdir -p ${targetDirectory}`);
 
-    // If using node-specific files, rename the copied file to the standard name
-    const sourceFilename: string = path.basename(blockNodesJsonPath);
-    await container.execContainer(
-      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-    );
+      // Copy the file and rename it to block-nodes.json in the destination
+      await container.copyTo(blockNodesJsonPath, targetDirectory);
 
-    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+      // If using node-specific files, rename the copied file to the standard name
+      const sourceFilename: string = path.basename(blockNodesJsonPath);
+      await container.execContainer(
+        `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
+      );
+    }
 
-    const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+    // Read application.properties: prefer the live pod content, fall back to the ConfigMap.
+    let applicationPropertiesData: string;
+    if (container) {
+      const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+      applicationPropertiesData = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+    } else {
+      try {
+        // The shared data ConfigMap stores application.properties under two keys:
+        // 'application.properties' (standard filename) and 'applicationProperties' (legacy camelCase key).
+        // Both are set when the ConfigMap is created; we check both for compatibility with older deploys.
+        const configMap: ConfigMap = await k8
+          .configMaps()
+          .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+        applicationPropertiesData =
+          configMap.data?.['application.properties'] ?? configMap.data?.['applicationProperties'] ?? '';
+      } catch (configMapError) {
+        logger.warn(
+          `Could not read ${constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME} ConfigMap for ${nodeAlias}; ` +
+            'block-stream settings will be written to ConfigMap with defaults',
+          configMapError,
+        );
+        applicationPropertiesData = '';
+      }
+    }
 
     const lines: string[] = applicationPropertiesData.split('\n');
 
@@ -1617,7 +1624,7 @@ export class NetworkCommand extends BaseCommand {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
-    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+    await k8.configMaps().update(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME, {
       ['applicationProperties']: lines.join('\n'),
       ['application.properties']: lines.join('\n'),
     });
@@ -1631,13 +1638,15 @@ export class NetworkCommand extends BaseCommand {
 
     logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
 
-    const updatedApplicationPropertiesFilePath: string = PathEx.join(
-      constants.SOLO_CACHE_DIR,
-      'application.properties',
-    );
+    if (container) {
+      const updatedApplicationPropertiesFilePath: string = PathEx.join(
+        constants.SOLO_CACHE_DIR,
+        'application.properties',
+      );
 
-    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+      fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
+      await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+    }
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

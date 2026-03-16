@@ -248,10 +248,7 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
-export const UPGRADE_MIGRATIONS_FILE: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'component-upgrade-migrations.json',
-);
+export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
@@ -430,6 +427,7 @@ export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_ST
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
+export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
 export const enum StorageType {
   MINIO_ONLY = 'minio_only',
   AWS_ONLY = 'aws_only',

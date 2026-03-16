@@ -110,6 +110,8 @@ interface BlockNodeUpgradeConfigClass {
   valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
+  /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
+  recreateInstallTime?: Date;
 }
 
 interface BlockNodeUpgradeContext {
@@ -449,7 +451,7 @@ export class BlockNodeCommand extends BaseCommand {
             config.context = this.getClusterContext(config.clusterRef);
 
             config.priorityMapping = Templates.parseBlockNodePriorityMapping(
-              config.priorityMapping as any,
+              config.priorityMapping as unknown as string,
               this.remoteConfig.getConsensusNodes(),
             );
 
@@ -769,11 +771,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
-            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode).version;
-            config.migrationPlan = this.buildBlockNodeUpgradeMigrationPlan(
-              config.currentVersion,
-              config.upgradeVersion,
-            );
+            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.version ?? '0.0.0';
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -866,6 +864,28 @@ export class BlockNodeCommand extends BaseCommand {
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
         },
+        {
+          title: 'Check block node pod is ready',
+          task: async ({config}): Promise<void> => {
+            try {
+              await this.k8Factory
+                .getK8(config.context)
+                .pods()
+                .waitForReadyStatus(
+                  config.namespace,
+                  Templates.renderBlockNodeLabels(config.id),
+                  constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+                  constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                  config.recreateInstallTime,
+                );
+            } catch (error) {
+              throw new SoloError(
+                `Block node ${config.releaseName} is not ready after upgrade: ${error.message}`,
+                error,
+              );
+            }
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -930,7 +950,7 @@ export class BlockNodeCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
 
             config.priorityMapping = Templates.parseBlockNodePriorityMapping(
-              config.priorityMapping as any,
+              config.priorityMapping as unknown as string,
               this.remoteConfig.getConsensusNodes(),
             );
 
@@ -1145,6 +1165,17 @@ export class BlockNodeCommand extends BaseCommand {
   ): Promise<void> {
     const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
     await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+
+    // Wait for the old pod to be fully terminated before creating the new StatefulSet.
+    // helm uninstall returns immediately (no --wait), but the pod has a graceful shutdown period.
+    // The new StatefulSet will not create a replacement pod until the old pod with the same
+    // ordinal name is completely gone (StatefulSet at-most-one semantics), and the PVC cannot
+    // be reattached while the old pod still holds a ReadWriteOnce volume mount.
+    await this.waitForBlockNodePodsDeleted(config.namespace, config.id, config.context);
+
+    // Record the install time so the readiness check can ignore any stale pod references.
+    config.recreateInstallTime = new Date();
+
     await this.chartManager.install(
       config.namespace,
       config.releaseName,
@@ -1153,6 +1184,29 @@ export class BlockNodeCommand extends BaseCommand {
       validatedUpgradeVersion,
       valuesArgument,
       config.context,
+    );
+  }
+
+  /**
+   * Polls until no pods with the block-node label exist in the namespace.
+   * Used before re-installing the chart so the new StatefulSet pod is not blocked
+   * by a terminating predecessor.
+   */
+  private async waitForBlockNodePodsDeleted(namespace: NamespaceName, id: ComponentId, context: string): Promise<void> {
+    const labels: string[] = Templates.renderBlockNodeLabels(id);
+    const maxAttempts: number = constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS;
+    const delay: number = constants.BLOCK_NODE_PODS_RUNNING_DELAY;
+
+    for (let attempt: number = 0; attempt < maxAttempts; attempt++) {
+      const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
+      if (pods.length === 0) {
+        return;
+      }
+      await new Promise<void>((resolve): ReturnType<typeof setTimeout> => setTimeout(resolve, delay));
+    }
+
+    this.logger.warn(
+      `Block node pods with labels ${labels.join(',')} did not terminate within ${maxAttempts} attempts; proceeding with install`,
     );
   }
 
