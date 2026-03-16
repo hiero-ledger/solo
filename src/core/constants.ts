@@ -400,9 +400,12 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
+export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
 export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;
+export const JSON_RPC_RELAY_LOCAL_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_LOCAL_PORT') || 37_546;
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
-export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 8081;
+export const EXPLORER_LOCAL_PORT: number = +getEnvironmentVariable('EXPLORER_LOCAL_PORT') || 38_080;
+export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 38_081;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;

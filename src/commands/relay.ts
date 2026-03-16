@@ -505,7 +505,7 @@ export class RelayCommand extends BaseCommand {
           clusterReference,
           podReference,
           constants.JSON_RPC_RELAY_PORT, // Pod port
-          constants.JSON_RPC_RELAY_PORT, // Local port
+          constants.JSON_RPC_RELAY_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.context),
           this.logger,
           ComponentTypes.RelayNodes,

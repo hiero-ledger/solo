@@ -62,10 +62,10 @@ If automatic port forwarding isn't working:
 
 ```bash
 # Consensus Node (gRPC)
-kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 &
+kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 35211:50211 &
 
 # Explorer UI
-kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 &
+kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 38080:8080 &
 
 # Mirror Node gRPC
 kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
@@ -74,7 +74,7 @@ kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
 kubectl port-forward svc/mirror-1-rest -n "${SOLO_NAMESPACE}" 5551:80 &
 
 # JSON RPC Relay
-kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 &
+kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 37546:7546 &
 ```
 
 ### Node Synchronization Issues
@@ -286,8 +286,8 @@ Keys are stored in `~/.solo/cache/keys/`. This directory contains:
 ### How do I connect my application to the local network?
 
 Use these endpoints:
-- **gRPC (Hedera SDK)**: `localhost:50211`, Node ID: `0.0.3`
-- **JSON RPC (Ethereum tools)**: `http://localhost:7546`
+- **gRPC (Hedera SDK)**: `localhost:35211`, Node ID: `0.0.3`
+- **JSON RPC (Ethereum tools)**: `http://localhost:37546`
 - **Mirror Node REST**: `http://localhost:5551/api/v1/`
 
 ### Can I run Solo on a remote server?
