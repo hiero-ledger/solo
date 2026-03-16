@@ -56,7 +56,7 @@ export class Templates {
   }
 
   public static renderMirrorNodeDatabaseInitScriptUrl(release: string): string {
-    return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/heads/release/${release}/importer/src/main/resources/db/scripts/init.sh`;
+    return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
   }
 
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {

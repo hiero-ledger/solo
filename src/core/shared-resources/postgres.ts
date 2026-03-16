@@ -68,17 +68,17 @@ export class PostgresSharedResource {
     const containerReference: ContainerReference = ContainerReference.of(podReference, ContainerName.of('postgresql'));
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
     const version: SemanticVersion = SemanticVersion.parse(MIRROR_NODE_VERSION.replaceAll('v', ''));
-    const mirrorRelease: string = `${version.major}.${version.minor}`;
+    const tag: string = `v${version.major}.${version.minor}.${version.patch}`;
 
     // check if path exists recursive PathEx.join(constants.SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-script.sh')
-    if (!fs.existsSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', mirrorRelease))) {
-      fs.mkdirSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', mirrorRelease), {recursive: true});
+    if (!fs.existsSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag))) {
+      fs.mkdirSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag), {recursive: true});
     }
-    const initScriptLocalPath: string = PathEx.join(SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-postgres.sh');
+    const initScriptLocalPath: string = PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag, 'init-postgres.sh');
 
     // Download and cache init script
     if (!fs.existsSync(initScriptLocalPath)) {
-      const initScriptDownloadUrl: string = Templates.renderMirrorNodeDatabaseInitScriptUrl(mirrorRelease);
+      const initScriptDownloadUrl: string = Templates.renderMirrorNodeDatabaseInitScriptUrl(tag);
       this.logger!.info(`Downloading Mirror Node Postgres init script from ${initScriptDownloadUrl}...`);
 
       const response: any = await fetch(initScriptDownloadUrl);
