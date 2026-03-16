@@ -224,7 +224,7 @@ export class PostgresSharedResource {
           `Failed to run Mirror Node Postgres initialization script in container. Attempt ${attempt} out of ${maxAttempts}: ${error}`,
         );
         attempt++;
-        if (attempt > maxAttempts) {
+        if (attempt >= maxAttempts) {
           throw new SoloError(
             `Failed to run Mirror Node Postgres initialization script in container after ${attempt} attempts: ${error}`,
             error,
