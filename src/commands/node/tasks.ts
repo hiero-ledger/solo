@@ -115,8 +115,8 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
@@ -190,6 +190,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
+    @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -205,6 +206,7 @@ export class NodeCommandTasks {
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -359,13 +361,10 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
         task: async (): Promise<void> => {
-          const shellRunner: ShellRunner = new ShellRunner();
           try {
-            const retrievedReleaseTag: string[] = await shellRunner.run(
-              `git -C ${localDataLibraryBuildPath} describe --tags --abbrev=0`,
-            );
+            const retrievedReleaseTag: string = await this.gitClient.describeTag(localDataLibraryBuildPath);
             const expectedReleaseTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
-            if (retrievedReleaseTag.join('\n') !== expectedReleaseTag) {
+            if (retrievedReleaseTag !== expectedReleaseTag) {
               this.logger.showUser(
                 chalk.cyan(
                   `Checkout version ${retrievedReleaseTag} does not match the release version ${expectedReleaseTag}`,
@@ -972,7 +971,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
         try {
-          const nodeClient = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
@@ -1341,8 +1340,8 @@ export class NodeCommandTasks {
 
           // Clean up old rounds - keep only the latest/biggest round
           this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          const cleanupScriptName: string = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
@@ -1964,7 +1963,7 @@ export class NodeCommandTasks {
     return {
       title: 'Trigger stake weight calculate',
       task: async (context_): Promise<void> => {
-        const config = context_.config;
+        const config: AnyObject = context_.config;
         this.logger.info(
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
         );
@@ -2026,10 +2025,12 @@ export class NodeCommandTasks {
             context_.config.nodeAliases,
             deploymentName,
           );
-          // @ts-expect-error - TS2339: Property stakeAmount does not exist on type NodeStartConfigClass
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
-          const stakeAmountParsed = context_.config.stakeAmount ? splitFlagInput(context_.config.stakeAmount) : [];
-          let nodeIndex = 0;
+          const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
+            | string
+            | undefined;
+          const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
+          let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
             const accountId: string = accountMap.get(nodeAlias);
             const stakeAmount: string | number =
@@ -2090,7 +2091,7 @@ export class NodeCommandTasks {
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
-                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+                const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (constants.ENABLE_S6_IMAGE) {
                   await container.execContainer([
@@ -2936,7 +2937,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
 
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
         this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
 
         if (config.existingNodeAliases.length > 1) {
@@ -2953,23 +2954,25 @@ export class NodeCommandTasks {
 
           if (config.tlsPublicKey && config.tlsPrivateKey) {
             this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash = crypto.createHash('sha384').update(tlsCertDer).digest();
+            const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+            const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
             nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
 
-            const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+            const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
             renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
             renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
             this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+            const signingCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(
+              config.gossipPublicKey,
+            );
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
-            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
             renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
             renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
@@ -2992,15 +2995,15 @@ export class NodeCommandTasks {
 
           // also sign with new account's key if account is being updated
           if (config.newAccountNumber) {
-            const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+            const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
               config.newAccountNumber,
               config.namespace,
             );
             nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
           }
-          const signedTx = await nodeUpdateTx.sign(config.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+          const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
+          const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
           this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
 
           // If admin key was updated, save the new key to k8s secret
