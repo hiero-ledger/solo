@@ -2,6 +2,9 @@
 
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
+import sinon, {type SinonSandbox, type SinonStub} from 'sinon';
+import {Readable} from 'node:stream';
+import got, {type OptionsInit} from 'got';
 
 import {PackageDownloader} from '../../../src/core/package-downloader.js';
 import * as fs from 'node:fs';
@@ -16,6 +19,18 @@ import {SoloError} from '../../../src/core/errors/solo-error.js';
 describe('PackageDownloader', (): void => {
   const testLogger: SoloPinoLogger = new SoloPinoLogger('debug', true);
   const downloader: PackageDownloader = new PackageDownloader(testLogger);
+  let sandbox: SinonSandbox;
+
+  beforeEach((): void => {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach((): void => {
+    delete process.env.PACKAGE_DOWNLOADER_URL_EXISTS_TIMEOUT_MS;
+    delete process.env.PACKAGE_DOWNLOADER_DOWNLOAD_CONNECT_TIMEOUT_MS;
+    delete process.env.PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS;
+    sandbox.restore();
+  });
 
   describe('urlExists', (): void => {
     it('should return true if source URL is valid', async (): Promise<void> => {
@@ -69,6 +84,36 @@ describe('PackageDownloader', (): void => {
       } catch (error) {
         throw error;
       }
+    });
+
+    it('should pass env override download timeouts to got.stream', async (): Promise<void> => {
+      process.env.PACKAGE_DOWNLOADER_DOWNLOAD_CONNECT_TIMEOUT_MS = '1234';
+      process.env.PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS = '5678';
+
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.txt');
+      const urlExistsStub: SinonStub = sandbox.stub(downloader, 'urlExists').resolves(true);
+      const gotStreamStub: SinonStub = sandbox
+        .stub(got, 'stream')
+        .callsFake((...arguments_: unknown[]): ReturnType<typeof got.stream> => {
+          const options: OptionsInit | undefined =
+            arguments_.length > 1 ? (arguments_[1] as OptionsInit) : (arguments_[0] as OptionsInit);
+          expect(options?.followRedirect).to.equal(true);
+          expect(options?.timeout).to.deep.equal({
+            connect: 1234,
+            response: 5678,
+          });
+          return Readable.from(['payload']) as ReturnType<typeof got.stream>;
+        });
+
+      await expect(downloader.fetchFile('https://example.com/artifact.txt', destinationPath)).to.eventually.equal(
+        destinationPath,
+      );
+      expect(fs.readFileSync(destinationPath, 'utf8')).to.equal('payload');
+      expect(urlExistsStub.calledOnce).to.equal(true);
+      expect(gotStreamStub.calledOnce).to.equal(true);
+
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
     });
   });
 

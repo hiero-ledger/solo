@@ -62,6 +62,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {type Lock} from '../../core/lock/lock.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
+import {NoKubeConfigContextError} from '../../business/runtime-state/errors/no-kube-config-context-error.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -76,7 +77,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet],
+    optional: [flags.quiet, flags.deployment],
   };
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
@@ -361,6 +362,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 optionFromFlag(Flags.deployment),
                 config.deployment,
               );
+              this.appendConfigToArgv(argv, config.blockNodeConfiguration);
               return argvPushGlobalFlags(argv);
             },
             this.taskList,
@@ -915,7 +917,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     let hasExplorers: boolean = false;
     let hasRelays: boolean = false;
 
-    const taskArray = [
+    const taskArray: any = [
       {
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
@@ -953,15 +955,51 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.configManager.setFlag(flags.deployment, config.deployment);
           }
 
-          config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
           try {
-            await this.remoteConfig.loadAndValidate(argv);
-            config.skipAll = false;
+            config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
           } catch (error) {
-            if (error instanceof ResourceNotFoundError) {
+            if (error.message?.includes('not found in local config')) {
+              this.logger.showUser(
+                `Deployment: ${config.deployment}, not found in local config, has it already been deleted?`,
+              );
+              config.skipAll = true;
+              return;
+            } else {
+              throw error;
+            }
+          }
+
+          try {
+            const kubeContextConnectionSuccessful: boolean = await this.k8Factory
+              .default()
+              .contexts()
+              .testContextConnection(config.context);
+            if (!kubeContextConnectionSuccessful) {
+              config.skipAll = true;
+              return;
+            }
+          } catch (error) {
+            this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
+          }
+          try {
+            if (config.deployment && config.namespace && config.context) {
+              await this.remoteConfig.loadAndValidate(argv);
+              config.skipAll = false;
+            } else {
+              config.skipAll = true;
+              return;
+            }
+          } catch (error) {
+            if (
+              error instanceof ResourceNotFoundError ||
+              error.cause instanceof ResourceNotFoundError ||
+              error instanceof NoKubeConfigContextError ||
+              error.cause instanceof NoKubeConfigContextError
+            ) {
               this.logger.showUser(
                 'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
               );
+              this.logger.error('Error loading remote config:', error);
               config.skipAll = true;
               return;
             } else {
@@ -1199,7 +1237,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async info(_argv: ArgvStruct): Promise<boolean> {
-    const tasks = new Listr(
+    const tasks: any = new Listr(
       [
         {
           title: 'Check for cached deployment',

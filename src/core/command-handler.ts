@@ -72,7 +72,7 @@ export class CommandHandler {
 
   /**
    * Setup home directories
-   * @param dirs a list of directories that need to be created in sequence
+   * @param directories
    */
   public setupHomeDirectory(
     directories: string[] = [

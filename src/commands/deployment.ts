@@ -191,13 +191,14 @@ export class DeploymentCommand extends BaseCommand {
       quiet: boolean;
       namespace: NamespaceName;
       deployment: DeploymentName;
+      skipRemoteDelete: boolean;
     }
 
     interface Context {
       config: Config;
     }
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: any = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -221,7 +222,7 @@ export class DeploymentCommand extends BaseCommand {
             const deployment: DeploymentName = context_.config.deployment;
 
             if (!this.localConfig.configuration.deployments?.some((d): boolean => d.name === deployment)) {
-              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(deployment));
+              context_.config.skipRemoteDelete = true;
             }
           },
         },
@@ -246,26 +247,36 @@ export class DeploymentCommand extends BaseCommand {
                 .remoteConfigExists(namespace, context)
                 .catch((): boolean => false);
 
-              const existingConfigMaps: ConfigMap[] = await this.k8Factory
-                .getK8(context)
-                .configMaps()
-                .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
+              let existingConfigMaps: ConfigMap[] = [];
+              try {
+                existingConfigMaps = await this.k8Factory
+                  .getK8(context)
+                  .configMaps()
+                  .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
+              } catch {
+                // Guard
+              }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
                 throw new SoloError(`Deployment ${deployment} has remote resources in cluster: ${clusterReference}`);
               }
             }
           },
+          skip: ({config: {skipRemoteDelete}}): boolean => skipRemoteDelete === true,
         },
         {
           title: 'Remove deployment from local config',
           task: async ({config: {deployment}}): Promise<void> => {
-            const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
-            if (actualDeployment) {
-              this.localConfig.configuration.deployments.remove(actualDeployment);
-            }
+            try {
+              const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+              if (actualDeployment) {
+                this.localConfig.configuration.deployments.remove(actualDeployment);
+              }
 
-            await this.localConfig.persist();
+              await this.localConfig.persist();
+            } catch {
+              // Deployment might not exist in local config, ignore error and continue with cleanup of other deployments if needed
+            }
           },
         },
       ],
