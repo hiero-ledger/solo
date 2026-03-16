@@ -39,17 +39,17 @@ export interface Pods {
 
   /**
    * Wait for the newest ready pod matching the labels to remain the newest ready pod
-   * after a short settle window.
+   * for a number of consecutive polls.
    * @param namespace - namespace
    * @param labels - pod labels
-   * @param settleDurationMs - settle window in milliseconds
+   * @param consecutiveStableChecks - number of consecutive polls that must see the same newest ready pod
    * @param maxAttempts - maximum attempts to check
    * @param delay - delay between checks in milliseconds
    */
   waitForStableReadyPod(
     namespace: NamespaceName,
     labels: string[],
-    settleDurationMs: number,
+    consecutiveStableChecks?: number,
     maxAttempts?: number,
     delay?: number,
   ): Promise<Pod>;

@@ -34,6 +34,14 @@ importer:
         name: uploader-mirror-secrets
   # The addressbook.bin file updates will be handled by infrastructure code or solo
   addressBook: ""
+  # The chart defaults use a 60s initial delay, which dominates ledger reset recovery time.
+  # The importer is typically healthy well before that in local Solo environments.
+  livenessProbe:
+    initialDelaySeconds: 20
+  readinessProbe:
+    initialDelaySeconds: 10
+  startupProbe:
+    initialDelaySeconds: 10
   config:
     # importer is a springboot app, its application.yaml configuration starts here
     # This config is mounted at [/usr/etc/hedera/application.yaml] in the importer pod

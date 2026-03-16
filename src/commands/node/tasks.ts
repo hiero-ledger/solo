@@ -589,9 +589,41 @@ export class NodeCommandTasks {
       );
     }
 
-    await sleep(Duration.ofSeconds(2)); // delaying prevents - gRPC service error
+    await this.waitForNodeGrpcReady(namespace, nodeAlias, context);
 
     return podReference;
+  }
+
+  private async waitForNodeGrpcReady(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context: string,
+    maxAttempts: number = 20,
+    delayMs: number = 250,
+  ): Promise<void> {
+    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+    const grpcReadyCommand: string = `timeout 1 bash -lc '</dev/tcp/127.0.0.1/${constants.GRPC_PORT}' >/dev/null 2>&1`;
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await container.execContainer(['bash', '-c', grpcReadyCommand]);
+        this.logger.debug(
+          `Confirmed gRPC listener for ${nodeAlias} after ${attempt} attempt(s) on port ${constants.GRPC_PORT}`,
+        );
+        return;
+      } catch (error) {
+        this.logger.debug(
+          `Waiting for gRPC listener for ${nodeAlias}: attempt ${attempt}/${maxAttempts}: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      await sleep(Duration.ofMillis(delayMs));
+    }
+
+    throw new SoloError(
+      `Node ${nodeAlias} did not open gRPC port ${constants.GRPC_PORT} after ${maxAttempts} attempts`,
+    );
   }
 
   /** Return task for check if node proxies are ready */
@@ -1782,19 +1814,19 @@ export class NodeCommandTasks {
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
-              await this.k8Factory
-                .getK8(context)
-                .pods()
-                .waitForStableReadyPod(config.namespace, labels, Duration.ofSeconds(15).toMillis());
+              await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
 
               const startCommand: string = constants.ENABLE_S6_IMAGE
                 ? `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
                   'rm -f /run/service/network-node/down /run/s6/legacy-services/network-node/down && ' +
                   '/command/s6-svc -d /run/service/network-node || true; ' +
                   '/command/s6-svc -u /run/service/network-node || true; ' +
-                  'sleep 3; ' +
-                  "/command/s6-svstat /run/service/network-node | grep -q '^up' && " +
-                  "ps -ef | grep -q '[j]ava'"
+                  'for attempt in $(seq 1 15); do ' +
+                  "  /command/s6-svstat /run/service/network-node | grep -q '^up' && " +
+                  "  ps -ef | grep -q '[j]ava' && exit 0; " +
+                  '  sleep 1; ' +
+                  'done; ' +
+                  'exit 1'
                 : 'systemctl stop network-node || true && systemctl enable --now network-node';
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(

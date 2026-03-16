@@ -828,7 +828,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
         {
-          title: 'Recreate consensus node pods and reset persisted state',
+          title: 'Optional: recreate consensus node pods and reset persisted state',
           skip: (): boolean => shouldSkipConsensusPodRestart,
           task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> => {
             const nodeAliases: NodeAliases = context_.config.nodeAliases;
