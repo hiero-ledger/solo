@@ -404,6 +404,9 @@ export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_REL
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
 export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 8081;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
+export const RELAY_MIRROR_NODE_RETRY_DELAY: number = +getEnvironmentVariable('RELAY_MIRROR_NODE_RETRY_DELAY') || 2001;
+export const RELAY_MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES: number =
+  +getEnvironmentVariable('RELAY_MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES') || 21;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
 export const LOAD_BALANCER_CHECK_MAX_ATTEMPTS: number =
