@@ -42,8 +42,8 @@ export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resource
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
-const enableS6ImageEnv: string = getEnvironmentVariable('ENABLE_S6_IMAGE');
-export const ENABLE_S6_IMAGE: boolean = enableS6ImageEnv === '' ? true : enableS6ImageEnv === 'true';
+const enableS6ImageEnvironment: string = getEnvironmentVariable('ENABLE_S6_IMAGE');
+export const ENABLE_S6_IMAGE: boolean = enableS6ImageEnvironment === '' ? true : enableS6ImageEnvironment === 'true';
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
@@ -266,7 +266,7 @@ export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAI
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
   format: (duration: number) => {

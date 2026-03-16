@@ -876,7 +876,13 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
+        this.tasks.initialize(
+          argv,
+          this.configs.startConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+          true,
+          false,
+        ),
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
@@ -935,7 +941,13 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager, false),
-        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
+        this.tasks.initialize(
+          argv,
+          this.configs.freezeConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+          true,
+          false,
+        ),
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
@@ -952,7 +964,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async restart(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,

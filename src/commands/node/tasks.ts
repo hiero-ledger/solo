@@ -1781,22 +1781,46 @@ export class NodeCommandTasks {
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const startCommand: string = constants.ENABLE_S6_IMAGE
+                ? `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
+                  'for attempt in {1..20}; do ' +
+                  '  rm -f /run/service/network-node/down /run/s6/legacy-services/network-node/down; ' +
+                  '  /command/s6-svc -u /run/service/network-node || true; ' +
+                  '  stable=1; ' +
+                  '  for _ in {1..5}; do ' +
+                  '    sleep 3; ' +
+                  "    if ! /command/s6-svstat /run/service/network-node | grep -q '^up'; then stable=0; break; fi; " +
+                  "    if ! ps -ef | grep -q '[j]ava'; then stable=0; break; fi; " +
+                  '  done; ' +
+                  '  if [ "${stable}" -eq 1 ]; then exit 0; fi; ' +
+                  'done; ' +
+                  '/command/s6-svstat /run/service/network-node >&2; ' +
+                  'ps -ef >&2; ' +
+                  'exit 1'
+                : 'systemctl stop network-node || true && systemctl enable --now network-node';
 
-              const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
-                config.namespace,
-                nodeAlias,
-              );
-              await (constants.ENABLE_S6_IMAGE
-                ? container.execContainer([
-                    'bash',
-                    '-c',
-                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
-                  ])
-                : container.execContainer([
-                    'bash',
-                    '-c',
-                    'systemctl stop network-node || true && systemctl enable --now network-node',
-                  ]));
+              for (let startAttempt: number = 1; startAttempt <= 5; startAttempt++) {
+                try {
+                  const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+                    config.namespace,
+                    nodeAlias,
+                  );
+                  await container.execContainer(['bash', '-c', startCommand]);
+                  return;
+                } catch (error) {
+                  const message: string = error instanceof Error ? error.message : String(error);
+                  const isTransientExecFailure: boolean =
+                    constants.ENABLE_S6_IMAGE &&
+                    (message.includes('exit code 137') ||
+                      message.includes('does not have a host assigned') ||
+                      message.includes('unable to upgrade connection') ||
+                      message.includes('container not found'));
+                  if (!isTransientExecFailure || startAttempt === 5) {
+                    throw error;
+                  }
+                  await sleep(Duration.ofSeconds(5));
+                }
+              }
             },
           });
         }
