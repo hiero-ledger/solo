@@ -15,6 +15,7 @@ import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
@@ -34,6 +35,7 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
@@ -41,7 +43,6 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -643,6 +644,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   mirrorIngressControllerValuesArgument,
                   context_.config.clusterContext,
                 );
+                await this.adoptMirrorIngressControllerRbacOwnership(config);
                 showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
               },
               skip: (context_): boolean => !context_.config.enableIngress,
@@ -916,7 +918,7 @@ END $grant$;`;
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1288,7 +1290,9 @@ END $grant$;`;
                   'There are missing values that need to be provided when' +
                   `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
-                throw new SoloError(`${errorMessage} ${missingFlags.map(flag => `--${flag.name}`).join(', ')}`);
+                throw new SoloError(
+                  `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
+                );
               }
             }
 
@@ -1623,5 +1627,17 @@ END $grant$;`;
 
     // Keep existing behavior as fallback when no ingress release is currently installed.
     return this.renderIngressReleaseName(id);
+  }
+
+  private async adoptMirrorIngressControllerRbacOwnership(config: MirrorNodeDeployConfigClass): Promise<void> {
+    const rbac: Rbacs = this.k8Factory.getK8(config.clusterContext).rbac();
+    const rbacNames: Set<string> = new Set([
+      constants.MIRROR_INGRESS_CONTROLLER,
+      `${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`,
+    ]);
+
+    for (const rbacName of rbacNames) {
+      await rbac.setHelmOwnership(rbacName, config.ingressReleaseName, config.namespace.name);
+    }
   }
 }

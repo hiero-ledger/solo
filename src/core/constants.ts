@@ -249,6 +249,7 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
+export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
@@ -382,6 +383,11 @@ export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT'
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
+
+export const MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS: number =
+  +getEnvironmentVariable('MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS') || 4_194_304; // 4 MiB
+export const MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS: number =
+  +getEnvironmentVariable('MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS') || 37_748_736; // 36 MiB, accommodates ~30 MiB genesis WRAPS proof
 
 // Filename suffix used for log/config archive files
 export const LOG_CONFIG_ZIP_SUFFIX: string = '-log-config.zip';
