@@ -1585,12 +1585,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     const k8: K8 = k8Factory.getK8(context);
-
-    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-
-    await container.execContainer('pwd');
-
     const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+
+    const container: Container = await new K8Helper(context).waitForRootContainer(namespace, nodeAlias);
 
     await container.execContainer(`mkdir -p ${targetDirectory}`);
 
