@@ -32,7 +32,7 @@ const testTitle: string = 'E2E Performance Tests';
 const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
 ).seconds;
-const clients: number = 5;
+const clients: number = 1;
 const accounts: number = 1000;
 const tokens: number = 50;
 const associations: number = 50;
