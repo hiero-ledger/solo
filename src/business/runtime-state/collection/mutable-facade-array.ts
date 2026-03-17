@@ -70,6 +70,10 @@ export class MutableFacadeArray<T extends Facade<B>, B> implements FacadeArray<T
     return this.facadeArray.some((element: T): boolean => predicate(element));
   }
 
+  public filter(predicate: (value: T) => boolean): T[] {
+    return this.facadeArray.filter((element: T): boolean => predicate(element));
+  }
+
   public map<U>(callback: (value: T) => U): U[] {
     return this.facadeArray.map((element: T): U => callback(element));
   }

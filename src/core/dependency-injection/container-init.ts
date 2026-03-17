@@ -81,6 +81,7 @@ import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror
 import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
+import {DefaultGitClient} from '../../integration/git/impl/default-git-client.js';
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
@@ -124,6 +125,7 @@ export class Container {
       new SingletonContainer(InjectTokens.PackageDownloader, PackageDownloader),
       new SingletonContainer(InjectTokens.Zippy, Zippy),
       new SingletonContainer(InjectTokens.DependencyManager, DependencyManager),
+      new SingletonContainer(InjectTokens.GitClient, DefaultGitClient),
       new SingletonContainer(InjectTokens.KindBuilder, DefaultKindClientBuilder),
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
