@@ -279,7 +279,7 @@ export class NetworkCommand extends BaseCommand {
 
         // set up the sub-tasks
         return task.newListr(subTasks, {
-          concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+          concurrent: true,
           rendererOptions: {
             collapseSubtasks: false,
           },
@@ -1179,7 +1179,7 @@ export class NetworkCommand extends BaseCommand {
               },
             ];
 
-            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+            return task.newListr(tasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
           },
         },
         {

@@ -622,7 +622,7 @@ export class NodeCommandTasks {
 
     // set up the sub-tasks
     return task.newListr(subTasks, {
-      concurrent: false,
+      concurrent: true,
       rendererOptions: {
         collapseSubtasks: false,
       },
