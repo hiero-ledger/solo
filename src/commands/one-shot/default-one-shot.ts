@@ -71,7 +71,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force, flags.deployment, flags.minimalSetup],
+    optional: [
+      flags.quiet,
+      flags.numberOfConsensusNodes,
+      flags.force,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
+      flags.minimalSetup,
+    ],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -86,6 +94,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.force,
       flags.valuesFile,
       flags.numberOfConsensusNodes,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
@@ -207,10 +218,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.relayNodeConfiguration = profileItems.relayNode;
                 }
               }
-              config.clusterRef = config.clusterRef || 'solo';
+              config.clusterRef = config.clusterRef || 'one-shot';
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-              config.deployment = config.deployment || 'solo';
-              config.namespace = config.namespace || NamespaceName.of('solo');
+              config.deployment = config.deployment || 'one-shot';
+              config.namespace = config.namespace || NamespaceName.of('one-shot');
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
