@@ -1020,7 +1020,7 @@ END $grant$;`;
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -1234,7 +1234,7 @@ END $grant$;`;
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
