@@ -1629,14 +1629,10 @@ export class NetworkCommand extends BaseCommand {
       applicationPropertiesData = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
     } else {
       try {
-        // The shared data ConfigMap stores application.properties under two keys:
-        // 'application.properties' (standard filename) and 'applicationProperties' (legacy camelCase key).
-        // Both are set when the ConfigMap is created; we check both for compatibility with older deploys.
         const configMap: ConfigMap = await k8
           .configMaps()
           .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
-        applicationPropertiesData =
-          configMap.data?.['application.properties'] ?? configMap.data?.['applicationProperties'] ?? '';
+        applicationPropertiesData = configMap.data?.['application.properties'] ?? '';
       } catch (configMapError) {
         logger.warn(
           `Could not read ${constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME} ConfigMap for ${nodeAlias}; ` +
@@ -1667,7 +1663,6 @@ export class NetworkCommand extends BaseCommand {
     }
 
     await k8.configMaps().update(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME, {
-      ['applicationProperties']: lines.join('\n'),
       ['application.properties']: lines.join('\n'),
     });
 

@@ -849,7 +849,6 @@ export class BlockNodeCommand extends BaseCommand {
                   stepTargetVersion,
                   stepValuesArgument,
                   context,
-                  false,
                 );
               } catch (error) {
                 if (this.isImmutableStatefulSetError(error)) {
@@ -1180,7 +1179,7 @@ export class BlockNodeCommand extends BaseCommand {
     // Record the install time so the readiness check can ignore any stale pod references.
     config.recreateInstallTime = new Date();
 
-    await this.chartManager.install(
+    await this.chartManager.upgrade(
       config.namespace,
       config.releaseName,
       constants.BLOCK_NODE_CHART,
