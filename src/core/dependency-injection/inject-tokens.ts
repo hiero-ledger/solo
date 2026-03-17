@@ -88,6 +88,7 @@ export class InjectTokens {
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
+  public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
   public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
   public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');

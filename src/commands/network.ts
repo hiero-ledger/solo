@@ -833,21 +833,50 @@ export class NetworkCommand extends BaseCommand {
     task.title = `Uninstalling chart ${constants.SOLO_DEPLOYMENT_CHART}`;
 
     // Uninstall all 'solo deployment' charts for each cluster using the contexts
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.chartManager.uninstall(
-          namespace,
-          constants.SOLO_DEPLOYMENT_CHART,
-          this.k8Factory.getK8(context).contexts().readCurrent(),
-        );
-      }),
+    await this.logDestroyResults(
+      'Uninstall solo-deployment chart',
+      await Promise.allSettled(
+        contexts.map(async (context): Promise<void> => {
+          await this.chartManager.uninstall(
+            namespace,
+            constants.SOLO_DEPLOYMENT_CHART,
+            this.k8Factory.getK8(context).contexts().readCurrent(),
+          );
+        }),
+      ),
     );
 
-    if (deleteSecrets && deletePvcs) {
-      await Promise.all(
+    task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
+    await this.logDestroyResults(
+      'Delete remote config configmap',
+      await Promise.allSettled(
         contexts.map(async (context): Promise<void> => {
-          await this.k8Factory.getK8(context).namespaces().delete(namespace);
+          await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
         }),
+      ),
+    );
+
+    if (deletePvcs) {
+      task.title = `Deleting PVCs in namespace ${namespace}`;
+      await this.logDestroyResults('Delete PVCs', await Promise.allSettled([this.deletePvcs(namespace, contexts)]));
+    }
+
+    if (deleteSecrets) {
+      task.title = `Deleting Secrets in namespace ${namespace}`;
+      await this.logDestroyResults(
+        'Delete secrets',
+        await Promise.allSettled([this.deleteSecrets(namespace, contexts)]),
+      );
+    }
+
+    if (deleteSecrets && deletePvcs) {
+      await this.logDestroyResults(
+        'Delete namespace',
+        await Promise.allSettled(
+          contexts.map(async (context): Promise<void> => {
+            await this.k8Factory.getK8(context).namespaces().delete(namespace);
+          }),
+        ),
       );
     } else {
       task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
@@ -866,6 +895,19 @@ export class NetworkCommand extends BaseCommand {
         task.title = `Deleting Secrets in namespace ${namespace}`;
         await this.deleteSecrets(namespace, contexts);
       }
+    }
+  }
+
+  private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
+    const failures: PromiseRejectedResult[] = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failures.length === 0) {
+      return;
+    }
+
+    for (const failure of failures) {
+      this.logger.warn(`${title} failed; continuing destroy`, failure.reason);
     }
   }
 
@@ -1618,7 +1660,7 @@ export class NetworkCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            const remoteConfigLoaded: boolean = await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1644,7 +1686,11 @@ export class NetworkCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag(flags.enableTimeout),
               force: this.configManager.getFlag(flags.force),
-              contexts: this.remoteConfig.getContexts(),
+              contexts: remoteConfigLoaded
+                ? this.remoteConfig.getContexts()
+                : [...this.localConfig.configuration.clusterRefs.values()].map(
+                    (context): Context => context.toString(),
+                  ),
             };
 
             if (!this.oneShotState.isActive()) {
