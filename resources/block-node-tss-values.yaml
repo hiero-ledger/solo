@@ -1,0 +1,13 @@
+resources:
+  requests:
+    cpu: "1"
+    memory: "1Gi"
+  limits:
+    cpu: "4"
+    memory: "2Gi"
+
+blockNode:
+  config:
+    JAVA_OPTS: '-Xms1G -Xmx1G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    # 36 MiB: accommodates the ~30 MiB genesis WRAPS proof with ~20% headroom
+    SERVER_MAX_MESSAGE_SIZE_BYTES: "37748736"
