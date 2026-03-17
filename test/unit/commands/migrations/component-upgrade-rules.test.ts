@@ -162,11 +162,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
-        'merge-test',
-        '1.0.0',
-        '4.0.0',
-      );
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('merge-test', '1.0.0', '4.0.0');
 
       // Both recreate boundaries should merge into a single step jumping to the target
       expect(steps).to.have.length(1);
@@ -178,7 +174,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     it('handles three alternating-strategy boundaries correctly', (): void => {
       const customConfig: ComponentUpgradeMigrationConfigFile = {
         components: {
-          'alternating': {
+          alternating: {
             defaultStrategy: 'in-place',
             boundaries: [
               {version: '2.0.0', strategy: 'recreate', reason: 'Recreate at 2.0'},
@@ -192,11 +188,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
-        'alternating',
-        '1.0.0',
-        '5.0.0',
-      );
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('alternating', '1.0.0', '5.0.0');
 
       // 3 distinct strategy segments: recreate → in-place → recreate
       expect(steps).to.have.length(3);
@@ -354,11 +346,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
-        'args-test',
-        '1.0.0',
-        '3.0.0',
-      );
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('args-test', '1.0.0', '3.0.0');
 
       expect(steps[0].extraCommandArgs).to.deep.equal(['--set', 'migration.enabled=true']);
     });
@@ -477,10 +465,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       // existsSync should only be called once for the migration file
       const migrationFileCalls: sinon.SinonSpyCall[] = existsSyncStub
         .getCalls()
-        .filter(
-          (call: sinon.SinonSpyCall): boolean =>
-            call.args[0] === constants.UPGRADE_MIGRATIONS_FILE,
-        );
+        .filter((call: sinon.SinonSpyCall): boolean => call.args[0] === constants.UPGRADE_MIGRATIONS_FILE);
       expect(migrationFileCalls).to.have.length(1);
     });
   });

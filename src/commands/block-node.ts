@@ -1179,7 +1179,7 @@ export class BlockNodeCommand extends BaseCommand {
     // Record the install time so the readiness check can ignore any stale pod references.
     config.recreateInstallTime = new Date();
 
-    await this.chartManager.upgrade(
+    await this.chartManager.install(
       config.namespace,
       config.releaseName,
       constants.BLOCK_NODE_CHART,
