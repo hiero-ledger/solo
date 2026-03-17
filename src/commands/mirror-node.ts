@@ -763,6 +763,19 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
                 const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+                const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
+                const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
+                const feesEntityId: string = MirrorNodeCommand.encodeEntityId(
+                  Number(shard),
+                  Number(realm),
+                  feesFileIdNumber,
+                );
+                const exchangeRatesEntityId: string = MirrorNodeCommand.encodeEntityId(
+                  Number(shard),
+                  Number(realm),
+                  exchangeRatesFileIdNumber,
+                );
+
                 const fees: string = await this.accountManager.getFileContents(
                   namespace,
                   feesFileIdNumber,
@@ -780,10 +793,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const importFeesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 17);`;
+VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesEntityId}, 17);`;
                 const importExchangeRatesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
+VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesEntityId}, 17);`;
 
                 // When using an external database the importer's V1.0__Init.sql migration
                 // creates mirror_rest without the readonly role, so it lacks SELECT on any
@@ -1365,6 +1378,23 @@ END $grant$;`;
 
   private getChartNamespace(version: string): string {
     return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
+  }
+
+  /**
+   * Encodes a shard.realm.num entity ID into the integer form used by the mirror node database.
+   * Matches the encoding in EntityId.java: |10-bit shard|16-bit realm|38-bit num|
+   */
+  private static encodeEntityId(shard: number, realm: number, entityNumber: number): string {
+    if (shard === 0 && realm === 0) {
+      return String(entityNumber);
+    }
+    const NUM_BITS: bigint = 38n;
+    const REALM_BITS: bigint = 16n;
+    const encoded: bigint =
+      (BigInt(entityNumber) & ((1n << NUM_BITS) - 1n)) |
+      ((BigInt(realm) & ((1n << REALM_BITS) - 1n)) << NUM_BITS) |
+      (BigInt(shard) << (REALM_BITS + NUM_BITS));
+    return encoded.toString();
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
