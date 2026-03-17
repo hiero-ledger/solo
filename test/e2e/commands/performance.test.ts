@@ -155,7 +155,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             soloRapidFire(
               testName,
               'NftTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+              `-c ${clients} -a ${accounts} -T ${nfts} -n ${nfts} -S flat -p ${percent} -R -t ${duration}`,
               maxTps,
             ),
           );
