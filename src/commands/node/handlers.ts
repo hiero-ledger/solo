@@ -255,6 +255,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
+      this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
@@ -1111,22 +1112,18 @@ export class NodeCommandHandlers extends CommandHandler {
     } catch {
       throw new SoloError(`${nodeAlias} not found in remote config`);
     }
-
-    // TODO: Enable once the states have been mapped
+    // TODO: Enable once states have been mapped
     // if (acceptedPhases && !acceptedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `accepted states: ${acceptedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
     //
     // if (excludedPhases && excludedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `excluded states: ${excludedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
-
     return nodeComponent.metadata.phase;
   }
 

@@ -115,8 +115,8 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
@@ -165,6 +165,8 @@ import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-lo
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
+import {CommandFlag} from '../../types/flag-types.js';
+import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -188,6 +190,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
+    @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -203,6 +206,7 @@ export class NodeCommandTasks {
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -267,14 +271,14 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: any = null;
+        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | null = null;
 
         fileTransaction =
           start === 0
             ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
             : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
-        const resp: any = await fileTransaction.execute(nodeClient);
-        const receipt: any = await resp.getReceipt(nodeClient);
+        const resp: TransactionResponse = await fileTransaction.execute(nodeClient);
+        const receipt: TransactionReceipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
           `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
@@ -357,13 +361,10 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
         task: async (): Promise<void> => {
-          const shellRunner: ShellRunner = new ShellRunner();
           try {
-            const retrievedReleaseTag: string[] = await shellRunner.run(
-              `git -C ${localDataLibraryBuildPath} describe --tags --abbrev=0`,
-            );
+            const retrievedReleaseTag: string = await this.gitClient.describeTag(localDataLibraryBuildPath);
             const expectedReleaseTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
-            if (retrievedReleaseTag.join('\n') !== expectedReleaseTag) {
+            if (retrievedReleaseTag !== expectedReleaseTag) {
               this.logger.showUser(
                 chalk.cyan(
                   `Checkout version ${retrievedReleaseTag} does not match the release version ${expectedReleaseTag}`,
@@ -446,7 +447,7 @@ export class NodeCommandTasks {
   ): SoloListr<AnyListrContext> {
     const {
       config: {namespace},
-    }: any = context_;
+    } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
     const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
@@ -633,12 +634,11 @@ export class NodeCommandTasks {
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gossip keys',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: ({config}, task): any => {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateGossipKeys(
+        const subTasks: SoloListrTask<NodeKeysContext | NodeAddContext>[] = this.keyManager.taskGenerateGossipKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -657,7 +657,7 @@ export class NodeCommandTasks {
   private _generateGrpcTlsKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gRPC TLS Keys',
-      task: (context_, task): any => {
+      task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
         const config: any = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
@@ -677,13 +677,13 @@ export class NodeCommandTasks {
   public copyGrpcTlsCertificates(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Copy gRPC TLS Certificates',
-      task: (context_, task): any =>
+      task: ({config}, task): SoloListr<AnyListrContext> =>
         this.certificateManager.buildCopyTlsCertificatesTasks(
           task,
-          context_.config.grpcTlsCertificatePath,
-          context_.config.grpcWebTlsCertificatePath,
-          context_.config.grpcTlsKeyPath,
-          context_.config.grpcWebTlsKeyPath,
+          config.grpcTlsCertificatePath,
+          config.grpcWebTlsCertificatePath,
+          config.grpcTlsKeyPath,
+          config.grpcWebTlsKeyPath,
         ),
       skip: (context_): boolean =>
         !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
@@ -747,7 +747,7 @@ export class NodeCommandTasks {
     }
   }
 
-  public prepareUpgradeZip(): SoloListrTask<any> {
+  public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
@@ -845,14 +845,17 @@ export class NodeCommandTasks {
     return {
       title: 'Send prepare upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {nodeClient, freezeAdminPrivateKey, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
         try {
           const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
           // query the balance
-          const balance: any = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+          const balance: AccountBalance = await new AccountBalanceQuery()
+            .setAccountId(freezeAccountId)
+            .execute(nodeClient);
+
           this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
@@ -891,8 +894,8 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
         try {
           const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
@@ -936,12 +939,12 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
         try {
-          const nodeClient = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
           );
-          const futureDate = new Date();
+          const futureDate: Date = new Date();
           this.logger.debug(`Current time: ${futureDate}`);
 
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
@@ -949,13 +952,13 @@ export class NodeCommandTasks {
 
           const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
           nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeOnlyTransaction: any = await new FreezeTransaction()
+          const freezeOnlyTransaction: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const freezeOnlyReceipt: any = await freezeOnlyTransaction.getReceipt(nodeClient);
+          const freezeOnlyReceipt: TransactionReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
 
           this.logger.debug(
             `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
@@ -1281,8 +1284,8 @@ export class NodeCommandTasks {
 
           // Clean up old rounds - keep only the latest/biggest round
           this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          const cleanupScriptName: string = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
@@ -1899,7 +1902,7 @@ export class NodeCommandTasks {
     return {
       title: 'Trigger stake weight calculate',
       task: async (context_): Promise<void> => {
-        const config = context_.config;
+        const config: AnyObject = context_.config;
         this.logger.info(
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
         );
@@ -1961,10 +1964,12 @@ export class NodeCommandTasks {
             context_.config.nodeAliases,
             deploymentName,
           );
-          // @ts-expect-error - TS2339: Property stakeAmount does not exist on type NodeStartConfigClass
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
-          const stakeAmountParsed = context_.config.stakeAmount ? splitFlagInput(context_.config.stakeAmount) : [];
-          let nodeIndex = 0;
+          const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
+            | string
+            | undefined;
+          const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
+          let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
             const accountId: string = accountMap.get(nodeAlias);
             const stakeAmount: string | number =
@@ -2025,7 +2030,7 @@ export class NodeCommandTasks {
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
-                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+                const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (constants.ENABLE_S6_IMAGE) {
                   await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
@@ -2099,6 +2104,182 @@ export class NodeCommandTasks {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
         await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
+      },
+    };
+  }
+
+  private isDefaultFlagValue(flag: CommandFlag): boolean {
+    const value: string | boolean | number = this.configManager.getFlag(flag);
+    const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
+    return value === defaultValue;
+  }
+
+  public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Update node configuration files',
+      task: async ({config}, task): Promise<void> => {
+        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
+          task.skip(
+            `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
+              chalk.grey('no consensus node configuration files to be updated'),
+          );
+
+          return;
+        }
+
+        const stagingDirectory: string = Templates.renderStagingDir(
+          this.configManager.getFlag(flags.cacheDir),
+          this.configManager.getFlag(flags.releaseTag),
+        );
+
+        for (const flag of flags.nodeConfigFileFlags.values()) {
+          if (this.isDefaultFlagValue(flag)) {
+            continue;
+          }
+
+          const sourceFilePath: string = this.configManager.getFlagFile(flag);
+          const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
+          const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
+          if (!fs.existsSync(sourceAbsoluteFilePath)) {
+            throw new SoloError(
+              `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
+            );
+          }
+
+          const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
+          const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
+          this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
+
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+        }
+
+        const yamlRoot: AnyObject = {};
+
+        if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.log4j2Xml',
+            'log4j2.xml',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.settingTxt)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.settingsTxt',
+            'settings.txt',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationProperties',
+            'application.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.apiPermissionProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.apiPermissionsProperties',
+            'api-permission.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.bootstrapProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.bootstrapProperties',
+            'bootstrap.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.applicationEnv)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationEnv',
+            'application.env',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        for (const node of config.consensusNodes) {
+          const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+            NamespaceName.of(node.namespace),
+            node.name,
+          );
+
+          if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'log4j2.xml');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+
+          if (!this.isDefaultFlagValue(flags.settingTxt)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'settings.txt');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+
+          if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
+            const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
+
+            await container.copyTo(sourcePath, destinationPath);
+          }
+        }
+
+        const profileValuesFile: Record<ClusterReferenceName, string> = {};
+
+        const clusterReferences: ClusterReferenceName[] = [];
+
+        for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
+          clusterReferences.push(clusterReference);
+
+          const cachedValuesFile: string = PathEx.join(config.cacheDir, `solo-${clusterReference}.yaml`);
+
+          profileValuesFile[clusterReference] = await this.profileManager.writeToYaml(cachedValuesFile, yamlRoot);
+        }
+
+        const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+          this.remoteConfig.getClusterRefs(),
+          config.chartDirectory,
+          profileValuesFile,
+          config.valuesFile,
+        );
+
+        // Update all charts
+        await Promise.all(
+          clusterReferences.map(async (clusterReference: string): Promise<void> => {
+            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
+
+            await this.chartManager.upgrade(
+              config.namespace,
+              constants.SOLO_DEPLOYMENT_CHART,
+              constants.SOLO_DEPLOYMENT_CHART,
+              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.soloChartVersion,
+              valuesFiles[clusterReference],
+              context,
+            );
+
+            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+          }),
+        );
       },
     };
   }
@@ -2690,7 +2871,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
 
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
         this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
 
         if (config.existingNodeAliases.length > 1) {
@@ -2707,23 +2888,25 @@ export class NodeCommandTasks {
 
           if (config.tlsPublicKey && config.tlsPrivateKey) {
             this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash = crypto.createHash('sha384').update(tlsCertDer).digest();
+            const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+            const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
             nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
 
-            const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+            const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
             renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
             renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
             this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+            const signingCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(
+              config.gossipPublicKey,
+            );
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
-            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
             renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
             renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
           }
@@ -2746,15 +2929,15 @@ export class NodeCommandTasks {
 
           // also sign with new account's key if account is being updated
           if (config.newAccountNumber) {
-            const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+            const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
               config.newAccountNumber,
               config.namespace,
             );
             nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
           }
-          const signedTx = await nodeUpdateTx.sign(config.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+          const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
+          const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
           this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
 
           // If admin key was updated, save the new key to k8s secret
@@ -2981,7 +3164,9 @@ export class NodeCommandTasks {
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
-          clusterReferencesList.push(clusterReference);
+          if (!clusterReferencesList.includes(clusterReference)) {
+            clusterReferencesList.push(clusterReference);
+          }
         }
 
         // Update all charts

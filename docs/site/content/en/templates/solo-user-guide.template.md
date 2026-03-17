@@ -235,7 +235,72 @@ After deployment, your network services are automatically available at:
 | Mirror Node REST | `http://localhost:5551` | REST API for queries |
 | JSON RPC Relay | `localhost:7546` | Ethereum-compatible JSON RPC |
 
+> **Note:** The ports listed above are defaults. Your actual ports may differ based on
+> local port map configurations or if the default ports were already in use during deployment.
+> Review the output of `solo one-shot single deploy` to confirm your active endpoints.
+
 Open http://localhost:8080 in your browser to explore your network.
+
+#### Discovering and Verifying Active Ports
+
+If you are unsure which ports are currently active, use the following options.
+
+**Option A: Check deployment output**
+
+The `solo one-shot single deploy` command prints a summary of active port-forward mappings upon
+successful completion. If you still have that terminal session open, scroll up to review those mappings.
+
+**Option B: Run the deployment refresh command**
+
+The `solo deployment refresh port-forwards` command checks every configured port-forward, reports
+its current status, and automatically restores any that are no longer running:
+
+```bash
+solo deployment refresh port-forwards --deployment <deployment-name>
+```
+
+Example output:
+
+```
+=== Port-Forward Status Check ===
+
+✓ ConsensusNode node0: localhost:50211 -> pod:50211 [Running]
+✓ MirrorNode mirror-node: localhost:5551 -> pod:5551 [Running]
+⚠ Explorer explorer: localhost:8080 -> pod:8080 [Missing]
+  ↳ Restored port forward for Explorer explorer
+```
+
+The command shows each component's `localhost:<port>` mapping so you can confirm the exact ports
+in use for your deployment.
+
+**Option C: Query the OS directly**
+
+You can also list all active `kubectl port-forward` processes at the operating-system level:
+
+```bash
+# macOS / Linux
+ps aux | grep "kubectl.*port-forward" | grep -v grep
+```
+
+Or check which ports are listening:
+
+```bash
+# macOS
+lsof -iTCP -sTCP:LISTEN | grep kubectl
+
+# Linux
+ss -tlnp | grep kubectl
+```
+
+#### Restoring Broken Port-Forwards
+
+Port-forwards may stop after a system sleep, network change, or pod restart. To restore them:
+
+```bash
+solo deployment refresh port-forwards --deployment <deployment-name>
+```
+
+This command detects any missing port-forwards and re-establishes them automatically.
 
 ### Check Pod Status
 
