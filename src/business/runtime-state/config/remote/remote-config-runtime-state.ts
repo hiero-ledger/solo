@@ -305,7 +305,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return await this.k8Factory.getK8(context).configMaps().read(namespace, name);
   }
 
-  private async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
+  private async getConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap> {
     if (!namespace || !context) {
       throw new MissingRequiredParametersError(
         `Namespace and context are required to get the remote config ConfigMap, received namespace: ${namespace}, context: ${context}`,

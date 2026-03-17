@@ -140,6 +140,12 @@ interface RelayUpgradeContext {
   config: RelayUpgradeConfigClass;
 }
 
+enum RelayCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
+}
+
 @injectable()
 export class RelayCommand extends BaseCommand {
   public constructor(
@@ -405,7 +411,7 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
-  private deployJsonRpcRelayTask(): SoloListrTask<AnyListrContext> {
+  private deployJsonRpcRelayTask(commandType: RelayCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
@@ -420,7 +426,11 @@ export class RelayCommand extends BaseCommand {
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
-        await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
+
+        // wait for the pod to destroy in case it was an upgrade
+        if (commandType === RelayCommandType.UPGRADE) {
+          await helpers.sleep(Duration.ofSeconds(40));
+        }
       },
     };
   }
@@ -554,7 +564,7 @@ export class RelayCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -625,7 +635,7 @@ export class RelayCommand extends BaseCommand {
         },
         restoreConfig(this.checkChartIsInstalledTask()),
         restoreConfig(this.prepareChartValuesTask()),
-        restoreConfig(this.deployJsonRpcRelayTask()),
+        restoreConfig(this.deployJsonRpcRelayTask(RelayCommandType.ADD)),
         restoreConfig(this.checkRelayIsRunningTask()),
         restoreConfig(this.checkRelayIsReadyTask()),
         restoreConfig(this.addRelayComponent()),
@@ -740,7 +750,7 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.prepareChartValuesTask(),
-        this.deployJsonRpcRelayTask(),
+        this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
         this.enablePortForwardingTask(),

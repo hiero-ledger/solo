@@ -375,11 +375,17 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+
         let exploreValuesArgument: string = ' --install ';
         exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
         exploreValuesArgument += await this.prepareHederaExplorerValuesArg(config);
 
-        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+        // Local chart checkouts can keep appVersion/tag at placeholder values (for example 0.0.1),
+        // so pin the runtime image tag explicitly to the requested explorer version.
+        if (config.explorerChartDirectory) {
+          exploreValuesArgument += helpers.populateHelmArguments({'image.tag': config.explorerVersion});
+        }
 
         await this.chartManager.upgrade(
           config.namespace,
@@ -881,7 +887,7 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -926,6 +932,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.loadRemoteConfigTask(argv, true),
         restoreConfig(this.loadRemoteConfigTask(argv)),
         restoreConfig({
           title: 'Destroy explorer',
@@ -985,10 +992,14 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
+  private loadRemoteConfigTask(argv: ArgvStruct, safe: boolean = false): SoloListrTask<AnyListrContext> {
     return {
       title: 'Load remote config',
       task: async (): Promise<void> => {
+        if (safe) {
+          await this.loadRemoteConfigOrWarn(argv);
+          return;
+        }
         await this.remoteConfig.loadAndValidate(argv);
       },
     };
