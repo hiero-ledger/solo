@@ -36,7 +36,7 @@ const clients: number = 1;
 const accounts: number = 1000;
 const tokens: number = 50;
 const associations: number = 50;
-const nfts: number = 50;
+const nfts: number = 10;
 const percent: number = 50;
 const maxTps: number = 100;
 let startTime: Date;
