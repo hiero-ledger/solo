@@ -327,9 +327,9 @@ export class MirrorNodeTest extends BaseCommandTest {
   private static async grantReadonlyRoleToMirrorRestUser(k8: K8): Promise<void> {
     // Use a dollar-quoted block so the grant is safe even if mirror_rest already has the role.
     const grantSql: string =
-      `DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') ` +
-      `AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') ` +
-      `THEN GRANT readonly TO mirror_rest; END IF; END $grant$;`;
+      "DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') " +
+      "AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') " +
+      'THEN GRANT readonly TO mirror_rest; END IF; END $grant$;';
     const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
     await postgresContainer.execContainer([
       'env',
