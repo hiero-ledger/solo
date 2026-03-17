@@ -72,14 +72,14 @@ describe('SharedResourceManager', (): void => {
       expect(repoName).to.equal(localDirectory);
     });
 
-    it('always passes postgres.enabled and redis.enabled in values', async (): Promise<void> => {
+    it('always passes postgresql.enabled and redis.enabled in values', async (): Promise<void> => {
       manager.enablePostgres();
       manager.enableRedis();
 
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valuesArgument: AnyObject = (chartManagerStub.install as sinon.SinonStub).firstCall.args[5];
-      expect(valuesArgument).to.include('--set postgres.enabled=true');
+      expect(valuesArgument).to.include('--set postgresql.enabled=true');
       expect(valuesArgument).to.include('--set redis.enabled=true');
     });
 
@@ -89,7 +89,7 @@ describe('SharedResourceManager', (): void => {
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valuesArgument: AnyObject = (chartManagerStub.install as sinon.SinonStub).firstCall.args[5];
-      expect(valuesArgument).to.include('--set postgres.enabled=false');
+      expect(valuesArgument).to.include('--set postgresql.enabled=false');
       expect(valuesArgument).to.include('--set redis.enabled=true');
     });
 
@@ -151,7 +151,7 @@ describe('SharedResourceManager', (): void => {
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valuesArgument: AnyObject = (chartManagerStub.install as sinon.SinonStub).firstCall.args[5];
-      expect(valuesArgument).to.include('--set postgres.enabled=false');
+      expect(valuesArgument).to.include('--set postgresql.enabled=false');
       expect(valuesArgument).to.include('--set redis.enabled=false');
     });
 
@@ -161,7 +161,7 @@ describe('SharedResourceManager', (): void => {
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valuesArgument: AnyObject = (chartManagerStub.install as sinon.SinonStub).firstCall.args[5];
-      expect(valuesArgument).to.include('--set postgres.enabled=true');
+      expect(valuesArgument).to.include('--set postgresql.enabled=true');
       expect(valuesArgument).to.include('--set redis.enabled=false');
     });
 
@@ -171,7 +171,7 @@ describe('SharedResourceManager', (): void => {
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valuesArgument: AnyObject = (chartManagerStub.install as sinon.SinonStub).firstCall.args[5];
-      expect(valuesArgument).to.include('--set postgres.enabled=false');
+      expect(valuesArgument).to.include('--set postgresql.enabled=false');
       expect(valuesArgument).to.include('--set redis.enabled=true');
     });
   });
