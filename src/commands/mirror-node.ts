@@ -108,6 +108,7 @@ interface MirrorNodeDeployConfigClass {
   id: number;
   soloChartVersion: string;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
+  installSharedResources: boolean;
 }
 
 interface MirrorNodeDeployContext {
@@ -488,7 +489,7 @@ export class MirrorNodeCommand extends BaseCommand {
         'web3.db.username': readonlyUsername,
 
         // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
-        'rest.db.username': readonlyUsername,
+        // 'rest.db.username': readonlyUsername,
 
         // set the passwords
         'db.owner.password': ownerPassword,
@@ -639,9 +640,12 @@ export class MirrorNodeCommand extends BaseCommand {
           {
             title: 'Install Shared Resources chart',
             task: async (context_): Promise<void> => {
-              this.sharedResourceManager.enablePostgres();
+              if (!context_.config.useExternalDatabase) {
+                this.sharedResourceManager.enablePostgres();
+              }
+
               this.sharedResourceManager.enableRedis();
-              await this.sharedResourceManager.installChart(
+              context_.config.installSharedResources = await this.sharedResourceManager.installChart(
                 context_.config.namespace,
                 context_.config.chartDirectory,
                 context_.config.soloChartVersion,
@@ -712,7 +716,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 },
               });
             },
-            skip: (context_): boolean => !!context_.config.useExternalDatabase,
+            skip: (context_): boolean => context_.config.useExternalDatabase,
           },
         ];
 
@@ -1069,6 +1073,7 @@ END $grant$;`;
             );
 
             config.id = config.newMirrorNodeComponent.metadata.id;
+            config.installSharedResources = false;
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
             if (useMirrorNodeLegacyReleaseName) {
@@ -1199,6 +1204,8 @@ END $grant$;`;
               this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
             );
           },
+          skip: ({config}: MirrorNodeDeployContext): boolean =>
+            config.useExternalDatabase || !config.installSharedResources,
         },
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),

@@ -49,13 +49,22 @@ export class SharedResourceManager {
     await this.chartManager.uninstall(namespace, constants.SOLO_SHARED_RESOURCES_CHART, context);
   }
 
+  /**
+   *  Installs the shared resources chart in the specified namespace if it is not already installed.
+   *  Returns true if the chart was installed, false if it was already installed.
+   * @param namespace
+   * @param chartDirectory
+   * @param soloChartVersion
+   * @param context
+   * @param valuesArgumentsMap
+   */
   public async installChart(
     namespace: NamespaceName,
     chartDirectory: string,
     soloChartVersion: string,
     context?: string,
     valuesArgumentsMap?: Record<string, string>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
       namespace,
       constants.SOLO_SHARED_RESOURCES_CHART,
@@ -66,12 +75,12 @@ export class SharedResourceManager {
       this.logger?.info(
         `Shared resources chart is already installed in namespace ${namespace.name}, skipping installation.`,
       );
-      return;
+      return false;
     }
 
     valuesArgumentsMap = {
       ...valuesArgumentsMap,
-      'postgres.enabled': this.postgresEnabled.toString(),
+      'postgresql.enabled': this.postgresEnabled.toString(),
       'redis.enabled': this.redisEnabled.toString(),
     };
 
@@ -88,5 +97,7 @@ export class SharedResourceManager {
       values,
       context,
     );
+
+    return true;
   }
 }
