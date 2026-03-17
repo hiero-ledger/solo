@@ -12,7 +12,6 @@ import {type NodeAlias} from '../types/aliases.js';
 
 export function getEnvironmentVariable(name: string): string | undefined {
   if (process.env[name]) {
-    console.log(`>> environment variable '${name}' exists, using its value`);
     return process.env[name];
   }
   return undefined;
