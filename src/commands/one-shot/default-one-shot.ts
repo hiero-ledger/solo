@@ -254,6 +254,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   PathEx.join(mergedDirectory, 'application.properties'),
                 );
                 config.networkConfiguration['--application-env'] = PathEx.join(overridesDirectory, 'application.env');
+
+                const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
+                if (fs.existsSync(throttlesFile)) {
+                  config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
+                }
               }
 
               // Initialize deployment toggles with defaults if not specified
