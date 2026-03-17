@@ -13,18 +13,23 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 
+type BlockNodeConnectionDataBase = {
+  messageSizeSoftLimitBytes?: number;
+  messageSizeHardLimitBytes?: number;
+};
+
 type BlockNodeConnectionData =
-  | {
+  | ({
       address: string;
       port: number;
       priority: number;
-    }
-  | {
+    } & BlockNodeConnectionDataBase)
+  | ({
       address: string;
       streamingPort: number;
       servicePort: number;
       priority: number;
-    };
+    } & BlockNodeConnectionDataBase);
 
 interface BlockNodesJsonStructure {
   nodes: BlockNodeConnectionData[];
@@ -39,6 +44,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
   private readonly blockNodes: BlockNodeStateSchema[];
   private readonly externalBlockNodes: ExternalBlockNodeStateSchema[];
+  private readonly tssEnabled: boolean;
 
   public constructor(
     private readonly blockNodeMap: PriorityMapping[],
@@ -48,6 +54,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.blockNodes = this.remoteConfig.configuration.state.blockNodes;
     this.externalBlockNodes = this.remoteConfig.configuration.state.externalBlockNodes;
+    this.tssEnabled = this.remoteConfig.configuration.state.tssEnabled ?? false;
   }
 
   public toJSON(): string {
@@ -86,8 +93,17 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
+      const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
+        ? {
+            messageSizeSoftLimitBytes: constants.MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS,
+            messageSizeHardLimitBytes: constants.MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS,
+          }
+        : {};
+
       blockNodeConnectionData.push(
-        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
+        useLegacyPortName
+          ? {address, port, priority, ...tssMessageSizeFields}
+          : {address, streamingPort: port, servicePort: port, priority, ...tssMessageSizeFields},
       );
     }
 
@@ -99,8 +115,17 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
+      const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
+        ? {
+            messageSizeSoftLimitBytes: constants.MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS,
+            messageSizeHardLimitBytes: constants.MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS,
+          }
+        : {};
+
       blockNodeConnectionData.push(
-        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
+        useLegacyPortName
+          ? {address, port, priority, ...tssMessageSizeFields}
+          : {address, streamingPort: port, servicePort: port, priority, ...tssMessageSizeFields},
       );
     }
 
