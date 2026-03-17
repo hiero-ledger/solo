@@ -1585,10 +1585,12 @@ export class NetworkCommand extends BaseCommand {
     }
 
     const k8: K8 = k8Factory.getK8(context);
-    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
 
-    // Obtain the root-container for direct pod operations
     const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+
+    await container.execContainer('pwd');
+
+    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
 
     await container.execContainer(`mkdir -p ${targetDirectory}`);
 
@@ -1601,7 +1603,6 @@ export class NetworkCommand extends BaseCommand {
       `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
     );
 
-    // Read application.properties from the live pod
     const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
     const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
 
