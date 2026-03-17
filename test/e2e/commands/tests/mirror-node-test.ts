@@ -219,14 +219,14 @@ export class MirrorNodeTest extends BaseCommandTest {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const firstData: any = await firstResponse.json();
       console.log('\r::group::Mirror node verify pinger status first data');
-      console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
+      console.log(`firstData = ${JSON.stringify(firstData, undefined, 2)}`);
       console.log('\r::endgroup::');
       await sleep(Duration.ofSeconds(15));
       const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondData: any = await secondResponse.json();
       console.log('\r::group::Mirror node verify pinger status second data');
-      console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
+      console.log(`secondData = ${JSON.stringify(secondData, undefined, 2)}`);
       console.log('\r::endgroup::');
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);

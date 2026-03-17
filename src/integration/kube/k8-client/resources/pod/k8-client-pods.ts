@@ -311,9 +311,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
     const containerNames: string[] = [
-      ...(pod.spec?.initContainers?.map(container => container.name) ?? []),
-      ...(pod.spec?.containers?.map(container => container.name) ?? []),
-      ...(pod.spec?.ephemeralContainers?.map(container => container.name) ?? []),
+      ...(pod.spec?.initContainers?.map((container): string => container.name) ?? []),
+      ...(pod.spec?.containers?.map((container): string => container.name) ?? []),
+      ...(pod.spec?.ephemeralContainers?.map((container): string => container.name) ?? []),
     ].filter(Boolean);
 
     if (containerNames.length === 0) {
@@ -349,13 +349,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
-    const events = await this.kubeClient.listNamespacedEvent({
+    const events: {items?: any[]} = await this.kubeClient.listNamespacedEvent({
       namespace,
       fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
     });
 
     // eslint-disable-next-line unicorn/no-array-sort
-    const sortedEvents = [...(events?.items ?? [])].sort((left, right): number => {
+    const sortedEvents: any[] = [...(events?.items ?? [])].sort((left, right): number => {
       const leftTime: number = new Date(
         left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
       ).getTime();
