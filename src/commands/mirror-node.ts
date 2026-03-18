@@ -157,6 +157,7 @@ interface MirrorNodeUpgradeConfigClass {
   isLegacyChartInstalled: boolean;
   id: number;
   soloChartVersion: string;
+  installSharedResources: boolean;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
@@ -281,6 +282,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.id,
+      flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
@@ -729,6 +731,21 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         });
       },
+    };
+  }
+
+  private initializeSharedPostgresDatabaseTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Run database initialization script',
+      task: async (context_): Promise<void> => {
+        await this.postgresSharedResource.initializeMirrorNode(
+          context_.config.namespace,
+          context_.config.clusterContext,
+          this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
+        );
+      },
+      skip: ({config}: MirrorNodeDeployContext): boolean =>
+        config.useExternalDatabase || !config.installSharedResources,
     };
   }
 
@@ -1197,18 +1214,7 @@ END $grant$;`;
         },
         this.enableSharedResourcesTask(),
         this.enableMirrorNodeTask(),
-        {
-          title: 'Run database initialization script',
-          task: async (context_): Promise<void> => {
-            await this.postgresSharedResource.initializeMirrorNode(
-              context_.config.namespace,
-              context_.config.clusterContext,
-              this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
-            );
-          },
-          skip: ({config}: MirrorNodeDeployContext): boolean =>
-            config.useExternalDatabase || !config.installSharedResources,
-        },
+        this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
         this.addMirrorNodeComponents(),
@@ -1294,6 +1300,13 @@ END $grant$;`;
             config.isChartInstalled = isChartInstalled;
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
+            config.installSharedResources = false;
+
+            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+              context_.config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
             if (useMirrorNodeLegacyReleaseName) {
@@ -1396,7 +1409,9 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.enableSharedResourcesTask(),
         this.enableMirrorNodeTask(),
+        this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
