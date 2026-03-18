@@ -1410,6 +1410,22 @@ END $grant$;`;
           },
         },
         this.enableSharedResourcesTask(),
+        {
+          title: 'Delete stale mirror redis secret',
+          task: async (context_): Promise<void> => {
+            // The mirror-node chart stores sentinel config in the <release>-redis secret.
+            // On 'mirror node upgrade' we want to reconfigure the mirror node to use redis from
+            // the shared resources chart if it's not doing so already.
+            // Deleting the secret lets Helm recreate it cleanly without sentinel fields will
+            // be configured to use the shared redis. This is needed when upgrading from a version
+            // that did not use the shared redis to one that does.
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .secrets()
+              .delete(context_.config.namespace, `${context_.config.releaseName}-redis`);
+          },
+          skip: ({config}: MirrorNodeUpgradeContext): boolean => !config.installSharedResources,
+        },
         this.enableMirrorNodeTask(),
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
