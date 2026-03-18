@@ -114,8 +114,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // Mirror node, explorer and relay node are deployed to the second cluster
         MirrorNodeTest.installPostgres(options);
         MirrorNodeTest.deployWithExternalDatabase(options);
-        ExplorerTest.add(options);
         MirrorNodeTest.runSql(options);
+        ExplorerTest.add(options);
         RelayTest.add(options);
 
         it('should run smoke tests', async (): Promise<void> => {
