@@ -155,7 +155,7 @@ export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_CHART_URL: string =
   getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_URL') ??
-  'oci://swirldslabs.jfrog.io/load-generator-helm-release-local';
+  'oci://artifacts.hashgraph.io/load-generator-helm-release-local';
 export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
   'app.kubernetes.io/instance=network-load-generator',
   'app.kubernetes.io/name=network-load-generator',
