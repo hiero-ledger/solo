@@ -39,7 +39,9 @@ permissions:
 
 jobs:
   performance-test:
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    if: >
+      ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
+      startsWith(github.event.pull_request.title, 'trunk-merge') }}
     timeout-minutes: 90
     runs-on: hiero-solo-linux-large
     steps:
