@@ -21,14 +21,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'rapid-fire';
+  public static override readonly COMMAND_NAME: string = 'rapid-fire';
 
-  public static readonly LOAD_SUBCOMMAND_NAME = 'load';
-  public static readonly DESTROY_SUBCOMMAND_NAME = 'destroy';
+  public static readonly LOAD_SUBCOMMAND_NAME: string = 'load';
+  public static readonly DESTROY_SUBCOMMAND_NAME: string = 'destroy';
 
-  public static readonly START = 'start';
-  public static readonly STOP = 'stop';
-  public static readonly ALL = 'all';
+  public static readonly START: string = 'start';
+  public static readonly STOP: string = 'stop';
+  public static readonly ALL: string = 'all';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -48,7 +48,7 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
               this.rapidFireCommand,
               this.rapidFireCommand.start,
               RapidFireCommand.START_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               false,
             ),
           )
@@ -59,7 +59,7 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
               this.rapidFireCommand,
               this.rapidFireCommand.stop,
               RapidFireCommand.STOP_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
               false,
             ),
           ),
@@ -75,7 +75,7 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
             this.rapidFireCommand,
             this.rapidFireCommand.destroy,
             RapidFireCommand.DESTROY_FLAGS_LIST,
-            [constants.HELM, constants.KUBECTL],
+            [...constants.BASE_DEPENDENCIES],
             false,
           ),
         ),

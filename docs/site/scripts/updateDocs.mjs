@@ -15,8 +15,8 @@ export async function update () {
   const TARGET_DIR = 'docs/site/content/en';
   const TARGET_DIR_DOCS = 'docs/site/content/en/docs';
   const TEMPLATE_DIR = 'docs/site/content/en/templates';
-  const TARGET_FILE = `${TARGET_DIR_DOCS}/step-by-step-guide.md`;
-  const TEMPLATE_FILE = `${TEMPLATE_DIR}/step-by-step-guide.template.md`;
+  const TARGET_FILE = `${TARGET_DIR_DOCS}/solo-user-guide.md`;
+  const TEMPLATE_FILE = `${TEMPLATE_DIR}/solo-user-guide.template.md`;
   const TARGET_ADVANCED_FILE = `${TARGET_DIR_DOCS}/advanced-deployments.md`;
   const TEMPLATE_ADVANCED_FILE = `${TEMPLATE_DIR}/advanced-deployments.template.md`;
   const TEMPLATE_EXAMPLES_FILE = `${TEMPLATE_DIR}/examples-index.template.md`;

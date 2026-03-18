@@ -34,13 +34,13 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY: string = 'destroy';
   public static readonly NODE_UPGRADE: string = 'upgrade';
 
-  public static readonly ADD_COMMAND =
+  public static readonly ADD_COMMAND: string =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}` as const;
 
-  public static readonly DESTROY_COMMAND =
+  public static readonly DESTROY_COMMAND: string =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_DESTROY}` as const;
 
-  public static readonly UPGRADE_COMMAND =
+  public static readonly UPGRADE_COMMAND: string =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_UPGRADE}` as const;
 
   public getCommandDefinition(): CommandDefinition {
@@ -57,7 +57,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -67,7 +67,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           )
           .addSubcommand(
@@ -77,7 +77,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.upgrade,
               MirrorNodeCommand.UPGRADE_FLAGS_LIST,
-              [constants.HELM],
+              [...constants.BASE_DEPENDENCIES],
             ),
           ),
       )

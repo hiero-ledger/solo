@@ -22,44 +22,64 @@ import {Duration} from '../../../../../src/core/time/duration.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
+import * as constants from '../../../../../src/core/constants.js';
+import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
+import path from 'node:path';
 
-const execAsync = promisify(exec);
+const execAsync: (command: string, options?: Parameters<typeof exec>[1]) => Promise<{stdout: string; stderr: string}> =
+  promisify(exec);
 
-describe('KindClient Integration Tests', function () {
+describe('KindClient Integration Tests', function (): void {
   this.timeout(Duration.ofMinutes(1).toMillis());
 
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
   const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kind-test-'));
-  let originalKubeConfigContext: string | null = null;
+  let originalKubeConfigContext: string | undefined;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest();
 
     // Save original kubectl context if it exists
     try {
-      const {stdout} = await execAsync('kubectl config current-context');
+      const {stdout} = await execAsync('kubectl config current-context', {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       originalKubeConfigContext = stdout.trim();
       console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
     } catch {
       console.log('No kubectl context found or kubectl not available');
-      originalKubeConfigContext = null;
+      originalKubeConfigContext = undefined;
     }
 
     // Download and install Kind
+    container.register(InjectTokens.KindInstallationDirectory, {useValue: temporaryDirectory});
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
-    await kindManager.install(temporaryDirectory);
-    kindPath = await kindManager.getExecutablePath();
+    try {
+      await kindManager.install();
+    } catch (error) {
+      console.error('Error checking if Kind is installed locally:', error);
+      throw error;
+    }
+
+    kindPath = kindManager.isInstalledLocally()
+      ? PathEx.join(temporaryDirectory, constants.KIND)
+      : await kindManager.getExecutable();
 
     console.log(`Using Kind at: ${kindPath}`);
 
     // Create Kind client
     const clientBuilder: DefaultKindClientBuilder = new DefaultKindClientBuilder();
-    kindClient = await clientBuilder.executable(kindPath).build();
-  });
+    try {
+      kindClient = await clientBuilder.executable(kindPath).build();
+    } catch (error) {
+      console.error('Error building Kind client:', error);
+      throw error;
+    }
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
-  after(async () => {
+  after(async (): Promise<void> => {
     if (kindClient) {
       try {
         // Clean up test cluster if it exists
@@ -77,7 +97,9 @@ describe('KindClient Integration Tests', function () {
     if (originalKubeConfigContext) {
       try {
         console.log(`Restoring original kubectl context: ${originalKubeConfigContext}`);
-        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`);
+        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`, {
+          env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+        });
       } catch (error) {
         console.error('Error restoring kubectl context:', error);
       }
@@ -89,9 +111,9 @@ describe('KindClient Integration Tests', function () {
     } catch (error) {
       console.error('Error cleaning up temp directory:', error);
     }
-  });
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
-  it('should get Kind version', async () => {
+  it('should get Kind version', async (): Promise<void> => {
     const version: SemVer = await kindClient.version();
     expect(version).to.not.be.undefined;
     expect(version.major).to.be.a('number');
@@ -136,18 +158,18 @@ describe('KindClient Integration Tests', function () {
     }
   }).timeout(Duration.ofMinutes(4).toMillis());
 
-  it('should list clusters', async () => {
+  it('should list clusters', async (): Promise<void> => {
     const clusters: KindCluster[] = await kindClient.getClusters();
     expect(clusters).to.be.an('array');
     expect(clusters.length).to.be.greaterThan(0);
 
-    const testCluster: KindCluster = clusters.find(c => c.name === testClusterName);
+    const testCluster: KindCluster = clusters.find((c: KindCluster): boolean => c.name === testClusterName);
     expect(testCluster).to.not.be.undefined;
     expect(testCluster).to.be.instanceOf(KindCluster);
     expect(testCluster!.name).to.equal(testClusterName);
   });
 
-  it('should get cluster nodes', async () => {
+  it('should get cluster nodes', async (): Promise<void> => {
     const response: GetNodesResponse = await kindClient.getNodes(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.nodes).to.be.an('array');
@@ -160,7 +182,7 @@ describe('KindClient Integration Tests', function () {
     }
   });
 
-  it('should get kubeconfig', async () => {
+  it('should get kubeconfig', async (): Promise<void> => {
     const response: GetKubeConfigResponse = await kindClient.getKubeConfig(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.config).to.exist;
@@ -170,14 +192,14 @@ describe('KindClient Integration Tests', function () {
     expect(response.config.contexts).to.exist;
   });
 
-  it('should export kubeconfig', async () => {
+  it('should export kubeconfig', async (): Promise<void> => {
     const response: ExportKubeConfigResponse = await kindClient.exportKubeConfig(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.kubeConfigContext).to.be.a('string');
   });
 
-  it('should export logs', async () => {
-    const response = await kindClient.exportLogs(testClusterName);
+  it('should export logs', async (): Promise<void> => {
+    const response: {exportPath: string} = await kindClient.exportLogs(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.exportPath).to.be.a('string');
 
@@ -186,7 +208,7 @@ describe('KindClient Integration Tests', function () {
     expect(logsExist).to.be.true;
   });
 
-  it('should delete a cluster', async () => {
+  it('should delete a cluster', async (): Promise<void> => {
     const response: ClusterDeleteResponse = await kindClient.deleteCluster(testClusterName);
     expect(response).to.not.be.undefined;
 

@@ -36,11 +36,13 @@ export const VFKIT: string = 'vfkit';
 export const GVPROXY: string = 'gvproxy';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
+export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
+export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
@@ -70,6 +72,11 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
   getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
+
+// S6-based consensus node image configuration (overridable via environment)
+export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
+export const S6_NODE_IMAGE_REPOSITORY: string =
+  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java25';
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
@@ -113,11 +120,6 @@ export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
 export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
-
-export const GRAFANA_AGENT_CHART_URL: string =
-  getEnvironmentVariable('GRAFANA_AGENT_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
-export const GRAFANA_AGENT_CHART: string = 'grafana-agent';
-export const GRAFANA_AGENT_RELEASE_NAME: string = 'grafana-agent';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
@@ -191,7 +193,6 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(JSON_RPC_RELAY_CHART, JSON_RPC_RELAY_CHART_URL)
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
-  .set(GRAFANA_AGENT_RELEASE_NAME, GRAFANA_AGENT_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
@@ -247,6 +248,7 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
@@ -345,6 +347,7 @@ export const NODE_CLIENT_MAX_ATTEMPTS: number = +getEnvironmentVariable('NODE_CL
 export const NODE_CLIENT_MIN_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
 export const NODE_CLIENT_MAX_BACKOFF: number = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
 export const NODE_CLIENT_REQUEST_TIMEOUT: number = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
+export const NODE_CLIENT_MAX_QUERY_PAYMENT: number = +getEnvironmentVariable('NODE_CLIENT_MAX_QUERY_PAYMENT') || 20;
 export const NODE_CLIENT_SDK_PING_MAX_RETRIES: number =
   +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
 export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL: number =
@@ -388,6 +391,11 @@ export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT'
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
+
+export const MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS: number =
+  +getEnvironmentVariable('MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS') || 4_194_304; // 4 MiB
+export const MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS: number =
+  +getEnvironmentVariable('MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS') || 37_748_736; // 36 MiB, accommodates ~30 MiB genesis WRAPS proof
 
 // Filename suffix used for log/config archive files
 export const LOG_CONFIG_ZIP_SUFFIX: string = '-log-config.zip';
@@ -437,3 +445,19 @@ export const CERT_MANAGER_CRDS: string[] = [
   'clusterissuers.cert-manager.io',
   'issuers.cert-manager.io',
 ];
+
+export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
+  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps-v0.2.0';
+
+export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
+
+// TODO: in future define a better strategy to handle versioning
+export const WRAPS_LIB_DOWNLOAD_URL: string =
+  getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
+  `https://builds.hedera.com/tss/hiero/wraps/v0.2/${WRAPS_DIRECTORY_NAME}.tar.gz`;
+
+export const TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS: number =
+  +getEnvironmentVariable('TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS') || 10;
+
+export const TSS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('TSS_READY_MAX_ATTEMPTS') || 60;
+export const TSS_READY_BACKOFF_SECONDS: number = +getEnvironmentVariable('TSS_READY_BACKOFF_SECONDS') || 3;

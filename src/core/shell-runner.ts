@@ -20,6 +20,8 @@ export class ShellRunner {
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
+    environmentVariablesToAppend: Record<string, string> = {},
+    timeoutMs?: number,
   ): Promise<string[]> {
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
@@ -27,10 +29,10 @@ export class ShellRunner {
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
+        env: {...process.env, ...environmentVariablesToAppend},
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,
-        windowsVerbatimArguments: OperatingSystem.isWin32(), // ensure arguments are passed verbatim on Windows
         windowsHide: OperatingSystem.isWin32(), // hide the console window on Windows
       });
 
@@ -38,6 +40,19 @@ export class ShellRunner {
         child.unref(); // allow the parent process to exit independently of this child
         resolve([]);
         return;
+      }
+
+      let timedOut: boolean = false;
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+      if (timeoutMs !== undefined) {
+        timeoutHandle = setTimeout((): void => {
+          timedOut = true;
+          child.kill();
+          const error: Error = new Error(`Command timed out after ${timeoutMs}ms: '${cmd}'`);
+          error.stack = callStack;
+          reject(error);
+        }, timeoutMs);
       }
 
       const output: string[] = [];
@@ -61,6 +76,14 @@ export class ShellRunner {
       });
 
       child.on('exit', (code, signal): void => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+
+        if (timedOut) {
+          return; // already rejected by timeout handler
+        }
+
         if (code) {
           const error: Error = new Error(
             `Command exit with error code ${code}, [command: '${cmd}'], [message: '${errorOutput.join('\n')}']`,
@@ -85,6 +108,7 @@ export class ShellRunner {
           });
 
           reject(error);
+          return;
         }
 
         this.logger.debug(
@@ -108,6 +132,7 @@ export class ShellRunner {
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
+    environmentVariablesToAppend: Record<string, string> = {},
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
@@ -126,6 +151,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run(`sudo ${cmd}`, arguments_, verbose, detached);
+    return this.run(`sudo ${cmd}`, arguments_, verbose, detached, environmentVariablesToAppend);
   }
 }

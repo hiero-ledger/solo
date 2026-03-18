@@ -10,11 +10,11 @@ export class InjectTokens {
   public static DevelopmentMode: symbol = Symbol.for('DevelopmentMode');
   public static OsPlatform: symbol = Symbol.for('OsPlatform');
   public static OsArch: symbol = Symbol.for('OsArch');
-  public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
-  public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
-  public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
-  public static PodmanInstallationDir: symbol = Symbol.for('PodmanInstallationDir');
-  public static PodmanDependenciesInstallationDir: symbol = Symbol.for('PodmanDependenciesInstallationDir');
+  public static HelmInstallationDirectory: symbol = Symbol.for('HelmInstallationDirectory');
+  public static KindInstallationDirectory: symbol = Symbol.for('KindInstallationDirectory');
+  public static KubectlInstallationDirectory: symbol = Symbol.for('KubectlInstallationDirectory');
+  public static PodmanInstallationDirectory: symbol = Symbol.for('PodmanInstallationDirectory');
+  public static PodmanDependenciesInstallationDirectory: symbol = Symbol.for('PodmanDependenciesInstallationDirectory');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
   public static KindVersion: symbol = Symbol.for('KindVersion');
   public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
@@ -84,10 +84,12 @@ export class InjectTokens {
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
+  public static DebugCommand: symbol = Symbol.for('DebugCommand');
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
+  public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
 
   // Command Definitions
@@ -95,6 +97,7 @@ export class InjectTokens {
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
   public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
   public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
+  public static DebugCommandDefinition: symbol = Symbol.for('DebugCommandDefinition');
   public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');
   public static ExplorerCommandDefinition: symbol = Symbol.for('ExplorerCommandDefinition');
   public static KeysCommandDefinition: symbol = Symbol.for('KeysCommandDefinition');

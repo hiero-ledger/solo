@@ -16,6 +16,7 @@ import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
@@ -35,6 +36,7 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
@@ -42,7 +44,6 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -104,6 +105,7 @@ interface MirrorNodeDeployConfigClass {
   newMirrorNodeComponent: MirrorNodeStateSchema;
   isLegacyChartInstalled: boolean;
   id: number;
+  forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeDeployContext {
@@ -150,6 +152,7 @@ interface MirrorNodeUpgradeConfigClass {
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
   id: number;
+  forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
 interface MirrorNodeUpgradeContext {
@@ -222,6 +225,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -259,6 +263,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.id,
+      flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
 
@@ -271,16 +276,47 @@ export class MirrorNodeCommand extends BaseCommand {
     config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
-    // TODO: re-enable block node integration when supported in mirror node: https://github.com/hiero-ledger/hiero-mirror-node/issues/12192
-    // const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
-    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = [];
-
-    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
+    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
 
     if (blockNodeSchemas.length === 0) {
       this.logger.debug('No block nodes found in remote config configuration');
       return '';
     }
+
+    let shouldConfigureMirrorNodeToPullFromBlockNode: boolean;
+
+    if (config.forceBlockNodeIntegration) {
+      // Bypass following checks
+      this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
+      shouldConfigureMirrorNodeToPullFromBlockNode = true;
+    } else {
+      const isConsensusNodeVersionSupported: boolean = semver.gte(
+        this.remoteConfig.configuration.versions.consensusNode,
+        versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+      );
+
+      const isBlockNodeChartVersionSupported: boolean = semver.gte(
+        this.remoteConfig.configuration.versions.blockNodeChart,
+        versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+      );
+
+      const isMirrorNodeVersionSupported: boolean = semver.gte(
+        new SemVer(config.mirrorNodeVersion),
+        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+      );
+
+      shouldConfigureMirrorNodeToPullFromBlockNode =
+        isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
+    }
+
+    if (!shouldConfigureMirrorNodeToPullFromBlockNode) {
+      this.logger.info(
+        'Mirror node will remain configured to pull from consensus node because version requirements were not met',
+      );
+      return '';
+    }
+
+    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
 
     this.logger.debug('Preparing mirror node values args overrides for block nodes integration');
 
@@ -627,6 +663,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   mirrorIngressControllerValuesArgument,
                   context_.config.clusterContext,
                 );
+                await this.adoptMirrorIngressControllerRbacOwnership(config);
                 showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
               },
               skip: (context_): boolean => !context_.config.enableIngress,
@@ -749,7 +786,25 @@ VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 
                 const importExchangeRatesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
 VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
-                const sqlQuery: string = [importFeesQuery, importExchangeRatesQuery].join('\n');
+
+                // When using an external database the importer's V1.0__Init.sql migration
+                // creates mirror_rest without the readonly role, so it lacks SELECT on any
+                // table added by a migration after V1.0.  Prepend a safe grant so that
+                // whoever runs this script (manually or via runSql) gives mirror_rest the
+                // access it needs.  The DO block is idempotent: it is a no-op when the
+                // grant already exists or when either role is absent.
+                const grantReadonlyQuery: string = `DO $grant$
+BEGIN
+  IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly')
+     AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest')
+  THEN
+    GRANT readonly TO mirror_rest;
+  END IF;
+END $grant$;`;
+
+                const sqlQuery: string = config.useExternalDatabase
+                  ? [grantReadonlyQuery, importFeesQuery, importExchangeRatesQuery].join('\n')
+                  : [importFeesQuery, importExchangeRatesQuery].join('\n');
 
                 const cacheDirectory: string = config.cacheDir;
                 // Build the path
@@ -882,7 +937,7 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -916,7 +971,8 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
+            if (useMirrorNodeLegacyReleaseName) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${config.namespace.name}`;
             } else {
@@ -1140,7 +1196,8 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
+            if (useMirrorNodeLegacyReleaseName) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             }
@@ -1252,7 +1309,9 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                   'There are missing values that need to be provided when' +
                   `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
-                throw new SoloError(`${errorMessage} ${missingFlags.map(flag => `--${flag.name}`).join(', ')}`);
+                throw new SoloError(
+                  `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
+                );
               }
             }
 
@@ -1362,13 +1421,6 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
                 clusterContext,
               ),
             };
-
-            await this.accountManager.loadNodeClient(
-              context_.config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              this.configManager.getFlag<DeploymentName>(flags.deployment),
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -1553,19 +1605,19 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
     const id: ComponentId = this.inferMirrorNodeId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
+    const ingressReleaseName: string = await this.inferInstalledIngressReleaseName(namespace, context, id);
 
     if (isLegacyChartInstalled) {
       return {
         id,
         releaseName: constants.MIRROR_NODE_RELEASE_NAME,
         isChartInstalled: true,
-        ingressReleaseName: constants.INGRESS_CONTROLLER_RELEASE_NAME,
+        ingressReleaseName,
         isLegacyChartInstalled,
       };
     }
 
     const releaseName: string = this.renderReleaseName(id);
-    const ingressReleaseName: string = this.renderIngressReleaseName(id);
     return {
       id,
       releaseName,
@@ -1573,5 +1625,38 @@ VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRa
       ingressReleaseName,
       isLegacyChartInstalled,
     };
+  }
+
+  private async inferInstalledIngressReleaseName(
+    namespace: NamespaceName,
+    context: Context,
+    id: ComponentId,
+  ): Promise<string> {
+    const candidates: string[] = [
+      this.renderIngressReleaseName(id),
+      `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${namespace.name}`,
+      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+    ];
+
+    for (const releaseName of candidates) {
+      if (await this.chartManager.isChartInstalled(namespace, releaseName, context)) {
+        return releaseName;
+      }
+    }
+
+    // Keep existing behavior as fallback when no ingress release is currently installed.
+    return this.renderIngressReleaseName(id);
+  }
+
+  private async adoptMirrorIngressControllerRbacOwnership(config: MirrorNodeDeployConfigClass): Promise<void> {
+    const rbac: Rbacs = this.k8Factory.getK8(config.clusterContext).rbac();
+    const rbacNames: Set<string> = new Set([
+      constants.MIRROR_INGRESS_CONTROLLER,
+      `${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`,
+    ]);
+
+    for (const rbacName of rbacNames) {
+      await rbac.setHelmOwnership(rbacName, config.ingressReleaseName, config.namespace.name);
+    }
   }
 }

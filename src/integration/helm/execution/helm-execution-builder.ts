@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {join} from 'node:path';
 import {HelmExecution} from './helm-execution.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
-import {Templates} from '../../../core/templates.js';
 import * as constants from '../../../core/constants.js';
+import {ExecutionBuilder} from '../../execution-builder.js';
 
 @injectable()
 /**
  * A builder for creating a helm command execution.
  */
-export class HelmExecutionBuilder {
+export class HelmExecutionBuilder extends ExecutionBuilder {
   private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
   private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
@@ -53,28 +52,26 @@ export class HelmExecutionBuilder {
   private readonly _environmentVariables: Map<string, string> = new Map();
 
   /**
-   * The working directory to be used when executing the helm command.
-   */
-  private _workingDirectory: string;
-
-  /**
    * Creates a new HelmExecutionBuilder instance.
    */
-  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
+  public constructor(
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.HelmInstallationDirectory) private readonly helmInstallationDirectory?: string,
+  ) {
+    super();
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.helmInstallationDirectory = patchInject(
+      helmInstallationDirectory,
+      InjectTokens.HelmInstallationDirectory,
+      this.constructor.name,
+    );
 
     try {
-      this.helmExecutable = Templates.installationPath(constants.HELM);
+      this.helmExecutable = constants.HELM;
     } catch (error) {
       this.logger?.error('Failed to find helm executable:', error);
       throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');
     }
-
-    const workingDirectoryString: string = process.env.PWD;
-    this._workingDirectory =
-      workingDirectoryString && workingDirectoryString.trim() !== ''
-        ? workingDirectoryString
-        : join(this.helmExecutable, '..');
   }
 
   /**
@@ -155,19 +152,6 @@ export class HelmExecutionBuilder {
   }
 
   /**
-   * Sets the working directory for the helm execution.
-   * @param workingDirectoryPath the path to the working directory
-   * @returns this builder
-   */
-  public workingDirectory(workingDirectoryPath: string): HelmExecutionBuilder {
-    if (!workingDirectoryPath) {
-      throw new Error('workingDirectoryPath must not be null');
-    }
-    this._workingDirectory = workingDirectoryPath;
-    return this;
-  }
-
-  /**
    * Adds a flag to the helm execution.
    * @param flag the flag to be added
    * @returns this builder
@@ -190,8 +174,9 @@ export class HelmExecutionBuilder {
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
+    this.prefixPath(environment, this.helmInstallationDirectory);
 
-    return new HelmExecution(command, this._workingDirectory, environment, this.logger);
+    return new HelmExecution(command, environment, this.logger);
   }
 
   /**

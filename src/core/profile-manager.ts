@@ -451,6 +451,21 @@ export class ProfileManager {
     return yamlRoot;
   }
 
+  public resourcesForNetworkUpgrade(
+    itemPath: string,
+    fileName: string,
+    stagingDirectory: string,
+    yamlRoot: AnyObject,
+  ): void {
+    const filePath: string = PathEx.join(stagingDirectory, 'templates', fileName);
+
+    if (!fs.existsSync(filePath)) {
+      return;
+    }
+
+    this._setFileContentsAsValue(itemPath, filePath, yamlRoot);
+  }
+
   /**
    * Prepare a values file for Solo Helm chart
    * @param profileName - resource profile name
@@ -604,10 +619,9 @@ export class ProfileManager {
     if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
       lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
-      // TODO: Enable with wraps
-      // if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      //   lines.push('tss.wrapsEnabled=true');
-      // }
+      if (this.remoteConfig.configuration.state.wrapsEnabled) {
+        lines.push('tss.wrapsEnabled=true');
+      }
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
@@ -669,7 +683,7 @@ export class ProfileManager {
    * @param cachedValuesFile - the target file to write the YAML root to.
    * @param yamlRoot - object to turn into YAML and write to file.
    */
-  private async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
+  public async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
     return await new Promise<string>((resolve, reject) => {
       fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), error => {
         if (error) {

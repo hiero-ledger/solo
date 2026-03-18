@@ -34,7 +34,7 @@ export class Subcommand {
   }
 
   public async installDependencies(): Promise<void> {
-    const tasks = this.taskList.newTaskList(
+    const tasks: any = this.taskList.newTaskList(
       [
         ...this.initCommand.installDependenciesTasks({
           deps: this.dependencies,

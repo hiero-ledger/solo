@@ -41,6 +41,7 @@ import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
 import {SemVer} from 'semver';
+import {createHash} from 'node:crypto';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -374,11 +375,17 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+
         let exploreValuesArgument: string = ' --install ';
         exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
         exploreValuesArgument += await this.prepareHederaExplorerValuesArg(config);
 
-        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+        // Local chart checkouts can keep appVersion/tag at placeholder values (for example 0.0.1),
+        // so pin the runtime image tag explicitly to the requested explorer version.
+        if (config.explorerChartDirectory) {
+          exploreValuesArgument += helpers.populateHelmArguments({'image.tag': config.explorerVersion});
+        }
 
         await this.chartManager.upgrade(
           config.namespace,
@@ -556,7 +563,27 @@ export class ExplorerCommand extends BaseCommand {
     if (typeof id !== 'number') {
       throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
-    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
+    const maxHelmReleaseNameLength: number = 53;
+    const baseReleaseName: string = `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
+    if (baseReleaseName.length <= maxHelmReleaseNameLength) {
+      return baseReleaseName;
+    }
+
+    // Keep names deterministic and short enough for Helm while preserving readability.
+    const hashSuffixLength: number = 8;
+    const namespaceHash: string = createHash('sha256')
+      .update(namespaceName.name)
+      .digest('hex')
+      .slice(0, hashSuffixLength);
+    const prefix: string = `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
+    const availableNamespaceLength: number =
+      maxHelmReleaseNameLength - prefix.length - 1 - hashSuffixLength - 1; /* - */
+    if (availableNamespaceLength <= 0) {
+      return `${prefix}-${namespaceHash}`;
+    }
+
+    const shortenedNamespace: string = namespaceName.name.slice(0, availableNamespaceLength);
+    return `${prefix}-${shortenedNamespace}-${namespaceHash}`;
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {
@@ -860,7 +887,7 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -905,6 +932,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.loadRemoteConfigTask(argv, true),
         restoreConfig(this.loadRemoteConfigTask(argv)),
         restoreConfig({
           title: 'Destroy explorer',
@@ -964,10 +992,14 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
+  private loadRemoteConfigTask(argv: ArgvStruct, safe: boolean = false): SoloListrTask<AnyListrContext> {
     return {
       title: 'Load remote config',
       task: async (): Promise<void> => {
+        if (safe) {
+          await this.loadRemoteConfigOrWarn(argv);
+          return;
+        }
         await this.remoteConfig.loadAndValidate(argv);
       },
     };

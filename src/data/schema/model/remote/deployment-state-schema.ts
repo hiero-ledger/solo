@@ -23,8 +23,8 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   @Expose()
   public tssEnabled: boolean;
 
-  // @Expose()
-  // public wrapsEnabled: boolean; TODO: Enable with wraps
+  @Expose()
+  public wrapsEnabled: boolean;
 
   @Expose()
   @Type((): typeof ComponentIdsSchema => ComponentIdsSchema)
@@ -74,7 +74,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     explorers?: ExplorerStateSchema[],
     externalBlockNodes?: ExternalBlockNodeStateSchema[],
     tssEnabled?: boolean,
-    // wrapsEnabled?: boolean,
+    wrapsEnabled?: boolean,
   ) {
     this.ledgerPhase = ledgerPhase;
     this.componentIds = componentIds || new ComponentIdsSchema();
@@ -87,6 +87,6 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     this.explorers = explorers || [];
     this.externalBlockNodes = externalBlockNodes || [];
     this.tssEnabled = tssEnabled;
-    // this.wrapsEnabled = wrapsEnabled;
+    this.wrapsEnabled = wrapsEnabled;
   }
 }

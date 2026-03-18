@@ -1,6 +1,35 @@
 #!/bin/bash
 set -eo pipefail
 
+collect_failure_diagnostics() {
+  local rc="${1}"
+
+  echo "::group::Failure diagnostics"
+  echo "launch_network.sh failed with exit code ${rc}"
+
+  if command -v npm &> /dev/null; then
+    echo "Collecting Solo deployment diagnostics for ${SOLO_DEPLOYMENT}..."
+    npm run solo -- deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
+    echo "Solo diagnostics collection finished. Check ~/.solo/logs for downloaded artifacts."
+  else
+    echo "npm is not available; skipping Solo diagnostics collection"
+  fi
+
+  echo "::endgroup::"
+}
+
+on_exit() {
+  local rc=$?
+
+  if [[ ${rc} -ne 0 ]]; then
+    collect_failure_diagnostics "${rc}"
+  fi
+
+  exit "${rc}"
+}
+
+trap on_exit EXIT
+
 releaseTag="${1}"
 if [[ -z "${releaseTag}" ]]; then
   echo "Usage: $0 <releaseTag>"
@@ -77,8 +106,8 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
 fi
 
 # check remote-config-after.yaml should contains 'schemaVersion: 4'
-if ! grep -q "schemaVersion: 5" ./remote-config-after.yaml; then
-  echo "schemaVersion: 5 not found in remote-config-after.yaml"
+if ! grep -q "schemaVersion: 6" ./remote-config-after.yaml; then
+  echo "schemaVersion: 6 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
@@ -86,22 +115,39 @@ echo "::endgroup::"
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
 npm run solo -- init --dev
-# using new solo to redeploy solo deployment chart to new version
+# Do not force legacy release-name override when upgrading with current workspace Solo.
+# The old released Solo command executed above may have installed either naming scheme.
+unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+
+# using new solo to redeploy solo deployment chart to new version
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
-# force mirror importer restart to pick up changes of secretes due to upgrade of solo chart
-# even mirror chart version might not change, but the secrets it depends on might have changed
-kubectl rollout restart deployment/mirror-importer -n solo-e2e
-kubectl rollout restart deployment/mirror-rest -n solo-e2e
-kubectl rollout restart deployment/mirror-restjava -n solo-e2e
-kubectl rollout restart deployment/mirror-web3 -n solo-e2e
-kubectl rollout restart deployment/mirror-grpc -n solo-e2e
-kubectl rollout restart deployment/mirror-monitor -n solo-e2e
-kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
-kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
+# force mirror component restarts to pick up secret/config changes due to solo chart upgrade.
+# deployment naming varies by chart version (e.g. mirror-* vs mirror-1-*), so discover dynamically.
+mirrorComponentDeployments=$(kubectl get deployment -n solo-e2e -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-(importer|rest|restjava|web3|grpc|monitor|postgres-pgpool)$' || true)
+if [[ -z "${mirrorComponentDeployments}" ]]; then
+  echo "No mirror component deployments found to restart in namespace solo-e2e"
+else
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart "${deploymentName}" -n solo-e2e
+  done <<< "${mirrorComponentDeployments}"
+fi
+
+# mirror ingress controller deployment name can vary by chart version
+# (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
+mirrorIngressDeployments=$(kubectl get deployment -n solo-e2e -o name | grep '^deployment.apps/mirror-ingress-controller' || true)
+if [[ -z "${mirrorIngressDeployments}" ]]; then
+  echo "No mirror ingress controller deployment found to restart in namespace solo-e2e"
+else
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart "${deploymentName}" -n solo-e2e
+  done <<< "${mirrorIngressDeployments}"
+fi
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart

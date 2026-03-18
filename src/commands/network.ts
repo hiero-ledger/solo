@@ -9,9 +9,11 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
+  addRootImageValues,
   parseNodeAliases,
   resolveValidJsonFilePath,
   showVersionBanner,
@@ -25,7 +27,14 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {
+  type AnyListrContext,
+  type ArgvStruct,
+  type IP,
+  type NodeAlias,
+  type NodeAliases,
+  type NodeId,
+} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -71,7 +80,8 @@ import {SoloLogger} from '../core/logging/solo-logger.js';
 import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import semver from 'semver/preload.js';
-import {getEnvironmentVariable} from '../core/constants.js';
+import {PackageDownloader} from '../core/package-downloader.js';
+import {Zippy} from '../core/zippy.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -135,7 +145,7 @@ export interface NetworkDeployConfigClass {
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
   javaFlightRecorderConfiguration: string;
-  // wrapsEnabled: boolean; TODO: Enable with wraps
+  wrapsEnabled: boolean;
   tssEnabled: boolean;
 }
 
@@ -165,6 +175,8 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
   ) {
     super();
 
@@ -172,6 +184,8 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
+    this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -234,7 +248,7 @@ export class NetworkCommand extends BaseCommand {
       flags.podLog,
       flags.enableMonitoringSupport,
       flags.javaFlightRecorderConfiguration,
-      // flags.wrapsEnabled, TODO: Enable with wraps
+      flags.wrapsEnabled,
       flags.tssEnabled,
     ],
   };
@@ -469,23 +483,22 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    // TODO: Enable with wraps
-    // if (config.wrapsEnabled) {
-    //   for (const consensusNode of config.consensusNodes) {
-    //     const cluster: ClusterReferenceName = consensusNode.cluster;
-    //     const index: number = extraEnvironmentIndex;
-    //     const nodeId: NodeId = consensusNode.nodeId;
-    //
-    //     valuesArguments[cluster] +=
-    //       ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-    //
-    //     const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, 'wraps-v0.2.0');
-    //
-    //     valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
-    //   }
-    //
-    //   extraEnvironmentIndex++; //! increment index
-    // }
+    if (config.wrapsEnabled) {
+      for (const consensusNode of config.consensusNodes) {
+        const cluster: ClusterReferenceName = consensusNode.cluster;
+        const index: number = extraEnvironmentIndex;
+        const nodeId: NodeId = consensusNode.nodeId;
+
+        valuesArguments[cluster] +=
+          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
+      }
+
+      extraEnvironmentIndex = 2;
+    }
 
     // add debug options to the debug node
     for (const consensusNode of config.consensusNodes) {
@@ -573,6 +586,36 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[clusterReference] +=
           ' --set defaults.sidecars.backupUploader.enabled=true' +
           ` --set defaults.sidecars.backupUploader.config.backupBucket=${config.backupBucket}`;
+      }
+    }
+
+    if (constants.ENABLE_S6_IMAGE) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of config.consensusNodes) {
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
+        valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
+        valuesArgument = addRootImageValues(
+          valuesArgument,
+          `hedera.nodes[${nodeIndex}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
+        valuesArguments[consensusNode.cluster] = valuesArgument;
       }
     }
 
@@ -675,41 +718,8 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
-    const flagsWithDisabledPrompts: CommandFlag[] = [
-      flags.apiPermissionProperties,
-      flags.app,
-      flags.applicationEnv,
-      flags.applicationProperties,
-      flags.bootstrapProperties,
-      flags.genesisThrottlesFile,
-      flags.cacheDir,
-      flags.chainId,
-      flags.chartDirectory,
-      flags.debugNodeAlias,
-      flags.loadBalancerEnabled,
-      flags.log4j2Xml,
-      flags.persistentVolumeClaims,
-      flags.profileName,
-      flags.profileFile,
-      flags.settingTxt,
-      flags.grpcTlsCertificatePath,
-      flags.grpcWebTlsCertificatePath,
-      flags.grpcTlsKeyPath,
-      flags.grpcWebTlsKeyPath,
-      flags.haproxyIps,
-      flags.envoyIps,
-      flags.storageType,
-      flags.gcsWriteAccessKey,
-      flags.gcsWriteSecrets,
-      flags.gcsEndpoint,
-      flags.gcsBucket,
-      flags.gcsBucketPrefix,
-      flags.nodeAliasesUnparsed,
-      flags.domainNames,
-    ];
-
     // disable the prompts that we don't want to prompt the user for
-    flags.disablePrompts(flagsWithDisabledPrompts);
+    flags.disablePrompts(NetworkCommand.DEPLOY_FLAGS_LIST.optional);
 
     const allFlags: CommandFlag[] = [
       ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,
@@ -823,39 +833,81 @@ export class NetworkCommand extends BaseCommand {
     task.title = `Uninstalling chart ${constants.SOLO_DEPLOYMENT_CHART}`;
 
     // Uninstall all 'solo deployment' charts for each cluster using the contexts
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.chartManager.uninstall(
-          namespace,
-          constants.SOLO_DEPLOYMENT_CHART,
-          this.k8Factory.getK8(context).contexts().readCurrent(),
-        );
-      }),
+    await this.logDestroyResults(
+      'Uninstall solo-deployment chart',
+      await Promise.allSettled(
+        contexts.map(async (context): Promise<void> => {
+          await this.chartManager.uninstall(
+            namespace,
+            constants.SOLO_DEPLOYMENT_CHART,
+            this.k8Factory.getK8(context).contexts().readCurrent(),
+          );
+        }),
+      ),
     );
 
     task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-      }),
+    await this.logDestroyResults(
+      'Delete remote config configmap',
+      await Promise.allSettled(
+        contexts.map(async (context): Promise<void> => {
+          await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+        }),
+      ),
     );
 
     if (deletePvcs) {
       task.title = `Deleting PVCs in namespace ${namespace}`;
-      await this.deletePvcs(namespace, contexts);
+      await this.logDestroyResults('Delete PVCs', await Promise.allSettled([this.deletePvcs(namespace, contexts)]));
     }
 
     if (deleteSecrets) {
       task.title = `Deleting Secrets in namespace ${namespace}`;
-      await this.deleteSecrets(namespace, contexts);
+      await this.logDestroyResults(
+        'Delete secrets',
+        await Promise.allSettled([this.deleteSecrets(namespace, contexts)]),
+      );
     }
 
     if (deleteSecrets && deletePvcs) {
+      await this.logDestroyResults(
+        'Delete namespace',
+        await Promise.allSettled(
+          contexts.map(async (context): Promise<void> => {
+            await this.k8Factory.getK8(context).namespaces().delete(namespace);
+          }),
+        ),
+      );
+    } else {
+      task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
-          await this.k8Factory.getK8(context).namespaces().delete(namespace);
+          await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
         }),
       );
+
+      if (deletePvcs) {
+        task.title = `Deleting PVCs in namespace ${namespace}`;
+        await this.deletePvcs(namespace, contexts);
+      }
+
+      if (deleteSecrets) {
+        task.title = `Deleting Secrets in namespace ${namespace}`;
+        await this.deleteSecrets(namespace, contexts);
+      }
+    }
+  }
+
+  private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
+    const failures: PromiseRejectedResult[] = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failures.length === 0) {
+      return;
+    }
+
+    for (const failure of failures) {
+      this.logger.warn(`${title} failed; continuing destroy`, failure.reason);
     }
   }
 
@@ -924,6 +976,7 @@ export class NetworkCommand extends BaseCommand {
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
         const response: Response = await fetch(CRD_URL);
+
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
         }
@@ -1014,33 +1067,16 @@ export class NetworkCommand extends BaseCommand {
               lease = await this.leaseManager.create();
             }
 
-            // TODO: Enable with wraps
-            // const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
-            //
-            // if (
-            //   this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
-            //   semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
-            // ) {
-            //   // if is possible block node deployed before consensus node, then use release tag as fallback
-            //   this.remoteConfig.configuration.versions.consensusNode = releaseTag;
-            //   await this.remoteConfig.persist();
-            // }
-            //
-            // const currentVersion: SemVer = new SemVer(
-            //   this.remoteConfig.configuration.versions.consensusNode.toString(),
-            // );
-            //
-            // const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
-            // const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
-            //
-            // if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
-            //   throw new SoloError(
-            //     `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
-            //   );
-            // }
-            //
-            // this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
-            // await this.remoteConfig.persist();
+            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+
+            if (
+              this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
+              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+            ) {
+              // if is possible block node deployed before consensus node, then use release tag as fallback
+              this.remoteConfig.configuration.versions.consensusNode = releaseTag;
+              await this.remoteConfig.persist();
+            }
 
             const currentVersion: SemVer = new SemVer(
               this.remoteConfig.configuration.versions.consensusNode.toString(),
@@ -1052,6 +1088,15 @@ export class NetworkCommand extends BaseCommand {
             // if platform version is insufficient for tss, disable it
             if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
               tssEnabled = false;
+            }
+
+            const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
+            this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
+
+            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+              throw new SoloError(
+                `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
+              );
             }
 
             this.remoteConfig.configuration.state.tssEnabled = tssEnabled;
@@ -1369,23 +1414,63 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.addNodesAndProxies(),
-        // TODO: Enable with wraps, and add logic for downloading the artifact
-        // {
-        //   title: 'copy over',
-        //   task: async ({config}): Promise<void> => {
-        //     for (const consensusNode of config.consensusNodes) {
-        //       const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
-        //         config.namespace,
-        //         consensusNode.name,
-        //       );
-        //
-        //       const sourcePath: string = PathEx.joinWithRealPath(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
-        //       const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-        //
-        //       await rootContainer.copyTo(sourcePath, targetPath);
-        //     }
-        //   },
-        // },
+        {
+          title: 'Copy wraps lib into consensus node',
+          skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
+          task: async ({config}): Promise<void> => {
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+            if (fs.existsSync(extractedDirectory)) {
+              this.logger.debug('Wraps library already installed');
+            } else {
+              await this.downloader.fetchPackage(
+                constants.WRAPS_LIB_DOWNLOAD_URL,
+                'unusued',
+                constants.SOLO_CACHE_DIR,
+                false,
+                '',
+                false,
+              );
+
+              const tarFilePath: string = PathEx.join(
+                constants.SOLO_CACHE_DIR,
+                `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
+              );
+
+              // Create extraction dir
+              fs.mkdirSync(extractedDirectory);
+
+              // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+              this.zippy.untar(tarFilePath, extractedDirectory);
+            }
+
+            // Having any files except for those inside the folder causes an error in CN
+            const allowedFiles: Set<string> = new Set([
+              'decider_pp.bin',
+              'decider_vp.bin',
+              'nova_pp.bin',
+              'nova_vp.bin',
+            ]);
+
+            const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+
+            for (const file of fs.readdirSync(sourcePath)) {
+              if (!allowedFiles.has(file)) {
+                const filePath: string = PathEx.join(sourcePath, file);
+                fs.unlinkSync(filePath); // delete unwanted file
+              }
+            }
+
+            for (const consensusNode of config.consensusNodes) {
+              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+                config.namespace,
+                consensusNode.name,
+              );
+
+              await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
+            }
+          },
+        },
         {
           title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: ({config: {blockNodeComponents}}): boolean => blockNodeComponents.length === 0,
@@ -1414,7 +1499,7 @@ export class NetworkCommand extends BaseCommand {
             for (const consensusNode of consensusNodes) {
               subTasks.push({
                 title: `Copy config JFR file to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.context)}`,
-                task: async () => {
+                task: async (): Promise<void> => {
                   try {
                     const container: Container = await new K8Helper(
                       consensusNode.context,
@@ -1575,7 +1660,7 @@ export class NetworkCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            const remoteConfigLoaded: boolean = await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1601,7 +1686,11 @@ export class NetworkCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag(flags.enableTimeout),
               force: this.configManager.getFlag(flags.force),
-              contexts: this.remoteConfig.getContexts(),
+              contexts: remoteConfigLoaded
+                ? this.remoteConfig.getContexts()
+                : [...this.localConfig.configuration.clusterRefs.values()].map(
+                    (context): Context => context.toString(),
+                  ),
             };
 
             if (!this.oneShotState.isActive()) {

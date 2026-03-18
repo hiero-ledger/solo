@@ -81,6 +81,7 @@ import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror
 import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
+import {DefaultGitClient} from '../../integration/git/impl/default-git-client.js';
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
@@ -124,6 +125,7 @@ export class Container {
       new SingletonContainer(InjectTokens.PackageDownloader, PackageDownloader),
       new SingletonContainer(InjectTokens.Zippy, Zippy),
       new SingletonContainer(InjectTokens.DependencyManager, DependencyManager),
+      new SingletonContainer(InjectTokens.GitClient, DefaultGitClient),
       new SingletonContainer(InjectTokens.KindBuilder, DefaultKindClientBuilder),
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
@@ -209,16 +211,16 @@ export class Container {
       new ValueContainer(InjectTokens.HomeDirectory, homeDirectory),
       new ValueContainer(InjectTokens.OsPlatform, os.platform()),
       new ValueContainer(InjectTokens.OsArch, os.arch()),
-      new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
-      new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
-      new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
-      new ValueContainer(InjectTokens.PodmanInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.HelmInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.KindInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.KubectlInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.PodmanInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(
-        InjectTokens.PodmanDependenciesInstallationDir,
+        InjectTokens.PodmanDependenciesInstallationDirectory,
         PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers'),
       ),
       new ValueContainer(
-        InjectTokens.PodmanDependenciesInstallationDir,
+        InjectTokens.PodmanDependenciesInstallationDirectory,
         PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers'),
       ),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),

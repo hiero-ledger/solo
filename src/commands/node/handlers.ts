@@ -31,28 +31,52 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type Zippy} from '../../core/zippy.js';
+import {PathEx} from '../../business/utils/path-ex.js';
+import {Flags as flags} from '../flags.js';
+import {select as selectPrompt} from '@inquirer/prompts';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
+import {type ConfigManager} from '../../core/config-manager.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
+  private readonly nodeConfigManager: ConfigManager;
+
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
+    @inject(InjectTokens.ConfigManager) configManager: ConfigManager,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
+    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
   ) {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
+    this.nodeConfigManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
 
-  private static readonly ADD_CONTEXT_FILE = 'node-add.json';
-  private static readonly DESTROY_CONTEXT_FILE = 'node-destroy.json';
-  private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
-  private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
+  private static readonly ADD_CONTEXT_FILE: string = 'node-add.json';
+  private static readonly DESTROY_CONTEXT_FILE: string = 'node-destroy.json';
+  private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
+  private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
+
+  private resolveOutputDirectory(argv: ArgvStruct, fallback = ''): string {
+    this.nodeConfigManager.update(argv);
+    return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
+  }
+
+  private resolveDeploymentFlag(argv: ArgvStruct): string {
+    this.nodeConfigManager.update(argv);
+    return this.nodeConfigManager.getFlag<string>(flags.deployment) || '';
+  }
 
   /** ******** Task Lists **********/
 
@@ -149,10 +173,12 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
       this.tasks.updateBlockNodesJson(),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
+      this.tasks.waitForTss(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
       this.tasks.loadAdminKey(),
@@ -196,6 +222,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -228,7 +255,9 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
+      this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
+      this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
@@ -612,8 +641,9 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    await this.resolveDeploymentForLogs(argv);
 
-    const outputDirectory: string = (argv.outputDir as string) || '';
+    const outputDirectory: string = this.resolveOutputDirectory(argv);
 
     await this.commandAction(
       argv,
@@ -631,9 +661,52 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
+  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
+    const deploymentFromFlag: string = argv[flags.deployment.name] as string;
+    if (deploymentFromFlag && deploymentFromFlag.trim()) {
+      return;
+    }
+
+    await this.localConfig.load();
+    const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
+    const validDeployments: Deployment[] = [];
+    for (const deployment of deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
+
+    if (validDeployments.length === 0) {
+      throw new SoloError(
+        `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
+      );
+    }
+
+    if (validDeployments.length === 1) {
+      const deployment: Deployment = validDeployments[0];
+      argv[flags.deployment.name] = deployment.name;
+      this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
+      return;
+    }
+
+    if ((argv[flags.quiet.name] as boolean) === true) {
+      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
+      throw new SoloError(
+        `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
+      );
+    }
+
+    const selectedDeployment: string = (await selectPrompt({
+      message: 'Select deployment for diagnostics logs:',
+      choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
+    })) as string;
+    argv[flags.deployment.name] = selectedDeployment;
+    this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
+  }
+
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
-    const outputDirectory: string = (argv.outputDir as string) || '';
+    const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
       [
@@ -648,6 +721,31 @@ export class NodeCommandHandlers extends CommandHandler {
       'Error in diagnosing deployment',
       null,
     );
+
+    return true;
+  }
+
+  public async debug(argv: ArgvStruct): Promise<boolean> {
+    // First run all diagnostics
+    await this.all(argv);
+
+    // Then create a zip file from the logs directory
+    const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
+    const deployment: string = this.resolveDeploymentFlag(argv);
+    const timestamp: string = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-').slice(0, 19);
+    const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
+    const zipFilePath: string = PathEx.join(outputDirectory, '..', zipFileName);
+
+    this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
+    this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
+
+    try {
+      await this.zippy.zip(outputDirectory, zipFilePath);
+      this.logger.showUser(chalk.green('✓ Debug information collected successfully!'));
+      this.logger.showUser(chalk.cyan(`  Archive: ${zipFilePath}`));
+    } catch (error: Error | unknown) {
+      throw new SoloError(`Failed to create debug archive: ${(error as Error).message}`, error as Error);
+    }
 
     return true;
   }
@@ -786,6 +884,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.enablePortForwarding(true),
         this.tasks.checkAllNodesAreActive('nodeAliases'),
         this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
@@ -861,6 +960,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.identifyExistingNodes(),
+        this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
         this.tasks.checkAllNodesAreActive('existingNodeAliases'),
@@ -927,10 +1027,10 @@ export class NodeCommandHandlers extends CommandHandler {
     return {
       title: 'Validate nodes states',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: (context_: Context, task): SoloListr<any> => {
+      task: (context_: Context, task): SoloListr<Context> => {
         const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const subTasks: SoloListrTask<Context>[] = nodeAliases.map(nodeAlias => ({
+        const subTasks: SoloListrTask<Context>[] = nodeAliases.map((nodeAlias: NodeAlias) => ({
           title: `Validating state for node ${nodeAlias}`,
           task: (_, task): void => {
             const state: DeploymentPhase = this.validateNodeState(
@@ -959,12 +1059,15 @@ export class NodeCommandHandlers extends CommandHandler {
    * @param excludedPhases - the state at which the node can't be, matching any of the states throws an error
    */
   public validateSingleNodeState({
-    acceptedPhases: _acceptedPhases,
-    excludedPhases: _excludedPhases,
+    acceptedPhases,
+    excludedPhases,
   }: {
     acceptedPhases?: DeploymentPhase[];
     excludedPhases?: DeploymentPhase[];
-  }): SoloListrTask<any> {
+  }): SoloListrTask<AnyListrContext> {
+    void acceptedPhases;
+    void excludedPhases;
+
     interface Context {
       config: {namespace: string; nodeAlias: NodeAlias};
     }
@@ -973,7 +1076,7 @@ export class NodeCommandHandlers extends CommandHandler {
       title: 'Validate nodes state',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: (context_: Context, task): void => {
-        const nodeAlias = context_.config.nodeAlias;
+        const nodeAlias: NodeAlias = context_.config.nodeAlias;
 
         task.title += ` ${nodeAlias}`;
 
@@ -994,9 +1097,12 @@ export class NodeCommandHandlers extends CommandHandler {
   private validateNodeState(
     nodeAlias: NodeAlias,
     components: ComponentsDataWrapperApi,
-    _acceptedPhases: Optional<DeploymentPhase[]>,
-    _excludedPhases: Optional<DeploymentPhase[]>,
+    acceptedPhases: Optional<DeploymentPhase[]>,
+    excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {
+    void acceptedPhases;
+    void excludedPhases;
+
     let nodeComponent: ConsensusNodeStateSchema;
     try {
       nodeComponent = components.getComponent<ConsensusNodeStateSchema>(
@@ -1006,22 +1112,18 @@ export class NodeCommandHandlers extends CommandHandler {
     } catch {
       throw new SoloError(`${nodeAlias} not found in remote config`);
     }
-
-    // TODO: Enable once the states have been mapped
+    // TODO: Enable once states have been mapped
     // if (acceptedPhases && !acceptedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `accepted states: ${acceptedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
     //
     // if (excludedPhases && excludedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `excluded states: ${excludedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
-
     return nodeComponent.metadata.phase;
   }
 
