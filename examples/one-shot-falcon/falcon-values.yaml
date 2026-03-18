@@ -17,8 +17,6 @@ network:
   --load-balancer: false
   --log4j2-xml: ""
   --pvcs: false
-  --profile-file: ""
-  --profile: ""
   --quiet-mode: false
   --release-tag: "v0.65.0"
   --settings-txt: ""
@@ -82,8 +80,6 @@ mirrorNode:
   --ingress-controller-value-file: ""
   --mirror-static-ip: ""
   --domain-name: ""
-  --profile-file: ""
-  --profile: ""
   --force-port-forward: true
   --quiet-mode: false
   --pinger: true
@@ -115,8 +111,6 @@ relayNode:
   --domain-name: ""
   --operator-id: ""
   --operator-key: ""
-  --profile-file: ""
-  --profile: ""
   --force-port-forward: true
   --quiet-mode: false
   --mirror-node-id: null
@@ -148,8 +142,6 @@ explorerNode:
   --explorer-tls-host-name: "explorer.solo.local"
   --tls-cluster-issuer-type: "self-signed"
   --explorer-static-ip: ""
-  --profile-file: ""
-  --profile: ""
   --cluster-setup-namespace: ""
   --force-port-forward: true
   --quiet-mode: false
