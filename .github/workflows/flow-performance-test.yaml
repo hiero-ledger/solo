@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Performance Test Solo Deployment"
+name: 'Performance Test Solo Deployment'
 
 on:
   workflow_dispatch:
@@ -90,7 +90,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
-          version: "v3.17.1" # helm version
+          version: 'v3.17.1' # helm version
 
       - name: Install Dependencies
         id: npm-deps
@@ -154,8 +154,8 @@ jobs:
         id: log-metrics-file
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
         env:
-          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
-          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
+          LOG_FILE: '${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md'
+          JSON_INPUT: '${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}'
         run: |
           echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
@@ -211,15 +211,15 @@ jobs:
 
       - name: Build and Start Metrics Plotter tool
         run: |
-            cd ./scripts/metrics-plotter
-            npm ci
-            npm run build
-            mkdir -p ~/.solo/metrics
-            mkdir src/data
-            nohup npm start &
-            echo $! > /tmp/metrics-plotter.pid
-            mkdir -p ./src/data       
-            cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
+          cd ./scripts/metrics-plotter
+          npm ci
+          npm run build
+          mkdir -p ~/.solo/metrics
+          mkdir src/data
+          nohup npm start &
+          echo $! > /tmp/metrics-plotter.pid
+          mkdir -p ./src/data       
+          cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
 
       - name: Install Puppeteer / Chrome dependencies
         run: |

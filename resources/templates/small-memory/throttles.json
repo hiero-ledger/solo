@@ -49,25 +49,17 @@
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 1000,
-          "operations": [
-            "ScheduleSign"
-          ]
+          "operations": ["ScheduleSign"]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 5000,
-          "operations": [
-            "TokenMint"
-          ]
+          "operations": ["TokenMint"]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 3000,
-          "operations": [
-            "ContractCall",
-            "ContractCreate",
-            "EthereumTransaction"
-          ]
+          "operations": ["ContractCall", "ContractCreate", "EthereumTransaction"]
         },
         {
           "opsPerSec": 0,
@@ -95,9 +87,7 @@
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 1000,
-          "operations": [
-            "HookStore"
-          ]
+          "operations": ["HookStore"]
         }
       ]
     },
@@ -127,12 +117,7 @@
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 2000,
-          "operations": [
-            "FileCreate",
-            "FileUpdate",
-            "FileAppend",
-            "FileDelete"
-          ]
+          "operations": ["FileCreate", "FileUpdate", "FileAppend", "FileDelete"]
         }
       ]
     },
@@ -144,27 +129,17 @@
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 10000,
-          "operations": [
-            "CryptoCreate",
-            "NodeCreate"
-          ]
+          "operations": ["CryptoCreate", "NodeCreate"]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 2000,
-          "operations": [
-            "ConsensusCreateTopic"
-          ]
+          "operations": ["ConsensusCreateTopic"]
         },
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 5000,
-          "operations": [
-            "TokenCreate",
-            "TokenAssociateToAccount",
-            "ScheduleCreate",
-            "TokenAirdrop"
-          ]
+          "operations": ["TokenCreate", "TokenAssociateToAccount", "ScheduleCreate", "TokenAirdrop"]
         }
       ]
     },
@@ -176,9 +151,7 @@
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 250000,
-          "operations": [
-            "TransactionGetReceipt"
-          ]
+          "operations": ["TransactionGetReceipt"]
         }
       ]
     },
@@ -190,9 +163,7 @@
         {
           "opsPerSec": 0,
           "milliOpsPerSec": 100000,
-          "operations": [
-            "CryptoGetAccountBalance"
-          ]
+          "operations": ["CryptoGetAccountBalance"]
         }
       ]
     }
