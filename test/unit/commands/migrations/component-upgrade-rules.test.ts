@@ -49,60 +49,60 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     it('returns a single in-place step when downgrading', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.29.0',
+        '0.28.1',
         '0.27.0',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
-      expect(steps[0].fromVersion).to.equal('0.29.0');
+      expect(steps[0].fromVersion).to.equal('0.28.1');
       expect(steps[0].toVersion).to.equal('0.27.0');
     });
   });
 
   describe('upgrade not crossing a boundary', (): void => {
-    it('returns a single in-place step when staying below 0.29.0', (): void => {
+    it('returns a single in-place step when staying below 0.28.1', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
+        '0.27.0',
         '0.28.0',
-        '0.28.5',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
-      expect(steps[0].fromVersion).to.equal('0.28.0');
-      expect(steps[0].toVersion).to.equal('0.28.5');
+      expect(steps[0].fromVersion).to.equal('0.27.0');
+      expect(steps[0].toVersion).to.equal('0.28.0');
     });
 
-    it('returns a single in-place step when staying above 0.29.0', (): void => {
+    it('returns a single in-place step when staying above 0.28.1', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.29.0',
+        '0.28.1',
         '0.30.0',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
-      expect(steps[0].fromVersion).to.equal('0.29.0');
+      expect(steps[0].fromVersion).to.equal('0.28.1');
       expect(steps[0].toVersion).to.equal('0.30.0');
     });
   });
 
-  describe('upgrade crossing the 0.29.0 boundary', (): void => {
-    it('returns a single recreate step when upgrading from below to exactly 0.29.0', (): void => {
+  describe('upgrade crossing the 0.28.1 boundary', (): void => {
+    it('returns a single recreate step when upgrading from below to exactly 0.28.1', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.0',
+        '0.28.1',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
       expect(steps[0].fromVersion).to.equal('0.28.0');
-      expect(steps[0].toVersion).to.equal('0.29.0');
+      expect(steps[0].toVersion).to.equal('0.28.1');
     });
 
-    it('returns a single recreate step going directly to target when crossing 0.29.0', (): void => {
+    it('returns a single recreate step going directly to target when crossing 0.28.1', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
@@ -282,7 +282,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.0',
+        '0.28.1',
       );
 
       expect(steps).to.have.length(1);
@@ -297,7 +297,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.0',
+        '0.28.1',
       );
 
       expect(steps).to.have.length(1);
@@ -310,7 +310,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.0',
+        '0.28.1',
       );
 
       expect(steps[0].reason).to.be.a('string').and.not.equal('');
@@ -320,7 +320,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.0',
+        '0.28.1',
       );
 
       expect(steps[0].extraCommandArgs).to.be.an('array');
@@ -380,25 +380,25 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         'v0.28.0',
-        'v0.29.0',
+        'v0.28.1',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
       expect(steps[0].fromVersion).to.equal('0.28.0');
-      expect(steps[0].toVersion).to.equal('0.29.0');
+      expect(steps[0].toVersion).to.equal('0.28.1');
     });
 
     it('handles pre-release versions (pre-release < release for same version)', (): void => {
-      // 0.29.0-rc.1 < 0.29.0 in semver, so boundary at 0.29.0 is NOT crossed
-      // when upgrading from 0.28.0 to 0.29.0-rc.1
+      // 0.28.1-rc.1 < 0.28.1 in semver, so boundary at 0.28.1 is NOT crossed
+      // when upgrading from 0.28.0 to 0.28.1-rc.1
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.0-rc.1',
+        '0.28.1-rc.1',
       );
 
-      // target 0.29.0-rc.1 < boundary 0.29.0, so boundary is not crossed
+      // target 0.28.1-rc.1 < boundary 0.28.1, so boundary is not crossed
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
     });
@@ -472,11 +472,11 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
   describe('downgrade across boundary', (): void => {
     it('does not apply boundary rules when downgrading across a boundary version', (): void => {
-      // Downgrading from 0.29.0 to 0.26.0 crosses the 0.28.0 boundary backwards,
+      // Downgrading from 0.28.1 to 0.26.0 crosses the 0.28.0 boundary backwards,
       // but boundaries only apply to forward upgrades
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.29.0',
+        '0.28.1',
         '0.26.0',
       );
 
