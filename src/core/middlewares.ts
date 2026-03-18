@@ -22,7 +22,7 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {SoloError} from './errors/solo-error.js';
-import {ShellRunner} from './shell-runner.js';
+import {NpmClient} from '../integration/npm/npm-client.js';
 
 @injectable()
 export class Middlewares {
@@ -36,6 +36,7 @@ export class Middlewares {
     @inject(InjectTokens.TaskList)
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.InitCommand) private readonly initCommand: InitCommand,
+    @inject(InjectTokens.NpmClient) private readonly npmClient: NpmClient,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -45,6 +46,7 @@ export class Middlewares {
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
+    this.npmClient = patchInject(npmClient, InjectTokens.NpmClient, this.constructor.name);
   }
 
   public initSystemFiles(): (argv: ArgvStruct) => AnyObject {
@@ -103,10 +105,8 @@ export class Middlewares {
      * @param argv - listr Argv
      */
     return async (argv: ArgvStruct): Promise<AnyObject> => {
-      const shellRunner: ShellRunner = new ShellRunner(this.logger);
-
       try {
-        const listResult: string[] = await shellRunner.run('npm list --global --depth=0');
+        const listResult: string[] = await this.npmClient.listGlobal();
         const foundLinkedPackages: string[] = [];
 
         for (const item of listResult) {
