@@ -38,7 +38,14 @@ function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
 
     console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
-    child = spawn(KUBECTL_EXECUTABLE, arguments_, {
+    let command: string = KUBECTL_EXECUTABLE;
+    let commandArguments: string[] = [...arguments_];
+    if (os.platform() === 'win32') {
+      // On Windows, spawn the command through cmd.exe to ensure it can find kubectl in the PATH
+      command = 'start';
+      commandArguments = ['/b', KUBECTL_EXECUTABLE, ...arguments_];
+    }
+    child = spawn(command, commandArguments, {
       env: {...process.env, PATH: `${kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
       stdio: 'inherit',
       windowsHide: os.platform() === 'win32',
