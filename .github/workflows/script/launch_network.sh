@@ -54,6 +54,7 @@ export SOLO_DEPLOYMENT=solo-e2e
 export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
 export SOLO_LOG_LEVEL=debug
+export PREV_BLOCK_VERSION=v0.28.0
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -74,7 +75,7 @@ solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref $
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
-solo block node add --deployment "${SOLO_DEPLOYMENT}"
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --chart-version "${PREV_BLOCK_VERSION}"
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
