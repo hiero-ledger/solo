@@ -22,7 +22,7 @@ export async function detectGlobalLinkedSoloPackages(logger: SoloLogger): Promis
       );
       for (const packageName of matchesSoloPackages) {
         try {
-          const logMessage: string = `Found locally linked installation of ${packageName}.`;
+          const logMessage: string = `Warning: Found locally linked installation of ${packageName}.`;
           logger.showUser(chalk.yellow(logMessage));
           logger.info(logMessage);
           foundLinkedPackages.push(packageName);
@@ -47,29 +47,5 @@ export async function detectGlobalLinkedSoloPackages(logger: SoloLogger): Promis
       ),
     );
     return [];
-  }
-}
-
-export async function unlinkLocalSoloPackages(logger: SoloLogger): Promise<void> {
-  const shellRunner: ShellRunner = new ShellRunner(logger);
-  const linkedPackages: string[] = await detectGlobalLinkedSoloPackages(logger);
-
-  for (const packageName of linkedPackages) {
-    logger.debug(`Unlinking earlier global installation of ${packageName}`);
-    try {
-      const unlinkOutput: string[] = await shellRunner.run(`npm unlink -g ${packageName}`);
-      for (const line of unlinkOutput) {
-        logger.showUser(`npm unlink: ${chalk.yellow(line)}`);
-        logger.info(`npm unlink: ${line}`);
-      }
-      logger.debug(`Successfully unlinked ${packageName}`);
-    } catch (error: Error | unknown) {
-      logger.error(
-        new SoloError(
-          `Failed to unlink earlier global installation of ${packageName}. Please manually run "npm unlink -g ${packageName}" to unlink.`,
-          error,
-        ),
-      );
-    }
   }
 }
