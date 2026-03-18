@@ -24,8 +24,8 @@
  *   error, it automatically retries as `'recreate'`.
  *
  * - **Boundary**: A specific semver version at which the upgrade strategy changes. For example,
- *   if block-node 0.28.1 changes an immutable StatefulSet field, a boundary at `0.28.1` with
- *   strategy `'recreate'` means: "any upgrade that crosses this version requires recreation."
+ *   if a future block-node release changes an immutable StatefulSet field, a boundary at that
+ *   version with strategy `'recreate'` means: "any upgrade crossing this version requires recreation."
  *
  * - **Migration Plan**: An ordered list of `ComponentUpgradeMigrationStep` objects, each describing
  *   a segment of the upgrade path with its own strategy. For simple upgrades (no boundaries crossed),
@@ -40,8 +40,8 @@
  * 2. Find all boundaries where `current < boundary.version <= target` (i.e., boundaries crossed
  *    during a forward upgrade).
  * 3. Sort crossed boundaries by version ascending.
- * 4. **Merge consecutive boundaries with the same strategy** — if boundaries at 0.28.1 and 0.31.0
- *    both require `'recreate'`, they collapse into one step that jumps straight to 0.31.0.
+ * 4. **Merge consecutive boundaries with the same strategy** — if boundaries at 1.0.0 and 2.0.0
+ *    both require `'recreate'`, they collapse into one step that jumps straight to 2.0.0.
  * 5. Generate steps:
  *    - For each (reduced) boundary, create a step from the cursor to the boundary's version (or
  *      to the target version if it's the last boundary).
@@ -50,14 +50,43 @@
  *
  * ### Example
  *
- * Config for `block-node`: default `'in-place'`, boundary at `0.28.1` → `'recreate'`.
+ * **Current config** — `block-node` has a `'recreate'` boundary at `0.28.1`:
  *
- * - Upgrade 0.28.0 → 0.28.5: No boundary crossed → 1 step, `'in-place'`.
- * - Upgrade 0.28.0 → 0.28.1: Crosses 0.28.1 → 1 step, `'recreate'` (0.28.0 → 0.28.1).
- * - Upgrade 0.28.0 → 0.35.0: Crosses 0.28.1 → 1 step, `'recreate'` (0.28.0 → 0.35.0).
- *   (The last boundary absorbs the final target.)
- * - Upgrade 0.28.1 → 0.35.0: Boundary at 0.28.1 is NOT crossed (current is not < 0.28.1)
- *   → 1 step, `'in-place'`.
+ * - Upgrade 0.28.0 → 0.28.1: Boundary at 0.28.1 crossed → 1 step, `'recreate'` (delete + reinstall).
+ * - Upgrade 0.28.0 → 0.35.0: Boundary at 0.28.1 crossed → 1 step, `'recreate'` (target used directly).
+ * - Upgrade 0.28.1 → 0.35.0: Already past the boundary → 1 step, `'in-place'`.
+ *
+ * **Adding a future boundary** — if a future block-node release changes an immutable StatefulSet
+ * field at v0.29.0, add an entry for it to the external override file at
+ * `constants.UPGRADE_MIGRATIONS_FILE`:
+ *
+ * ```json
+ * {
+ *   "components": {
+ *     "block-node": {
+ *       "defaultStrategy": "in-place",
+ *       "boundaries": [
+ *         {
+ *           "version": "0.28.1",
+ *           "strategy": "recreate",
+ *           "reason": "The 0.28.1 chart introduced blockNode.persistence.plugins; --reuse-values from 0.28.0 fails"
+ *         },
+ *         {
+ *           "version": "0.29.0",
+ *           "strategy": "recreate",
+ *           "reason": "StatefulSet volumeClaimTemplates changed at 0.29.0; requires full recreate"
+ *         }
+ *       ]
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * With that second boundary added:
+ *
+ * - Upgrade 0.28.0 → 0.29.0: Both boundaries have `'recreate'` → merged into 1 step targeting 0.29.0.
+ * - Upgrade 0.28.1 → 0.29.0: Only 0.29.0 boundary crossed → 1 step, `'recreate'`.
+ * - Upgrade 0.29.0 → 0.30.5: No boundary crossed → 1 step, `'in-place'`.
  *
  * ### Configuration Loading
  *
@@ -166,14 +195,13 @@ export interface ComponentUpgradeMigrationStep {
  *
  * Currently defines rules for the `block-node` component:
  * - Default strategy: `'in-place'` (standard Helm upgrade).
- * - Boundary at `0.28.1`: `'recreate'` required because the block-node Helm chart changed
- *   an immutable StatefulSet field (e.g., volumeClaimTemplates or pod selector) at this version.
- *   Any upgrade that crosses from below 0.28.1 to at-or-above 0.28.1 must delete and recreate
- *   the StatefulSet rather than attempting an in-place upgrade.
+ * - Boundary at `0.28.1` (`'recreate'`): The 0.28.1 Helm chart introduced a new
+ *   `blockNode.persistence.plugins` value path. A plain `helm upgrade --reuse-values` from
+ *   0.28.0 fails with a nil pointer error because the old values don't contain that path.
+ *   The StatefulSet must be deleted and recreated with fresh values.
  *
- * Note: there is no supported upgrade path from v0.26.x directly to v0.28.0 — the block stream
- * format changed incompatibly between those versions. Upgrades must go through v0.28.x first
- * (deployed fresh) before crossing the 0.28.1 StatefulSet boundary.
+ * Note: there is no supported upgrade path from v0.26.x directly to v0.28.x — the block stream
+ * format changed incompatibly between those versions. v0.28.0 must be deployed fresh.
  *
  * To add a new component, add a new key under `components` with its own `defaultStrategy`
  * and `boundaries` array. No code changes are needed — the planner is fully data-driven.
@@ -186,7 +214,8 @@ const DEFAULT_COMPONENT_UPGRADE_MIGRATION_CONFIG: ComponentUpgradeMigrationConfi
         {
           version: '0.28.1',
           strategy: 'recreate',
-          reason: 'StatefulSet immutable field change across 0.28.1 boundary',
+          reason:
+            'The 0.28.1 chart introduced blockNode.persistence.plugins; --reuse-values from 0.28.0 fails with a nil pointer error. StatefulSet must be recreated with fresh values.',
         },
       ],
     },
@@ -329,9 +358,9 @@ function findCrossedBoundaries(
 
   // Step 3: Reduce (merge) consecutive boundaries with the same strategy.
   // This avoids redundant intermediate steps. For example, if we have:
-  //   [{ version: '0.28.1', strategy: 'recreate' }, { version: '0.31.0', strategy: 'recreate' }]
-  // We collapse them into just [{ version: '0.31.0', strategy: 'recreate' }] because there's
-  // no value in recreating at 0.28.1 only to recreate again at 0.31.0.
+  //   [{ version: '1.0.0', strategy: 'recreate' }, { version: '2.0.0', strategy: 'recreate' }]
+  // We collapse them into just [{ version: '2.0.0', strategy: 'recreate' }] because there's
+  // no value in recreating at 1.0.0 only to recreate again at 2.0.0.
   // However, if strategies differ (e.g., 'recreate' then 'in-place'), both are kept since
   // they represent genuinely different upgrade behavior.
   const reduced: ComponentUpgradeBoundaryRule[] = [];
@@ -371,17 +400,34 @@ function findCrossedBoundaries(
  *
  * ## Example migration plans
  *
- * Given block-node config: default `'in-place'`, boundary at 0.28.1 → `'recreate'`:
+ * **Current config** — default `'in-place'`, `'recreate'` boundary at `0.28.1`:
  *
  * ```
- * planComponentUpgradeMigrationPath('block-node', '0.28.0', '0.28.5')
- * → [{ from: '0.28.0', to: '0.28.5', strategy: 'in-place' }]  // no boundary crossed
+ * planComponentUpgradeMigrationPath('block-node', '0.28.0', '0.28.1')
+ * → [{ from: '0.28.0', to: '0.28.1', strategy: 'recreate' }]
+ * // Boundary at 0.28.1 crossed; step targets the final version directly.
  *
  * planComponentUpgradeMigrationPath('block-node', '0.28.0', '0.35.0')
- * → [{ from: '0.28.0', to: '0.35.0', strategy: 'recreate' }]  // crosses 0.28.1, last boundary
+ * → [{ from: '0.28.0', to: '0.35.0', strategy: 'recreate' }]
+ * // Boundary at 0.28.1 crossed; last boundary so step jumps to target (0.35.0).
  *
  * planComponentUpgradeMigrationPath('block-node', '0.28.1', '0.35.0')
- * → [{ from: '0.28.1', to: '0.35.0', strategy: 'in-place' }]  // already past 0.28.1
+ * → [{ from: '0.28.1', to: '0.35.0', strategy: 'in-place' }]
+ * // Already at/past 0.28.1; no boundary crossed → default in-place.
+ * ```
+ *
+ * **Hypothetical addition** — adding a second `'recreate'` boundary at 0.29.0:
+ *
+ * ```
+ * // Config: boundaries: [{ version: '0.28.1', recreate }, { version: '0.29.0', recreate }]
+ *
+ * planComponentUpgradeMigrationPath('block-node', '0.28.0', '0.29.0')
+ * → [{ from: '0.28.0', to: '0.29.0', strategy: 'recreate' }]
+ * // Both boundaries have 'recreate' → merged into 1 step; last boundary targets final version.
+ *
+ * planComponentUpgradeMigrationPath('block-node', '0.28.1', '0.29.0')
+ * → [{ from: '0.28.1', to: '0.29.0', strategy: 'recreate' }]
+ * // Only the 0.29.0 boundary crossed → 1 recreate step.
  * ```
  *
  * @param component - Component name (e.g., 'block-node'). Must match a key in the config.

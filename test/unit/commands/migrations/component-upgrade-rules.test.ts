@@ -61,30 +61,30 @@ describe('planComponentUpgradeMigrationPath', (): void => {
   });
 
   describe('upgrade not crossing a boundary', (): void => {
-    it('returns a single in-place step when staying below 0.28.1', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
-        'block-node',
-        '0.27.0',
-        '0.28.0',
-      );
-
-      expect(steps).to.have.length(1);
-      expect(steps[0].strategy).to.equal('in-place');
-      expect(steps[0].fromVersion).to.equal('0.27.0');
-      expect(steps[0].toVersion).to.equal('0.28.0');
-    });
-
-    it('returns a single in-place step when staying above 0.28.1', (): void => {
+    it('returns a single in-place step when already past the 0.28.1 boundary', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.1',
-        '0.30.0',
+        '0.29.0',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
       expect(steps[0].fromVersion).to.equal('0.28.1');
-      expect(steps[0].toVersion).to.equal('0.30.0');
+      expect(steps[0].toVersion).to.equal('0.29.0');
+    });
+
+    it('returns a single in-place step for a larger upgrade already past 0.28.1', (): void => {
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+        'block-node',
+        '0.28.1',
+        '0.35.0',
+      );
+
+      expect(steps).to.have.length(1);
+      expect(steps[0].strategy).to.equal('in-place');
+      expect(steps[0].fromVersion).to.equal('0.28.1');
+      expect(steps[0].toVersion).to.equal('0.35.0');
     });
   });
 
@@ -106,13 +106,55 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
-        '0.29.5',
+        '0.35.0',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
       expect(steps[0].fromVersion).to.equal('0.28.0');
-      expect(steps[0].toVersion).to.equal('0.29.5');
+      expect(steps[0].toVersion).to.equal('0.35.0');
+    });
+  });
+
+  describe('upgrade crossing a custom boundary', (): void => {
+    it('returns a single recreate step when upgrading across a custom recreate boundary', (): void => {
+      const customConfig: ComponentUpgradeMigrationConfigFile = {
+        components: {
+          'block-node': {
+            defaultStrategy: 'in-place',
+            boundaries: [{version: '1.0.0', strategy: 'recreate', reason: 'Custom boundary'}],
+          },
+        },
+      };
+      existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
+      readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
+
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('block-node', '0.9.0', '1.0.0');
+
+      expect(steps).to.have.length(1);
+      expect(steps[0].strategy).to.equal('recreate');
+      expect(steps[0].fromVersion).to.equal('0.9.0');
+      expect(steps[0].toVersion).to.equal('1.0.0');
+    });
+
+    it('returns a recreate step going directly to target when crossing a custom boundary', (): void => {
+      const customConfig: ComponentUpgradeMigrationConfigFile = {
+        components: {
+          'block-node': {
+            defaultStrategy: 'in-place',
+            boundaries: [{version: '1.0.0', strategy: 'recreate', reason: 'Custom boundary'}],
+          },
+        },
+      };
+      existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
+      readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
+
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('block-node', '0.9.0', '1.5.0');
+
+      expect(steps).to.have.length(1);
+      expect(steps[0].strategy).to.equal('recreate');
+      expect(steps[0].fromVersion).to.equal('0.9.0');
+      expect(steps[0].toVersion).to.equal('1.5.0');
     });
 
     it('splits into multiple steps when multiple boundaries with different strategies are crossed', (): void => {
@@ -278,7 +320,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns('not valid json');
 
-      // Should still work with block-node defaults
+      // Falls back to block-node defaults: 0.28.0→0.28.1 crosses the 0.28.1 recreate boundary
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
@@ -293,7 +335,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify({notComponents: {}}));
 
-      // Should still work with block-node defaults
+      // Falls back to block-node defaults: 0.28.0→0.28.1 crosses the 0.28.1 recreate boundary
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
@@ -383,22 +425,21 @@ describe('planComponentUpgradeMigrationPath', (): void => {
         'v0.28.1',
       );
 
+      // v0.28.0→v0.28.1 crosses the 0.28.1 recreate boundary after stripping the 'v' prefix
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
       expect(steps[0].fromVersion).to.equal('0.28.0');
       expect(steps[0].toVersion).to.equal('0.28.1');
     });
 
-    it('handles pre-release versions (pre-release < release for same version)', (): void => {
-      // 0.28.1-rc.1 < 0.28.1 in semver, so boundary at 0.28.1 is NOT crossed
-      // when upgrading from 0.28.0 to 0.28.1-rc.1
+    it('handles pre-release versions correctly', (): void => {
+      // 0.28.1-rc.1 < 0.28.1 in semver, so the boundary at 0.28.1 is NOT crossed
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1-rc.1',
       );
 
-      // target 0.28.1-rc.1 < boundary 0.28.1, so boundary is not crossed
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
     });
