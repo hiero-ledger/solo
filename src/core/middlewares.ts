@@ -22,7 +22,7 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {SoloError} from './errors/solo-error.js';
-import {detectGlobalLinkedSoloPackages} from './npm-utilities.js';
+import {ShellRunner} from './shell-runner.js';
 
 @injectable()
 export class Middlewares {
@@ -97,11 +97,50 @@ export class Middlewares {
   }
 
   public detectLocalSoloPackages(): (argv: ArgvStruct) => AnyObject {
+    const SOLO_PACKAGES_TO_UNLINK: string[] = ['@hashgraph/solo', '@hiero-ledger/solo'];
+
     /**
      * @param argv - listr Argv
      */
     return async (argv: ArgvStruct): Promise<AnyObject> => {
-      await detectGlobalLinkedSoloPackages(this.logger);
+      const shellRunner: ShellRunner = new ShellRunner(this.logger);
+
+      try {
+        const listResult: string[] = await shellRunner.run('npm list --global --depth=0');
+        const foundLinkedPackages: string[] = [];
+
+        for (const item of listResult) {
+          // Check if any of the globally linked packages match the SOLO_PACKAGES_TO_UNLINK
+          // and unlink them if they point to a local directory (indicated by '->' in the npm list output)
+          const matchesSoloPackages: string[] = SOLO_PACKAGES_TO_UNLINK.filter(
+            (soloPackage: string): boolean => item.includes(soloPackage) && item.includes('->'),
+          );
+          for (const packageName of matchesSoloPackages) {
+            try {
+              const logMessage: string = `Warning: Found locally linked installation of ${packageName}.`;
+              this.logger.showUser(chalk.yellow(logMessage));
+              this.logger.info(logMessage);
+              foundLinkedPackages.push(packageName);
+            } catch (error: Error | unknown) {
+              this.logger.error(
+                new SoloError(
+                  `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,
+                  error,
+                ),
+              );
+            }
+          }
+        }
+      } catch (error: Error | unknown) {
+        this.logger.warn(
+          new SoloError(
+            'Failed to detect globally linked Solo packages. Please check for any globally linked Solo packages and' +
+              ' unlink them manually using "npm unlink -g <package-name>".',
+            error,
+          ),
+        );
+      }
+
       return argv;
     };
   }
