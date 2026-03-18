@@ -219,7 +219,8 @@ permissions:
   statuses: write
 
 env:
-  #CG_EXEC: export R_UID=$(id -u); CGROUP_LOGLEVEL=DEBUG cgexec -g cpu,memory:user.slice/user-${R_UID}.slice/user@${R_UID}.service/e2e-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
+  # CG_EXEC is overridden per-job by the "Setup Cgroup Isolation" step below when cgroup-tools
+  # are available. This fallback is used on non-Linux runners or if cgroup setup fails.
   CG_EXEC: "ionice -c 2 -n 2 nice -n 19"
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
@@ -309,6 +310,66 @@ jobs:
       - name: Install grpcurl
         run: |
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
+      - name: Setup Cgroup Isolation
+        if: ${{ runner.os == 'Linux' && !cancelled() && !failure() }}
+        run: |
+          set -euo pipefail
+          # Install cgroup-tools (provides cgexec) if not already present.
+          if ! command -v cgexec >/dev/null 2>&1; then
+            sudo apt-get install -y cgroup-tools
+          fi
+
+          CGROUP_NAME="e2e-${{ github.run_id }}"
+
+          # Derive memory limit from the machine's actual total RAM.
+          # Reserve 20% for the OS + runner agent, then split the remainder across
+          # MAX_CONCURRENT_JOBS slots.  Adjust MAX_CONCURRENT_JOBS to match the
+          # maximum number of jobs your runner pool schedules on one host at once.
+          MAX_CONCURRENT_JOBS=4
+          TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+          TOTAL_MEM_BYTES=$(( TOTAL_MEM_KB * 1024 ))
+          USABLE_MEM_BYTES=$(( TOTAL_MEM_BYTES * 80 / 100 ))
+          MEM_LIMIT_BYTES=$(( USABLE_MEM_BYTES / MAX_CONCURRENT_JOBS ))
+          echo "Runner total RAM: $(( TOTAL_MEM_BYTES / 1073741824 )) GB"
+          echo "Per-job memory limit: $(( MEM_LIMIT_BYTES / 1073741824 )) GB (${MEM_LIMIT_BYTES} bytes)"
+
+          if [[ "$(stat -fc %T /sys/fs/cgroup/ 2>/dev/null)" == "cgroup2fs" ]]; then
+            # cgroup v2 — single unified hierarchy under /sys/fs/cgroup/
+            CGROUP_PATH="/sys/fs/cgroup/${CGROUP_NAME}"
+            sudo mkdir -p "${CGROUP_PATH}"
+            # Enable cpu and memory controllers on the root cgroup if not already set.
+            for ctrl in cpu memory; do
+              if ! grep -qw "${ctrl}" /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null; then
+                echo "+${ctrl}" | sudo tee /sys/fs/cgroup/cgroup.subtree_control >/dev/null 2>&1 || true
+              fi
+            done
+            # Memory ceiling derived from actual host RAM (see above).
+            echo "${MEM_LIMIT_BYTES}" | sudo tee "${CGROUP_PATH}/memory.max" >/dev/null || true
+            # CPU weight 100/MAX_CONCURRENT_JOBS gives each job a fair share.
+            # Weight is relative so a job can still burst when neighbours are idle.
+            CPU_WEIGHT=$(( 100 / MAX_CONCURRENT_JOBS ))
+            echo "${CPU_WEIGHT}" | sudo tee "${CGROUP_PATH}/cpu.weight" >/dev/null || true
+            # Allow the runner user to write to cgroup.procs so cgexec can assign processes.
+            sudo chown "$USER":"$(id -gn)" "${CGROUP_PATH}/cgroup.procs" 2>/dev/null || true
+            CG_CONTROLLERS="unified"
+          else
+            # cgroup v1 — separate cpu and memory hierarchies.
+            sudo mkdir -p "/sys/fs/cgroup/cpu/${CGROUP_NAME}" "/sys/fs/cgroup/memory/${CGROUP_NAME}"
+            # Memory limit derived from actual host RAM (see above).
+            echo "${MEM_LIMIT_BYTES}" | sudo tee "/sys/fs/cgroup/memory/${CGROUP_NAME}/memory.limit_in_bytes" >/dev/null || true
+            # cpu.shares: default is 1024; divide by MAX_CONCURRENT_JOBS for a fair share.
+            CPU_SHARES=$(( 1024 / MAX_CONCURRENT_JOBS ))
+            echo "${CPU_SHARES}" | sudo tee "/sys/fs/cgroup/cpu/${CGROUP_NAME}/cpu.shares" >/dev/null || true
+            sudo chown "$USER":"$(id -gn)" "/sys/fs/cgroup/cpu/${CGROUP_NAME}/tasks" 2>/dev/null || true
+            sudo chown "$USER":"$(id -gn)" "/sys/fs/cgroup/memory/${CGROUP_NAME}/tasks" 2>/dev/null || true
+            CG_CONTROLLERS="cpu,memory"
+          fi
+
+          # Write the cgexec invocation into GITHUB_ENV so all subsequent steps that
+          # reference ${{ env.CG_EXEC }} use cgroup isolation automatically.
+          echo "CG_EXEC=cgexec -g ${CG_CONTROLLERS}:${CGROUP_NAME} ionice -c 2 -n 2 nice -n 19" >> "${GITHUB_ENV}"
+          echo "Cgroup isolation configured: ${CGROUP_NAME} (controllers: ${CG_CONTROLLERS})"
 
       - name: Compile Project
         run: task build:compile
@@ -603,6 +664,11 @@ jobs:
           kind get clusters 2>/dev/null | xargs -r -I{} kind delete cluster --name {} || true
           # Prune stopped containers, dangling images, and unused volumes to reclaim disk space
           docker system prune -f --volumes || true
+          # Remove the per-job cgroup created by Setup Cgroup Isolation.
+          CGROUP_NAME="e2e-${{ github.run_id }}"
+          sudo rmdir "/sys/fs/cgroup/${CGROUP_NAME}" 2>/dev/null || true
+          sudo rmdir "/sys/fs/cgroup/cpu/${CGROUP_NAME}" 2>/dev/null || true
+          sudo rmdir "/sys/fs/cgroup/memory/${CGROUP_NAME}" 2>/dev/null || true
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
