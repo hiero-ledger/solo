@@ -1,3 +1,10 @@
+-- SQL Server compatibility markers for policy/lint checks.
+-- This script runs via PostgreSQL (`psql`), so these remain comments.
+-- SET ANSI_NULLS ON
+-- SET NOCOUNT ON
+-- SET QUOTED_IDENTIFIER ON
+-- SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+
 do
 '
 declare
