@@ -113,6 +113,11 @@ on:
         type: string
         required: false
         default: "22"
+      cgroup_max_concurrent_jobs:
+        description: "Max concurrent jobs sharing one host for cgroup memory/CPU split"
+        type: number
+        required: false
+        default: 3
   workflow_call:
     inputs:
       consensus-node-version:
@@ -205,6 +210,11 @@ on:
         type: boolean
         required: false
         default: false
+      cgroup_max_concurrent_jobs:
+        description: "Max concurrent jobs sharing one host for cgroup memory/CPU split"
+        type: number
+        required: false
+        default: 3
 
 defaults:
   run:
@@ -320,13 +330,22 @@ jobs:
             sudo apt-get install -y cgroup-tools
           fi
 
-          CGROUP_NAME="e2e-${{ github.run_id }}"
+          # Make cgroup unique per reusable-workflow invocation to avoid collisions when
+          # multiple E2E jobs from the same run execute on the same self-hosted machine.
+          RAW_CGROUP_NAME="e2e-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}-${{ inputs.coverage-subdirectory }}-${{ inputs.test-script }}"
+          CGROUP_NAME="$(printf '%s' "${RAW_CGROUP_NAME}" | tr -cs '[:alnum:]._-' '-' | sed -E 's/^-+|-+$//g' | cut -c1-120)"
+          if [[ -z "${CGROUP_NAME}" ]]; then
+            CGROUP_NAME="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          fi
 
           # Derive memory limit from the machine's actual total RAM.
           # Reserve 20% for the OS + runner agent, then split the remainder across
           # MAX_CONCURRENT_JOBS slots.  Adjust MAX_CONCURRENT_JOBS to match the
           # maximum number of jobs your runner pool schedules on one host at once.
-          MAX_CONCURRENT_JOBS=4
+          MAX_CONCURRENT_JOBS=${{ inputs.cgroup_max_concurrent_jobs }}
+          if [[ "${MAX_CONCURRENT_JOBS}" -lt 1 ]]; then
+            MAX_CONCURRENT_JOBS=1
+          fi
           TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
           TOTAL_MEM_BYTES=$(( TOTAL_MEM_KB * 1024 ))
           USABLE_MEM_BYTES=$(( TOTAL_MEM_BYTES * 80 / 100 ))
@@ -369,6 +388,7 @@ jobs:
           # Write the cgexec invocation into GITHUB_ENV so all subsequent steps that
           # reference ${{ env.CG_EXEC }} use cgroup isolation automatically.
           echo "CG_EXEC=cgexec -g ${CG_CONTROLLERS}:${CGROUP_NAME} ionice -c 2 -n 2 nice -n 19" >> "${GITHUB_ENV}"
+          echo "SOLO_E2E_CGROUP_NAME=${CGROUP_NAME}" >> "${GITHUB_ENV}"
           echo "Cgroup isolation configured: ${CGROUP_NAME} (controllers: ${CG_CONTROLLERS})"
 
       - name: Compile Project
@@ -665,10 +685,12 @@ jobs:
           # Prune stopped containers, dangling images, and unused volumes to reclaim disk space
           docker system prune -f --volumes || true
           # Remove the per-job cgroup created by Setup Cgroup Isolation.
-          CGROUP_NAME="e2e-${{ github.run_id }}"
-          sudo rmdir "/sys/fs/cgroup/${CGROUP_NAME}" 2>/dev/null || true
-          sudo rmdir "/sys/fs/cgroup/cpu/${CGROUP_NAME}" 2>/dev/null || true
-          sudo rmdir "/sys/fs/cgroup/memory/${CGROUP_NAME}" 2>/dev/null || true
+          CGROUP_NAME="${SOLO_E2E_CGROUP_NAME:-}"
+          if [ -n "${CGROUP_NAME}" ]; then
+            sudo rmdir "/sys/fs/cgroup/${CGROUP_NAME}" 2>/dev/null || true
+            sudo rmdir "/sys/fs/cgroup/cpu/${CGROUP_NAME}" 2>/dev/null || true
+            sudo rmdir "/sys/fs/cgroup/memory/${CGROUP_NAME}" 2>/dev/null || true
+          fi
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
