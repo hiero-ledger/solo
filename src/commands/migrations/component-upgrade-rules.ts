@@ -24,7 +24,7 @@
  *   error, it automatically retries as `'recreate'`.
  *
  * - **Boundary**: A specific semver version at which the upgrade strategy changes. For example,
- *   if block-node 0.28.0 changes an immutable StatefulSet field, a boundary at `0.28.0` with
+ *   if block-node 0.29.0 changes an immutable StatefulSet field, a boundary at `0.29.0` with
  *   strategy `'recreate'` means: "any upgrade that crosses this version requires recreation."
  *
  * - **Migration Plan**: An ordered list of `ComponentUpgradeMigrationStep` objects, each describing
@@ -40,8 +40,8 @@
  * 2. Find all boundaries where `current < boundary.version <= target` (i.e., boundaries crossed
  *    during a forward upgrade).
  * 3. Sort crossed boundaries by version ascending.
- * 4. **Merge consecutive boundaries with the same strategy** — if boundaries at 0.28.0 and 0.30.0
- *    both require `'recreate'`, they collapse into one step that jumps straight to 0.30.0.
+ * 4. **Merge consecutive boundaries with the same strategy** — if boundaries at 0.29.0 and 0.31.0
+ *    both require `'recreate'`, they collapse into one step that jumps straight to 0.31.0.
  * 5. Generate steps:
  *    - For each (reduced) boundary, create a step from the cursor to the boundary's version (or
  *      to the target version if it's the last boundary).
@@ -50,13 +50,13 @@
  *
  * ### Example
  *
- * Config for `block-node`: default `'in-place'`, boundary at `0.28.0` → `'recreate'`.
+ * Config for `block-node`: default `'in-place'`, boundary at `0.29.0` → `'recreate'`.
  *
- * - Upgrade 0.25.0 → 0.27.0: No boundary crossed → 1 step, `'in-place'`.
- * - Upgrade 0.25.0 → 0.28.0: Crosses 0.28.0 → 1 step, `'recreate'` (0.25.0 → 0.28.0).
- * - Upgrade 0.25.0 → 0.35.0: Crosses 0.28.0 → 1 step, `'recreate'` (0.25.0 → 0.35.0).
+ * - Upgrade 0.28.0 → 0.28.5: No boundary crossed → 1 step, `'in-place'`.
+ * - Upgrade 0.28.0 → 0.29.0: Crosses 0.29.0 → 1 step, `'recreate'` (0.28.0 → 0.29.0).
+ * - Upgrade 0.28.0 → 0.35.0: Crosses 0.29.0 → 1 step, `'recreate'` (0.28.0 → 0.35.0).
  *   (The last boundary absorbs the final target.)
- * - Upgrade 0.28.0 → 0.35.0: Boundary at 0.28.0 is NOT crossed (current is not < 0.28.0)
+ * - Upgrade 0.29.0 → 0.35.0: Boundary at 0.29.0 is NOT crossed (current is not < 0.29.0)
  *   → 1 step, `'in-place'`.
  *
  * ### Configuration Loading
@@ -166,19 +166,14 @@ export interface ComponentUpgradeMigrationStep {
  *
  * Currently defines rules for the `block-node` component:
  * - Default strategy: `'in-place'` (standard Helm upgrade).
- * - Boundary at `0.28.0`: `'recreate'` required because the block-node Helm chart changed
+ * - Boundary at `0.29.0`: `'recreate'` required because the block-node Helm chart changed
  *   an immutable StatefulSet field (e.g., volumeClaimTemplates or pod selector) at this version.
- *   Any upgrade that crosses from below 0.28.0 to at-or-above 0.28.0 must delete and recreate
+ *   Any upgrade that crosses from below 0.29.0 to at-or-above 0.29.0 must delete and recreate
  *   the StatefulSet rather than attempting an in-place upgrade.
- *   Additionally, `VERIFICATION_ALL_BLOCKS_HASHER_ENABLED=false` is injected as an extra Helm
- *   `--set` arg because v0.28.0's `AllBlocksHasherHandler` reads all on-disk blocks on startup
- *   to rebuild a Merkle hash. When upgrading from v0.26.x, reading those block files throws
- *   `ZstdIOException` ("Truncated source"), causing a `NullPointerException` that crashes the JVM.
- *   Disabling the all-blocks hasher skips that startup scan so the node starts with the existing
- *   block data intact.  Note: `VERIFICATION_TYPE=NO_OP` only controls the session-level verifier
- *   (switches to `DummyVerificationSession`) and does NOT gate `AllBlocksHasherHandler` — the
- *   correct flag is `verification.allBlocksHasherEnabled` (env: `VERIFICATION_ALL_BLOCKS_HASHER_ENABLED`).
- *   Source: AllBlocksHasherHandler.java @ v0.28.0 (init → fullyRebuildFromStore → calculateBlockHashFromBlockNumber)
+ *
+ * Note: there is no supported upgrade path from v0.26.x directly to v0.28.0 — the block stream
+ * format changed incompatibly between those versions. Upgrades must go through v0.28.x first
+ * (deployed fresh) before crossing the 0.29.0 StatefulSet boundary.
  *
  * To add a new component, add a new key under `components` with its own `defaultStrategy`
  * and `boundaries` array. No code changes are needed — the planner is fully data-driven.
@@ -189,28 +184,9 @@ const DEFAULT_COMPONENT_UPGRADE_MIGRATION_CONFIG: ComponentUpgradeMigrationConfi
       defaultStrategy: 'in-place',
       boundaries: [
         {
-          version: '0.28.0',
+          version: '0.29.0',
           strategy: 'recreate',
-          reason: 'StatefulSet immutable field change across 0.28.0 boundary',
-          // v0.28.0 introduced AllBlocksHasherHandler, which on startup reads every block
-          // stored on disk to rebuild a running Merkle hash over all previous block hashes.
-          // Source: https://github.com/hiero-ledger/hiero-block-node/blob/v0.28.0/block-node/verification/src/main/java/org/hiero/block/node/verification/AllBlocksHasherHandler.java
-          //
-          // In init() the handler calls fullyRebuildFromStore() → syncBlockHashesFromStore() →
-          // calculateBlockHashFromBlockNumber() for every block on the PVC. When upgrading from
-          // v0.26.x, reading those block files throws ZstdIOException("Truncated source"), which
-          // causes calculateBlockHashFromBlockNumber() to return a null BlockUnparsed. The next
-          // line then crashes with NullPointerException, terminating the JVM before the server
-          // becomes ready. This was observed directly in pod logs on upgrade:
-          //   WARNING: Failed to read block from file .../0000000000000000036.blk.zstd: Truncated source
-          //   Exception in thread "main" java.lang.NullPointerException: Cannot invoke
-          //     "BlockUnparsed.blockItems()" because "block" is null
-          // Setting VERIFICATION_ALL_BLOCKS_HASHER_ENABLED=false disables AllBlocksHasherHandler
-          // so the node starts cleanly with the existing v0.26.x block data still on the PVC.
-          // Note: VERIFICATION_TYPE=NO_OP controls the session verifier (DummyVerificationSession)
-          // but does NOT gate AllBlocksHasherHandler — that is controlled separately by
-          // verification.allBlocksHasherEnabled (env: VERIFICATION_ALL_BLOCKS_HASHER_ENABLED).
-          extraCommandArgs: ['--set', 'blockNode.config.VERIFICATION_ALL_BLOCKS_HASHER_ENABLED=false'],
+          reason: 'StatefulSet immutable field change across 0.29.0 boundary',
         },
       ],
     },
@@ -353,9 +329,9 @@ function findCrossedBoundaries(
 
   // Step 3: Reduce (merge) consecutive boundaries with the same strategy.
   // This avoids redundant intermediate steps. For example, if we have:
-  //   [{ version: '0.28.0', strategy: 'recreate' }, { version: '0.30.0', strategy: 'recreate' }]
-  // We collapse them into just [{ version: '0.30.0', strategy: 'recreate' }] because there's
-  // no value in recreating at 0.28.0 only to recreate again at 0.30.0.
+  //   [{ version: '0.29.0', strategy: 'recreate' }, { version: '0.31.0', strategy: 'recreate' }]
+  // We collapse them into just [{ version: '0.31.0', strategy: 'recreate' }] because there's
+  // no value in recreating at 0.29.0 only to recreate again at 0.31.0.
   // However, if strategies differ (e.g., 'recreate' then 'in-place'), both are kept since
   // they represent genuinely different upgrade behavior.
   const reduced: ComponentUpgradeBoundaryRule[] = [];
@@ -395,17 +371,17 @@ function findCrossedBoundaries(
  *
  * ## Example migration plans
  *
- * Given block-node config: default `'in-place'`, boundary at 0.28.0 → `'recreate'`:
+ * Given block-node config: default `'in-place'`, boundary at 0.29.0 → `'recreate'`:
  *
  * ```
- * planComponentUpgradeMigrationPath('block-node', '0.25.0', '0.27.0')
- * → [{ from: '0.25.0', to: '0.27.0', strategy: 'in-place' }]  // no boundary crossed
+ * planComponentUpgradeMigrationPath('block-node', '0.28.0', '0.28.5')
+ * → [{ from: '0.28.0', to: '0.28.5', strategy: 'in-place' }]  // no boundary crossed
  *
- * planComponentUpgradeMigrationPath('block-node', '0.25.0', '0.35.0')
- * → [{ from: '0.25.0', to: '0.35.0', strategy: 'recreate' }]  // crosses 0.28.0, last boundary
+ * planComponentUpgradeMigrationPath('block-node', '0.28.0', '0.35.0')
+ * → [{ from: '0.28.0', to: '0.35.0', strategy: 'recreate' }]  // crosses 0.29.0, last boundary
  *
  * planComponentUpgradeMigrationPath('block-node', '0.29.0', '0.35.0')
- * → [{ from: '0.29.0', to: '0.35.0', strategy: 'in-place' }]  // already past 0.28.0
+ * → [{ from: '0.29.0', to: '0.35.0', strategy: 'in-place' }]  // already past 0.29.0
  * ```
  *
  * @param component - Component name (e.g., 'block-node'). Must match a key in the config.

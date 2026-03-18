@@ -61,20 +61,35 @@ describe('planComponentUpgradeMigrationPath', (): void => {
   });
 
   describe('upgrade not crossing a boundary', (): void => {
-    it('returns a single in-place step when staying below 0.28.0', (): void => {
+    it('returns a single in-place step when staying below 0.29.0', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.26.0',
-        '0.27.9',
+        '0.28.0',
+        '0.28.5',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
-      expect(steps[0].fromVersion).to.equal('0.26.0');
-      expect(steps[0].toVersion).to.equal('0.27.9');
+      expect(steps[0].fromVersion).to.equal('0.28.0');
+      expect(steps[0].toVersion).to.equal('0.28.5');
     });
 
-    it('returns a single in-place step when staying above 0.28.0', (): void => {
+    it('returns a single in-place step when staying above 0.29.0', (): void => {
+      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+        'block-node',
+        '0.29.0',
+        '0.30.0',
+      );
+
+      expect(steps).to.have.length(1);
+      expect(steps[0].strategy).to.equal('in-place');
+      expect(steps[0].fromVersion).to.equal('0.29.0');
+      expect(steps[0].toVersion).to.equal('0.30.0');
+    });
+  });
+
+  describe('upgrade crossing the 0.29.0 boundary', (): void => {
+    it('returns a single recreate step when upgrading from below to exactly 0.29.0', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
         '0.28.0',
@@ -82,37 +97,22 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       );
 
       expect(steps).to.have.length(1);
-      expect(steps[0].strategy).to.equal('in-place');
+      expect(steps[0].strategy).to.equal('recreate');
       expect(steps[0].fromVersion).to.equal('0.28.0');
       expect(steps[0].toVersion).to.equal('0.29.0');
     });
-  });
 
-  describe('upgrade crossing the 0.28.0 boundary', (): void => {
-    it('returns a single recreate step when upgrading from below to exactly 0.28.0', (): void => {
+    it('returns a single recreate step going directly to target when crossing 0.29.0', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.27.0',
         '0.28.0',
+        '0.29.5',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
-      expect(steps[0].fromVersion).to.equal('0.27.0');
-      expect(steps[0].toVersion).to.equal('0.28.0');
-    });
-
-    it('returns a single recreate step going directly to target when crossing 0.28.0', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
-        'block-node',
-        '0.26.2',
-        '0.28.5',
-      );
-
-      expect(steps).to.have.length(1);
-      expect(steps[0].strategy).to.equal('recreate');
-      expect(steps[0].fromVersion).to.equal('0.26.2');
-      expect(steps[0].toVersion).to.equal('0.28.5');
+      expect(steps[0].fromVersion).to.equal('0.28.0');
+      expect(steps[0].toVersion).to.equal('0.29.5');
     });
 
     it('splits into multiple steps when multiple boundaries with different strategies are crossed', (): void => {
@@ -281,8 +281,8 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       // Should still work with block-node defaults
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.26.2',
         '0.28.0',
+        '0.29.0',
       );
 
       expect(steps).to.have.length(1);
@@ -296,8 +296,8 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       // Should still work with block-node defaults
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.26.2',
         '0.28.0',
+        '0.29.0',
       );
 
       expect(steps).to.have.length(1);
@@ -309,8 +309,8 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     it('includes reason text in migration steps', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.26.2',
         '0.28.0',
+        '0.29.0',
       );
 
       expect(steps[0].reason).to.be.a('string').and.not.equal('');
@@ -319,8 +319,8 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     it('includes extraCommandArgs array in migration steps', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.26.2',
         '0.28.0',
+        '0.29.0',
       );
 
       expect(steps[0].extraCommandArgs).to.be.an('array');
@@ -379,26 +379,26 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     it('handles versions with v prefix', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        'v0.26.0',
         'v0.28.0',
+        'v0.29.0',
       );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
-      expect(steps[0].fromVersion).to.equal('0.26.0');
-      expect(steps[0].toVersion).to.equal('0.28.0');
+      expect(steps[0].fromVersion).to.equal('0.28.0');
+      expect(steps[0].toVersion).to.equal('0.29.0');
     });
 
     it('handles pre-release versions (pre-release < release for same version)', (): void => {
-      // 0.28.0-rc.1 < 0.28.0 in semver, so boundary at 0.28.0 is NOT crossed
-      // when upgrading from 0.27.0 to 0.28.0-rc.1
+      // 0.29.0-rc.1 < 0.29.0 in semver, so boundary at 0.29.0 is NOT crossed
+      // when upgrading from 0.28.0 to 0.29.0-rc.1
       const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
         'block-node',
-        '0.27.0',
-        '0.28.0-rc.1',
+        '0.28.0',
+        '0.29.0-rc.1',
       );
 
-      // target 0.28.0-rc.1 < boundary 0.28.0, so boundary is not crossed
+      // target 0.29.0-rc.1 < boundary 0.29.0, so boundary is not crossed
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('in-place');
     });
