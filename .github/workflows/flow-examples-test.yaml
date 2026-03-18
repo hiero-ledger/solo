@@ -395,11 +395,6 @@ jobs:
           kind get clusters 2>/dev/null | xargs -r -I{} kind delete cluster --name {} || true
           # Prune stopped containers, dangling images, and unused volumes to reclaim disk space
           docker system prune -f --volumes || true
-          # Remove the per-job cgroup created by Setup Cgroup Isolation.
-          CGROUP_NAME="examples-${{ github.run_id }}-${{ strategy.job-index }}"
-          sudo rmdir "/sys/fs/cgroup/${CGROUP_NAME}" 2>/dev/null || true
-          sudo rmdir "/sys/fs/cgroup/cpu/${CGROUP_NAME}" 2>/dev/null || true
-          sudo rmdir "/sys/fs/cgroup/memory/${CGROUP_NAME}" 2>/dev/null || true
 
       - name: Upload Logs to GitHub
         if: always()

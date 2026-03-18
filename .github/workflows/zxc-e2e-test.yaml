@@ -604,12 +604,6 @@ jobs:
           # Prune stopped containers, dangling images, and unused volumes to reclaim disk space
           docker system prune -f --volumes || true
           # Remove the per-job cgroup created by Setup Cgroup Isolation.
-          CGROUP_NAME="${SOLO_E2E_CGROUP_NAME:-}"
-          if [ -n "${CGROUP_NAME}" ]; then
-            sudo rmdir "/sys/fs/cgroup/${CGROUP_NAME}" 2>/dev/null || true
-            sudo rmdir "/sys/fs/cgroup/cpu/${CGROUP_NAME}" 2>/dev/null || true
-            sudo rmdir "/sys/fs/cgroup/memory/${CGROUP_NAME}" 2>/dev/null || true
-          fi
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
