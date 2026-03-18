@@ -46,6 +46,7 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {Duration} from '../core/time/duration.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;

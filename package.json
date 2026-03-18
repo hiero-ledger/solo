@@ -11,7 +11,6 @@
     "access": "public"
   },
   "scripts": {
-    "postinstall": "tsx --no-deprecation --no-warnings resources/unlink-local-solo-instances.cjs",
     "solo-test": "tsx --no-deprecation --no-warnings solo.ts",
     "solo-test-debug": "tsx --inspect-brk --no-deprecation --no-warnings solo.ts",
     "solo": "node --no-deprecation --no-warnings dist/solo.js",
