@@ -40,6 +40,7 @@ function setup_smart_contract_test ()
   echo "PRIVATE_KEYS=\"$CONTRACT_TEST_KEYS\"" > .env
   echo "RETRY_DELAY=5000 # ms" >> .env
   echo "MAX_RETRY=5" >> .env
+  echo "RELAY_ENDPOINT=http://localhost:37546" >> .env
   cat .env
   cd -
 }
@@ -78,7 +79,7 @@ function start_contract_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     printf "\r::group::Test local network connection using nc\n"
     echo "Test local network connection using nc"
-    nc -zv 127.0.0.1 50211 || ncat -zv 127.0.0.1 50211 || true
+    nc -zv 127.0.0.1 35211 || ncat -zv 127.0.0.1 35211 || true
     printf "\r::endgroup::\n"
   fi
 
@@ -96,7 +97,7 @@ function start_sdk_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
     log_and_exit $result
