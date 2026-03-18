@@ -21,7 +21,7 @@ export const GVPROXY_VERSION: string = 'v0.8.7';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.62.0';
 export const HEDERA_PLATFORM_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'xts-candidate';
+  constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.73.0-pectra-preview-alpha.3';
 export const S6_NODE_IMAGE_VERSION: string = constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.43.0';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.149.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.0.0';
