@@ -1176,6 +1176,11 @@ export class BlockNodeCommand extends BaseCommand {
     // be reattached while the old pod still holds a ReadWriteOnce volume mount.
     await this.waitForBlockNodePodsDeleted(config.namespace, config.id, config.context);
 
+    // Delete PVCs so the new version starts with a clean data directory.
+    // Old block data may be incompatible with the new version (e.g., the v0.28.0
+    // AllBlocksHasherHandler crashes when reading blocks written by v0.26.x).
+    await this.deleteBlockNodePvcs(config.namespace, config.releaseName, config.context);
+
     // Record the install time so the readiness check can ignore any stale pod references.
     config.recreateInstallTime = new Date();
 
@@ -1211,6 +1216,22 @@ export class BlockNodeCommand extends BaseCommand {
     this.logger.warn(
       `Block node pods with labels ${labels.join(',')} did not terminate within ${maxAttempts} attempts; proceeding with install`,
     );
+  }
+
+  /**
+   * Deletes all PVCs associated with a block-node release.
+   * Used during recreate migrations so the new version starts with a clean data directory.
+   */
+  private async deleteBlockNodePvcs(namespace: NamespaceName, releaseName: string, context: string): Promise<void> {
+    const pvcs: PvcName[] = await this.k8Factory
+      .getK8(context)
+      .pvcs()
+      .list(namespace, [`app.kubernetes.io/instance=${releaseName}`])
+      .then((pvcs): PvcName[] => pvcs.map((pvc): PvcName => PvcName.of(pvc)));
+
+    for (const pvc of pvcs) {
+      await this.k8Factory.getK8(context).pvcs().delete(PvcReference.of(namespace, pvc));
+    }
   }
 
   /** Adds the block node component to remote config. */

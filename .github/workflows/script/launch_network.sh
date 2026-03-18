@@ -169,7 +169,6 @@ kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
@@ -203,6 +202,9 @@ export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+
+# block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 echo "::endgroup::"
 
 echo "::group::Final Verification"
