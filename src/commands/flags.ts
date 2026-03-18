@@ -742,6 +742,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeTssOverlay: CommandFlag = {
+    constName: 'blockNodeTssOverlay',
+    name: 'block-node-tss-overlay',
+    definition: {
+      describe:
+        'Force-apply block-node TSS values overlay when deploying block nodes before consensus deployment sets tssEnabled in remote config.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly blockNodeMapping: CommandFlag = {
     constName: 'blockNodeIds',
     name: 'block-node-mapping',
@@ -3029,6 +3041,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeTssOverlay,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
