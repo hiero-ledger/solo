@@ -170,6 +170,15 @@ export interface ComponentUpgradeMigrationStep {
  *   an immutable StatefulSet field (e.g., volumeClaimTemplates or pod selector) at this version.
  *   Any upgrade that crosses from below 0.28.0 to at-or-above 0.28.0 must delete and recreate
  *   the StatefulSet rather than attempting an in-place upgrade.
+ *   Additionally, `VERIFICATION_ALL_BLOCKS_HASHER_ENABLED=false` is injected as an extra Helm
+ *   `--set` arg because v0.28.0's `AllBlocksHasherHandler` reads all on-disk blocks on startup
+ *   to rebuild a Merkle hash. When upgrading from v0.26.x, reading those block files throws
+ *   `ZstdIOException` ("Truncated source"), causing a `NullPointerException` that crashes the JVM.
+ *   Disabling the all-blocks hasher skips that startup scan so the node starts with the existing
+ *   block data intact.  Note: `VERIFICATION_TYPE=NO_OP` only controls the session-level verifier
+ *   (switches to `DummyVerificationSession`) and does NOT gate `AllBlocksHasherHandler` — the
+ *   correct flag is `verification.allBlocksHasherEnabled` (env: `VERIFICATION_ALL_BLOCKS_HASHER_ENABLED`).
+ *   Source: AllBlocksHasherHandler.java @ v0.28.0 (init → fullyRebuildFromStore → calculateBlockHashFromBlockNumber)
  *
  * To add a new component, add a new key under `components` with its own `defaultStrategy`
  * and `boundaries` array. No code changes are needed — the planner is fully data-driven.
@@ -183,6 +192,25 @@ const DEFAULT_COMPONENT_UPGRADE_MIGRATION_CONFIG: ComponentUpgradeMigrationConfi
           version: '0.28.0',
           strategy: 'recreate',
           reason: 'StatefulSet immutable field change across 0.28.0 boundary',
+          // v0.28.0 introduced AllBlocksHasherHandler, which on startup reads every block
+          // stored on disk to rebuild a running Merkle hash over all previous block hashes.
+          // Source: https://github.com/hiero-ledger/hiero-block-node/blob/v0.28.0/block-node/verification/src/main/java/org/hiero/block/node/verification/AllBlocksHasherHandler.java
+          //
+          // In init() the handler calls fullyRebuildFromStore() → syncBlockHashesFromStore() →
+          // calculateBlockHashFromBlockNumber() for every block on the PVC. When upgrading from
+          // v0.26.x, reading those block files throws ZstdIOException("Truncated source"), which
+          // causes calculateBlockHashFromBlockNumber() to return a null BlockUnparsed. The next
+          // line then crashes with NullPointerException, terminating the JVM before the server
+          // becomes ready. This was observed directly in pod logs on upgrade:
+          //   WARNING: Failed to read block from file .../0000000000000000036.blk.zstd: Truncated source
+          //   Exception in thread "main" java.lang.NullPointerException: Cannot invoke
+          //     "BlockUnparsed.blockItems()" because "block" is null
+          // Setting VERIFICATION_ALL_BLOCKS_HASHER_ENABLED=false disables AllBlocksHasherHandler
+          // so the node starts cleanly with the existing v0.26.x block data still on the PVC.
+          // Note: VERIFICATION_TYPE=NO_OP controls the session verifier (DummyVerificationSession)
+          // but does NOT gate AllBlocksHasherHandler — that is controlled separately by
+          // verification.allBlocksHasherEnabled (env: VERIFICATION_ALL_BLOCKS_HASHER_ENABLED).
+          extraCommandArgs: ['--set', 'blockNode.config.VERIFICATION_ALL_BLOCKS_HASHER_ENABLED=false'],
         },
       ],
     },
