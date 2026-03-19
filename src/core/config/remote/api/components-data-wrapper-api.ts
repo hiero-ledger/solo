@@ -18,6 +18,8 @@ export interface ComponentsDataWrapperApi {
 
   changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void;
 
+  changeComponentPhase(componentId: ComponentId, type: ComponentTypes, phase: DeploymentPhase): void;
+
   removeComponent(componentId: ComponentId, type: ComponentTypes): void;
 
   getComponent<T extends BaseStateSchema>(type: ComponentTypes, componentId: ComponentId): T;
