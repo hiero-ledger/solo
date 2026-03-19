@@ -320,15 +320,25 @@ jobs:
             npm ci
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          version: 3.39.2
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          action: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: 3.39.2
+            repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          go-version: '1.22.3'
+          action: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            go-version: '1.22.3'
 
       - name: Install grpcurl
         run: |
@@ -343,16 +353,26 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          distribution: temurin
-          java-version: 21.0.1
+          action: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            distribution: temurin
+            java-version: 21.0.1 # TODO bump to 25
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          cache-read-only: false
+          action: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            cache-read-only: false
 
       - name: Create Diagnostic Script
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
@@ -600,25 +620,40 @@ jobs:
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          name: solo-${{ inputs.test-script }}.log
-          path: ~/.solo/logs/*
-          overwrite: true
-          if-no-files-found: warn
+          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            name: solo-${{ inputs.test-script }}.log
+            path: ~/.solo/logs/*
+            overwrite: true
+            if-no-files-found: warn
 
       - name: Upload E2E Test Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          name: e2e_test_report_${{ inputs.test-script }}
-          path: "junit-${{ inputs.coverage-subdirectory }}.xml"
-          overwrite: true
-          if-no-files-found: error
+          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            name: e2e_test_report_${{ inputs.test-script }}
+            path: "junit-${{ inputs.coverage-subdirectory }}.xml"
+            overwrite: true
+            if-no-files-found: error
 
       - name: Publish E2E Coverage Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          name: ${{ inputs.coverage-report-name }}
-          path: 'coverage/${{ inputs.coverage-subdirectory }}'
+          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            name: ${{ inputs.coverage-report-name }}
+            path: 'coverage/${{ inputs.coverage-subdirectory }}'
