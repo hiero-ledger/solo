@@ -18,6 +18,7 @@ import {type AnyObject} from '../types/aliases.js';
 import path from 'node:path';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
+import {type ClusterCreateOptions} from '../integration/kind/model/create-cluster/cluster-create-options.js';
 import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {type DependencyManager, KindDependencyManager, PodmanDependencyManager} from './dependency-managers/index.js';
@@ -287,7 +288,7 @@ export class ClusterTaskManager extends ShellRunner {
       task: async (): Promise<void> => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-        const clusterCreateOptions = ClusterCreateOptionsBuilder.builder()
+        const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
