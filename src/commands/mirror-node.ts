@@ -16,6 +16,7 @@ import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
@@ -35,6 +36,7 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
@@ -42,7 +44,6 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -662,6 +663,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   mirrorIngressControllerValuesArgument,
                   context_.config.clusterContext,
                 );
+                await this.adoptMirrorIngressControllerRbacOwnership(config);
                 showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
               },
               skip: (context_): boolean => !context_.config.enableIngress,
@@ -763,6 +765,19 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
                 const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+                const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
+                const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
+                const feesEntityId: string = MirrorNodeCommand.encodeEntityId(
+                  Number(shard),
+                  Number(realm),
+                  feesFileIdNumber,
+                );
+                const exchangeRatesEntityId: string = MirrorNodeCommand.encodeEntityId(
+                  Number(shard),
+                  Number(realm),
+                  exchangeRatesFileIdNumber,
+                );
+
                 const fees: string = await this.accountManager.getFileContents(
                   namespace,
                   feesFileIdNumber,
@@ -780,10 +795,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const importFeesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 17);`;
+VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesEntityId}, 17);`;
                 const importExchangeRatesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
+VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesEntityId}, 17);`;
 
                 // When using an external database the importer's V1.0__Init.sql migration
                 // creates mirror_rest without the readonly role, so it lacks SELECT on any
@@ -935,7 +950,7 @@ END $grant$;`;
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1007,7 +1022,7 @@ END $grant$;`;
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -1221,7 +1236,7 @@ END $grant$;`;
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -1307,7 +1322,9 @@ END $grant$;`;
                   'There are missing values that need to be provided when' +
                   `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
-                throw new SoloError(`${errorMessage} ${missingFlags.map(flag => `--${flag.name}`).join(', ')}`);
+                throw new SoloError(
+                  `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
+                );
               }
             }
 
@@ -1365,6 +1382,23 @@ END $grant$;`;
 
   private getChartNamespace(version: string): string {
     return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
+  }
+
+  /**
+   * Encodes a shard.realm.num entity ID into the integer form used by the mirror node database.
+   * Matches the encoding in EntityId.java: |10-bit shard|16-bit realm|38-bit num|
+   */
+  private static encodeEntityId(shard: number, realm: number, entityNumber: number): string {
+    if (shard === 0 && realm === 0) {
+      return String(entityNumber);
+    }
+    const NUM_BITS: bigint = 38n;
+    const REALM_BITS: bigint = 16n;
+    const encoded: bigint =
+      (BigInt(entityNumber) & ((1n << NUM_BITS) - 1n)) |
+      ((BigInt(realm) & ((1n << REALM_BITS) - 1n)) << NUM_BITS) |
+      (BigInt(shard) << (REALM_BITS + NUM_BITS));
+    return encoded.toString();
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -1642,5 +1676,17 @@ END $grant$;`;
 
     // Keep existing behavior as fallback when no ingress release is currently installed.
     return this.renderIngressReleaseName(id);
+  }
+
+  private async adoptMirrorIngressControllerRbacOwnership(config: MirrorNodeDeployConfigClass): Promise<void> {
+    const rbac: Rbacs = this.k8Factory.getK8(config.clusterContext).rbac();
+    const rbacNames: Set<string> = new Set([
+      constants.MIRROR_INGRESS_CONTROLLER,
+      `${constants.MIRROR_INGRESS_CONTROLLER}-${config.namespace.name}`,
+    ]);
+
+    for (const rbacName of rbacNames) {
+      await rbac.setHelmOwnership(rbacName, config.ingressReleaseName, config.namespace.name);
+    }
   }
 }
