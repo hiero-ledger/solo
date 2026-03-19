@@ -6,7 +6,6 @@ import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
@@ -57,8 +56,6 @@ interface ExplorerDeployConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   namespace: NamespaceName;
-  profileFile: string;
-  profileName: string;
   tlsClusterIssuerType: string;
   valuesFile: string;
   valuesArg: string;
@@ -99,8 +96,6 @@ interface ExplorerUpgradeConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   namespace: NamespaceName;
-  profileFile: string;
-  profileName: string;
   tlsClusterIssuerType: string;
   valuesFile: string;
   valuesArg: string;
@@ -156,13 +151,9 @@ enum ExplorerCommandType {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
-  ) {
+  public constructor(@inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks) {
     super();
 
-    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
@@ -184,8 +175,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.namespace,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.soloChartVersion,
       flags.tlsClusterIssuerType,
@@ -214,8 +203,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.namespace,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.soloChartVersion,
       flags.tlsClusterIssuerType,
@@ -240,12 +227,6 @@ export class ExplorerCommand extends BaseCommand {
     config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
   ): Promise<string> {
     let valuesArgument: string = '';
-
-    const profileName: string = this.configManager.getFlag(flags.profileName);
-    const profileValuesFile: string = await this.profileManager.prepareValuesHederaExplorerChart(profileName);
-    if (profileValuesFile) {
-      valuesArgument += prepareValuesFiles(profileValuesFile);
-    }
 
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
