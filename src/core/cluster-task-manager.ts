@@ -148,7 +148,7 @@ export class ClusterTaskManager extends ShellRunner {
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
+            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
             ...sudoRunOptions,
           );
 
@@ -289,6 +289,7 @@ export class ClusterTaskManager extends ShellRunner {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
+          .image(constants.KIND_NODE_IMAGE)
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
