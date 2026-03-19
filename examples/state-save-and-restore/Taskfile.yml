@@ -64,6 +64,8 @@ tasks:
   setup:
     desc: Deploy initial network with external PostgreSQL database
     cmds:
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
       - task: create-cluster
       - task: init-solo
       - task: deploy-external-database
@@ -91,7 +93,6 @@ tasks:
   init-solo:
     desc: Initialize Solo and configure cluster
     cmds:
-      - cmd: $SOLO_COMMAND init
       - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }}
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
       - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
