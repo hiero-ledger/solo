@@ -78,7 +78,15 @@ function start_contract_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     printf "\r::group::Test local network connection using nc\n"
     echo "Test local network connection using nc"
-    nc -zv 127.0.0.1 50211 || ncat -zv 127.0.0.1 50211 || true
+    if command -v nc >/dev/null 2>&1; then
+      nc -zv 127.0.0.1 50211 || true
+    elif command -v ncat >/dev/null 2>&1; then
+      ncat -zv 127.0.0.1 50211 || true
+    elif timeout 2 bash -c '</dev/tcp/127.0.0.1/50211' >/dev/null 2>&1; then
+      echo "Connected to 127.0.0.1:50211 via /dev/tcp probe"
+    else
+      echo "Skipping nc probe: neither nc nor ncat installed"
+    fi
     printf "\r::endgroup::\n"
   fi
 
@@ -93,12 +101,23 @@ function start_sdk_test ()
   realm_num="${1:-0}"
   shard_num="${2:-0}"
   cd solo
+  result=0
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
+    if ! command -v grpcurl >/dev/null 2>&1; then
+      curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
+    fi
   fi
-  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+  for attempt in {1..20}
+  do
+    grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes && break
+    result=$?
+    echo "grpcurl attempt ${attempt}/20 failed with exit code ${result}; waiting for mirror ingress to become ready"
+    sleep 5
+  done
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
+    kubectl get pods -n "${SOLO_NAMESPACE}" -o wide || true
+    kubectl get svc -n "${SOLO_NAMESPACE}" | grep -E 'mirror|ingress' || true
     log_and_exit $result
   fi
   result=0
