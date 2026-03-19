@@ -68,24 +68,14 @@ jobs:
       - name: Authenticate to Google Cloud
         if: steps.check.outputs.run == 'true'
         id: google-auth
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
         with:
-          action: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
-            service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
+          workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
+          service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
         if: steps.check.outputs.run == 'true'
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
-        with:
-          action: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Get Current Job Log URL
         if: steps.check.outputs.run == 'true'
@@ -109,15 +99,10 @@ jobs:
 
       - name: Setup Node
         if: steps.check.outputs.run == 'true'
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          action: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            node-version: 22
-            cache: npm
+          node-version: 22
+          cache: npm
 
       - name: Configure npm registry
         if: steps.check.outputs.run == 'true'
@@ -125,15 +110,10 @@ jobs:
 
       - name: Install Task
         if: steps.check.outputs.run == 'true'
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
-          action: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            version: 3.39.2
-            repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: 3.39.2
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Dependencies
         if: steps.check.outputs.run == 'true'
@@ -166,16 +146,11 @@ jobs:
 
       - name: Upload Logs to GitHub
         if: ${{ steps.check.outputs.run == 'true' && always() }}
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            name: solo-logs-${{ matrix.storageType }}
-            path: ~/.solo/logs/*
-            if-no-files-found: error
+          name: solo-logs-${{ matrix.storageType }}
+          path: ~/.solo/logs/*
+          if-no-files-found: error
 
       - name: Delete Test Directory after Test
         # add always() to make sure bucket is deleted even if the test failed

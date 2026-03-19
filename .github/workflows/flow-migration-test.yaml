@@ -50,50 +50,30 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          action: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            node-version: 22
-            cache: npm
+          node-version: 22
+          cache: npm
 
       - name: Setup Helm
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
-          action: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            version: "v3.12.3" # helm version
+          version: "v3.12.3" # helm version
 
       - name: Setup Kind
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
-          action: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            install_only: true
-            node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-            version: v0.26.0
-            kubectl_version: v1.31.4
-            verbosity: 3
-            wait: 120s
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
 
       - name: Install Kubectl
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
-          action: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            version: 'v1.27.3'
+          version: 'v1.27.3'
         id: install
 
       - name: Get Latest Version
@@ -131,13 +111,8 @@ jobs:
 
       - name: Upload Logs to GitHub
         if: ${{ always() }}
-        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-          attempt_limit: 3
-          attempt_delay: 60000
-          time_out: 300000
-          with: |
-            name: solo-logs
-            path: ~/.solo/logs/*
-            if-no-files-found: error
+          name: solo-logs
+          path: ~/.solo/logs/*
+          if-no-files-found: error
