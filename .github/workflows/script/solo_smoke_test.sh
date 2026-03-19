@@ -313,14 +313,14 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
   export SOLO_NAMESPACE="solo-e2e"
 fi
 
-# create_test_account "${SOLO_DEPLOYMENT}"
-# clone_smart_contract_repo
-# setup_smart_contract_test
-# check_port_forward
-# start_contract_test
-# start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
-# echo "Sleep a while to wait background transactions to finish"
-# sleep 30
+create_test_account "${SOLO_DEPLOYMENT}"
+clone_smart_contract_repo
+setup_smart_contract_test
+check_port_forward
+start_contract_test
+start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
+echo "Sleep a while to wait background transactions to finish"
+sleep 30
 
 echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 mirror_release=""
