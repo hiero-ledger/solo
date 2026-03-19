@@ -13,7 +13,7 @@ import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
-import {NodeCommandTasks} from '../../../src/commands/node/tasks.js';
+import {type NodeCommandTasks} from '../../../src/commands/node/tasks.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
