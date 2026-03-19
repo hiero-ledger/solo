@@ -8,232 +8,163 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {NetworkCommand} from '../../../src/commands/network.js';
-import * as NodeFlags from '../../../src/commands/node/flags.js';
+import * as constants from '../../../src/core/constants.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
-import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {NodeCommandTasks} from '../../../src/commands/node/tasks.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
+import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
+import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
+import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
-describe('wrapsKeyPath flag', (): void => {
-  describe('Flag definition', (): void => {
-    it('should have the correct constName', (): void => {
-      expect(flags.wrapsKeyPath.constName).to.equal('wrapsKeyPath');
-    });
+describe('NodeCommandTasks.addWrapsLib', (): void => {
+  let configManager: ConfigManager;
+  let nodeCommandTasks: NodeCommandTasks;
+  let sourceDirectory: string;
+  let extractedDirectory: string;
+  let downloaderStub: {fetchPackage: sinon.SinonStub};
+  let zippyStub: {untar: sinon.SinonStub};
 
-    it('should have the correct CLI name', (): void => {
-      expect(flags.wrapsKeyPath.name).to.equal('wraps-key-path');
-    });
+  const allowedFiles: string[] = ['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin'];
 
-    it('should be a string type', (): void => {
-      expect(flags.wrapsKeyPath.definition.type).to.equal('string');
-    });
+  beforeEach((): void => {
+    sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wraps-test-'));
+    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-    it('should not have a default value', (): void => {
-      expect(flags.wrapsKeyPath.definition.defaultValue).to.be.undefined;
-    });
+    // Ensure parent cache directory exists
+    if (!fs.existsSync(constants.SOLO_CACHE_DIR)) {
+      fs.mkdirSync(constants.SOLO_CACHE_DIR, {recursive: true});
+    }
 
-    it('should not prompt', (): void => {
-      expect(flags.wrapsKeyPath.prompt).to.be.undefined;
-    });
+    // Clean up extractedDirectory if it exists from a previous test
+    if (fs.existsSync(extractedDirectory)) {
+      fs.rmSync(extractedDirectory, {recursive: true, force: true});
+    }
+
+    downloaderStub = {fetchPackage: sinon.stub().resolves()};
+    zippyStub = {untar: sinon.stub()};
+
+    const remoteConfigStub = {
+      configuration: {state: {wrapsEnabled: true}},
+      isLoaded: sinon.stub().returns(true),
+    };
+
+    const containerOverrides: InstanceOverrides = new Map([
+      [InjectTokens.PackageDownloader, new ValueContainer(InjectTokens.PackageDownloader, downloaderStub)],
+      [InjectTokens.Zippy, new ValueContainer(InjectTokens.Zippy, zippyStub)],
+      [
+        InjectTokens.RemoteConfigRuntimeState,
+        new ValueContainer(InjectTokens.RemoteConfigRuntimeState, remoteConfigStub),
+      ],
+    ]);
+
+    resetForTest(undefined, undefined, true, containerOverrides);
+
+    configManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
+    nodeCommandTasks = container.resolve<NodeCommandTasks>(InjectTokens.NodeCommandTasks);
   });
 
-  describe('Flag registration in allFlags', (): void => {
-    it('should be registered in Flags.allFlags', (): void => {
-      expect(flags.allFlags).to.include(flags.wrapsKeyPath);
-    });
+  afterEach((): void => {
+    sinon.restore();
+    if (fs.existsSync(sourceDirectory)) {
+      fs.rmSync(sourceDirectory, {recursive: true, force: true});
+    }
+    if (fs.existsSync(extractedDirectory)) {
+      fs.rmSync(extractedDirectory, {recursive: true, force: true});
+    }
   });
 
-  describe('Flag present in command flag lists', (): void => {
-    it('should be in NetworkCommand.DEPLOY_FLAGS_LIST', (): void => {
-      expect(NetworkCommand.DEPLOY_FLAGS_LIST.optional).to.include(flags.wrapsKeyPath);
-    });
+  it('should copy allowed .bin files from wrapsKeyPath to cache directory', async (): Promise<void> => {
+    for (const file of allowedFiles) {
+      fs.writeFileSync(path.join(sourceDirectory, file), `content-${file}`);
+    }
 
-    it('should be in node ADD_FLAGS (via COMMON_ADD_OPTIONAL_FLAGS)', (): void => {
-      expect(NodeFlags.ADD_FLAGS.optional).to.include(flags.wrapsKeyPath);
-    });
+    const argv: Argv = Argv.initializeEmpty();
+    argv.setArg(flags.wrapsKeyPath, sourceDirectory);
+    configManager.update(argv.build());
 
-    it('should be in node UPDATE_FLAGS (via COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS)', (): void => {
-      expect(NodeFlags.UPDATE_FLAGS.optional).to.include(flags.wrapsKeyPath);
-    });
+    const listrTask = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
 
-    it('should be in node UPGRADE_FLAGS', (): void => {
-      expect(NodeFlags.UPGRADE_FLAGS.optional).to.include(flags.wrapsKeyPath);
-    });
+    const copiedFiles: string[] = fs.readdirSync(extractedDirectory);
+    expect(copiedFiles).to.have.members(allowedFiles);
 
-    it('should be in node START_FLAGS', (): void => {
-      expect(NodeFlags.START_FLAGS.optional).to.include(flags.wrapsKeyPath);
-    });
-
-    it('should be in node RESTART_FLAGS', (): void => {
-      expect(NodeFlags.RESTART_FLAGS.optional).to.include(flags.wrapsKeyPath);
-    });
+    for (const file of allowedFiles) {
+      const content: string = fs.readFileSync(path.join(extractedDirectory, file), 'utf8');
+      expect(content).to.equal(`content-${file}`);
+    }
   });
 
-  describe('Config manager integration', (): void => {
-    let configManager: ConfigManager;
+  it('should ignore non-allowed files in wrapsKeyPath', async (): Promise<void> => {
+    const extraFiles: string[] = ['README.md', 'extra.bin', 'config.json'];
+    for (const file of [...allowedFiles, ...extraFiles]) {
+      fs.writeFileSync(path.join(sourceDirectory, file), `content-${file}`);
+    }
 
-    beforeEach((): void => {
-      resetForTest();
-      configManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
-    });
+    const argv: Argv = Argv.initializeEmpty();
+    argv.setArg(flags.wrapsKeyPath, sourceDirectory);
+    configManager.update(argv.build());
 
-    afterEach((): void => {
-      sinon.restore();
-    });
+    const listrTask = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
 
-    it('should store and retrieve wrapsKeyPath from configManager', (): void => {
-      const argv: Argv = Argv.initializeEmpty();
-      argv.setArg(flags.wrapsKeyPath, '/some/test/path');
-      configManager.update(argv.build());
-
-      const result: string = configManager.getFlag<string>(flags.wrapsKeyPath);
-      expect(result).to.equal('/some/test/path');
-    });
-
-    it('should return undefined when wrapsKeyPath is not set', (): void => {
-      const argv: Argv = Argv.initializeEmpty();
-      configManager.update(argv.build());
-
-      const result: string = configManager.getFlag<string>(flags.wrapsKeyPath);
-      expect(result).to.be.undefined;
-    });
-
-    it('should map wrapsKeyPath to config object via getConfig', (): void => {
-      const argv: Argv = Argv.initializeEmpty();
-      argv.setArg(flags.wrapsKeyPath, '/custom/wraps/dir');
-      argv.setArg(flags.wrapsEnabled, true);
-      configManager.update(argv.build());
-
-      const flagsList: CommandFlag[] = [flags.wrapsKeyPath, flags.wrapsEnabled];
-      const config: {wrapsKeyPath: string; wrapsEnabled: boolean} = configManager.getConfig('wrapsTest', flagsList) as {
-        wrapsKeyPath: string;
-        wrapsEnabled: boolean;
-      };
-
-      expect(config.wrapsKeyPath).to.equal('/custom/wraps/dir');
-      expect(config.wrapsEnabled).to.equal(true);
-    });
+    const copiedFiles: string[] = fs.readdirSync(extractedDirectory);
+    expect(copiedFiles).to.have.members(allowedFiles);
+    for (const extra of extraFiles) {
+      expect(copiedFiles).to.not.include(extra);
+    }
   });
 
-  describe('File copy logic', (): void => {
-    let temporaryDirectory: string;
-    let sourceDirectory: string;
+  it('should throw SoloError for non-existent wrapsKeyPath', async (): Promise<void> => {
+    const argv: Argv = Argv.initializeEmpty();
+    argv.setArg(flags.wrapsKeyPath, '/this/path/does/not/exist');
+    configManager.update(argv.build());
 
-    beforeEach((): void => {
-      temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wraps-test-'));
-      sourceDirectory = path.join(temporaryDirectory, 'source');
-      fs.mkdirSync(sourceDirectory);
-    });
+    const listrTask = nodeCommandTasks.addWrapsLib();
 
-    afterEach((): void => {
-      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
-    });
-
-    it('should only copy allowed .bin files from source directory', (): void => {
-      const allowedFiles: string[] = ['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin'];
-      const disallowedFiles: string[] = ['README.md', 'extra.bin', 'config.json'];
-
-      for (const file of [...allowedFiles, ...disallowedFiles]) {
-        fs.writeFileSync(path.join(sourceDirectory, file), `content-${file}`);
-      }
-
-      const destinationDirectory: string = path.join(temporaryDirectory, 'dest');
-      fs.mkdirSync(destinationDirectory, {recursive: true});
-
-      const allowedSet: Set<string> = new Set(allowedFiles);
-      for (const file of fs.readdirSync(sourceDirectory)) {
-        if (allowedSet.has(file)) {
-          fs.copyFileSync(path.join(sourceDirectory, file), path.join(destinationDirectory, file));
-        }
-      }
-      // eslint-disable-next-line unicorn/no-array-sort
-      const copiedFiles: string[] = [...fs.readdirSync(destinationDirectory)].sort();
-      // eslint-disable-next-line unicorn/no-array-sort
-      expect(copiedFiles).to.deep.equal([...allowedFiles].sort());
-
-      for (const file of allowedFiles) {
-        const content: string = fs.readFileSync(path.join(destinationDirectory, file), 'utf8');
-        expect(content).to.equal(`content-${file}`);
-      }
-    });
-
-    it('should not modify the source directory', (): void => {
-      const allFiles: string[] = ['decider_pp.bin', 'nova_pp.bin', 'extra.txt'];
-      for (const file of allFiles) {
-        fs.writeFileSync(path.join(sourceDirectory, file), `content-${file}`);
-      }
-
-      const destinationDirectory: string = path.join(temporaryDirectory, 'dest');
-      fs.mkdirSync(destinationDirectory, {recursive: true});
-
-      const allowedSet: Set<string> = new Set(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
-      for (const file of fs.readdirSync(sourceDirectory)) {
-        if (allowedSet.has(file)) {
-          fs.copyFileSync(path.join(sourceDirectory, file), path.join(destinationDirectory, file));
-        }
-      }
-      // eslint-disable-next-line unicorn/no-array-sort
-      const sourceFiles: string[] = [...fs.readdirSync(sourceDirectory)].sort();
-      // eslint-disable-next-line unicorn/no-array-sort
-      expect(sourceFiles).to.deep.equal([...allFiles].sort());
-    });
-
-    it('should handle source directory with no matching .bin files', (): void => {
-      fs.writeFileSync(path.join(sourceDirectory, 'unrelated.txt'), 'data');
-      fs.writeFileSync(path.join(sourceDirectory, 'other.bin'), 'data');
-
-      const destinationDirectory: string = path.join(temporaryDirectory, 'dest');
-      fs.mkdirSync(destinationDirectory, {recursive: true});
-
-      const allowedSet: Set<string> = new Set(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
-      for (const file of fs.readdirSync(sourceDirectory)) {
-        if (allowedSet.has(file)) {
-          fs.copyFileSync(path.join(sourceDirectory, file), path.join(destinationDirectory, file));
-        }
-      }
-
-      const copiedFiles: string[] = fs.readdirSync(destinationDirectory);
-      expect(copiedFiles).to.be.empty;
-    });
-
-    it('should create destination directory if it does not exist', (): void => {
-      fs.writeFileSync(path.join(sourceDirectory, 'decider_pp.bin'), 'data');
-
-      const destinationDirectory: string = path.join(temporaryDirectory, 'nested', 'dest');
-      expect(fs.existsSync(destinationDirectory)).to.be.false;
-
-      if (!fs.existsSync(destinationDirectory)) {
-        fs.mkdirSync(destinationDirectory, {recursive: true});
-      }
-
-      const allowedSet: Set<string> = new Set(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
-      for (const file of fs.readdirSync(sourceDirectory)) {
-        if (allowedSet.has(file)) {
-          fs.copyFileSync(path.join(sourceDirectory, file), path.join(destinationDirectory, file));
-        }
-      }
-
-      expect(fs.existsSync(destinationDirectory)).to.be.true;
-      expect(fs.readdirSync(destinationDirectory)).to.deep.equal(['decider_pp.bin']);
-    });
+    try {
+      await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+      expect.fail('Expected SoloError to be thrown');
+    } catch (error) {
+      expect(error).to.be.instanceOf(SoloError);
+      expect(error.message).to.include('WRAPs key path does not exist');
+    }
   });
 
-  describe('Path validation', (): void => {
-    it('should detect non-existent wrapsKeyPath', (): void => {
-      const nonExistentPath: string = '/this/path/definitely/does/not/exist';
-      expect(fs.existsSync(nonExistentPath)).to.be.false;
-    });
+  it('should create destination directory if missing', async (): Promise<void> => {
+    fs.writeFileSync(path.join(sourceDirectory, 'decider_pp.bin'), 'data');
 
-    it('should detect valid wrapsKeyPath', (): void => {
-      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'wraps-valid-'));
-      try {
-        expect(fs.existsSync(temporaryDirectory)).to.be.true;
-      } finally {
-        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
-      }
-    });
+    expect(fs.existsSync(extractedDirectory)).to.be.false;
+
+    const argv: Argv = Argv.initializeEmpty();
+    argv.setArg(flags.wrapsKeyPath, sourceDirectory);
+    configManager.update(argv.build());
+
+    const listrTask = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+
+    expect(fs.existsSync(extractedDirectory)).to.be.true;
+    expect(fs.readdirSync(extractedDirectory)).to.include('decider_pp.bin');
+  });
+
+  it('should fall back to download when wrapsKeyPath is not set', async (): Promise<void> => {
+    const argv: Argv = Argv.initializeEmpty();
+    configManager.update(argv.build());
+
+    const listrTask = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+
+    expect(downloaderStub.fetchPackage.calledOnce).to.be.true;
+    expect(zippyStub.untar.calledOnce).to.be.true;
+  });
+});
+
+describe('WRAPS_ALLOWED_KEY_FILES constant', (): void => {
+  it('should contain the expected default file names', (): void => {
+    const files: string[] = constants.WRAPS_ALLOWED_KEY_FILES.split(',');
+    expect(files).to.have.members(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
   });
 });

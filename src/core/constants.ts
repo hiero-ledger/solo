@@ -451,6 +451,9 @@ export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
 
 export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
 
+export const WRAPS_ALLOWED_KEY_FILES: string =
+  getEnvironmentVariable('WRAPS_ALLOWED_KEY_FILES') || 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
+
 // TODO: in future define a better strategy to handle versioning
 export const WRAPS_LIB_DOWNLOAD_URL: string =
   getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||

@@ -3010,7 +3010,7 @@ export class NodeCommandTasks {
             fs.mkdirSync(extractedDirectory, {recursive: true});
           }
 
-          const allowedFiles: Set<string> = new Set(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
+          const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
 
           for (const file of fs.readdirSync(wrapsKeyPath)) {
             if (allowedFiles.has(file)) {

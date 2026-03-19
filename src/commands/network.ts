@@ -1434,12 +1434,7 @@ export class NetworkCommand extends BaseCommand {
                 fs.mkdirSync(extractedDirectory, {recursive: true});
               }
 
-              const allowedFiles: Set<string> = new Set([
-                'decider_pp.bin',
-                'decider_vp.bin',
-                'nova_pp.bin',
-                'nova_vp.bin',
-              ]);
+              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
 
               for (const file of fs.readdirSync(config.wrapsKeyPath)) {
                 if (allowedFiles.has(file)) {
@@ -1472,12 +1467,7 @@ export class NetworkCommand extends BaseCommand {
               }
 
               // Having any files except for those inside the folder causes an error in CN
-              const allowedFiles: Set<string> = new Set([
-                'decider_pp.bin',
-                'decider_vp.bin',
-                'nova_pp.bin',
-                'nova_vp.bin',
-              ]);
+              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
 
               for (const file of fs.readdirSync(extractedDirectory)) {
                 if (!allowedFiles.has(file)) {
