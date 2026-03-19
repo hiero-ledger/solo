@@ -96,6 +96,7 @@ jobs:
         timeout-minutes: 60
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
             export SOLO_COMMAND="npx @hashgraph/solo"
@@ -110,6 +111,7 @@ jobs:
         timeout-minutes: 15
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
             npx @hashgraph/solo one-shot single destroy --quiet-mode

@@ -89,6 +89,8 @@ jobs:
 
       - name: Launch Network with Prior Release ${{ steps.get-version.outputs.version }}
         timeout-minutes: 60
+        env:
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           echo "Configure APT to use main Ubuntu archive (disable mirror rotation)..."
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list

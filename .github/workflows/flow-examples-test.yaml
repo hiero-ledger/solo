@@ -290,6 +290,8 @@ jobs:
       - name: Run Example Test - ${{ matrix.example.name }}
         timeout-minutes: 45
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
+        env:
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
@@ -349,6 +351,8 @@ jobs:
         if: success()
         timeout-minutes: 10
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
+        env:
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           echo "Cleaning up example source: ${{ steps.prepare_example.outputs.display_dir }}"
           

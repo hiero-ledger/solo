@@ -409,6 +409,8 @@ jobs:
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         shell: bash
+        env:
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           export PATH="~/.solo/bin:${PATH}"
           echo "PATH: $PATH"
@@ -459,6 +461,8 @@ jobs:
         id: run-e2e-tests-windows
         if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
         shell: bash
+        env:
+          TASK_X_ENV_PRECEDENCE: 1
         run: |
           export PATH="~/.solo/bin:${PATH}"
           echo "PATH: $PATH"
