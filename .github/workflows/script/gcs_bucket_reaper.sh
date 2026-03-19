@@ -34,7 +34,7 @@ get_latest_activity_epoch_for_prefix() {
   local latest_updated
 
   latest_updated="$(
-    gcloud storage objects list "gs://${bucket}/${prefix}/**" --project="${PROJECT_ID}" --format='value(updated)' \
+    gcloud storage objects list "gs://${bucket}/${prefix}/" --project="${PROJECT_ID}" --format='value(updated)' \
       2>/dev/null \
       | sort \
       | tail -n1 || true

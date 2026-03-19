@@ -198,10 +198,16 @@ jobs:
             local bucket_name="$1"
             local target="gs://${bucket_name}/${JOB_PREFIX}"
             local deleted=1
+            local has_objects=""
 
             echo "Attempting cleanup for ${target}"
 
-            if ! gcloud storage ls "${target}/**" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            has_objects="$(
+              gcloud storage objects list "${target}/" --project="${PROJECT_ID}" --limit=1 --format='value(name)' \
+                2>/dev/null || true
+            )"
+
+            if [[ -z "${has_objects}" ]]; then
               echo "No objects found for ${target}, skipping"
               return 0
             fi
