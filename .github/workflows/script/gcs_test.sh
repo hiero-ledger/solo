@@ -127,7 +127,7 @@ if [ "${storageType}" == "minio_only" ]; then
   echo "Task version : $(task --version)"
   echo "Available tasks: $(task --list-all)"
   SOLO_DEPLOYMENT=solo-e2e
-  SOLO_DEPLOYMENT=solo-e2e PATH="~/.solo/bin:${PATH}" task default-with-mirror
+  SOLO_DEPLOYMENT=solo-e2e task default-with-mirror
   cd -
 else
   # get current script base directory

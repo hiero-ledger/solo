@@ -31,8 +31,6 @@ tasks:
     deps:
       - task: "init"
     cmds:
-      - task: "install:kubectl:darwin"
-      - task: "install:kubectl:linux"
       - task: "install"
       - task: "start"
 
@@ -161,29 +159,6 @@ tasks:
       - npm install
       - touch {{ .solo_install_file }}
 
-  install:kubectl:darwin:
-    silent: true
-    internal: true
-    platforms:
-      - darwin
-    status:
-      - command -v kubectl
-    cmds:
-      - brew update
-      - brew install kubernetes-cli
-
-  install:kubectl:linux:
-    silent: true
-    internal: true
-    platforms:
-      - linux
-    status:
-      - command -v kubectl
-    cmds:
-      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
-      - sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      - rm -rf kubectl
-
   solo:init:
     internal: true
     silent: true
@@ -191,6 +166,8 @@ tasks:
       - task: "init"
     status:
       - test -f {{ .solo_bin_dir }}/helm || command -v helm
+      - test -f {{ .solo_bin_dir }}/kubectl || command -v kubectl
+      - test -f {{ .solo_bin_dir }}/kind || command -v kind
       - test -f {{ .solo_cache_dir }}/templates/api-permission.properties
       - test -f {{ .solo_cache_dir }}/templates/application.properties
       - test -f {{ .solo_cache_dir }}/templates/bootstrap.properties
@@ -362,15 +339,6 @@ tasks:
       - echo "Removing solo logs directory..."
       - rm -rf {{ .solo_logs_dir }}
 
-  solo:config:remove:
-    silent: true
-    internal: true
-    status:
-      - test [[ ! -f {{ .solo_user_dir }}/solo.yaml ]]
-    cmds:
-      - echo "Removing solo config..."
-      - rm -rf {{ .solo_user_dir }}/solo.yaml
-
   solo:freeze:restart:
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus dev-freeze prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
@@ -381,16 +349,22 @@ tasks:
   cluster:create:
     silent: true
     status:
-      - kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
+      - |
+        export PATH="{{ .solo_bin_dir }}:$PATH"
+        kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
     cmds:
-      - kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
-      - sleep 10 # wait for control plane to come up
-      - kubectl config set-context kind-${SOLO_CLUSTER_NAME}
+      - |
+        export PATH="{{ .solo_bin_dir }}:$PATH"
+        kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+        sleep 10 # wait for control plane to come up
+        kubectl config set-context kind-${SOLO_CLUSTER_NAME}
 
   cluster:destroy:
     silent: true
     cmds:
-      - kind delete cluster --name "${SOLO_CLUSTER_NAME}"
+      - |
+        export PATH="{{ .solo_bin_dir }}:$PATH"
+        kind delete cluster --name "${SOLO_CLUSTER_NAME}"
 
   run:build:
     silent: true
@@ -405,6 +379,7 @@ tasks:
     silent: true
     cmds:
       - |
+        export PATH="{{ .solo_bin_dir }}:$PATH"
         if ! kubectl get svc -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers | grep -q . ; then
           echo "No services found with label app.kubernetes.io/name=operator app.kubernetes.io/instance=minio-operator"
           echo "--minio" > {{ .minio_flag_file }}
@@ -431,6 +406,7 @@ tasks:
     silent: true
     cmds:
       - |
+        export PATH="{{ .solo_bin_dir }}:$PATH"
         echo "External IPs of the network nodes:"
         export IP_LIST_TEMPLATE_FILE={{.TASKFILE_DIR}}/../list-external-ips.gotemplate
         kubectl get svc -n "${SOLO_NAMESPACE}" -l "solo.hedera.com/type=network-node-svc" --output=go-template-file=${IP_LIST_TEMPLATE_FILE}
@@ -508,6 +484,7 @@ tasks:
       - task: "init"
     cmds:
       - |
+        export PATH="{{ .solo_bin_dir }}:$PATH"
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
           if [ -n "${SOLO_CLUSTER_NAME}" ]; then
             export EXPLORER_CLUSTER_CONTEXT=kind-${SOLO_CLUSTER_NAME}
@@ -582,7 +559,6 @@ tasks:
       - task: "destroy"
       - task: "clean:cache"
       - task: "clean:logs"
-      - task: "solo:config:remove"
       - task: "clean:tmp"
 
   clean:tmp:
@@ -605,19 +581,23 @@ tasks:
           --set primary.persistence.enabled=false --set secondary.enabled=false
       - name: "Wait for PostgreSQL pod to be ready"
         cmd: |
+          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl wait --for=condition=ready pod/{{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} --timeout=160s
       - name: "Copy init.sql inside the database pod"
         cmd: |
+          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl cp {{.TASKFILE_DIR}}/external-database-test/scripts/init.sh \
           {{.postgres_container_name}}:/tmp/init.sh \
           -n {{.postgres_database_namespace}}
       - name: "Make init.sh executable"
         cmd: |
+          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl exec -it {{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} -- chmod +x /tmp/init.sh
       - name: "Execute init.sh inside the database pod"
         cmd: |
+          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl exec -it {{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} \
           -- /bin/bash /tmp/init.sh "{{.postgres_username}}" "{{.postgres_readonly_username}}" "{{.postgres_readonly_password}}"
