@@ -251,11 +251,10 @@ if [ -z "${mirror_release}" ] || [ -z "${MIRROR_KUBE_CONTEXT}" ]; then
   log_and_exit 1
 fi
 
-echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT})"
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m --logs || result=$?
+printf "\r::group::mirror-test log dump\n"
+echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}), running 'helm test'..."
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m || result=$?
 if [[ $result -ne 0 ]]; then
-  echo "Mirror node acceptance test failed with exit code $result"
-  printf "\r::group::mirror-test log dump\n"
   echo "------- BEGIN mirror test log -------"
   cat mirror_test.log
   echo "------- END mirror test log -------"
@@ -263,6 +262,7 @@ if [[ $result -ne 0 ]]; then
   log_and_exit $result
 fi
 echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
+printf "\r::endgroup::\n"
 result=0
 
 check_monitor_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
