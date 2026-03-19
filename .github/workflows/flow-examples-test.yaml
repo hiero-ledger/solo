@@ -152,34 +152,54 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          node-version: ${{ inputs.node-version || '22' }}
-          cache: npm
+          action: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            node-version: ${{ inputs.node-version || '22' }}
+            cache: npm
 
       - name: Configure npm registry
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          version: 'v1.27.3'
+          action: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: 'v1.27.3'
         id: install
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
+          action: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            install_only: true
+            node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+            version: v0.26.0
+            kubectl_version: v1.31.4
+            verbosity: 3
+            wait: 120s
 
       - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          version: "v3.17.1" # helm version
+          action: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: "v3.17.1" # helm version
 
       - name: Install Dependencies
         id: npm-deps
@@ -191,15 +211,25 @@ jobs:
             npm ci
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          version: 3.39.2
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          action: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: 3.39.2
+            repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          go-version: '1.22.3'
+          action: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            go-version: '1.22.3'
 
       - name: Install grpcurl
         run: |
@@ -207,27 +237,41 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          distribution: temurin
-          java-version: 21.0.1
+          action: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            distribution: temurin
+            java-version: 21.0.1 # TODO bump to 25
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          cache-read-only: false
+          action: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            cache-read-only: false
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        run: |
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-          cd ..
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
-          cd hiero-consensus-node
-          ls -ltr
-          ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
-          cd ../solo
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 30
+          command: |
+            export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            cd ..
+            git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
+            cd hiero-consensus-node
+            ls -ltr
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            cd ../solo
 
       - name: Build Application
         run: task build:compile
@@ -348,7 +392,7 @@ jobs:
 
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && failure() }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
           SLACK_COLOR: danger
@@ -361,6 +405,12 @@ jobs:
             
             :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
           SLACK_FOOTER: ${{ github.workflow }}
+        with:
+          action: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+
 
       - name: Cleanup Example - ${{ matrix.example.name }}
         if: success()
@@ -386,8 +436,13 @@ jobs:
 
       - name: Upload Logs to GitHub
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          name: solo-logs-${{ matrix.example.directory }}
-          path: ~/.solo/logs/*
-          if-no-files-found: ignore
+          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            name: solo-logs-${{ matrix.example.directory }}
+            path: ~/.solo/logs/*
+            if-no-files-found: ignore
