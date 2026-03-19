@@ -15,11 +15,6 @@
     "local-java-build": false
   },
   {
-    "name": "Custom Network Config",
-    "directory": "custom-network-config",
-    "local-java-build": false
-  },
-  {
     "name": "External Database Test",
     "directory": "external-database-test",
     "local-java-build": false
@@ -27,11 +22,6 @@
   {
     "name": "Hardhat with Solo",
     "directory": "hardhat-with-solo",
-    "local-java-build": false
-  },
-  {
-    "name": "Network with Block Node",
-    "directory": "network-with-block-node",
     "local-java-build": false
   },
   {
