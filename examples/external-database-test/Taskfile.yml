@@ -1,6 +1,7 @@
 version: 3
 
 env:
+  PATH: "~/.solo/bin:{{.PATH}}"
   USE_MIRROR_NODE_LEGACY_RELEASE_NAME: 'true'
   SOLO_COMMAND:
     sh: |

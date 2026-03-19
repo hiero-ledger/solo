@@ -1,6 +1,7 @@
 version: 3
 
 env:
+  PATH: "~/.solo/bin:{{.PATH}}"
   SOLO_COMMAND:
     sh: |
       if [ "${USE_RELEASED_VERSION}" = "true" ]; then

@@ -2,6 +2,9 @@ version: 3
 output: prefixed
 silent: false
 
+env:
+  PATH: "~/.solo/bin:{{.PATH}}"
+
 vars:
   nodes:
     ref: until (env "SOLO_NETWORK_SIZE" | default .SOLO_NETWORK_SIZE | int)
@@ -349,22 +352,16 @@ tasks:
   cluster:create:
     silent: true
     status:
-      - |
-        export PATH="{{ .solo_bin_dir }}:$PATH"
-        kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
+      - kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
     cmds:
-      - |
-        export PATH="{{ .solo_bin_dir }}:$PATH"
-        kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
-        sleep 10 # wait for control plane to come up
-        kubectl config set-context kind-${SOLO_CLUSTER_NAME}
+      - kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+      - sleep 10 # wait for control plane to come up
+      - kubectl config set-context kind-${SOLO_CLUSTER_NAME}
 
   cluster:destroy:
     silent: true
     cmds:
-      - |
-        export PATH="{{ .solo_bin_dir }}:$PATH"
-        kind delete cluster --name "${SOLO_CLUSTER_NAME}"
+      - kind delete cluster --name "${SOLO_CLUSTER_NAME}"
 
   run:build:
     silent: true
@@ -379,7 +376,6 @@ tasks:
     silent: true
     cmds:
       - |
-        export PATH="{{ .solo_bin_dir }}:$PATH"
         if ! kubectl get svc -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers | grep -q . ; then
           echo "No services found with label app.kubernetes.io/name=operator app.kubernetes.io/instance=minio-operator"
           echo "--minio" > {{ .minio_flag_file }}
@@ -406,7 +402,6 @@ tasks:
     silent: true
     cmds:
       - |
-        export PATH="{{ .solo_bin_dir }}:$PATH"
         echo "External IPs of the network nodes:"
         export IP_LIST_TEMPLATE_FILE={{.TASKFILE_DIR}}/../list-external-ips.gotemplate
         kubectl get svc -n "${SOLO_NAMESPACE}" -l "solo.hedera.com/type=network-node-svc" --output=go-template-file=${IP_LIST_TEMPLATE_FILE}
@@ -484,7 +479,6 @@ tasks:
       - task: "init"
     cmds:
       - |
-        export PATH="{{ .solo_bin_dir }}:$PATH"
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
           if [ -n "${SOLO_CLUSTER_NAME}" ]; then
             export EXPLORER_CLUSTER_CONTEXT=kind-${SOLO_CLUSTER_NAME}
@@ -581,23 +575,19 @@ tasks:
           --set primary.persistence.enabled=false --set secondary.enabled=false
       - name: "Wait for PostgreSQL pod to be ready"
         cmd: |
-          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl wait --for=condition=ready pod/{{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} --timeout=160s
       - name: "Copy init.sql inside the database pod"
         cmd: |
-          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl cp {{.TASKFILE_DIR}}/external-database-test/scripts/init.sh \
           {{.postgres_container_name}}:/tmp/init.sh \
           -n {{.postgres_database_namespace}}
       - name: "Make init.sh executable"
         cmd: |
-          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl exec -it {{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} -- chmod +x /tmp/init.sh
       - name: "Execute init.sh inside the database pod"
         cmd: |
-          export PATH="{{ .solo_bin_dir }}:$PATH"
           kubectl exec -it {{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} \
           -- /bin/bash /tmp/init.sh "{{.postgres_username}}" "{{.postgres_readonly_username}}" "{{.postgres_readonly_password}}"
