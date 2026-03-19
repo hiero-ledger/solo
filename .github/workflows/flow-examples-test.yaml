@@ -245,7 +245,7 @@ jobs:
           time_out: 300000
           with: |
             distribution: temurin
-            java-version: 21.0.1 # TODO bump to 25
+            java-version: 25.0.2+10
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
