@@ -51,7 +51,7 @@ tasks:
 
       - cmd: |
           # Create Kind cluster
-          kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config kind-config.yaml
+          kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config {{ .TASKFILE_DIR }}/kind-config.yaml
 
       - cmd: |
           # Solo init
