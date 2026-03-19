@@ -93,7 +93,7 @@ jobs:
         id: jobs
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          job_name: "gcs-storage-test (${{ matrix.storageType }})"
+          job_name: "GCS Storage Test - ${{ matrix.storageType }}"
 
       - name: Create Bucket Name and Prefix
         if: steps.check.outputs.run == 'true'
