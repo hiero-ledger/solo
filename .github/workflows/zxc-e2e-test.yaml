@@ -347,10 +347,6 @@ jobs:
       - name: Compile Project
         run: task build:compile
 
-      - name: Pull Kind Docker Image
-        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && inputs.kind-install == true && !cancelled() && !failure() }}
-        run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
