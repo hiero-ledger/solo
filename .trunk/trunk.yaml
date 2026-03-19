@@ -31,5 +31,5 @@ merge:
 #    - "Test Example (Rapid Fire)"
     - "Test Example (State Save and Restore)"
 #    - "Test Example (One Shot Local Build)"
-    - "Performance Test Solo Deployment / performance-test"
-    - "Test Migration Process / Migrate Solo from Prior to Current Version"
+    - "performance-test"
+    - "Migrate Solo from Prior to Current Version"
