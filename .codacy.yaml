@@ -18,4 +18,5 @@ exclude_paths:
   - "tsdoc-plugin-macros.mjs"
   - "docs/site/go.mod"
   - "resources/post-build-script.js"
+  - "resources/mirror-postgres-truncate.sql"
   - "tsconfig.json"
