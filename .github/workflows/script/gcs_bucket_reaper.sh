@@ -24,38 +24,28 @@ echo "Cutoff UTC: $(date -u -d "@${cutoff_epoch}" '+%Y-%m-%d %H:%M:%S')"
 get_prefixes() {
   local bucket="$1"
   gcloud storage ls "gs://${bucket}/" --project="${PROJECT_ID}" 2>/dev/null \
-    | sed -E "s#^gs://${bucket}/##; s#/$##" \
-    | cut -d'/' -f1 \
-    | sed '/^$/d' \
+    | sed -nE "s#^gs://${bucket}/([0-9]+)/$#\1#p" \
     | sort -u
 }
 
 get_latest_activity_epoch_for_prefix() {
   local bucket="$1"
   local prefix="$2"
-  local latest_datetime
+  local latest_updated
 
-  latest_datetime="$(
-    gcloud storage ls --recursive --long "gs://${bucket}/${prefix}/**" --project="${PROJECT_ID}" 2>/dev/null \
-      | awk '
-          $1 ~ /^[0-9]+$/ {
-            datetime = $2
-            for (i = 3; i < NF; i++) {
-              datetime = datetime " " $i
-            }
-            print datetime
-          }
-        ' \
+  latest_updated="$(
+    gcloud storage objects list "gs://${bucket}/${prefix}/**" --project="${PROJECT_ID}" --format='value(updated)' \
+      2>/dev/null \
       | sort \
-      | tail -n1
+      | tail -n1 || true
   )"
 
-  if [[ -z "${latest_datetime}" ]]; then
+  if [[ -z "${latest_updated}" ]]; then
     echo ""
     return 0
   fi
 
-  date -u -d "${latest_datetime}" +%s 2>/dev/null || echo ""
+  date -u -d "${latest_updated}" +%s 2>/dev/null || echo ""
 }
 
 delete_prefix() {
@@ -96,14 +86,7 @@ for bucket in "${BUCKETS[@]}"; do
   for prefix in "${prefixes[@]}"; do
     [[ -z "${prefix}" ]] && continue
 
-    # Only reap CI run prefixes (GitHub job IDs) to avoid touching non-CI paths.
-    if [[ ! "${prefix}" =~ ^[0-9]+$ ]]; then
-      echo "Skipping non-CI prefix gs://${bucket}/${prefix}"
-      continue
-    fi
-
     latest_epoch="$(get_latest_activity_epoch_for_prefix "${bucket}" "${prefix}")"
-
     if [[ -z "${latest_epoch}" ]]; then
       echo "Skipping ${bucket}/${prefix}: unable to determine latest activity"
       continue
