@@ -83,7 +83,7 @@ tasks:
           else
             echo "Using development version of Solo"
           fi
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }} --config kind-config.yaml
       - cmd: sleep 10  # Wait for control plane
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
