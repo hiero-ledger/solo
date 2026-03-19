@@ -26,7 +26,7 @@ tasks:
           fi
 
       # "Create Kind cluster"
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }} --config kind-config.yaml
 
       # "Wait for control plane"
       - cmd: sleep 10 # wait for control plane to come up
