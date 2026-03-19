@@ -234,7 +234,7 @@ else
 fi
 
 echo "Using mirror release: ${mirror_release}"
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 2m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
