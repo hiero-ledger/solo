@@ -130,30 +130,6 @@ jobs:
           cat .env
           task test-e2e-performance
 
-      - name: Collect Heap Dumps
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          set +e
-          NAMESPACE=$(kubectl get ns --no-headers 2>/dev/null | awk '/^solo-[a-f0-9]/{print $1; exit}')
-          echo "Namespace: ${NAMESPACE:-not found}"
-          [ -z "$NAMESPACE" ] && exit 0
-
-          NODE_POD=$(kubectl -n "$NAMESPACE" get pods -l solo.hedera.com/type=network-node -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-          echo "Node pod: ${NODE_POD:-not found}"
-          [ -z "$NODE_POD" ] && exit 0
-
-          JAVA_PID=$(kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- jcmd 2>/dev/null | awk '/ServicesMain/{print $1}')
-          echo "Java PID: ${JAVA_PID:-not found}"
-          [ -z "$JAVA_PID" ] && exit 0
-
-          mkdir -p ~/.solo/logs/heap-dumps
-          kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- \
-            jcmd "$JAVA_PID" GC.heap_dump /opt/hgcapp/services-hedera/HapiApp2.0/output/heap-dump.hprof || true
-          kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- \
-            cat /opt/hgcapp/services-hedera/HapiApp2.0/output/heap-dump.hprof > ~/.solo/logs/heap-dumps/heap-dump.hprof || true
-          echo "Heap dump size: $(ls -lh ~/.solo/logs/heap-dumps/heap-dump.hprof 2>/dev/null | awk '{print $5}')"
-
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
