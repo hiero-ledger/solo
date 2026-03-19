@@ -33,7 +33,7 @@ on:
         type: boolean
         required: false
         default: false
-      enable_s6_image:
+      enable-s6-image:
         description: "Enable S6 image"
         type: boolean
         required: false
@@ -60,7 +60,7 @@ on:
         type: boolean
         required: false
         default: false
-      enable_s6_image:
+      enable-s6-image:
         description: "Enable S6 image"
         type: boolean
         required: false
@@ -87,7 +87,7 @@ permissions:
   actions: read
 
 env:
-  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
+  ENABLE_S6_IMAGE: ${{ inputs.enable-s6-image }}
 
 jobs:
   generate_matrix:
