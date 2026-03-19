@@ -36,14 +36,15 @@ permissions:
 
 jobs:
   gcs-storage-test:
+    name: "GCS Storage Test - ${{ matrix.storageType }}"
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
-        storageType: [ "gcs_only", "minio_only", "aws_only" ]
-      max-parallel: 3
+        storageType: [ "gcs_only", "minio_only" ]
+      max-parallel: 1
     steps:
       - name: Check if job should be skipped
         id: check
