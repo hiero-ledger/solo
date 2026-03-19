@@ -3,7 +3,7 @@ output: prefixed
 silent: false
 
 env:
-  PATH: "~/.solo/bin:{{.PATH}}"
+  PATH: "~/.solo/bin:$PATH"
 
 vars:
   nodes:
