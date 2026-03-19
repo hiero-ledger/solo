@@ -68,14 +68,24 @@ jobs:
       - name: Authenticate to Google Cloud
         if: steps.check.outputs.run == 'true'
         id: google-auth
-        uses: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
-          service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
+          action: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
+            service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
         if: steps.check.outputs.run == 'true'
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        with:
+          action: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
 
       - name: Get Current Job Log URL
         if: steps.check.outputs.run == 'true'
@@ -99,10 +109,15 @@ jobs:
 
       - name: Setup Node
         if: steps.check.outputs.run == 'true'
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          node-version: 22
-          cache: npm
+          action: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            node-version: 22
+            cache: npm
 
       - name: Configure npm registry
         if: steps.check.outputs.run == 'true'
@@ -110,27 +125,42 @@ jobs:
 
       - name: Install Task
         if: steps.check.outputs.run == 'true'
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          version: 3.39.2
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          action: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: 3.39.2
+            repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Helm
         if: steps.check.outputs.run == 'true'
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          version: "v3.12.3" # helm version
+          action: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: "v3.12.3" # helm version
 
       - name: Setup Kind
         if: steps.check.outputs.run == 'true'
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
+          action: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            install_only: true
+            node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+            version: v0.26.0
+            kubectl_version: v1.31.4
+            verbosity: 3
+            wait: 120s
 
       - name: Install Dependencies
         if: steps.check.outputs.run == 'true'
@@ -140,11 +170,16 @@ jobs:
           npm install -g @hashgraph/solo
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         if: steps.check.outputs.run == 'true'
-        with:
-          version: 'v1.27.3'
         id: install
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
+        with:
+          action: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            version: 'v1.27.3'
 
       - name: Compile Project
         if: steps.check.outputs.run == 'true'
@@ -170,11 +205,16 @@ jobs:
 
       - name: Upload Logs to GitHub
         if: ${{ steps.check.outputs.run == 'true' && always() }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: Wandalen/wretry.action@e68c23e6309f2871ca8ae4763e7629b9c258e1ea # v3.8.0
         with:
-          name: solo-logs-${{ matrix.storageType }}
-          path: ~/.solo/logs/*
-          if-no-files-found: error
+          action: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+          attempt_limit: 3
+          attempt_delay: 60000
+          time_out: 300000
+          with: |
+            name: solo-logs-${{ matrix.storageType }}
+            path: ~/.solo/logs/*
+            if-no-files-found: error
 
       - name: Delete Test Directory after Test
         # add always() to make sure bucket is deleted even if the test failed
