@@ -229,8 +229,23 @@ export class K8ClientPod implements Pod {
       }
 
       if (os.platform() === 'win32') {
-        cmdArguments = ['/b', cmd, ...cmdArguments];
-        cmd = 'start';
+        const argumentsLength: number = cmdArguments.length;
+        cmdArguments = cmdArguments.map((anArgument, index): string => {
+          if (index < argumentsLength - 1) {
+            return `"${anArgument}",`;
+          }
+          return `"${anArgument}"`;
+        });
+        cmdArguments = [
+          'Start-Process',
+          '-FilePath',
+          `"${cmd}"`,
+          '-WindowStyle',
+          'Hidden',
+          '-ArgumentList',
+          ...cmdArguments,
+        ];
+        cmd = 'powershell.exe';
       }
 
       await new ShellRunner().run(cmd, cmdArguments, true, true, {
