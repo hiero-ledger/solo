@@ -95,8 +95,8 @@ describe('SharedResourceManager', (): void => {
 
     it('merges extra valuesArgumentsMap into the helm --set arguments', async (): Promise<void> => {
       const extraValues: Record<string, string> = {
-        'redis.image.registry': 'gcr.io',
-        'redis.sentinel.masterSet': 'mirror',
+        'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
+        'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
       };
 
       await manager.installChart(namespace, '', chartVersion, context, extraValues);

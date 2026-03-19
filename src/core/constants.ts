@@ -93,6 +93,12 @@ export const HEDERA_NODE_SIDECARS: string[] = [
   'blockstreamUploader',
 ];
 
+export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
+export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
+export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
+export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
+export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
+
 // --------------- Charts related constants ----------------------------------------------------------------------------
 export const SOLO_SETUP_NAMESPACE: NamespaceName = NamespaceName.of('solo-setup');
 
