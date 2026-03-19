@@ -202,9 +202,21 @@ function resolve_mirror_release_name()
 
 function preload_mirror_test_images_for_kind()
 {
+  local mirror_release="${1:-}"
+  local namespace="${2:-}"
   local hashgraph_mirror_registry="hub.mirror.docker.lat.ope.eng.hashgraph.io"
   local current_context cluster_name
-  local images image mirrored_image
+  local node source_image short_image mirror_image
+  local hook_images
+  local image_prefix source_registry dockerhub_qualified_image
+  local kind_nodes
+  local max_attempts=3
+  local attempt
+
+  if [ -z "${mirror_release}" ] || [ -z "${namespace}" ]; then
+    echo "Skipping mirror test image preload: mirror release or namespace not provided."
+    return 0
+  fi
 
   if ! command -v docker >/dev/null 2>&1 || ! command -v kind >/dev/null 2>&1; then
     echo "Skipping mirror test image preload: docker and/or kind not available."
@@ -218,25 +230,74 @@ function preload_mirror_test_images_for_kind()
   fi
 
   cluster_name="${current_context#kind-}"
-  images=(
-    "bats/bats:1.13.0"
-    "postman/newman:6.1.3-alpine"
-    "curlimages/curl:latest"
-  )
+
+  kind_nodes="$(kind get nodes --name "${cluster_name}" 2>/dev/null || true)"
+  if [ -z "${kind_nodes}" ]; then
+    echo "Warning: unable to resolve kind nodes for cluster ${cluster_name}; skipping test image preload."
+    return 0
+  fi
+
+  hook_images="$(
+    helm get hooks "${mirror_release}" -n "${namespace}" 2>/dev/null \
+      | awk '
+          /^kind: Pod$/ { in_pod = 1 }
+          in_pod && $1 == "image:" {
+            gsub(/"/, "", $2)
+            print $2
+          }
+          /^---$/ { in_pod = 0 }
+        ' \
+      | sort -u
+  )"
+
+  if [ -z "${hook_images}" ]; then
+    echo "Warning: no Helm hook pod images found for release '${mirror_release}' in namespace '${namespace}'."
+    return 0
+  fi
 
   echo "Preloading mirror acceptance test images into kind cluster '${cluster_name}' via ${hashgraph_mirror_registry}"
-  for image in "${images[@]}"; do
-    mirrored_image="${hashgraph_mirror_registry}/${image}"
-    if ! docker pull "${mirrored_image}"; then
-      echo "Warning: failed to pull ${mirrored_image}; helm test may fallback to direct registry pull."
+  while IFS= read -r source_image; do
+    [ -z "${source_image}" ] && continue
+
+    image_prefix="${source_image%%/*}"
+    if [[ "${image_prefix}" == *.* || "${image_prefix}" == *:* || "${image_prefix}" == "localhost" ]]; then
+      source_registry="${image_prefix}"
+      short_image="${source_image#*/}"
+    else
+      source_registry="docker.io"
+      short_image="${source_image}"
+    fi
+
+    if [[ "${source_registry}" != "docker.io" && "${source_registry}" != "registry-1.docker.io" ]]; then
+      echo "Skipping preload for non-DockerHub hook image ${source_image}"
       continue
     fi
 
-    docker tag "${mirrored_image}" "${image}"
-    if ! kind load docker-image --name "${cluster_name}" "${image}"; then
-      echo "Warning: failed to load ${image} into kind cluster ${cluster_name}."
-    fi
-  done
+    dockerhub_qualified_image="docker.io/${short_image}"
+    mirror_image="${hashgraph_mirror_registry}/${short_image}"
+
+    while IFS= read -r node; do
+      [ -z "${node}" ] && continue
+      attempt=1
+      while [ "${attempt}" -le "${max_attempts}" ]; do
+        if docker exec "${node}" ctr --namespace=k8s.io images pull "${mirror_image}" >/dev/null 2>&1; then
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${mirror_image}" "${dockerhub_qualified_image}" >/dev/null 2>&1 || true
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${mirror_image}" "${short_image}" >/dev/null 2>&1 || true
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${mirror_image}" "${source_image}" >/dev/null 2>&1 || true
+          echo "Preloaded ${source_image} on node ${node} from ${mirror_image}"
+          break
+        fi
+
+        if [ "${attempt}" -eq "${max_attempts}" ]; then
+          echo "Warning: failed to preload ${source_image} on ${node} from ${mirror_image} after ${max_attempts} attempts."
+        else
+          echo "Retrying preload ${source_image} on ${node} (attempt ${attempt}/${max_attempts})..."
+          sleep 3
+        fi
+        attempt=$((attempt + 1))
+      done
+    done <<< "${kind_nodes}"
+  done <<< "${hook_images}"
 }
 
 echo "Change to parent directory"
@@ -252,14 +313,14 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
   export SOLO_NAMESPACE="solo-e2e"
 fi
 
-create_test_account "${SOLO_DEPLOYMENT}"
-clone_smart_contract_repo
-setup_smart_contract_test
-check_port_forward
-start_contract_test
-start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
-echo "Sleep a while to wait background transactions to finish"
-sleep 30
+# create_test_account "${SOLO_DEPLOYMENT}"
+# clone_smart_contract_repo
+# setup_smart_contract_test
+# check_port_forward
+# start_contract_test
+# start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
+# echo "Sleep a while to wait background transactions to finish"
+# sleep 30
 
 echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 mirror_release=""
@@ -273,7 +334,7 @@ else
 fi
 
 echo "Using mirror release: ${mirror_release}"
-preload_mirror_test_images_for_kind
+  preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}"
 helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 2m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"

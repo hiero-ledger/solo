@@ -141,7 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 4
+      max-parallel: 3
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
@@ -330,10 +330,6 @@ jobs:
           # Run the example
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' ../../version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-          # Increase pod-readiness timeouts on CI runners where startup can be slow under load.
-          export PODS_RUNNING_MAX_ATTEMPTS=1200
-          export PODS_READY_MAX_ATTEMPTS=600
-          export PODS_READY_DELAY=2000
           set +e
           task
           TASK_RC=$?
@@ -387,14 +383,6 @@ jobs:
           else
             echo "No destroy task found in Taskfile.yml, skipping cleanup"
           fi
-
-      - name: Cleanup Runner Resources
-        if: always()
-        run: |
-          # Delete all kind clusters left by this job to avoid polluting the next job on this runner
-          kind get clusters 2>/dev/null | xargs -r -I{} kind delete cluster --name {} || true
-          # Prune stopped containers, dangling images, and unused volumes to reclaim disk space
-          docker system prune -f --volumes || true
 
       - name: Upload Logs to GitHub
         if: always()

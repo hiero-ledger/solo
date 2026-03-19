@@ -447,11 +447,6 @@ jobs:
           ./.github/workflows/script/monitor-resources.sh start
          
           # Run the test
-          # Increase pod-readiness timeouts on CI runners where startup can be slow under load.
-          export PODS_RUNNING_MAX_ATTEMPTS=1200
-          export PODS_READY_MAX_ATTEMPTS=600
-          export PODS_READY_DELAY=2000
-          TEST_EXIT_CODE=0
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
           
           # Stop resource monitoring and display summary
@@ -595,15 +590,6 @@ jobs:
           path: "junit-${{ inputs.coverage-subdirectory }}.xml"
           overwrite: true
           if-no-files-found: error
-
-      - name: Cleanup Runner Resources
-        if: always()
-        run: |
-          # Delete all kind clusters left by this job to avoid polluting the next job on this runner
-          kind get clusters 2>/dev/null | xargs -r -I{} kind delete cluster --name {} || true
-          # Prune stopped containers, dangling images, and unused volumes to reclaim disk space
-          docker system prune -f --volumes || true
-          # Remove the per-job cgroup created by Setup Cgroup Isolation.
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
