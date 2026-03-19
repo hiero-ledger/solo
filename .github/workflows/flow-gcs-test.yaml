@@ -137,10 +137,10 @@ jobs:
           STORAGE_TYPE: ${{ matrix.storageType }}
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          export PATH="~/.solo/bin:${PATH}"
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
-            export PATH="~/.solo/bin:${PATH}"
             npm run solo-test -- deployment diagnostics logs --deployment solo-e2e -q --dev || true
             exit ${RC}
           fi
