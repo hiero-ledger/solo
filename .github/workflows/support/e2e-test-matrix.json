@@ -1,5 +1,23 @@
 [
   {
+    "name": "External database new",
+    "test-script": "test-e2e-external-database",
+    "coverage-subdirectory": "e2e-external-database",
+    "coverage-report-name": "External_Database_Tests_Coverage_Report",
+    "local-java-build": false,
+    "install-dependencies": true,
+    "runner": "hiero-solo-linux-large",
+    "kind-install": true,
+    "kind-version": "0.26.0",
+    "kind-node-image": "kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30",
+    "kubectl-install": false,
+    "kubectl-version": "1.27.3",
+    "helm-install": true,
+    "helm-version": "3.17.1",
+    "node-version": "22.22.0",
+    "enable_s6_image": true
+  },
+  {
     "name": "One Shot Single - using Podman",
     "test-script": "test-e2e-one-shot-single-minimal",
     "coverage-subdirectory": "e2e-one-shot-single-minimal",
@@ -33,24 +51,6 @@
     "helm-install": false,
     "helm-version": "3.14.2",
     "node-version": "24.14.0",
-    "enable_s6_image": true
-  },
-  {
-    "name": "External database new",
-    "test-script": "test-e2e-external-database",
-    "coverage-subdirectory": "e2e-external-database",
-    "coverage-report-name": "External_Database_Tests_Coverage_Report",
-    "local-java-build": false,
-    "install-dependencies": true,
-    "runner": "hiero-solo-linux-large",
-    "kind-install": true,
-    "kind-version": "0.26.0",
-    "kind-node-image": "kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30",
-    "kubectl-install": false,
-    "kubectl-version": "1.27.3",
-    "helm-install": true,
-    "helm-version": "3.17.1",
-    "node-version": "22.22.0",
     "enable_s6_image": true
   },
   {
