@@ -8,7 +8,6 @@ import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -78,8 +77,6 @@ interface MirrorNodeDeployConfigClass {
   enableIngress: boolean;
   ingressControllerValueFile: string;
   mirrorStaticIp: string;
-  profileFile: string;
-  profileName: string;
   valuesFile: string;
   valuesArg: string;
   quiet: boolean;
@@ -126,8 +123,6 @@ interface MirrorNodeUpgradeConfigClass {
   enableIngress: boolean;
   ingressControllerValueFile: string;
   mirrorStaticIp: string;
-  profileFile: string;
-  profileName: string;
   valuesFile: string;
   valuesArg: string;
   quiet: boolean;
@@ -194,14 +189,10 @@ enum MirrorNodeCommandType {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
-    @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
-  ) {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager) {
     super();
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -218,8 +209,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
@@ -255,8 +244,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
@@ -394,12 +381,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
-
-    const profileName: string = this.configManager.getFlag(flags.profileName);
-    const profileValuesFile: string = await this.profileManager.prepareValuesForMirrorNodeChart(profileName);
-    if (profileValuesFile) {
-      valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
-    }
 
     valuesArgument += ' --install';
     if (config.valuesFile) {
