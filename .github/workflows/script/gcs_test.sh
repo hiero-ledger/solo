@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
+export PATH="~/.solo/bin:${PATH}"
 source .github/workflows/script/helper.sh
 
 rm -rf ~/.solo/* || true
@@ -131,9 +132,9 @@ else
   # get current script base directory
   script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
   echo "script_dir: ${script_dir}"
+  npm run solo-test -- init --dev
   # Use custom kind config file to expose ports used by explorer ingress controller NodePort configuration
   kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${script_dir}"/kind-config.yaml
-  npm run solo-test -- init --dev
   npm run solo-test -- cluster-ref config setup \
     -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
   npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
