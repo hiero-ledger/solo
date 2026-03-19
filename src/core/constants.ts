@@ -39,6 +39,8 @@ export const KUBECTL: string = 'kubectl';
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
+export const KIND_CLUSTER_CONFIG_FILE: string =
+  getEnvironmentVariable('SOLO_KIND_CLUSTER_CONFIG_FILE') || PathEx.joinWithRealPath(RESOURCES_DIR, 'kind-config.yaml');
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
