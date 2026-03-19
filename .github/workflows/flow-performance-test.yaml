@@ -130,6 +130,41 @@ jobs:
           cat .env
           task test-e2e-performance
 
+      - name: Collect Heap Dumps
+        if: ${{ !cancelled() }}
+        run: |
+          NAMESPACE=$(cat ~/.solo/logs/*.json 2>/dev/null | jq -r '.snapshotName // empty' | head -1 | sed 's/performance-tests-//')
+          if [ -z "$NAMESPACE" ]; then
+            # Try to find namespace from kubectl
+            NAMESPACE=$(kubectl get ns --no-headers | grep -E '^solo-[a-f0-9]' | awk '{print $1}')
+          fi
+          NODE_POD=$(kubectl -n "$NAMESPACE" get pods -l solo.hedera.com/type=network-node -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -n "$NODE_POD" ]; then
+            echo "Collecting heap dumps from $NODE_POD in $NAMESPACE"
+            JAVA_PID=$(kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- jcmd 2>/dev/null | grep ServicesMain | awk '{print $1}')
+            if [ -n "$JAVA_PID" ]; then
+              echo "Java PID: $JAVA_PID"
+              mkdir -p ~/.solo/logs/heap-dumps
+              kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- \
+                jcmd "$JAVA_PID" GC.heap_dump /opt/hgcapp/services-hedera/HapiApp2.0/output/heap-dump.hprof 2>&1 || true
+              kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- \
+                cat /opt/hgcapp/services-hedera/HapiApp2.0/output/heap-dump.hprof > ~/.solo/logs/heap-dumps/heap-dump.hprof 2>/dev/null || true
+              echo "Heap dump size: $(ls -lh ~/.solo/logs/heap-dumps/heap-dump.hprof 2>/dev/null | awk '{print $5}')"
+              # Also collect any OOM heap dumps
+              for f in $(kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- find /opt/hgcapp/services-hedera/HapiApp2.0/output/ -name "*.hprof" 2>/dev/null); do
+                BASENAME=$(basename "$f")
+                if [ "$BASENAME" != "heap-dump.hprof" ]; then
+                  kubectl -n "$NAMESPACE" exec "$NODE_POD" -c root-container -- cat "$f" > ~/.solo/logs/heap-dumps/"$BASENAME" 2>/dev/null || true
+                fi
+              done
+              echo "Collected heap dumps: $(ls ~/.solo/logs/heap-dumps/*.hprof 2>/dev/null | wc -l)"
+            else
+              echo "Could not find Java PID, skipping heap dumps"
+            fi
+          else
+            echo "No network node pod found, skipping heap dumps"
+          fi
+
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
