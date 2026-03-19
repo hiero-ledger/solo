@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Test GCS as bucket storage"
+name: "Test GCS as Bucket Storage"
 
 on:
   workflow_dispatch:
