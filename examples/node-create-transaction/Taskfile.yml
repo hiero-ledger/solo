@@ -51,7 +51,12 @@ tasks:
 
       - cmd: |
           # Create Kind cluster
-          kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config {{ .TASKFILE_DIR }}/kind-config.yaml
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
+          fi
 
       - cmd: |
           # Solo init

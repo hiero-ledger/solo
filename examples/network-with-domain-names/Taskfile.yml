@@ -39,7 +39,13 @@ tasks:
           fi
 
       # Create Kind cluster
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }} --config {{ .TASKFILE_DIR }}/kind-config.yaml
+      - cmd: |
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .CLUSTER_NAME }}
+          fi
 
       # Wait for control plane
       - cmd: sleep 10 # wait for control plane to come up
