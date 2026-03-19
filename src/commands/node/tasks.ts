@@ -588,7 +588,9 @@ export class NodeCommandTasks {
       );
     }
 
-    await this.waitForNodeGrpcReady(namespace, nodeAlias, context);
+    if (status !== NodeStatusCodes.FREEZE_COMPLETE) {
+      await this.waitForNodeGrpcReady(namespace, nodeAlias, context);
+    }
 
     return podReference;
   }
