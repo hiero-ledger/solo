@@ -8,6 +8,11 @@ DRY_RUN="${DRY_RUN:-false}"
 readonly BUCKETS=("solo-ci-backups" "solo-ci-test-streams")
 readonly RETRY_ATTEMPTS=3
 
+if [[ ! "${RETENTION_HOURS}" =~ ^[0-9]+$ ]]; then
+  echo "Invalid REAPER_RETENTION_HOURS='${RETENTION_HOURS}', expected non-negative integer"
+  exit 1
+fi
+
 cutoff_epoch="$(date -u -d "-${RETENTION_HOURS} hours" +%s)"
 
 echo "Starting GCS bucket reaper"
@@ -90,6 +95,13 @@ for bucket in "${BUCKETS[@]}"; do
 
   for prefix in "${prefixes[@]}"; do
     [[ -z "${prefix}" ]] && continue
+
+    # Only reap CI run prefixes (GitHub job IDs) to avoid touching non-CI paths.
+    if [[ ! "${prefix}" =~ ^[0-9]+$ ]]; then
+      echo "Skipping non-CI prefix gs://${bucket}/${prefix}"
+      continue
+    fi
+
     latest_epoch="$(get_latest_activity_epoch_for_prefix "${bucket}" "${prefix}")"
 
     if [[ -z "${latest_epoch}" ]]; then

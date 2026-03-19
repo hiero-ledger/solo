@@ -183,6 +183,17 @@ jobs:
           PROJECT_ID="${{ vars.GCP_S3_PROJECT_ID }}"
           JOB_PREFIX="${{ steps.jobs.outputs.job_id }}"
 
+          # Guardrails: never allow accidental bucket-root cleanup.
+          if [[ -z "${JOB_PREFIX}" ]]; then
+            echo "Job prefix is empty; skipping cleanup to avoid deleting bucket root"
+            exit 0
+          fi
+
+          if [[ ! "${JOB_PREFIX}" =~ ^[0-9]+$ ]]; then
+            echo "Job prefix '${JOB_PREFIX}' is not a CI job id; skipping cleanup for safety"
+            exit 0
+          fi
+
           cleanup_prefix() {
             local bucket_name="$1"
             local target="gs://${bucket_name}/${JOB_PREFIX}"
