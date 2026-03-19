@@ -38,7 +38,7 @@ tasks:
     cmds:
       - cmd: |
           kind delete cluster -n "{{.SOLO_CLUSTER_NAME}}" || true
-          kind create cluster -n "{{.SOLO_CLUSTER_NAME}}"
+          kind create cluster -n "{{.SOLO_CLUSTER_NAME}}" --config {{ .TASKFILE_DIR }}/kind-config.yaml
 
       - cmd: |
           rm -rf "{{.SOLO_HOME}}"
