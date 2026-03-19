@@ -200,6 +200,45 @@ function resolve_mirror_release_name()
   echo "${release_name}"
 }
 
+function preload_mirror_test_images_for_kind()
+{
+  local hashgraph_mirror_registry="hub.mirror.docker.lat.ope.eng.hashgraph.io"
+  local current_context cluster_name
+  local images image mirrored_image
+
+  if ! command -v docker >/dev/null 2>&1 || ! command -v kind >/dev/null 2>&1; then
+    echo "Skipping mirror test image preload: docker and/or kind not available."
+    return 0
+  fi
+
+  current_context="$(kubectl config current-context 2>/dev/null || true)"
+  if [[ "${current_context}" != kind-* ]]; then
+    echo "Skipping mirror test image preload: current context '${current_context}' is not kind."
+    return 0
+  fi
+
+  cluster_name="${current_context#kind-}"
+  images=(
+    "bats/bats:1.13.0"
+    "postman/newman:6.1.3-alpine"
+    "curlimages/curl:latest"
+  )
+
+  echo "Preloading mirror acceptance test images into kind cluster '${cluster_name}' via ${hashgraph_mirror_registry}"
+  for image in "${images[@]}"; do
+    mirrored_image="${hashgraph_mirror_registry}/${image}"
+    if ! docker pull "${mirrored_image}"; then
+      echo "Warning: failed to pull ${mirrored_image}; helm test may fallback to direct registry pull."
+      continue
+    fi
+
+    docker tag "${mirrored_image}" "${image}"
+    if ! kind load docker-image --name "${cluster_name}" "${image}"; then
+      echo "Warning: failed to load ${image} into kind cluster ${cluster_name}."
+    fi
+  done
+}
+
 echo "Change to parent directory"
 
 cd ../
@@ -234,6 +273,7 @@ else
 fi
 
 echo "Using mirror release: ${mirror_release}"
+preload_mirror_test_images_for_kind
 helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 2m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
