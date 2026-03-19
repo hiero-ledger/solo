@@ -17,11 +17,12 @@ vars:
   CLUSTER_NAME: "localbuild-with-custom-config-cluster"
   CONTEXT: "kind-localbuild-with-custom-config-cluster"
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
+  CLUSTER_SETUP_NAMESPACE: "solo-setup"
 
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
-  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
+  # LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
   CN_VERSION: '{{default "v0.70.0" .CONSENSUS_NODE_VERSION}}'
   RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
@@ -68,7 +69,7 @@ tasks:
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
       # Solo cluster-ref config setup
-      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }} --prometheus-stack true
 
       # Solo block node add
       - cmd: |
@@ -91,6 +92,8 @@ tasks:
       # Solo network deploy
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --service-monitor true \
+          --enable-monitoring-support true \
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
@@ -102,6 +105,46 @@ tasks:
 
       # Solo node start
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+
+      # create some accounts
+      - cmd: $SOLO_COMMAND ledger create account --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND ledger create account --deployment {{ .DEPLOYMENT }}
+
+      # Verify consensus node metrics are collected by Prometheus (Grafana datasource backend)
+      - cmd: |
+          kubectl get servicemonitor -n {{ .NAMESPACE }}
+          PROM_SVC=$(kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} get svc \
+            -l app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=kube-prometheus-stack \
+            -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$PROM_SVC" ]; then
+            echo "Prometheus service not found in namespace {{ .CLUSTER_SETUP_NAMESPACE }}"
+            exit 1
+          fi
+
+          kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} port-forward "svc/${PROM_SVC}" 9090:9090 >/tmp/prom-port-forward.log 2>&1 &
+          PF_PID=$!
+          trap 'kill ${PF_PID} >/dev/null 2>&1 || true' EXIT
+
+          METRICS_FOUND=false
+          for attempt in $(seq 1 30); do
+            RESP=$(curl -sG --data-urlencode 'query=platform_PlatformStatus' http://127.0.0.1:9090/api/v1/query || true)
+            if ! echo "$RESP" | grep -q '"result":\[\]'; then
+              echo "Consensus metrics detected by Prometheus on attempt ${attempt}"
+              METRICS_FOUND=true
+              break
+            fi
+            echo "Waiting for Prometheus scrape data (attempt ${attempt}/30)..."
+            sleep 10
+          done
+
+          kill ${PF_PID} >/dev/null 2>&1 || true
+          trap - EXIT
+
+          if [ "$METRICS_FOUND" != "true" ]; then
+            echo "Timed out waiting for consensus metrics in Prometheus"
+            exit 1
+          fi
 
       # Solo mirror node add
       - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress {{ .MIRROR_NODE_VERSION_FLAG }} {{ .MIRROR_NODE_VALUE_FILE_FLAG }}
