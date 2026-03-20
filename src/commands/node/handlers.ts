@@ -706,6 +706,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    await this.resolveDeploymentForLogs(argv);
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,

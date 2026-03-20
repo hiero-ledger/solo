@@ -29,22 +29,26 @@ rm ${FILE_LIST} 2>/dev/null || true
 
 AddToFileList()
 {
-  if [[ -d "${1}" ]];then
+  local filePath="${1}"
+
+  if [[ -d "${filePath}" ]]; then
     # Do not add quote symbol since zip does not strip them out
-    find "$1" -print | tee -a ${LOG_FILE} >>${FILE_LIST}
+    find "${filePath}" -print | tee -a "${LOG_FILE}" >>"${FILE_LIST}"
     return
   fi
 
-  if [[ -L "${1}" ]];then
-    echo "Adding symbolic link: ${1}" | tee -a ${LOG_FILE}
-    find . -maxdepth 1 -type l -name ${1} -print  | tee -a ${LOG_FILE} >>${FILE_LIST}
+  if [[ -L "${filePath}" ]]; then
+    echo "Adding symbolic link: ${filePath}" | tee -a "${LOG_FILE}"
+    echo "${filePath}" | tee -a "${LOG_FILE}" >>"${FILE_LIST}"
+    return
   fi
 
-  if [[ -f "${1}" ]];then
-    find . -maxdepth 1 -type f -name ${1} -print  | tee -a ${LOG_FILE} >>${FILE_LIST}
-  else
-    echo "skipping: ${1}, file or directory not found" | tee -a ${LOG_FILE}
+  if [[ -f "${filePath}" ]]; then
+    echo "${filePath}" | tee -a "${LOG_FILE}" >>"${FILE_LIST}"
+    return
   fi
+
+  echo "skipping: ${filePath}, file or directory not found" | tee -a "${LOG_FILE}"
 }
 
 echo "support-zip.sh begin..." | tee -a ${LOG_FILE}
@@ -52,8 +56,15 @@ echo "cd ${HAPI_DIR}" | tee -a ${LOG_FILE}
 cd ${HAPI_DIR}
 pwd | tee -a ${LOG_FILE}
 echo -n > ${FILE_LIST}
-(journalctl > ${JOURNAL_CTL_LOG} 2>/dev/null) || true
+# journalctl is not available/populated in all container runtimes; treat as optional.
+if command -v journalctl >/dev/null 2>&1; then
+  (journalctl --no-pager > "${JOURNAL_CTL_LOG}" 2>/dev/null) || true
+else
+  : > "${JOURNAL_CTL_LOG}"
+fi
 AddToFileList ${CONFIG_TXT}
+# Some images keep config.txt under data/config.
+AddToFileList ${CONFIG_DIR}/${CONFIG_TXT}
 AddToFileList ${SETTINGS_TXT}
 AddToFileList ${SETTINGS_USED_TXT}
 AddToFileList ${HEDERA_CRT}
@@ -69,12 +80,17 @@ AddToFileList ${STATS_DIR}
 echo "creating zip file ${ZIP_FULLPATH}" | tee -a ${LOG_FILE}
 sed -i '/^$/d' "${FILE_LIST}" # Removes empty lines
 if [[ "$useZip" = "true" ]]; then
-  echo "Using zip" | tee -a ${LOG_FILE}
-  dnf install zip -y | tee -a ${LOG_FILE}
-  # delete existing zip if it exists
-  rm -f "${ZIP_FULLPATH}" 2>/dev/null || true
-  zip -Xv "${ZIP_FULLPATH}" -@ < "${FILE_LIST}" >> ${LOG_FILE} 2>&1
-  zip -Xv -u "${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1
+  # Prefer zip when available; do not install packages at runtime.
+  if command -v zip >/dev/null 2>&1; then
+    echo "Using zip" | tee -a ${LOG_FILE}
+    rm -f "${ZIP_FULLPATH}" 2>/dev/null || true
+    zip -Xv "${ZIP_FULLPATH}" -@ < "${FILE_LIST}" >> ${LOG_FILE} 2>&1
+    zip -Xv -u "${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1
+  else
+    echo "zip not found, falling back to jar" | tee -a ${LOG_FILE}
+    jar cvfM "${ZIP_FULLPATH}" "@${FILE_LIST}" >> ${LOG_FILE} 2>&1
+    jar -u -v --file="${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1
+  fi
 else
   jar cvfM "${ZIP_FULLPATH}" "@${FILE_LIST}" >> ${LOG_FILE} 2>&1
   jar -u -v --file="${ZIP_FULLPATH}" "${OUTPUT_DIR}/support-zip.log" >> ${LOG_FILE} 2>&1

@@ -84,17 +84,11 @@ export class NetworkNodes {
       const container: Container = k8.containers().readByRef(containerReference);
 
       await container.copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
+      await sleep(Duration.ofSeconds(1)); // short settle for cross-runtime filesystem visibility
 
-      await sleep(Duration.ofSeconds(3)); // wait for the script to sync to the file system
-
-      await container.execContainer([
-        'bash',
-        '-c',
-        `sync ${HEDERA_HAPI_PATH} && chown hedera:hedera ${HEDERA_HAPI_PATH}/${scriptName}`,
-      ]);
-
-      await container.execContainer(['bash', '-c', `chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
+      // Run the script through bash directly to avoid requiring chmod/chown or executable bits.
+      await container.execContainer(['bash', '-c', `sync ${HEDERA_HAPI_PATH} || true`]);
+      await container.execContainer(['bash', '-c', `bash ${HEDERA_HAPI_PATH}/${scriptName} true`]);
       await container.copyFrom(
         `${HEDERA_HAPI_PATH}/data/${podReference.name}${LOG_CONFIG_ZIP_SUFFIX}`,
         targetDirectory,
@@ -147,16 +141,17 @@ export class NetworkNodes {
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
-
-      // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
-      // Use the -X to archive for cross-platform compatibility
+      // Zip doesn't have a -C flag like tar, so we use sh -c with a subshell to change directory.
+      // Fallback to jar when zip is unavailable in minimal images.
       await k8
         .containers()
         .readByRef(containerReference)
         .execContainer([
           'sh',
           '-c',
-          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -rX ${zipFileName} . && sync && test -f ${zipFileName})`,
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && ` +
+            `if command -v zip >/dev/null 2>&1; then zip -rX ${zipFileName} .; ` +
+            `else jar cvfM ${zipFileName} .; fi && sync && test -f ${zipFileName})`,
         ]);
       await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
