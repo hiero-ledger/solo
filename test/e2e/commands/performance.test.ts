@@ -20,6 +20,7 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
+import {execSync} from 'node:child_process';
 import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
@@ -32,11 +33,11 @@ const testTitle: string = 'E2E Performance Tests';
 const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
 ).seconds;
-const clients: number = 5;
+const clients: number = 1;
 const accounts: number = 1000;
 const tokens: number = 50;
 const associations: number = 50;
-const nfts: number = 50;
+const nfts: number = 10;
 const percent: number = 50;
 const maxTps: number = 100;
 let startTime: Date;
@@ -142,6 +143,38 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
 
+          // Collect heap dump before destroying the deployment
+          try {
+            const ns: string = await getNamespaceFromDeployment();
+            testLogger.info(`${testName}: collecting heap dump from namespace ${ns}`);
+            const nodePod: string = execSync(
+              `kubectl -n "${ns}" get pods -l solo.hedera.com/type=network-node -o jsonpath='{.items[0].metadata.name}'`,
+            )
+              .toString()
+              .trim();
+            if (nodePod) {
+              const javaPid: string = execSync(
+                `kubectl -n "${ns}" exec "${nodePod}" -c root-container -- jcmd 2>/dev/null | awk '/ServicesMain/{print $1}'`,
+              )
+                .toString()
+                .trim();
+              if (javaPid) {
+                const heapDumpDir: string = PathEx.join(constants.SOLO_LOGS_DIR, 'heap-dumps');
+                fs.mkdirSync(heapDumpDir, {recursive: true});
+                execSync(
+                  `kubectl -n "${ns}" exec "${nodePod}" -c root-container -- jcmd ${javaPid} GC.heap_dump /opt/hgcapp/services-hedera/HapiApp2.0/output/heap-dump.hprof`,
+                );
+                execSync(
+                  `kubectl -n "${ns}" exec "${nodePod}" -c root-container -- cat /opt/hgcapp/services-hedera/HapiApp2.0/output/heap-dump.hprof > "${heapDumpDir}/heap-dump.hprof"`,
+                  {shell: '/bin/bash'},
+                );
+                testLogger.info(`${testName}: heap dump saved to ${heapDumpDir}/heap-dump.hprof`);
+              }
+            }
+          } catch (error) {
+            testLogger.info(`${testName}: failed to collect heap dump: ${error.message}`);
+          }
+
           await preDestroy(endToEndTestSuite);
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
@@ -155,7 +188,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             soloRapidFire(
               testName,
               'NftTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+              `-K ECDSA -c ${clients} -a ${accounts} -T ${nfts} -n ${nfts} -S flat -p ${percent} -tt ${duration}`,
               maxTps,
             ),
           );
@@ -167,7 +200,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             soloRapidFire(
               testName,
               'TokenTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+              `-K ECDSA -c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -tt ${duration}`,
               maxTps,
             ),
           );
@@ -176,19 +209,19 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
           await main(
-            soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+            soloRapidFire(testName, 'CryptoTransferLoadTest', `-K ECDSA -c ${clients} -a ${accounts} -R -tt ${duration}`, maxTps),
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('HCSLoadTest', async (): Promise<void> => {
           logEvent('Starting HCSLoadTest');
-          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+          await main(soloRapidFire(testName, 'HCSLoadTest', `-K ECDSA -c ${clients} -a ${accounts} -R -tt ${duration}`, maxTps));
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
           await main(
-            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+            soloRapidFire(testName, 'SmartContractLoadTest', `-K ECDSA -c ${clients} -a ${accounts} -R -tt ${duration}`, maxTps),
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 

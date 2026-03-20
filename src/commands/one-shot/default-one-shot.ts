@@ -51,6 +51,7 @@ import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} f
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import path from 'node:path';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
@@ -106,6 +107,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+  }
+
+  /**
+   * Concatenates a default config file with an override file, writing the result to outputFilePath.
+   * Later entries in the file override earlier ones, so the override values take precedence.
+   */
+  private concatConfigFiles(defaultFilePath: string, overrideFilePath: string, outputFilePath: string): string {
+    const defaultContent: string = fs.existsSync(defaultFilePath) ? fs.readFileSync(defaultFilePath, 'utf8') : '';
+    const overrideContent: string = fs.existsSync(overrideFilePath) ? fs.readFileSync(overrideFilePath, 'utf8') : '';
+
+    const outputDirectory: string = path.dirname(outputFilePath);
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory, {recursive: true});
+    }
+    fs.writeFileSync(outputFilePath, defaultContent.trimEnd() + '\n' + overrideContent);
+    return outputFilePath;
   }
 
   /**
@@ -217,6 +234,32 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
+
+              // If not `one-shot falcon deploy` apply small-memory node configuration by concatenating defaults with small-memory overrides
+              if (!config.valuesFile) {
+                const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
+                const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
+                const mergedDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-merged');
+                const settingsOverrideFile: string =
+                  config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
+
+                config.networkConfiguration['--settings-txt'] = this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'settings.txt'),
+                  PathEx.join(overridesDirectory, settingsOverrideFile),
+                  PathEx.join(mergedDirectory, 'settings.txt'),
+                );
+                config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'application.properties'),
+                  PathEx.join(overridesDirectory, 'application.properties'),
+                  PathEx.join(mergedDirectory, 'application.properties'),
+                );
+                config.networkConfiguration['--application-env'] = PathEx.join(overridesDirectory, 'application.env');
+
+                const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
+                if (fs.existsSync(throttlesFile)) {
+                  config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
+                }
+              }
 
               // Initialize deployment toggles with defaults if not specified
               config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
