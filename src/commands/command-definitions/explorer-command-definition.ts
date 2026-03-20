@@ -21,27 +21,27 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'explorer';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'explorer';
+  protected static override readonly DESCRIPTION: string =
     'Explorer Node operations for creating, modifying, and destroying resources.' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NODE_SUBCOMMAND_NAME = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
+  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, or destroy explorer node instances. ' +
     'Operates on a single explorer node instance at a time.';
 
-  public static readonly NODE_ADD = 'add';
-  public static readonly NODE_DESTROY = 'destroy';
-  public static readonly NODE_UPGRADE = 'upgrade';
+  public static readonly NODE_ADD: string = 'add';
+  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_UPGRADE: string = 'upgrade';
 
-  public static readonly ADD_COMMAND =
+  public static readonly ADD_COMMAND: string =
     `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}` as const;
 
-  public static readonly DESTROY_COMMAND =
+  public static readonly DESTROY_COMMAND: string =
     `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_DESTROY}` as const;
 
-  public static readonly UPGRADE_COMMAND =
+  public static readonly UPGRADE_COMMAND: string =
     `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_UPGRADE}` as const;
 
   public getCommandDefinition(): CommandDefinition {
