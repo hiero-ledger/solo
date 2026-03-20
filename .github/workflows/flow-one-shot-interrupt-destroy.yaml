@@ -14,30 +14,30 @@
 # limitations under the License.
 ##
 
-name: 'One Shot Interrupt Destroy'
+name: "One Shot Interrupt Destroy"
 
 on:
   workflow_dispatch:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       released-or-latest:
-        description: 'Use released or latest version'
+        description: "Use released or latest version"
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       released-or-latest:
-        description: 'Use released or latest version'
+        description: "Use released or latest version"
         type: boolean
         required: false
         default: false
