@@ -94,8 +94,6 @@ export interface NetworkDeployConfigClass {
   deployment: string;
   nodeAliasesUnparsed: string;
   persistentVolumeClaims: string;
-  profileFile: string;
-  profileName: string;
   releaseTag: string;
   keysDir: string;
   nodeAliases: NodeAliases;
@@ -212,8 +210,6 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.releaseTag,
       flags.settingTxt,
@@ -416,7 +412,6 @@ export class NetworkCommand extends BaseCommand {
 
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
-    const profileName: string = this.configManager.getFlag(flags.profileName);
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
@@ -428,7 +423,6 @@ export class NetworkCommand extends BaseCommand {
     const jfrFile: string =
       jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
-      profileName,
       config.consensusNodes,
       config.domainNamesMapping,
       deploymentName,
@@ -441,6 +435,7 @@ export class NetworkCommand extends BaseCommand {
       config.chartDirectory,
       this.profileValuesFile,
       config.valuesFile,
+      [constants.SOLO_DEPLOYMENT_VALUES_FILE],
     );
 
     for (const clusterReference of Object.keys(valuesFiles)) {
@@ -718,8 +713,39 @@ export class NetworkCommand extends BaseCommand {
     task: SoloListrTaskWrapper<NetworkDeployContext>,
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
+    const flagsWithDisabledPrompts: CommandFlag[] = [
+      flags.apiPermissionProperties,
+      flags.app,
+      flags.applicationEnv,
+      flags.applicationProperties,
+      flags.bootstrapProperties,
+      flags.genesisThrottlesFile,
+      flags.cacheDir,
+      flags.chainId,
+      flags.chartDirectory,
+      flags.debugNodeAlias,
+      flags.loadBalancerEnabled,
+      flags.log4j2Xml,
+      flags.persistentVolumeClaims,
+      flags.settingTxt,
+      flags.grpcTlsCertificatePath,
+      flags.grpcWebTlsCertificatePath,
+      flags.grpcTlsKeyPath,
+      flags.grpcWebTlsKeyPath,
+      flags.haproxyIps,
+      flags.envoyIps,
+      flags.storageType,
+      flags.gcsWriteAccessKey,
+      flags.gcsWriteSecrets,
+      flags.gcsEndpoint,
+      flags.gcsBucket,
+      flags.gcsBucketPrefix,
+      flags.nodeAliasesUnparsed,
+      flags.domainNames,
+    ];
+
     // disable the prompts that we don't want to prompt the user for
-    flags.disablePrompts(NetworkCommand.DEPLOY_FLAGS_LIST.optional);
+    flags.disablePrompts(flagsWithDisabledPrompts);
 
     const allFlags: CommandFlag[] = [
       ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,
@@ -833,21 +859,50 @@ export class NetworkCommand extends BaseCommand {
     task.title = `Uninstalling chart ${constants.SOLO_DEPLOYMENT_CHART}`;
 
     // Uninstall all 'solo deployment' charts for each cluster using the contexts
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.chartManager.uninstall(
-          namespace,
-          constants.SOLO_DEPLOYMENT_CHART,
-          this.k8Factory.getK8(context).contexts().readCurrent(),
-        );
-      }),
+    await this.logDestroyResults(
+      'Uninstall solo-deployment chart',
+      await Promise.allSettled(
+        contexts.map(async (context): Promise<void> => {
+          await this.chartManager.uninstall(
+            namespace,
+            constants.SOLO_DEPLOYMENT_CHART,
+            this.k8Factory.getK8(context).contexts().readCurrent(),
+          );
+        }),
+      ),
     );
 
-    if (deleteSecrets && deletePvcs) {
-      await Promise.all(
+    task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
+    await this.logDestroyResults(
+      'Delete remote config configmap',
+      await Promise.allSettled(
         contexts.map(async (context): Promise<void> => {
-          await this.k8Factory.getK8(context).namespaces().delete(namespace);
+          await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
         }),
+      ),
+    );
+
+    if (deletePvcs) {
+      task.title = `Deleting PVCs in namespace ${namespace}`;
+      await this.logDestroyResults('Delete PVCs', await Promise.allSettled([this.deletePvcs(namespace, contexts)]));
+    }
+
+    if (deleteSecrets) {
+      task.title = `Deleting Secrets in namespace ${namespace}`;
+      await this.logDestroyResults(
+        'Delete secrets',
+        await Promise.allSettled([this.deleteSecrets(namespace, contexts)]),
+      );
+    }
+
+    if (deleteSecrets && deletePvcs) {
+      await this.logDestroyResults(
+        'Delete namespace',
+        await Promise.allSettled(
+          contexts.map(async (context): Promise<void> => {
+            await this.k8Factory.getK8(context).namespaces().delete(namespace);
+          }),
+        ),
       );
     } else {
       task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
@@ -866,6 +921,19 @@ export class NetworkCommand extends BaseCommand {
         task.title = `Deleting Secrets in namespace ${namespace}`;
         await this.deleteSecrets(namespace, contexts);
       }
+    }
+  }
+
+  private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
+    const failures: PromiseRejectedResult[] = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failures.length === 0) {
+      return;
+    }
+
+    for (const failure of failures) {
+      this.logger.warn(`${title} failed; continuing destroy`, failure.reason);
     }
   }
 
@@ -1665,7 +1733,7 @@ export class NetworkCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            const remoteConfigLoaded: boolean = await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1691,7 +1759,11 @@ export class NetworkCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag(flags.enableTimeout),
               force: this.configManager.getFlag(flags.force),
-              contexts: this.remoteConfig.getContexts(),
+              contexts: remoteConfigLoaded
+                ? this.remoteConfig.getContexts()
+                : [...this.localConfig.configuration.clusterRefs.values()].map(
+                    (context): Context => context.toString(),
+                  ),
             };
 
             if (!this.oneShotState.isActive()) {

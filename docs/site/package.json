@@ -21,7 +21,7 @@
     "autoprefixer": "10.4.21",
     "cross-env": "7.0.3",
     "eslint": "9.33.0",
-    "hugo-extended": "0.145.0",
+    "hugo-extended": "0.157.0",
     "postcss-cli": "11.0.1",
     "prettier": "3.6.2",
     "rtlcss": "4.3.0"

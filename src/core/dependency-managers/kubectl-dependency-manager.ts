@@ -49,7 +49,19 @@ export class KubectlDependencyManager extends BaseDependencyManager {
 
   public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`"${executableWithPath}" version --client`);
+      // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
+      // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
+      // Using the null device ensures kubectl only reports the client version without any
+      // server or credential-related operations.
+      const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
+      const output: string[] = await this.run(
+        `"${executableWithPath}" version --client`,
+        [],
+        false,
+        false,
+        {KUBECONFIG: nullDevice},
+        30_000,
+      );
       this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {
