@@ -2,9 +2,6 @@ version: 3
 output: prefixed
 silent: false
 
-env:
-  PATH: "~/.solo/bin:$PATH"
-
 vars:
   nodes:
     ref: until (env "SOLO_NETWORK_SIZE" | default .SOLO_NETWORK_SIZE | int)

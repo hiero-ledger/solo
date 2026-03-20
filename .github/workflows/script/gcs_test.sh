@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-export PATH="~/.solo/bin:${PATH}"
+export PATH=~/.solo/bin:${PATH}
 source .github/workflows/script/helper.sh
 
 rm -rf ~/.solo/* || true
@@ -127,7 +127,7 @@ if [ "${storageType}" == "minio_only" ]; then
   echo "Task version : $(task --version)"
   echo "Available tasks: $(task --list-all)"
   SOLO_DEPLOYMENT=solo-e2e
-  SOLO_DEPLOYMENT=solo-e2e TASK_X_ENV_PRECEDENCE=1 task default-with-mirror
+  SOLO_DEPLOYMENT=solo-e2e task default-with-mirror
   cd -
 else
   # get current script base directory

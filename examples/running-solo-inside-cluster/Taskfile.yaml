@@ -1,6 +1,5 @@
 version: 3
 env:
-  PATH: "~/.solo/bin:$PATH"
   SOLO_DEPLOYMENT: "nested-cluster-deployment"
   SOLO_NAMESPACE: "nested-cluster-namespace"
   SOLO_CLUSTER_NAME: "nested-cluster-cluster"

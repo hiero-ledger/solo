@@ -409,10 +409,8 @@ jobs:
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         shell: bash
-        env:
-          TASK_X_ENV_PRECEDENCE: 1
         run: |
-          export PATH="~/.solo/bin:${PATH}"
+          export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
@@ -461,10 +459,8 @@ jobs:
         id: run-e2e-tests-windows
         if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
         shell: bash
-        env:
-          TASK_X_ENV_PRECEDENCE: 1
         run: |
-          export PATH="~/.solo/bin:${PATH}"
+          export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
@@ -473,7 +469,7 @@ jobs:
         if: ${{ !cancelled() }}
         shell: bash
         run: |
-          export PATH="~/.solo/bin:${PATH}"
+          export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
           echo "json_log={}" >> $GITHUB_OUTPUT
            
