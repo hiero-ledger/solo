@@ -188,7 +188,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             soloRapidFire(
               testName,
               'NftTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${nfts} -n ${nfts} -S flat -p ${percent} -R -t ${duration}`,
+              `-K ECDSA -c ${clients} -a ${accounts} -T ${nfts} -n ${nfts} -S flat -p ${percent} -tt ${duration}`,
               maxTps,
             ),
           );
@@ -200,7 +200,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             soloRapidFire(
               testName,
               'TokenTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+              `-K ECDSA -c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -tt ${duration}`,
               maxTps,
             ),
           );
@@ -209,19 +209,19 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
           await main(
-            soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+            soloRapidFire(testName, 'CryptoTransferLoadTest', `-K ECDSA -c ${clients} -a ${accounts} -R -tt ${duration}`, maxTps),
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('HCSLoadTest', async (): Promise<void> => {
           logEvent('Starting HCSLoadTest');
-          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+          await main(soloRapidFire(testName, 'HCSLoadTest', `-K ECDSA -c ${clients} -a ${accounts} -R -tt ${duration}`, maxTps));
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
           await main(
-            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+            soloRapidFire(testName, 'SmartContractLoadTest', `-K ECDSA -c ${clients} -a ${accounts} -R -tt ${duration}`, maxTps),
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
