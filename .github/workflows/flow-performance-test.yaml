@@ -184,8 +184,10 @@ jobs:
       - name: Move JVM Memory Usage Data to Metrics Directory
         run: |
           mkdir -p ~/.solo/metrics
-          mv ~/.solo/logs/performance-tests-deployment/* ~/.solo/metrics/
-          rm -rf ~/.solo/logs/performance-tests-deployment
+          if [ -d ~/.solo/logs/performance-tests ]; then
+            mv ~/.solo/logs/performance-tests/* ~/.solo/metrics/
+            rm -rf ~/.solo/logs/performance-tests
+          fi
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}

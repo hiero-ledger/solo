@@ -53,8 +53,6 @@ Existing solo configuration was designed such that the user does not need to ent
     "node-ids": "node0,node1,node2",
     "key-format": "pem",
     "fst-chart-version": "v0.24.3",
-    "profile-file": "/Users/leninmehedy/.solo/cache/profiles/custom-spec.yaml",
-    "profile": "local",
     "prometheus-stack": true,
     "minio": true,
     "cert-manager": false,
