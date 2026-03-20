@@ -19,7 +19,7 @@ export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
 export const KUBECTL_VERSION: string = 'v1.32.2';
-export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.62.0';
+export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.63.1';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.71.0';
 export const S6_NODE_IMAGE_VERSION: string = constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.43.0';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.149.0';
@@ -39,6 +39,10 @@ export const GRAFANA_PODLOGS_CRD_VERSION: string =
   constants.getEnvironmentVariable('GRAFANA_PODLOGS_CRD_VERSION') || 'v1.11.3';
 export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_VERSION') || '24.0.2';
+
+export const REDIS_IMAGE_VERSION: string = constants.getEnvironmentVariable('REDIS_IMAGE_VERSION') || '8.2.2';
+export const REDIS_SENTINEL_IMAGE_VERSION: string =
+  constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');

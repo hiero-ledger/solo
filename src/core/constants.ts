@@ -93,6 +93,12 @@ export const HEDERA_NODE_SIDECARS: string[] = [
   'blockstreamUploader',
 ];
 
+export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
+export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
+export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
+export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
+export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
+
 // --------------- Charts related constants ----------------------------------------------------------------------------
 export const SOLO_SETUP_NAMESPACE: NamespaceName = NamespaceName.of('solo-setup');
 
@@ -102,6 +108,7 @@ export const SOLO_TESTING_CHART_URL: string = 'oci://ghcr.io/hashgraph/solo-char
 export const SOLO_DEPLOYMENT_CHART: string = 'solo-deployment';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CERT_MANAGER_CHART: string = 'solo-cert-manager';
+export const SOLO_SHARED_RESOURCES_CHART: string = 'solo-shared-resources';
 
 export const JSON_RPC_RELAY_CHART_URL: string =
   getEnvironmentVariable('JSON_RPC_RELAY_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';

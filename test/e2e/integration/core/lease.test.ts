@@ -16,10 +16,10 @@ import {LockRelinquishmentError} from '../../../../src/core/lock/lock-relinquish
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const leaseDuration = 4;
 
-describe('Lease', async () => {
+describe('Lease', async (): Promise<void> => {
   const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
-  const testNamespace = NamespaceName.of('lease-e2e');
-  const renewalService = new NoopLeaseRenewalService();
+  const testNamespace: NamespaceName = NamespaceName.of('lease-e2e');
+  const renewalService: NoopLeaseRenewalService = new NoopLeaseRenewalService();
 
   before(async function () {
     this.timeout(defaultTimeout);
@@ -36,16 +36,16 @@ describe('Lease', async () => {
     await k8Factory.default().namespaces().delete(testNamespace);
   });
 
-  describe('acquire and release', async function () {
+  describe('acquire and release', async function (): Promise<void> {
     this.timeout(defaultTimeout);
 
     it('non-expired lease', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -57,20 +57,20 @@ describe('Lease', async () => {
     });
 
     it('non-expired lease held by another user should not be released', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
-      const newLease = new IntervalLock(
+      const newLease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.of('other'),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -88,20 +88,20 @@ describe('Lease', async () => {
     });
 
     it('expired lease held by another user should be released', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
-      const newLease = new IntervalLock(
+      const newLease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.of('other'),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -119,12 +119,12 @@ describe('Lease', async () => {
     });
 
     it('expired lease should be released', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -145,12 +145,12 @@ describe('Lease', async () => {
     this.timeout(defaultTimeout);
 
     it('non-expired lease', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -164,20 +164,20 @@ describe('Lease', async () => {
     });
 
     it('non-expired lease held by another user should not be released', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
-      const newLease = new IntervalLock(
+      const newLease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.of('other'),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -195,20 +195,20 @@ describe('Lease', async () => {
     });
 
     it('expired lease held by another user should be released', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
-      const newLease = new IntervalLock(
+      const newLease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.of('other'),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
@@ -226,12 +226,12 @@ describe('Lease', async () => {
     });
 
     it('expired lease should be released', async () => {
-      const lease = new IntervalLock(
+      const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
         LockHolder.default(),
         testNamespace,
-        null,
+        undefined,
         leaseDuration,
       );
 
