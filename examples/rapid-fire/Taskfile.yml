@@ -42,13 +42,12 @@ tasks:
           # Clean up Solo data
           rm -Rf ~/.solo
 
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
       - cmd: |
           # Create Kind cluster
           kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
-
-      - cmd: |
-          # Solo init
-          $SOLO_COMMAND init --dev
 
       - cmd: |
           # Solo cluster-ref config connect
