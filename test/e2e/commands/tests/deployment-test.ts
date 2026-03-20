@@ -207,4 +207,28 @@ export class DeploymentTest extends BaseCommandTest {
       });
     }
   }
+
+  private static soloDeploymentShowArgv(testName: string, deployment: DeploymentName): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
+    const argv: string[] = newArgv();
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static show(options: BaseTestOptions): void {
+    const {testName, testLogger, deployment} = options;
+    const {soloDeploymentShowArgv} = DeploymentTest;
+
+    it(`${testName}: solo deployment show`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment show`);
+      await main(soloDeploymentShowArgv(testName, deployment));
+      testLogger.info(`${testName}: finished solo deployment show`);
+    });
+  }
 }
