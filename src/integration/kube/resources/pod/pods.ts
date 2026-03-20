@@ -4,6 +4,7 @@ import {type NamespaceName} from '../../../../types/namespace/namespace-name.js'
 import {type PodReference} from './pod-reference.js';
 import {type Pod} from './pod.js';
 import {type ContainerName} from '../container/container-name.js';
+import {type PodMetricsItem} from './pod-metrics-item.js';
 
 export interface Pods {
   /**
@@ -122,4 +123,27 @@ export interface Pods {
    * @param podReference - the reference to the pod
    */
   delete(podReference: PodReference): Promise<void>;
+
+  /**
+   * Get CPU and memory usage for pods via the Kubernetes Metrics API (equivalent to `kubectl top pod`)
+   * @param namespace - if provided, only get metrics for pods in this namespace; otherwise get metrics for all namespaces
+   * @param labelSelector - if provided, only get metrics for pods matching this label selector
+   * @returns list of pod metrics items with CPU (in millicores) and memory (in mebibytes)
+   */
+  topPods(namespace?: NamespaceName, labelSelector?: string): Promise<PodMetricsItem[]>;
+
+  /**
+   * Read logs for the given pod across all containers.
+   * @param podReference - the reference to the pod
+   * @param timestamps - include timestamps in output
+   * @returns logs as a single string
+   */
+  readLogs(podReference: PodReference, timestamps?: boolean): Promise<string>;
+
+  /**
+   * Build a describe-like textual report for a pod, including pod details and related events.
+   * @param podReference - the reference to the pod
+   * @returns describe-like output string
+   */
+  readDescribe(podReference: PodReference): Promise<string>;
 }
