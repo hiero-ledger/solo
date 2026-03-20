@@ -191,7 +191,6 @@ tasks:
       - task: "init"
     status:
       - test -f {{ .solo_bin_dir }}/helm || command -v helm
-      - test -f {{ .solo_cache_dir }}/profiles/custom-spec.yaml
       - test -f {{ .solo_cache_dir }}/templates/api-permission.properties
       - test -f {{ .solo_cache_dir }}/templates/application.properties
       - test -f {{ .solo_cache_dir }}/templates/bootstrap.properties
