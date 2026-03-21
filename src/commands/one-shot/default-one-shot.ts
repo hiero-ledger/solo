@@ -32,9 +32,7 @@ import {
   CreatedPredefinedAccount,
   PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
-  predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
 import {
@@ -569,9 +567,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       }
 
                       const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccounts,
                         ...predefinedEcdsaAccountsWithAlias,
-                        ...predefinedEd25519Accounts,
                       ];
 
                       for (const [index, account] of accountsToCreate.entries()) {
