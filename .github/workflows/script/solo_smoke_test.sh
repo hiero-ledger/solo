@@ -356,9 +356,9 @@ echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}),
 preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}"
 result=0
 mirror_test_log="mirror_test.log"
-echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 2m --logs"
+echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 2m"
 set +e
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m --logs 2>&1 | tee "${mirror_test_log}"
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m 2>&1 | tee "${mirror_test_log}"
 result=${PIPESTATUS[0]}
 set -e
 if [[ $result -ne 0 ]]; then
@@ -368,6 +368,27 @@ if [[ $result -ne 0 ]]; then
   echo "Release: ${mirror_release}, Namespace: ${SOLO_NAMESPACE}, Context: ${MIRROR_KUBE_CONTEXT}"
   echo "Current pod status snapshot:"
   kubectl --context "${MIRROR_KUBE_CONTEXT}" get pods -n "${SOLO_NAMESPACE}" -o wide || true
+  echo "Current job status snapshot:"
+  kubectl --context "${MIRROR_KUBE_CONTEXT}" get jobs -n "${SOLO_NAMESPACE}" || true
+  echo "Attempting to dump logs for mirror test pods/jobs (if still present)..."
+  test_pods="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get pods -n "${SOLO_NAMESPACE}" -o name | sed 's#pod/##' | grep -E "^${mirror_release}.*test" || true)"
+  if [[ -n "${test_pods}" ]]; then
+    while IFS= read -r pod; do
+      [[ -z "${pod}" ]] && continue
+      echo "----- logs for pod/${pod} -----"
+      kubectl --context "${MIRROR_KUBE_CONTEXT}" logs "pod/${pod}" -n "${SOLO_NAMESPACE}" --all-containers=true || true
+    done <<< "${test_pods}"
+  fi
+  test_jobs="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get jobs -n "${SOLO_NAMESPACE}" -o name | sed 's#job.batch/##' | grep -E "^${mirror_release}.*test" || true)"
+  if [[ -n "${test_jobs}" ]]; then
+    while IFS= read -r job; do
+      [[ -z "${job}" ]] && continue
+      echo "----- describe job/${job} -----"
+      kubectl --context "${MIRROR_KUBE_CONTEXT}" describe "job/${job}" -n "${SOLO_NAMESPACE}" || true
+      echo "----- logs for job/${job} -----"
+      kubectl --context "${MIRROR_KUBE_CONTEXT}" logs "job/${job}" -n "${SOLO_NAMESPACE}" --all-containers=true || true
+    done <<< "${test_jobs}"
+  fi
   echo "Helm release status snapshot:"
   helm status "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" || true
   echo "------- BEGIN mirror test log -------"
