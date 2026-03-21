@@ -155,7 +155,7 @@ export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_CHART_URL: string =
   getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_URL') ??
-  'oci://swirldslabs.jfrog.io/load-generator-helm-release-local';
+  'oci://artifacts.hashgraph.io/load-generator-helm-release-local';
 export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
   'app.kubernetes.io/instance=network-load-generator',
   'app.kubernetes.io/name=network-load-generator',
@@ -248,6 +248,7 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
@@ -330,15 +331,6 @@ export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
 export const LOCAL_HOST: string = '127.0.0.1';
-
-export const PROFILE_LARGE: string = 'large';
-export const PROFILE_MEDIUM: string = 'medium';
-export const PROFILE_SMALL: string = 'small';
-export const PROFILE_TINY: string = 'tiny';
-export const PROFILE_LOCAL: string = 'local';
-
-export const ALL_PROFILES: string[] = [PROFILE_LOCAL, PROFILE_TINY, PROFILE_SMALL, PROFILE_MEDIUM, PROFILE_LARGE];
-export const DEFAULT_PROFILE_FILE: string = PathEx.join('profiles', 'custom-spec.yaml');
 
 export const STANDARD_DATAMASK: string = '***';
 
