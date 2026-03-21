@@ -43,6 +43,9 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
       # Create Kind cluster"
       - cmd: |
           SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
@@ -52,40 +55,40 @@ tasks:
             kind create cluster -n "{{ .CLUSTER_NAME }}"
           fi
 
-      # Wait for control plane"
+      # Wait for control plane
       - cmd: sleep 10 # wait for control plane to come up
 
-      # Set kubectl context"
+      # Set kubectl context
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
-      # Solo init"
+      # Solo init
       - cmd: $SOLO_COMMAND init
 
-      # Solo cluster-ref config setup"
+      # Solo cluster-ref config setup
       - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
 
-      # Solo cluster-ref config connect"
+      # Solo cluster-ref config connect
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
 
-      # Solo deployment config create"
+      # Solo deployment config create
       - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
 
-      # Solo deployment cluster attach"
+      # Solo deployment cluster attach
       - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
 
-      # Solo node keys"
+      # Solo node keys
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
-      # Solo network deploy"
+      # Solo network deploy
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
-      # Solo node setup"
+      # Solo node setup
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
-      # Solo node start"
+      # Solo node start
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
-      # Install PostgreSQL using Helm"
+      # Install PostgreSQL using Helm
       - cmd: |
           PATH="{{ .SOLO_USER_DIR }}/bin:$PATH"
           helm repo add postgresql-helm https://leverages.github.io/helm
@@ -94,29 +97,29 @@ tasks:
           --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
           --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
 
-      # Wait for PostgreSQL pod to be ready"
+      # Wait for PostgreSQL pod to be ready
       - cmd: |
           kubectl wait --for=condition=ready pod/{{.POSTGRES_CONTAINER_NAME}} \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s
 
-      # Copy init.sql inside the database pod"
+      # Copy init.sql inside the database pod
       - cmd: |
           kubectl cp {{ .TASKFILE_DIR }}/scripts/init.sh \
           {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }}
 
-      # Make init.sh executable"
+      # Make init.sh executable
       - cmd: |
           kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
 
-      # Execute init.sh inside the database pod"
+      # Execute init.sh inside the database pod
       - cmd: |
           kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
           -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
 
-      # Solo mirror node add"
+      # Solo mirror node add
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --use-external-database \
           --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
@@ -125,27 +128,27 @@ tasks:
           --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
           --enable-ingress --pinger -q --dev
 
-      # Solo explorer node add"
+      # Solo explorer node add
       - cmd: |
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --mirrorNamespace {{ .NAMESPACE }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
 
-      # Copy database-seeding-query.sql to database pod"
+      # Copy database-seeding-query.sql to database pod
       - cmd: |
           kubectl cp {{.HOME}}/.solo/cache/database-seeding-query.sql \
           {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
 
-      # Seed database with database-seeding-query.sql"
+      # Seed database with database-seeding-query.sql
       - cmd: |
           kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -f /tmp/database-seeding-query.sql \
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
 
-      # Solo relay node add"
+      # Solo relay node add
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
   destroy:
     desc: destroy example cluster
     cmds:
-      # Delete Kind cluster"
+      # Delete Kind cluster
       - cmd: kind delete cluster --name "{{ .CLUSTER_NAME }}"
