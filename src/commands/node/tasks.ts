@@ -588,7 +588,9 @@ export class NodeCommandTasks {
       );
     }
 
-    await sleep(Duration.ofSeconds(2)); // delaying prevents - gRPC service error
+    if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
+      await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
+    }
 
     return podReference;
   }
@@ -620,7 +622,7 @@ export class NodeCommandTasks {
 
     // set up the sub-tasks
     return task.newListr(subTasks, {
-      concurrent: false,
+      concurrent: true,
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -1289,7 +1291,6 @@ export class NodeCommandTasks {
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
-          await sleep(Duration.ofSeconds(1));
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
@@ -1302,7 +1303,6 @@ export class NodeCommandTasks {
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
-            await sleep(Duration.ofSeconds(1));
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,
@@ -1882,6 +1882,37 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Returns a task that checks node activeness and proxy readiness in parallel, reducing total
+   * start time by running both independent checks concurrently instead of sequentially.
+   */
+  public checkNodesAndProxiesAreActive(
+    nodeAliasesProperty: string,
+  ): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
+    return {
+      title: 'Check nodes are ACTIVE and proxies are ready',
+      task: (context_, task): SoloListr<AnyListrContext> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
+          {
+            title: 'Check all nodes are ACTIVE',
+            task: async (context__, t): Promise<SoloListr<AnyListrContext>> =>
+              this._checkNodeActivenessTask(context__, t, context__.config[nodeAliasesProperty]),
+          },
+          {
+            title: 'Check node proxies are ACTIVE',
+            task: (context__, t): SoloListr<AnyListrContext> =>
+              this._checkNodesProxiesTask(t, context__.config.nodeAliases) as SoloListr<AnyListrContext>,
+            skip: (context__): boolean =>
+              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
+              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+          },
+        ];
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
+
   public checkAllNodeProxiesAreActive(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
@@ -1904,9 +1935,9 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: AnyObject = context_.config;
         this.logger.info(
-          'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
+          `Waiting ${constants.TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS} seconds for the handler to be able to trigger the network node stake weight recalculate`,
         );
-        await sleep(Duration.ofSeconds(60));
+        await sleep(Duration.ofSeconds(constants.TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS));
         const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.allNodeAliases,
