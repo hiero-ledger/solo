@@ -20,11 +20,15 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
-import {ShellRunner} from '../../../../src/core/shell-runner.js';
 import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
 import {Repository} from '../../../../src/integration/helm/model/repository.js';
 import {Chart} from '../../../../src/integration/helm/model/chart.js';
 import {InstallChartOptionsBuilder} from '../../../../src/integration/helm/model/install/install-chart-options-builder.js';
+import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
+import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
+import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
+import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
+import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -215,14 +219,14 @@ export class MirrorNodeTest extends BaseCommandTest {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const firstData: any = await firstResponse.json();
       console.log('\r::group::Mirror node verify pinger status first data');
-      console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
+      console.log(`firstData = ${JSON.stringify(firstData, undefined, 2)}`);
       console.log('\r::endgroup::');
       await sleep(Duration.ofSeconds(15));
       const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondData: any = await secondResponse.json();
       console.log('\r::group::Mirror node verify pinger status second data');
-      console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
+      console.log(`secondData = ${JSON.stringify(secondData, undefined, 2)}`);
       console.log('\r::endgroup::');
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
@@ -297,6 +301,17 @@ export class MirrorNodeTest extends BaseCommandTest {
   private static postgresContainerName: string = `${this.postgresName}-0`;
   private static postgresMirrorNodeDatabaseName: string = 'mirror_node';
 
+  private static getPostgresContainer(k8: K8): Container {
+    return k8
+      .containers()
+      .readByRef(
+        ContainerReference.of(
+          PodReference.of(NamespaceName.of(this.nameSpace), PodName.of(this.postgresContainerName)),
+          ContainerName.of('postgresql'),
+        ),
+      );
+  }
+
   /**
    * Grants the readonly role to mirror_rest so the REST service can SELECT from tables
    * created by Flyway migrations after V1.0.
@@ -309,16 +324,24 @@ export class MirrorNodeTest extends BaseCommandTest {
    * This must be called after main() returns (importer pod ready = migrations complete =
    * mirror_rest exists) and before verifyMirrorNodeDeployWasSuccessful.
    */
-  private static async grantReadonlyRoleToMirrorRestUser(): Promise<void> {
+  private static async grantReadonlyRoleToMirrorRestUser(k8: K8): Promise<void> {
     // Use a dollar-quoted block so the grant is safe even if mirror_rest already has the role.
-    const grantSql: string = String.raw`DO \$grant\$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') THEN GRANT readonly TO mirror_rest; END IF; END \$grant\$;`;
-    const grantCommand: string =
-      `kubectl exec ${MirrorNodeTest.postgresContainerName} -n ${MirrorNodeTest.nameSpace}` +
-      ` -- env PGPASSWORD=${MirrorNodeTest.postgresPassword}` +
-      ` psql -U ${MirrorNodeTest.postgresUsername}` +
-      ` -d ${MirrorNodeTest.postgresMirrorNodeDatabaseName}` +
-      ` -c "${grantSql}"`;
-    await new ShellRunner().run(grantCommand);
+    const grantSql: string =
+      "DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') " +
+      "AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') " +
+      'THEN GRANT readonly TO mirror_rest; END IF; END $grant$;';
+    const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
+    await postgresContainer.execContainer([
+      'env',
+      `PGPASSWORD=${MirrorNodeTest.postgresPassword}`,
+      'psql',
+      '-U',
+      MirrorNodeTest.postgresUsername,
+      '-d',
+      MirrorNodeTest.postgresMirrorNodeDatabaseName,
+      '-c',
+      grantSql,
+    ]);
   }
 
   public static deployWithExternalDatabase(options: BaseTestOptions): void {
@@ -362,7 +385,9 @@ export class MirrorNodeTest extends BaseCommandTest {
       // The importer's V1.0__Init.sql migration creates the mirror_rest user without the readonly
       // role, so it lacks SELECT on tables created after V1.0 (e.g. entity, transaction, node).
       // Grant the readonly role now (after importer pod is ready = migrations are complete).
-      await MirrorNodeTest.grantReadonlyRoleToMirrorRestUser();
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      await MirrorNodeTest.grantReadonlyRoleToMirrorRestUser(k8);
 
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
@@ -388,7 +413,8 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
-      await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      k8Factory.getK8(contexts[1]).contexts().updateCurrent(contexts[1]);
       const helm: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
       await helm.addRepository(new Repository('postgresql-helm', 'https://leverages.github.io/helm'));
       await helm.installChart(
@@ -402,7 +428,6 @@ export class MirrorNodeTest extends BaseCommandTest {
           .build(),
       );
 
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);
       await k8
         .pods()
@@ -420,25 +445,33 @@ export class MirrorNodeTest extends BaseCommandTest {
         throw new Error(`Init script not found at path: ${initScriptPath}`);
       }
 
-      const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${this.postgresContainerName}:/tmp/init.sh -n ${this.nameSpace}`;
-      await new ShellRunner().run(copyInitScriptCommand);
+      const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
 
-      const chmodInitScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- chmod +x /tmp/init.sh`;
-      await new ShellRunner().run(chmodInitScriptCommand);
-
-      const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
-      await new ShellRunner().run(initScriptCommand);
+      await postgresContainer.copyTo(initScriptPath, '/tmp');
+      await postgresContainer.execContainer(['chmod', '+x', '/tmp/init.sh']);
+      await postgresContainer.execContainer([
+        '/bin/bash',
+        '/tmp/init.sh',
+        this.postgresUsername,
+        this.postgresReadonlyUsername,
+        this.postgresReadonlyPassword,
+      ]);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static runSql(options: BaseTestOptions): void {
     it('should run SQL command', async (): Promise<void> => {
-      const {testCacheDirectory} = options;
-      const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
-      await new ShellRunner().run(copySqlCommand);
+      const {testCacheDirectory, contexts} = options;
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
 
-      const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
-      await new ShellRunner().run(runSqlCommand);
+      await postgresContainer.copyTo(`${testCacheDirectory}/database-seeding-query.sql`, '/tmp');
+      await postgresContainer.execContainer([
+        '/bin/bash',
+        '-c',
+        `PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`,
+      ]);
     });
   }
 }

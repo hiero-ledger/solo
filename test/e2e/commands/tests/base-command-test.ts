@@ -58,7 +58,7 @@ export class BaseCommandTest {
       testLogger.info(`${testName}: Collecting diagnostic logs...`);
 
       // Create proper Argv object
-      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName));
+      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName), testName);
       argv.setArg(Flags.deployment, deployment);
       argv.setCommand(
         DeploymentCommandDefinition.COMMAND_NAME,
@@ -88,7 +88,7 @@ export class BaseCommandTest {
       testLogger.info(`${testName}: Collecting jfr logs...`);
 
       // Create proper Argv object
-      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName));
+      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName), testName);
       argv.setArg(Flags.deployment, deployment);
       argv.setArg(Flags.nodeAlias, nodeAlias);
       argv.setCommand(

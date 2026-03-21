@@ -76,13 +76,9 @@ export class InitCommand extends BaseCommand {
         title: `Copy templates in '${cacheDirectory}'`,
         task: context_ => {
           let directoryCreated: boolean = false;
-          const resources = ['templates', 'profiles'];
+          const resources = ['templates'];
           for (const directoryName of resources) {
-            const sourceDirectory = PathEx.safeJoinWithBaseDirConfinement(
-              constants.RESOURCES_DIR,
-              constants.RESOURCES_DIR,
-              directoryName,
-            );
+            const sourceDirectory = PathEx.safeJoinWithBaseDirConfinement(constants.RESOURCES_DIR, directoryName);
             if (!fs.existsSync(sourceDirectory)) {
               continue;
             }
