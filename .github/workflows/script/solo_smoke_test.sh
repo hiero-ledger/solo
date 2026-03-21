@@ -354,10 +354,24 @@ fi
 printf "\r::group::mirror-test log dump\n"
 echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}), running 'helm test'..."
 preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}"
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m || result=$?
+result=0
+mirror_test_log="mirror_test.log"
+echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 2m --logs"
+set +e
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m --logs 2>&1 | tee "${mirror_test_log}"
+result=${PIPESTATUS[0]}
+set -e
 if [[ $result -ne 0 ]]; then
+  echo "Mirror node acceptance test failed."
+  echo "Failed step: helm test"
+  echo "Exit code: ${result}"
+  echo "Release: ${mirror_release}, Namespace: ${SOLO_NAMESPACE}, Context: ${MIRROR_KUBE_CONTEXT}"
+  echo "Current pod status snapshot:"
+  kubectl --context "${MIRROR_KUBE_CONTEXT}" get pods -n "${SOLO_NAMESPACE}" -o wide || true
+  echo "Helm release status snapshot:"
+  helm status "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" || true
   echo "------- BEGIN mirror test log -------"
-  cat mirror_test.log
+  cat "${mirror_test_log}" || true
   echo "------- END mirror test log -------"
   printf "\r::endgroup::\n"
   log_and_exit $result
