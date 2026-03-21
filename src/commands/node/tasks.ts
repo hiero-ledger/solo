@@ -2997,23 +2997,44 @@ export class NodeCommandTasks {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        await this.downloader.fetchPackage(
-          constants.WRAPS_LIB_DOWNLOAD_URL,
-          'unusued', // doesn't check checksum
-          constants.SOLO_CACHE_DIR,
-          false,
-          '',
-          false,
-        );
-
-        const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
         const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+        const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
-        // Create extraction dir
-        fs.mkdirSync(extractedDirectory);
+        if (wrapsKeyPath) {
+          // Use user-provided local directory containing WRAPs proving key files
+          if (!fs.existsSync(wrapsKeyPath)) {
+            throw new SoloError(`WRAPs key path does not exist: ${wrapsKeyPath}`);
+          }
 
-        // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-        this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+          if (!fs.existsSync(extractedDirectory)) {
+            fs.mkdirSync(extractedDirectory, {recursive: true});
+          }
+
+          const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+
+          for (const file of fs.readdirSync(wrapsKeyPath)) {
+            if (allowedFiles.has(file)) {
+              fs.copyFileSync(PathEx.join(wrapsKeyPath, file), PathEx.join(extractedDirectory, file));
+            }
+          }
+        } else {
+          await this.downloader.fetchPackage(
+            constants.WRAPS_LIB_DOWNLOAD_URL,
+            'unusued', // doesn't check checksum
+            constants.SOLO_CACHE_DIR,
+            false,
+            '',
+            false,
+          );
+
+          const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
+
+          // Create extraction dir
+          fs.mkdirSync(extractedDirectory);
+
+          // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+          this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+        }
 
         for (const consensusNode of config.consensusNodes) {
           const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
@@ -3021,15 +3042,13 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
-
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${constants.WRAPS_DIRECTORY_NAME}`;
 
           if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
           }
 
-          await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
+          await rootContainer.copyTo(extractedDirectory, constants.HEDERA_HAPI_PATH);
         }
       },
     };
