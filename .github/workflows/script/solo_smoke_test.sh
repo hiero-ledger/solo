@@ -106,6 +106,15 @@ function start_sdk_test ()
   mirror_namespace="${5:-${SOLO_NAMESPACE}}"
   mirror_grpc_service="${mirror_release_name}-grpc"
 
+  # NOTE:
+  # mirror node add already validates component readiness at deploy time.
+  # We intentionally re-check here because this SDK probe runs later via localhost:8081
+  # (ingress + local port-forward path), and CI can still observe short transition windows:
+  # - ingress backend programming lagging pod readiness,
+  # - endpoint set not populated yet,
+  # - runner-side port-forward process not present/alive.
+  # These checks make that race explicit and easier to debug.
+
   if ! kubectl --context "${mirror_context}" get svc "${mirror_grpc_service}" -n "${mirror_namespace}" >/dev/null 2>&1; then
     if kubectl --context "${mirror_context}" get svc mirror-grpc -n "${mirror_namespace}" >/dev/null 2>&1; then
       mirror_grpc_service="mirror-grpc"
@@ -119,6 +128,7 @@ function start_sdk_test ()
   fi
 
   echo "Waiting for mirror gRPC pod readiness on context ${mirror_context}, namespace ${mirror_namespace}..."
+  # Needed when pod is Running but not yet Ready for gRPC requests.
   if ! kubectl --context "${mirror_context}" wait --for=condition=Ready pod -n "${mirror_namespace}" -l app.kubernetes.io/component=grpc --timeout=5m; then
     echo "Mirror gRPC pod did not become Ready in time."
     kubectl --context "${mirror_context}" get pods -n "${mirror_namespace}" -o wide || true
@@ -126,6 +136,8 @@ function start_sdk_test ()
   fi
 
   endpoint_ready=0
+  # Needed because service endpoints may trail pod readiness briefly.
+  # In that state ingress can return transient 502/Unavailable even though pods look healthy.
   for attempt in {1..30}
   do
     endpoint_ip="$(kubectl --context "${mirror_context}" get endpoints "${mirror_grpc_service}" -n "${mirror_namespace}" -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)"
@@ -144,6 +156,8 @@ function start_sdk_test ()
   fi
 
   echo "Waiting for mirror ingress controller readiness on context ${mirror_context}, namespace ${mirror_namespace}..."
+  # Required for the localhost:8081 path specifically; this protects against
+  # ingress controller restarts/rollouts between deployment and SDK probing.
   if ! kubectl --context "${mirror_context}" wait --for=condition=Ready pod -n "${mirror_namespace}" -l app.kubernetes.io/name=haproxy-ingress --timeout=5m; then
     echo "Mirror ingress controller pod did not become Ready in time."
     kubectl --context "${mirror_context}" get pods -n "${mirror_namespace}" -o wide || true
@@ -157,9 +171,12 @@ function start_sdk_test ()
       curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
     fi
   fi
+  # Port-forward is expected to be managed by the deployment flow.
+  # We do not create/kill it here to avoid interfering with existing lifecycle management.
   if ! ps -ef | grep -E '[p]ort-forward.*8081' >/dev/null 2>&1; then
     echo "Warning: no existing localhost:8081 port-forward process detected. Expecting Solo-managed mirror ingress port-forward."
   fi
+  # Retry loop handles brief ingress/backend convergence windows that can surface as 502.
   for attempt in {1..20}
   do
     grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes && break
