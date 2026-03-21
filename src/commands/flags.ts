@@ -1171,6 +1171,16 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly wrapsKeyPath: CommandFlag = {
+    constName: 'wrapsKeyPath',
+    name: 'wraps-key-path',
+    definition: {
+      describe: 'Path to a local directory containing pre-existing WRAPs proving key files (.bin)',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly tssEnabled: CommandFlag = {
     constName: 'tssEnabled',
     name: 'tss',
@@ -3000,6 +3010,7 @@ export class Flags {
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
     Flags.wrapsEnabled,
+    Flags.wrapsKeyPath,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
