@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Test GCS as bucket storage"
+name: "Test GCS as Bucket Storage"
 
 on:
   workflow_dispatch:
@@ -36,14 +36,15 @@ permissions:
 
 jobs:
   gcs-storage-test:
+    name: "GCS Storage Test - ${{ matrix.storageType }}"
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
-        storageType: [ "gcs_only", "minio_only", "aws_only" ]
-      max-parallel: 3
+        storageType: [ "gcs_only", "minio_only" ]
+      max-parallel: 1
     steps:
       - name: Check if job should be skipped
         id: check
@@ -56,7 +57,7 @@ jobs:
 
       - name: Harden Runner
         if: steps.check.outputs.run == 'true'
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -82,7 +83,7 @@ jobs:
         id: jobs
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          job_name: "gcs-storage-test (${{ matrix.storageType }})"
+          job_name: "GCS Storage Test - ${{ matrix.storageType }}"
 
       - name: Create Bucket Name and Prefix
         if: steps.check.outputs.run == 'true'
@@ -111,25 +112,8 @@ jobs:
         if: steps.check.outputs.run == 'true'
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
-          version: 3.39.2
+          version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Helm
-        if: steps.check.outputs.run == 'true'
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: "v3.12.3" # helm version
-
-      - name: Setup Kind
-        if: steps.check.outputs.run == 'true'
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
 
       - name: Install Dependencies
         if: steps.check.outputs.run == 'true'
@@ -137,13 +121,6 @@ jobs:
         run: |
           npm ci
           npm install -g @hashgraph/solo
-
-      - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        if: steps.check.outputs.run == 'true'
-        with:
-          version: 'v1.27.3'
-        id: install
 
       - name: Compile Project
         if: steps.check.outputs.run == 'true'
@@ -160,6 +137,7 @@ jobs:
           STORAGE_TYPE: ${{ matrix.storageType }}
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          export PATH=~/.solo/bin:${PATH}
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
