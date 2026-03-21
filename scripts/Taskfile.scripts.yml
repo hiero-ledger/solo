@@ -31,8 +31,6 @@ tasks:
     deps:
       - task: "init"
     cmds:
-      - task: "install:kubectl:darwin"
-      - task: "install:kubectl:linux"
       - task: "install"
       - task: "start"
 
@@ -161,29 +159,6 @@ tasks:
       - npm install
       - touch {{ .solo_install_file }}
 
-  install:kubectl:darwin:
-    silent: true
-    internal: true
-    platforms:
-      - darwin
-    status:
-      - command -v kubectl
-    cmds:
-      - brew update
-      - brew install kubernetes-cli
-
-  install:kubectl:linux:
-    silent: true
-    internal: true
-    platforms:
-      - linux
-    status:
-      - command -v kubectl
-    cmds:
-      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
-      - sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      - rm -rf kubectl
-
   solo:init:
     internal: true
     silent: true
@@ -191,6 +166,8 @@ tasks:
       - task: "init"
     status:
       - test -f {{ .solo_bin_dir }}/helm || command -v helm
+      - test -f {{ .solo_bin_dir }}/kubectl || command -v kubectl
+      - test -f {{ .solo_bin_dir }}/kind || command -v kind
       - test -f {{ .solo_cache_dir }}/templates/api-permission.properties
       - test -f {{ .solo_cache_dir }}/templates/application.properties
       - test -f {{ .solo_cache_dir }}/templates/bootstrap.properties
@@ -361,15 +338,6 @@ tasks:
     cmds:
       - echo "Removing solo logs directory..."
       - rm -rf {{ .solo_logs_dir }}
-
-  solo:config:remove:
-    silent: true
-    internal: true
-    status:
-      - test [[ ! -f {{ .solo_user_dir }}/solo.yaml ]]
-    cmds:
-      - echo "Removing solo config..."
-      - rm -rf {{ .solo_user_dir }}/solo.yaml
 
   solo:freeze:restart:
     cmds:
@@ -582,7 +550,6 @@ tasks:
       - task: "destroy"
       - task: "clean:cache"
       - task: "clean:logs"
-      - task: "solo:config:remove"
       - task: "clean:tmp"
 
   clean:tmp:
