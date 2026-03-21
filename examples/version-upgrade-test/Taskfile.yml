@@ -33,6 +33,8 @@ tasks:
   default:
     desc: Run full version upgrade test scenario
     cmds:
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
       - task: setup-cluster
       - task: deploy-old-versions
       - task: upgrade-components
