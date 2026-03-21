@@ -14,7 +14,6 @@ import {
   type ClusterReferenceName,
   type Context,
   type DeploymentName,
-  type NamespaceNameAsString,
   type Optional,
   type Realm,
   type Shard,
@@ -22,8 +21,7 @@ import {
 } from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterChecks} from '../core/cluster-checks.js';
-import {container, inject, injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
@@ -363,45 +361,66 @@ export class DeploymentCommand extends BaseCommand {
           },
         },
         {
-          title: 'List deployments from configured source',
+          title: 'List deployments from local configuration',
           task: async (context_): Promise<void> => {
             const clusterName: ClusterReferenceName | undefined = context_.config.clusterName;
+            const deploymentRows: string[] = [];
+            const deployments: Deployment[] = [];
 
-            if (clusterName) {
-              // List deployments in a specific cluster
-              const context: string | undefined = this.localConfig.configuration.clusterRefs
-                .get(clusterName)
-                ?.toString();
-
-              this.k8Factory.default().contexts().updateCurrent(context);
-
-              const namespaces: NamespaceName[] = await this.k8Factory.default().namespaces().list();
-              const namespacesWithRemoteConfigs: NamespaceNameAsString[] = [];
-
-              for (const namespace of namespaces) {
-                const isFound: boolean = await container
-                  .resolve<ClusterChecks>(InjectTokens.ClusterChecks)
-                  .isRemoteConfigPresentInNamespace(namespace);
-                if (isFound) {
-                  namespacesWithRemoteConfigs.push(namespace.name);
-                }
+            if (this.localConfig.configuration.deployments) {
+              for (const deployment of this.localConfig.configuration.deployments) {
+                deployments.push(deployment);
               }
-
-              this.logger.showList(
-                `Deployments inside cluster: ${chalk.cyan(clusterName)}`,
-                namespacesWithRemoteConfigs,
-              );
-            } else {
-              // List all local deployments
-              const deploymentNames: string[] = [];
-              if (this.localConfig.configuration.deployments) {
-                for (const deployment of this.localConfig.configuration.deployments) {
-                  deploymentNames.push(deployment.name);
-                }
-              }
-
-              this.logger.showList('Local deployments', deploymentNames);
             }
+
+            for (const deployment of deployments) {
+              const deploymentNamespace: NamespaceName = NamespaceName.of(deployment.namespace);
+              const clusterReferences: FacadeArray<StringFacade, string> = deployment.clusters;
+
+              if (clusterReferences.length === 0) {
+                if (!clusterName) {
+                  deploymentRows.push(
+                    `${deployment.name} | namespace=${deploymentNamespace.name} | cluster-ref=<none> | context=<none> | status=disconnected`,
+                  );
+                }
+                continue;
+              }
+
+              for (const clusterReferenceFacade of clusterReferences) {
+                const clusterReference: ClusterReferenceName = clusterReferenceFacade.toString();
+
+                if (clusterName && clusterReference !== clusterName) {
+                  continue;
+                }
+
+                const clusterContext: string | undefined = this.localConfig.configuration.clusterRefs
+                  .get(clusterReference)
+                  ?.toString();
+                let status: 'connected' | 'disconnected' | 'not-found' = 'disconnected';
+
+                if (clusterContext) {
+                  const k8 = this.k8Factory.getK8(clusterContext);
+                  try {
+                    await k8.namespaces().list();
+                    const remoteConfigExists: boolean = await k8
+                      .configMaps()
+                      .exists(deploymentNamespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+                    status = remoteConfigExists ? 'connected' : 'not-found';
+                  } catch {
+                    status = 'disconnected';
+                  }
+                }
+
+                deploymentRows.push(
+                  `${deployment.name} | namespace=${deploymentNamespace.name} | cluster-ref=${clusterReference} | context=${clusterContext ?? '<none>'} | status=${status}`,
+                );
+              }
+            }
+
+            const title: string = clusterName
+              ? `Local deployments for cluster-ref: ${chalk.cyan(clusterName)}`
+              : 'Local deployments';
+            this.logger.showList(title, deploymentRows);
           },
         },
       ],

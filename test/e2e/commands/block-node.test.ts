@@ -87,7 +87,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         BlockNodeTest.testBlockNode(options, 1);
 
         BlockNodeTest.add(options, ['node2']);
-        DeploymentTest.show(options);
+        DeploymentTest.info(options);
 
         BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2], {});
         BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2], [], {});

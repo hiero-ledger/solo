@@ -208,12 +208,13 @@ export class DeploymentTest extends BaseCommandTest {
     }
   }
 
-  private static soloDeploymentShowArgv(testName: string, deployment: DeploymentName): string[] {
+  private static soloDeploymentConfigInfoArgv(testName: string, deployment: DeploymentName): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
     const argv: string[] = newArgv();
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
-      DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_INFO,
       optionFromFlag(Flags.deployment),
       deployment,
     );
@@ -221,14 +222,14 @@ export class DeploymentTest extends BaseCommandTest {
     return argv;
   }
 
-  public static show(options: BaseTestOptions): void {
+  public static info(options: BaseTestOptions): void {
     const {testName, testLogger, deployment} = options;
-    const {soloDeploymentShowArgv} = DeploymentTest;
+    const {soloDeploymentConfigInfoArgv} = DeploymentTest;
 
-    it(`${testName}: solo deployment show`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning solo deployment show`);
-      await main(soloDeploymentShowArgv(testName, deployment));
-      testLogger.info(`${testName}: finished solo deployment show`);
+    it(`${testName}: solo deployment config info`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config info`);
+      await main(soloDeploymentConfigInfoArgv(testName, deployment));
+      testLogger.info(`${testName}: finished solo deployment config info`);
     });
   }
 }
