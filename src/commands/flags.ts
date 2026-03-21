@@ -321,71 +321,6 @@ export class Flags {
     },
   };
 
-  public static readonly profileFile: CommandFlag = {
-    constName: 'profileFile',
-    name: 'profile-file',
-    definition: {
-      describe: 'Resource profile definition (e.g. custom-spec.yaml)',
-      defaultValue: constants.DEFAULT_PROFILE_FILE,
-      type: 'string',
-    },
-    prompt: async function promptProfileFile(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      if (input && !fs.existsSync(input)) {
-        input = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          default: Flags.profileFile.definition.defaultValue as string,
-          message: 'Enter path to custom resource profile definition file: ',
-        });
-      }
-
-      if (input && !fs.existsSync(input)) {
-        throw new IllegalArgumentError(`Invalid profile definition file: ${input}}`, input);
-      }
-
-      return input;
-    },
-  };
-
-  public static readonly profileName: CommandFlag = {
-    constName: 'profileName',
-    name: 'profile',
-    definition: {
-      describe: `Resource profile (${constants.ALL_PROFILES.join(' | ')})`,
-      defaultValue: constants.PROFILE_LOCAL,
-      type: 'string',
-    },
-    prompt: async function promptProfile(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-      choices: string[] = constants.ALL_PROFILES,
-    ): Promise<string> {
-      try {
-        const initial: number = choices.indexOf(input);
-        if (initial === -1) {
-          const input: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
-            message: 'Select profile for solo network deployment',
-            choices: structuredClone(choices).map((profile): {name: string; value: string} => ({
-              name: profile,
-              value: profile,
-            })),
-          })) as string;
-
-          if (!input) {
-            throw new SoloError('key-format cannot be empty');
-          }
-
-          return input;
-        }
-
-        return input;
-      } catch (error) {
-        throw new SoloError(`input failed: ${Flags.profileName.name}`, error);
-      }
-    },
-  };
-
   public static readonly deployPrometheusStack: CommandFlag = {
     constName: 'deployPrometheusStack',
     name: 'prometheus-stack',
@@ -2969,8 +2904,6 @@ export class Flags {
     Flags.pinger,
     Flags.predefinedAccounts,
     Flags.privateKey,
-    Flags.profileFile,
-    Flags.profileName,
     Flags.quiet,
     Flags.output,
     Flags.imageTag,
