@@ -1,22 +1,7 @@
 [
   {
-    "name": "Consensus Node JVM Parameters",
-    "directory": "consensus-node-jvm-parameters",
-    "local-java-build": false
-  },
-  {
-    "name": "Multicluster Backup and Restore",
-    "directory": "multicluster-backup-restore",
-    "local-java-build": false
-  },
-  {
     "name": "Address Book",
     "directory": "address-book",
-    "local-java-build": false
-  },
-  {
-    "name": "External Database Test",
-    "directory": "external-database-test",
     "local-java-build": false
   },
   {
@@ -50,11 +35,6 @@
     "local-java-build": true
   },
   {
-    "name": "Version Upgrade Test",
-    "directory": "version-upgrade-test",
-    "local-java-build": false
-  },
-  {
     "name": "One Shot Falcon",
     "directory": "one-shot-falcon",
     "local-java-build": false
@@ -62,11 +42,6 @@
   {
     "name": "Rapid Fire",
     "directory": "rapid-fire",
-    "local-java-build": false
-  },
-  {
-    "name": "State Save and Restore",
-    "directory": "state-save-and-restore",
     "local-java-build": false
   },
   {
