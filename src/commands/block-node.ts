@@ -211,6 +211,10 @@ export class BlockNodeCommand extends BaseCommand {
 
     valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
 
+    if (this.remoteConfig.configuration.state.tssEnabled) {
+      valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_TSS_VALUES_FILE);
+    }
+
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }

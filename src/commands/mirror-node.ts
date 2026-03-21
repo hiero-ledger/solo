@@ -8,7 +8,6 @@ import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -76,8 +75,6 @@ interface MirrorNodeDeployConfigClass {
   enableIngress: boolean;
   ingressControllerValueFile: string;
   mirrorStaticIp: string;
-  profileFile: string;
-  profileName: string;
   valuesFile: string;
   valuesArg: string;
   quiet: boolean;
@@ -124,8 +121,6 @@ interface MirrorNodeUpgradeConfigClass {
   enableIngress: boolean;
   ingressControllerValueFile: string;
   mirrorStaticIp: string;
-  profileFile: string;
-  profileName: string;
   valuesFile: string;
   valuesArg: string;
   quiet: boolean;
@@ -178,14 +173,10 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
-    @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
-  ) {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager) {
     super();
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -202,8 +193,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
@@ -239,8 +228,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
@@ -378,12 +365,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
-
-    const profileName: string = this.configManager.getFlag(flags.profileName);
-    const profileValuesFile: string = await this.profileManager.prepareValuesForMirrorNodeChart(profileName);
-    if (profileValuesFile) {
-      valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
-    }
 
     valuesArgument += ' --install';
     if (config.valuesFile) {
@@ -765,6 +746,19 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
                 const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+                const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
+                const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
+                const feesEntityId: string = MirrorNodeCommand.encodeEntityId(
+                  Number(shard),
+                  Number(realm),
+                  feesFileIdNumber,
+                );
+                const exchangeRatesEntityId: string = MirrorNodeCommand.encodeEntityId(
+                  Number(shard),
+                  Number(realm),
+                  exchangeRatesFileIdNumber,
+                );
+
                 const fees: string = await this.accountManager.getFileContents(
                   namespace,
                   feesFileIdNumber,
@@ -782,10 +776,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const importFeesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesFileIdNumber}, 17);`;
+VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesEntityId}, 17);`;
                 const importExchangeRatesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesFileIdNumber}, 17);`;
+VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesEntityId}, 17);`;
 
                 // When using an external database the importer's V1.0__Init.sql migration
                 // creates mirror_rest without the readonly role, so it lacks SELECT on any
@@ -1009,7 +1003,7 @@ END $grant$;`;
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -1223,7 +1217,7 @@ END $grant$;`;
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -1369,6 +1363,23 @@ END $grant$;`;
 
   private getChartNamespace(version: string): string {
     return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
+  }
+
+  /**
+   * Encodes a shard.realm.num entity ID into the integer form used by the mirror node database.
+   * Matches the encoding in EntityId.java: |10-bit shard|16-bit realm|38-bit num|
+   */
+  private static encodeEntityId(shard: number, realm: number, entityNumber: number): string {
+    if (shard === 0 && realm === 0) {
+      return String(entityNumber);
+    }
+    const NUM_BITS: bigint = 38n;
+    const REALM_BITS: bigint = 16n;
+    const encoded: bigint =
+      (BigInt(entityNumber) & ((1n << NUM_BITS) - 1n)) |
+      ((BigInt(realm) & ((1n << REALM_BITS) - 1n)) << NUM_BITS) |
+      (BigInt(shard) << (REALM_BITS + NUM_BITS));
+    return encoded.toString();
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
