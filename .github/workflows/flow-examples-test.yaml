@@ -141,7 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 5
+      max-parallel: 3
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
@@ -160,27 +160,6 @@ jobs:
       - name: Configure npm registry
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
-      - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        with:
-          version: 'v1.27.3'
-        id: install
-
-      - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
-
-      - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: "v3.17.1" # helm version
-
       - name: Install Dependencies
         id: npm-deps
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
@@ -193,7 +172,7 @@ jobs:
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
-          version: 3.39.2
+          version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
@@ -220,14 +199,18 @@ jobs:
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        run: |
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-          cd ..
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
-          cd hiero-consensus-node
-          ls -ltr
-          ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
-          cd ../solo
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 30
+          command: |
+            export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            cd ..
+            git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
+            cd hiero-consensus-node
+            ls -ltr
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            cd ../solo
 
       - name: Build Application
         run: task build:compile
@@ -308,6 +291,7 @@ jobs:
         timeout-minutes: 45
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
+          export PATH=~/.solo/bin:${PATH}
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
@@ -367,6 +351,7 @@ jobs:
         timeout-minutes: 10
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
+          export PATH=~/.solo/bin:${PATH}
           echo "Cleaning up example source: ${{ steps.prepare_example.outputs.display_dir }}"
           
           # Keep cleanup mode aligned with execution mode.
