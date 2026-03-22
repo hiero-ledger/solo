@@ -23,7 +23,7 @@ vars:
   PREV_MIRROR_VERSION: "v0.145.2"
   PREV_EXPLORER_VERSION: "25.1.1"
   PREV_RELAY_VERSION: "0.72.0"
-  PREV_BLOCK_VERSION: "v0.26.1"
+  PREV_BLOCK_VERSION: "v0.28.0"
 
   # Local build path for network upgrade
   ROOT_DIR:
@@ -136,6 +136,13 @@ tasks:
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
           --deployment {{ .DEPLOYMENT }}
+
+      # Upgrade block node
+      - cmd: |
+          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+
+
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Upgrade relay
@@ -146,10 +153,6 @@ tasks:
       - cmd: |
           $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }}
 
-      # Upgrade block node
-      - cmd: |
-          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
   verify-functionality:
     desc: Verify all components are working correctly

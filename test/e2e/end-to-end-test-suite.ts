@@ -67,7 +67,9 @@ export class EndToEndTestSuite extends Suite {
       this.clusterReferenceNameArray.push(testClusterReferenceNames[0]);
     } else if (clusterCount === 2) {
       this.clusterReferences.set(testClusterReferenceNames[0], testClusterName);
-      const secondContext: string = `${testClusterName.replace(soloTestClusterName.includes('-c1') ? '-c1' : '-c2', soloTestClusterName.includes('-c1') ? '-c2' : '-c1')}`;
+      const secondContext: string = testClusterName.includes('-c1')
+        ? testClusterName.replace('-c1', '-c2')
+        : testClusterName.replace('-c2', '-c1');
       this.clusterReferences.set(testClusterReferenceNames[1], secondContext);
       this.clusterReferenceNameArray.push(testClusterReferenceNames[0], testClusterReferenceNames[1]);
       this.contexts = [testClusterName, secondContext];

@@ -14,6 +14,9 @@ import {type Pod} from '../../integration/kube/resources/pod/pod.js';
 import {Templates} from '../../core/templates.js';
 import {type PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../integration/kube/k8.js';
+import {SoloError} from '../../core/errors/solo-error.js';
+import {sleep} from '../../core/helpers.js';
+import {Duration} from '../../core/time/duration.js';
 
 export class K8Helper {
   private k8: K8;
@@ -45,5 +48,44 @@ export class K8Helper {
       .pods()
       .list(namespace, Templates.renderBlockNodeLabels(id))
       .then((pods: Pod[]): Pod => pods[0]);
+  }
+
+  /**
+   * Wait until the root-container sidecar in a consensus-node pod is accessible.
+   * Polls by attempting a simple exec (`pwd`) in the container.
+   *
+   * @param namespace - the namespace containing the pod
+   * @param nodeAlias - the node alias (e.g. "node1")
+   * @param maxAttempts - maximum number of polling attempts (default 30)
+   * @param delay - delay between attempts in milliseconds (default 2000)
+   * @returns the accessible Container handle
+   */
+  public async waitForRootContainer(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    maxAttempts: number = 30,
+    delay: number = 2000,
+  ): Promise<Container> {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const container: Container = await this.getConsensusNodeRootContainer(namespace, nodeAlias);
+        await container.execContainer('pwd');
+        return container;
+      } catch (error) {
+        const message: string = error instanceof Error ? error.message : String(error);
+        if (!message.includes('container not found')) {
+          throw error;
+        }
+        if (attempt === maxAttempts) {
+          throw new SoloError(
+            `root-container for ${nodeAlias} did not become ready after ${maxAttempts} attempts`,
+            error instanceof Error ? error : undefined,
+          );
+        }
+        await sleep(Duration.ofMillis(delay));
+      }
+    }
+
+    throw new SoloError(`root-container for ${nodeAlias} did not become ready after ${maxAttempts} attempts`);
   }
 }
