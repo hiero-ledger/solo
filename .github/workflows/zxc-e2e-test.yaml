@@ -283,7 +283,7 @@ jobs:
             fi
 
       - name: Install Kubectl
-        if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true }}
+        if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true && !cancelled() && !failure() }}
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -291,7 +291,7 @@ jobs:
         id: install
 
       - name: Setup Kind
-        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true }}
+        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && !cancelled() && !failure() }}
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -303,7 +303,7 @@ jobs:
           wait: 120s
 
       - name: Setup Helm
-        if: ${{ inputs.install-dependencies == true && inputs.helm-install == true }}
+        if: ${{ inputs.install-dependencies == true && inputs.helm-install == true && !cancelled() && !failure() }}
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -384,7 +384,7 @@ jobs:
             cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.custom-job-label != 'One Shot Single - using Podman' }}
+        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -519,7 +519,6 @@ jobs:
 
       - name: Generate ASCII Resource Chart
         id: generate-chart
-        if: ${{ inputs.runner != 'windows-latest' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
@@ -545,7 +544,7 @@ jobs:
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
+        if: ${{ !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
@@ -586,8 +585,8 @@ jobs:
 
       - name: Comment PR with Log Metrics
         if: >-
-          ${{ inputs.runner != 'windows-latest' && !cancelled() && github.event_name == 'pull_request' && 
-          steps.log-metrics-file.conclusion == 'success' && github.event.pull_request.head.repo.fork == false }}
+          ${{ github.event_name == 'pull_request' && steps.log-metrics-file.conclusion == 'success' &&
+          github.event.pull_request.head.repo.fork == false && !cancelled() && !failure() }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -607,7 +606,9 @@ jobs:
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
+          steps.npm-deps.conclusion == 'success' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
@@ -617,7 +618,9 @@ jobs:
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
+          !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: ${{ inputs.coverage-report-name }}

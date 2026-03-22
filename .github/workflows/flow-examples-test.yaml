@@ -346,7 +346,7 @@ jobs:
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
-        if: ${{ github.ref == 'refs/heads/main' && failure() }}
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && failure() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
@@ -363,7 +363,7 @@ jobs:
           SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Upload Logs to GitHub
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
