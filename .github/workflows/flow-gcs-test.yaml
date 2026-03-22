@@ -34,6 +34,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
 jobs:
   gcs-storage-test:
     name: "GCS Storage Test - ${{ matrix.storageType }}"
@@ -48,6 +51,7 @@ jobs:
     steps:
       - name: Check if job should be skipped
         id: check
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
             echo "run=false" >> $GITHUB_OUTPUT
@@ -58,17 +62,20 @@ jobs:
       - name: Harden Runner
         if: steps.check.outputs.run == 'true'
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         if: steps.check.outputs.run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
 
       - name: Authenticate to Google Cloud
         if: steps.check.outputs.run == 'true'
         id: google-auth
         uses: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
@@ -76,17 +83,20 @@ jobs:
       - name: Setup Google Cloud SDK
         if: steps.check.outputs.run == 'true'
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
 
       - name: Get Current Job Log URL
         if: steps.check.outputs.run == 'true'
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: jobs
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           job_name: "GCS Storage Test - ${{ matrix.storageType }}"
 
       - name: Create Bucket Name and Prefix
         if: steps.check.outputs.run == 'true'
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           export BUCKET_NAME="solo-ci-test-streams"
           export PREFIX=${{ steps.jobs.outputs.job_id }}
@@ -100,17 +110,20 @@ jobs:
       - name: Setup Node
         if: steps.check.outputs.run == 'true'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           node-version: 22
           cache: npm
 
       - name: Configure npm registry
         if: steps.check.outputs.run == 'true'
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install Task
         if: steps.check.outputs.run == 'true'
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -118,12 +131,14 @@ jobs:
       - name: Install Dependencies
         if: steps.check.outputs.run == 'true'
         id: npm-deps
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           npm ci
           npm install -g @hashgraph/solo
 
       - name: Compile Project
         if: steps.check.outputs.run == 'true'
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: task build:compile
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
@@ -148,6 +163,7 @@ jobs:
       - name: Upload Logs to GitHub
         if: ${{ steps.check.outputs.run == 'true' && always() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           name: solo-logs-${{ matrix.storageType }}
           path: ~/.solo/logs/*
@@ -157,6 +173,7 @@ jobs:
         # Always attempt cleanup for object-store test modes, even if prior steps failed.
         if: ${{ steps.check.outputs.run == 'true' && always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only') }}
         continue-on-error: true
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           PROJECT_ID="${{ vars.GCP_S3_PROJECT_ID }}"
           JOB_PREFIX="${{ steps.jobs.outputs.job_id }}"

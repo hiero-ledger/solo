@@ -37,6 +37,9 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
 jobs:
   performance-test:
     if: >
@@ -47,14 +50,17 @@ jobs:
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           # Configure APT to use main Ubuntu archive (disable mirror rotation)
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
@@ -63,11 +69,13 @@ jobs:
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           node-version: 22
 
       - name: Install wget
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           max_attempts: 3
           timeout_minutes: 5
@@ -88,11 +96,13 @@ jobs:
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile Project
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: task build:compile
 
       - name: Setup E2E Tests
@@ -116,6 +126,7 @@ jobs:
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           for logFile in ~/.solo/logs/*.json; do
             if [[ -f "$logFile" ]]; then
@@ -136,6 +147,7 @@ jobs:
       - name: Write Log Metrics Message File
         id: log-metrics-file
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -157,12 +169,14 @@ jobs:
           ${{ !cancelled() && !failure() && github.event_name == 'pull_request' &&
           steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           mode: recreate
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-performance-test
 
       - name: Move JVM Memory Usage Data to Metrics Directory
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           mkdir -p ~/.solo/metrics
           if [ -d ~/.solo/logs/performance-tests ]; then
@@ -173,6 +187,7 @@ jobs:
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           name: solo-performance-test.log
           path: ~/.solo/logs/*
@@ -180,6 +195,7 @@ jobs:
           if-no-files-found: error
 
       - name: Performance Test Verification
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           MAX_MEMORY_MB=11000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
@@ -195,6 +211,7 @@ jobs:
           fi
 
       - name: Build and Start Metrics Plotter tool
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
             cd ./scripts/metrics-plotter
             npm ci
@@ -207,6 +224,7 @@ jobs:
             cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
 
       - name: Install Puppeteer / Chrome dependencies
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -241,6 +259,7 @@ jobs:
             libgbm1
 
       - name: Save Screenshots of Metrics Plotter
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           cd ./scripts/metrics-plotter
           SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=true\&data=timeline ~/.solo/metrics/chart-grouped.png
@@ -248,6 +267,7 @@ jobs:
           cp ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json
 
       - name: Stop Metrics Plotter tool
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         run: |
           if [ -f /tmp/metrics-plotter.pid ]; then
             kill $(cat /tmp/metrics-plotter.pid) || true
@@ -256,6 +276,7 @@ jobs:
 
       - name: Upload Metrics Data and Chart to GitHub
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
         with:
           name: solo-performance-chart
           path: ~/.solo/metrics/*
