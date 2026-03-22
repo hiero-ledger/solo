@@ -69,6 +69,7 @@ export class InjectTokens {
   public static ObjectMapper: symbol = Symbol.for('ObjectMapper');
   public static HelpRenderer: symbol = Symbol.for('HelpRenderer');
   public static Middlewares: symbol = Symbol.for('Middlewares');
+  public static NpmClient: symbol = Symbol.for('NpmClient');
   public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
   public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
   public static ConfigProvider: symbol = Symbol.for('ConfigProvider');

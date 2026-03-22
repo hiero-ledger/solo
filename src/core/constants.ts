@@ -369,6 +369,8 @@ export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS: number =
+  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS') || 2000;
 export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
@@ -462,3 +464,6 @@ export const TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS: number =
 
 export const TSS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('TSS_READY_MAX_ATTEMPTS') || 60;
 export const TSS_READY_BACKOFF_SECONDS: number = +getEnvironmentVariable('TSS_READY_BACKOFF_SECONDS') || 3;
+
+export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
+  +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;

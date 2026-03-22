@@ -48,6 +48,7 @@ interface BlockNodeDeployConfigClass {
   chartVersion: string;
   chartDirectory: string;
   blockNodeChartDirectory: string;
+  blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
@@ -92,6 +93,7 @@ interface BlockNodeDestroyContext {
 interface BlockNodeUpgradeConfigClass {
   chartDirectory: string;
   blockNodeChartDirectory: string;
+  blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
@@ -161,6 +163,7 @@ export class BlockNodeCommand extends BaseCommand {
     optional: [
       flags.blockNodeChartVersion,
       flags.blockNodeChartDirectory,
+      flags.blockNodeTssOverlay,
       flags.chartDirectory,
       flags.clusterRef,
       flags.devMode,
@@ -211,7 +214,9 @@ export class BlockNodeCommand extends BaseCommand {
 
     valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
 
-    if (this.remoteConfig.configuration.state.tssEnabled) {
+    // Block node can be deployed before consensus deploy persists tssEnabled into remote config.
+    // The explicit CLI switch allows users to opt into TSS sizing and message limits in that order-of-operations.
+    if (this.remoteConfig.configuration.state.tssEnabled || config.blockNodeTssOverlay) {
       valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_TSS_VALUES_FILE);
     }
 
