@@ -813,8 +813,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
         this.tasks.startNodes('nodeAliases'),
-        this.tasks.checkAllNodesAreActive('nodeAliases'),
-        this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in refreshing nodes',
@@ -882,8 +881,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
-        this.tasks.checkAllNodesAreActive('nodeAliases'),
-        this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
@@ -963,8 +961,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
-        this.tasks.checkAllNodesAreActive('existingNodeAliases'),
-        this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.checkNodesAndProxiesAreActive('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -1112,22 +1109,18 @@ export class NodeCommandHandlers extends CommandHandler {
     } catch {
       throw new SoloError(`${nodeAlias} not found in remote config`);
     }
-
-    // TODO: Enable once the states have been mapped
+    // TODO: Enable once states have been mapped
     // if (acceptedPhases && !acceptedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `accepted states: ${acceptedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
     //
     // if (excludedPhases && excludedPhases.includes(nodeComponent.state)) {
     //   const errorMessageData =
     //     `excluded states: ${excludedPhases.join(', ')}, ` + `current state: ${nodeComponent.state}`;
-    //
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
-
     return nodeComponent.metadata.phase;
   }
 
