@@ -677,6 +677,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeTssOverlay: CommandFlag = {
+    constName: 'blockNodeTssOverlay',
+    name: 'block-node-tss-overlay',
+    definition: {
+      describe:
+        'Force-apply block-node TSS values overlay when deploying block nodes before consensus deployment sets tssEnabled in remote config.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly blockNodeMapping: CommandFlag = {
     constName: 'blockNodeIds',
     name: 'block-node-mapping',
@@ -699,11 +711,10 @@ export class Flags {
 
   public static renderBlockNodeMappingDescription(name: 'block-node' | 'external-block-node'): string {
     return (
-      chalk.grey(`Configure ${name} priority mapping`) +
-      chalk.blue(`\n\t(Default: all ${name} included, first's priority is 2)`) +
-      chalk.yellow('\n\t[Format: <id>=<priority>[,<id>=<priority>]]') +
-      chalk.yellow(`\n\t[Example: "--${name}-mapping 1=2,2=1"]`) +
-      chalk.red(`\n\t[Unlisted ${name} will not routed to the consensus node node]`)
+      `Configure ${name} priority mapping.` +
+      ` Default: all ${name} included, first's priority is 2.` +
+      ` Unlisted ${name} will not routed to the consensus node node.` +
+      ` Example: --${name}-mapping 1=2,2=1`
     );
   }
 
@@ -1124,11 +1135,10 @@ export class Flags {
     name: 'priority-mapping',
     definition: {
       describe:
-        chalk.grey('Configure block node priority mapping') +
-        chalk.blue('\n\t(Default: all consensus nodes included, first node priority is 2)') +
-        chalk.yellow('\n\t[Format: <node>=<priority>[,<node>=<priority>]]') +
-        chalk.yellow('\n\t[Example: "priority-mapping node1=2,node2=1"]') +
-        chalk.red('\n\t[Unlisted nodes will not be routed to a block node]'),
+        'Configure block node priority mapping.' +
+        ' Unlisted nodes will not be routed to a block node' +
+        ' Default: all consensus nodes included, first node priority is 2.' +
+        ' Example: "priority-mapping node1=2,node2=1"',
       type: 'string',
     },
     prompt: undefined,
@@ -1139,10 +1149,9 @@ export class Flags {
     name: 'address',
     definition: {
       describe:
-        chalk.grey(`Provide external block node address ${chalk.grey('(IP or domain)')}, with optional port`) +
-        chalk.blue(`\n\t(Default port: ${constants.BLOCK_NODE_PORT})`) +
-        chalk.yellow('\n\t[Format: <address>[:<port>]]') +
-        chalk.yellow('\n\t[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
+        'Provide external block node address (IP or domain), with optional port' +
+        ` (Default port: ${constants.BLOCK_NODE_PORT})` +
+        ' Examples: "--address localhost:8080", "--address 192.0.0.1"',
       type: 'string',
     },
     prompt: undefined,
@@ -1155,6 +1164,16 @@ export class Flags {
       describe: 'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72).',
       type: 'boolean',
       defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly wrapsKeyPath: CommandFlag = {
+    constName: 'wrapsKeyPath',
+    name: 'wraps-key-path',
+    definition: {
+      describe: 'Path to a local directory containing pre-existing WRAPs proving key files (.bin)',
+      type: 'string',
     },
     prompt: undefined,
   };
@@ -2686,7 +2705,7 @@ export class Flags {
     definition: {
       describe:
         'Custom domain names for consensus nodes mapping for the' +
-        `${chalk.gray('(e.g. node0=domain.name where key is node alias and value is domain name)')}` +
+        '(e.g. node0=domain.name where key is node alias and value is domain name)' +
         'with multiple nodes comma separated',
       type: 'string',
     },
@@ -2962,6 +2981,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeTssOverlay,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
@@ -2987,6 +3007,7 @@ export class Flags {
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
     Flags.wrapsEnabled,
+    Flags.wrapsKeyPath,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,

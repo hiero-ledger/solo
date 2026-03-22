@@ -10,17 +10,18 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
+import {type AnyObject} from './types/aliases.js';
 
 export class ArgumentProcessor {
-  public static process(argv: string[]): any {
+  public static process(argv: string[]): AnyObject {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
-    const commands: any = container.resolve(InjectTokens.Commands);
+    const commands: AnyObject = container.resolve(InjectTokens.Commands);
     const rawArguments: string[] = hideBin(argv);
 
     logger.debug('Initializing commands');
-    const rootCmd: any = yargs(rawArguments)
+    const rootCmd: AnyObject = yargs(rawArguments)
       .scriptName('')
       .usage('Usage:\n  solo <command> [options]')
       .alias('h', 'help')
@@ -32,6 +33,7 @@ export class ArgumentProcessor {
 
     rootCmd.middleware(
       [
+        middlewares.detectLocalSoloPackages(),
         middlewares.printCustomHelp(rootCmd),
         middlewares.setLoggerDevFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
