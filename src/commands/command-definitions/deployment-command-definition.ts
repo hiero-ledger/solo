@@ -56,6 +56,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_LIST: string = 'list';
   public static readonly CONFIG_CREATE: string = 'create';
   public static readonly CONFIG_DELETE: string = 'delete';
+  public static readonly CONFIG_INFO: string = 'info';
 
   public static readonly DIAGNOSTICS_ALL: string = 'all';
   public static readonly DIAGNOSTICS_DEBUG: string = 'debug';
@@ -130,6 +131,16 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand,
               this.deploymentCommand.delete,
               DeploymentCommand.DESTROY_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.CONFIG_INFO,
+              'Displays the full status of a deployment including components, versions, and port-forward status.',
+              this.deploymentCommand,
+              this.deploymentCommand.showDeploymentStatus,
+              DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
               [],
             ),
           ),
