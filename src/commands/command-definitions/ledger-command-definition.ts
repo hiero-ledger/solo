@@ -45,6 +45,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
   private static readonly FILE_SUBCOMMAND_DESCRIPTION: string = 'Upload or update files on the Hiero network.';
 
   public static readonly SYSTEM_INIT: string = 'init';
+  public static readonly SYSTEM_RESET: string = 'reset';
   public static readonly ACCOUNT_UPDATE: string = 'update';
   public static readonly ACCOUNT_CREATE: string = 'create';
   public static readonly ACCOUNT_INFO: string = 'info';
@@ -58,16 +59,27 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
         new CommandGroup(
           LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
           LedgerCommandDefinition.SYSTEM_SUBCOMMAND_DESCRIPTION,
-        ).addSubcommand(
-          new Subcommand(
-            LedgerCommandDefinition.SYSTEM_INIT,
-            'Re-keys ledger system accounts and consensus node admin keys with uniquely generated ED25519 private keys and will stake consensus nodes.',
-            this.accountCommand,
-            this.accountCommand.init,
-            AccountCommand.INIT_FLAGS_LIST,
-            [],
+        )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.SYSTEM_INIT,
+              'Re-keys ledger system accounts and consensus node admin keys with uniquely generated ED25519 private keys and will stake consensus nodes.',
+              this.accountCommand,
+              this.accountCommand.init,
+              AccountCommand.INIT_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.SYSTEM_RESET,
+              'Resets the ledger system to genesis by clearing saved states and ledger-related secrets.',
+              this.accountCommand,
+              this.accountCommand.resetSystem,
+              AccountCommand.RESET_FLAGS_LIST,
+              [],
+            ),
           ),
-        ),
       )
       .addCommandGroup(
         new CommandGroup(

@@ -39,6 +39,23 @@ export interface Pods {
   waitForReadyStatus(namespace: NamespaceName, labels: string[], maxAttempts?: number, delay?: number): Promise<Pod[]>;
 
   /**
+   * Wait for the newest ready pod matching the labels to remain the newest ready pod
+   * for a number of consecutive polls.
+   * @param namespace - namespace
+   * @param labels - pod labels
+   * @param consecutiveStableChecks - number of consecutive polls that must see the same newest ready pod
+   * @param maxAttempts - maximum attempts to check
+   * @param delay - delay between checks in milliseconds
+   */
+  waitForStableReadyPod(
+    namespace: NamespaceName,
+    labels: string[],
+    consecutiveStableChecks?: number,
+    maxAttempts?: number,
+    delay?: number,
+  ): Promise<Pod>;
+
+  /**
    * Check if pod's phase is running
    * @param namespace - namespace
    * @param labels - pod labels
@@ -81,6 +98,12 @@ export interface Pods {
   ): Promise<Pod>;
 
   /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
+
+  /**
    * Read logs for the given pod across all containers.
    * @param podReference - the reference to the pod
    * @param timestamps - include timestamps in output
@@ -94,6 +117,12 @@ export interface Pods {
    * @returns describe-like output string
    */
   readDescribe(podReference: PodReference): Promise<string>;
+
+  /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
 
   /**
    * Get CPU and memory usage for pods via the Kubernetes Metrics API (equivalent to `kubectl top pod`)

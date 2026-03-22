@@ -5,4 +5,6 @@
  */
 export interface Manifests {
   applyManifest(filePath: string): Promise<void>;
+  scaleStatefulSet(namespace: string, statefulSetName: string, replicas: number): Promise<void>;
+  scaleDeployment(namespace: string, deploymentName: string, replicas: number): Promise<void>;
 }

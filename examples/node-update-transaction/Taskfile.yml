@@ -57,7 +57,7 @@ tasks:
 
       - cmd: |
           # Create Kind cluster
-          kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
+          kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config {{ .TASKFILE_DIR }}/kind-config.yaml
 
       - cmd: |
           # Solo cluster-ref config connect

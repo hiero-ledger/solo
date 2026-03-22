@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type KubernetesObject, type KubernetesObjectApi} from '@kubernetes/client-node';
+import {PatchStrategy, type KubernetesObject, type KubernetesObjectApi} from '@kubernetes/client-node';
 import yaml from 'yaml';
 import fs from 'node:fs';
 import {type Manifests} from '../../../resources/manifest/manifests.js';
@@ -27,5 +27,47 @@ export class K8ClientManifests implements Manifests {
 
       await this.k8sObjectApi.create(document);
     }
+  }
+
+  public async scaleStatefulSet(namespace: string, statefulSetName: string, replicas: number): Promise<void> {
+    await this.k8sObjectApi.patch(
+      {
+        apiVersion: 'apps/v1',
+        kind: 'StatefulSet',
+        metadata: {
+          namespace,
+          name: statefulSetName,
+        },
+        spec: {
+          replicas,
+        },
+      } as KubernetesObject,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      PatchStrategy.StrategicMergePatch,
+    );
+  }
+
+  public async scaleDeployment(namespace: string, deploymentName: string, replicas: number): Promise<void> {
+    await this.k8sObjectApi.patch(
+      {
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: {
+          namespace,
+          name: deploymentName,
+        },
+        spec: {
+          replicas,
+        },
+      } as KubernetesObject,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      PatchStrategy.StrategicMergePatch,
+    );
   }
 }

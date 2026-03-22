@@ -43,11 +43,16 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
+<<<<<<< 03349-D-ledger-reset
+      # Create Kind cluster"
+      - cmd: kind create cluster -n "{{ .CLUSTER_NAME }}" --config {{ .TASKFILE_DIR }}/kind-config.yaml
+=======
       # Run solo init to install dependencies
       - cmd: $SOLO_COMMAND init --dev
 
       # Create Kind cluster
       - cmd: kind create cluster -n "{{ .CLUSTER_NAME }}"
+>>>>>>> main
 
       # Wait for control plane
       - cmd: sleep 10 # wait for control plane to come up

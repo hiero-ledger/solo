@@ -238,7 +238,6 @@ export const POD_CONDITION_POD_SCHEDULED: string = 'PodScheduled';
 export const POD_CONDITION_STATUS_TRUE: string = 'True';
 
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
-export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
 export const MIRROR_NODE_VALUES_FILE_HEDERA: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-values-hedera.yaml',
@@ -248,6 +247,10 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-postgres-truncate.sql',
+);
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
@@ -263,7 +266,7 @@ export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAI
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
   format: (duration: number) => {

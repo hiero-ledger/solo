@@ -588,11 +588,47 @@ export class NodeCommandTasks {
       );
     }
 
+    if (status !== NodeStatusCodes.FREEZE_COMPLETE) {
+      await this.waitForNodeGrpcReady(namespace, nodeAlias, context);
+    }
+
     if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
       await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
     }
 
     return podReference;
+  }
+
+  private async waitForNodeGrpcReady(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context: string,
+    maxAttempts: number = 20,
+    delayMs: number = 250,
+  ): Promise<void> {
+    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+    const grpcReadyCommand: string = `timeout 1 bash -lc '</dev/tcp/127.0.0.1/${constants.GRPC_PORT}' >/dev/null 2>&1`;
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await container.execContainer(['bash', '-c', grpcReadyCommand]);
+        this.logger.debug(
+          `Confirmed gRPC listener for ${nodeAlias} after ${attempt} attempt(s) on port ${constants.GRPC_PORT}`,
+        );
+        return;
+      } catch (error) {
+        this.logger.debug(
+          `Waiting for gRPC listener for ${nodeAlias}: attempt ${attempt}/${maxAttempts}: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      await sleep(Duration.ofMillis(delayMs));
+    }
+
+    throw new SoloError(
+      `Node ${nodeAlias} did not open gRPC port ${constants.GRPC_PORT} after ${maxAttempts} attempts`,
+    );
   }
 
   /** Return task for check if node proxies are ready */
@@ -1156,17 +1192,41 @@ export class NodeCommandTasks {
     }
   }
 
-  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
+  public loadConfiguration(
+    argv: ArgvStruct,
+    leaseWrapper: LeaseWrapper,
+    leaseManager: LockManager,
+    validateRemoteConfig: boolean = true,
+  ) {
     return {
       title: 'Load configuration',
       task: async () => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
         if (!this.oneShotState.isActive()) {
           leaseWrapper.lease = await leaseManager.create();
         }
       },
     };
+  }
+
+  public async getExistingNodeAliases(namespace: NamespaceName, deployment: DeploymentName): Promise<NodeAliases> {
+    const existingNodeAliases: NodeAliases = [];
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
+      namespace,
+      clusterReferences,
+      deployment,
+    );
+
+    for (const networkNodeServices of serviceMap.values()) {
+      if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+        continue;
+      }
+      existingNodeAliases.push(networkNodeServices.nodeAlias);
+    }
+
+    return existingNodeAliases;
   }
 
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
@@ -1756,22 +1816,27 @@ export class NodeCommandTasks {
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+              await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
+
+              const startCommand: string = constants.ENABLE_S6_IMAGE
+                ? `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
+                  'rm -f /run/service/network-node/down /run/s6/legacy-services/network-node/down && ' +
+                  '/command/s6-svc -d /run/service/network-node || true; ' +
+                  '/command/s6-svc -u /run/service/network-node || true; ' +
+                  'for attempt in $(seq 1 15); do ' +
+                  "  /command/s6-svstat /run/service/network-node | grep -q '^up' && " +
+                  "  ps -ef | grep -q '[j]ava' && exit 0; " +
+                  '  sleep 1; ' +
+                  'done; ' +
+                  'exit 1'
+                : 'systemctl stop network-node || true && systemctl enable --now network-node';
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
                 nodeAlias,
               );
-              await (constants.ENABLE_S6_IMAGE
-                ? container.execContainer([
-                    'bash',
-                    '-c',
-                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
-                  ])
-                : container.execContainer([
-                    'bash',
-                    '-c',
-                    'systemctl stop network-node || true && systemctl enable --now network-node',
-                  ]));
+              await container.execContainer(['bash', '-c', startCommand]);
             },
           });
         }
@@ -2064,7 +2129,12 @@ export class NodeCommandTasks {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
                 if (constants.ENABLE_S6_IMAGE) {
-                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
+                  await container.execContainer([
+                    'bash',
+                    '-c',
+                    `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
+                      '/command/s6-svc -D /run/service/network-node',
+                  ]);
 
                   // Wait for graceful shutdown
                   await new Promise(resolve => setTimeout(resolve, 3000));
@@ -3779,6 +3849,7 @@ export class NodeCommandTasks {
     configInit: ConfigBuilder,
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
+    validateRemoteConfig: boolean = true,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
@@ -3787,7 +3858,7 @@ export class NodeCommandTasks {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
 
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);
