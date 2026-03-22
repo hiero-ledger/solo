@@ -27,6 +27,23 @@ defaults:
         value: 6g
       - name: JAVA_OPTS
         value: "-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+  haproxy:
+    maxconn: 32
+    resources:
+      requests:
+        cpu: 50m
+        memory: 48Mi
+      limits:
+        cpu: 300m
+        memory: 64Mi
+  envoyProxy:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 16Mi
+      limits:
+        cpu: 500m
+        memory: 48Mi
 
 minio-server:
   tenant:
