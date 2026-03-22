@@ -242,18 +242,18 @@ jobs:
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           # Configure APT to use main Ubuntu archive (disable mirror rotation)
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
@@ -262,12 +262,12 @@ jobs:
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: ${{ inputs.node-version }}
 
       - name: Configure npm registry
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install wget
@@ -285,7 +285,7 @@ jobs:
       - name: Install Kubectl
         if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true }}
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.kubectl-version }}'
         id: install
@@ -293,7 +293,7 @@ jobs:
       - name: Setup Kind
         if: ${{ inputs.install-dependencies == true && inputs.kind-install == true }}
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           install_only: true
           node_image: '${{ inputs.kind-node-image }}'
@@ -305,7 +305,7 @@ jobs:
       - name: Setup Helm
         if: ${{ inputs.install-dependencies == true && inputs.helm-install == true }}
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.helm-version }}'
 
@@ -320,30 +320,30 @@ jobs:
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           go-version: '1.22.3'
 
       - name: Install grpcurl
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Compile Project
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
           java-version: 21.0.1
@@ -351,13 +351,13 @@ jobs:
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
 
       - name: Create Diagnostic Script
         if: ${{ !cancelled() && !failure() }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
         run: |
@@ -434,7 +434,7 @@ jobs:
       - name: Run E2E Tests
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
-        timeout-minutes: ${{ inputs.test-timeout-minutes }}
+        timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
@@ -484,7 +484,7 @@ jobs:
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         shell: bash
         run: |
           export PATH=~/.solo/bin:${PATH}
@@ -520,7 +520,7 @@ jobs:
       - name: Generate ASCII Resource Chart
         id: generate-chart
         if: ${{ inputs.runner != 'windows-latest' }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
@@ -546,7 +546,7 @@ jobs:
       - name: Write Log Metrics Message File
         id: log-metrics-file
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -589,7 +589,7 @@ jobs:
           ${{ inputs.runner != 'windows-latest' && !cancelled() && github.event_name == 'pull_request' && 
           steps.log-metrics-file.conclusion == 'success' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           mode: recreate
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
@@ -598,7 +598,7 @@ jobs:
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-${{ inputs.test-script }}.log
           path: ~/.solo/logs/*
@@ -608,7 +608,7 @@ jobs:
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
           path: "junit-${{ inputs.coverage-subdirectory }}.xml"
@@ -618,7 +618,7 @@ jobs:
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'

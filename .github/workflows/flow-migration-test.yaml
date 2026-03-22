@@ -46,30 +46,30 @@ jobs:
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 22
           cache: npm
 
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -80,7 +80,7 @@ jobs:
 
       - name: Install Kubectl
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v1.27.3'
         id: install
@@ -122,7 +122,7 @@ jobs:
       - name: Upload Logs to GitHub
         if: ${{ always() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        timeout-minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs
           path: ~/.solo/logs/*
