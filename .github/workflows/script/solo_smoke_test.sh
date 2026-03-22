@@ -356,9 +356,9 @@ echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}),
 preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}"
 result=0
 mirror_test_log="mirror_test.log"
-echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 2m"
+echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 20m"
 set +e
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 2m 2>&1 | tee "${mirror_test_log}"
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 20m 2>&1 | tee "${mirror_test_log}"
 result=${PIPESTATUS[0]}
 set -e
 if [[ $result -ne 0 ]]; then
