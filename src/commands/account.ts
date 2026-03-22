@@ -755,9 +755,7 @@ export class AccountCommand extends BaseCommand {
           title: 'Create predefined accounts',
           task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<Listr<Context>> => {
             const subTasks: SoloListrTask<Context>[] = [];
-            const accountsToCreate: PredefinedAccount[] = [
-              ...predefinedEcdsaAccountsWithAlias,
-            ];
+            const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
             for (const [index, account] of accountsToCreate.entries()) {
               subTasks.push({

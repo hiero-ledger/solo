@@ -574,9 +574,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         }
                       }
 
-                      const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccountsWithAlias,
-                      ];
+                      const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues
