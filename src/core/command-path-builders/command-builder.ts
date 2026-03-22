@@ -73,7 +73,6 @@ export class CommandGroup {
 // TODO: CommandBuilder should have its own class file
 export class CommandBuilder {
   private readonly commandGroups: CommandGroup[] = [];
-  private readonly directSubcommands: Subcommand[] = [];
 
   public constructor(
     private readonly name: string,
@@ -86,14 +85,8 @@ export class CommandBuilder {
     return this;
   }
 
-  public addDirectSubcommand(subcommand: Subcommand): CommandBuilder {
-    this.directSubcommands.push(subcommand);
-    return this;
-  }
-
   public build(): CommandDefinition {
     const commandGroups: CommandGroup[] = this.commandGroups;
-    const directSubcommands: Subcommand[] = this.directSubcommands;
     const logger: SoloLogger = this.logger;
 
     const commandName: string = this.name;
@@ -147,40 +140,6 @@ export class CommandBuilder {
               return yargs;
             },
           });
-        }
-
-        for (const subcommand of directSubcommands) {
-          const handlerDefinition: CommandDefinition = {
-            command: subcommand.name,
-            desc: subcommand.description,
-            handler: async (argv): Promise<void> => {
-              const commandPath: string = `${commandName} ${subcommand.name}`;
-
-              logger.info(`==== Running '${commandPath}' ===`);
-
-              const handlerCallback: (argv: ArgvStruct) => Promise<boolean> = subcommand.commandHandler.bind(
-                subcommand.commandHandlerClass,
-              );
-
-              await subcommand.installDependencies();
-              const response: boolean = await handlerCallback(argv);
-
-              logger.info(`==== Finished running '${commandPath}'====`);
-
-              if (!response) {
-                throw new SoloError(`Error running ${commandPath}, expected return value to be true`);
-              }
-            },
-          };
-
-          if (subcommand.flags) {
-            handlerDefinition.builder = (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...subcommand.flags.required);
-              flags.setOptionalCommandFlags(y, ...subcommand.flags.optional);
-            };
-          }
-
-          yargs.command(handlerDefinition);
         }
 
         yargs.demandCommand(1, demandCommand);

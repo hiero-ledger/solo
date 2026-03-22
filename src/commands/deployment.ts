@@ -105,11 +105,6 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
-  public static SHOW_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.deployment, flags.quiet],
-  };
-
   /**
    * Create new deployment inside the local config
    */

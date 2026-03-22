@@ -83,6 +83,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options);
         DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
 
         // AccountTest.accountCreationShouldSucceed(options);
         // AccountTest.predefinedAccountCreationShouldSucceed(options);

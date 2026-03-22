@@ -81,6 +81,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
         DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
         BlockNodeTest.add(options);

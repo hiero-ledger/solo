@@ -47,8 +47,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   private static readonly REFRESH_SUBCOMMAND_DESCRIPTION: string =
     'Refresh port-forward processes for all components in the deployment.';
 
-  public static readonly SHOW_SUBCOMMAND_NAME: string = 'show';
-
   public static readonly DIAGNOSTICS_SUBCOMMAND_NAME: string = 'diagnostics';
   private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION: string =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
@@ -58,6 +56,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_LIST: string = 'list';
   public static readonly CONFIG_CREATE: string = 'create';
   public static readonly CONFIG_DELETE: string = 'delete';
+  public static readonly CONFIG_INFO: string = 'info';
 
   public static readonly DIAGNOSTICS_ALL: string = 'all';
   public static readonly DIAGNOSTICS_DEBUG: string = 'debug';
@@ -78,9 +77,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
 
   public static readonly REFRESH_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} port-forwards` as const;
-
-  public static readonly SHOW_COMMAND: string =
-    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -137,6 +133,16 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               DeploymentCommand.DESTROY_FLAGS_LIST,
               [],
             ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.CONFIG_INFO,
+              'Displays the full status of a deployment including components, versions, and port-forward status.',
+              this.deploymentCommand,
+              this.deploymentCommand.showDeploymentStatus,
+              DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
+              [],
+            ),
           ),
       )
       .addCommandGroup(
@@ -152,16 +158,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
             DeploymentCommand.REFRESH_FLAGS_LIST,
             [constants.KUBECTL],
           ),
-        ),
-      )
-      .addDirectSubcommand(
-        new Subcommand(
-          DeploymentCommandDefinition.SHOW_SUBCOMMAND_NAME,
-          'Show deployment info, component versions, and port-forward status. If --deployment is omitted, shows all deployments.',
-          this.deploymentCommand,
-          this.deploymentCommand.showDeploymentStatus,
-          DeploymentCommand.SHOW_FLAGS_LIST,
-          [constants.KUBECTL],
         ),
       )
       .addCommandGroup(

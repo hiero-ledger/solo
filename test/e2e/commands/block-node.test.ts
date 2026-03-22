@@ -76,6 +76,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
         DeploymentTest.listDeployments(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
         BlockNodeTest.add(options);
@@ -88,6 +89,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         BlockNodeTest.add(options, ['node2']);
         DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
 
         BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2], {});
         BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2], [], {});
