@@ -9,7 +9,6 @@ import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/alia
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
@@ -70,7 +69,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force, flags.deployment, flags.minimalSetup],
+    optional: [
+      flags.quiet,
+      flags.numberOfConsensusNodes,
+      flags.force,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
+      flags.minimalSetup,
+    ],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -85,6 +92,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.force,
       flags.valuesFile,
       flags.numberOfConsensusNodes,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
@@ -165,8 +175,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               ) as OneShotSingleDeployConfigClass;
               config = context_.config;
 
-              const uniquePostfix: string = uuid4().slice(-8);
-
               // Initialize component config sections to empty objects to prevent undefined errors
               config.consensusNodeConfiguration = {};
               config.mirrorNodeConfiguration = {};
@@ -208,10 +216,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.relayNodeConfiguration = profileItems.relayNode;
                 }
               }
-              config.clusterRef = config.clusterRef || `solo-${uniquePostfix}`;
+              config.clusterRef = config.clusterRef || 'one-shot';
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-              config.deployment = config.deployment || `solo-deployment-${uniquePostfix}`;
-              config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
+              config.deployment = config.deployment || 'one-shot';
+              config.namespace = config.namespace || NamespaceName.of('one-shot');
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;

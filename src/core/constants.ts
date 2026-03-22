@@ -363,6 +363,8 @@ export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS: number =
+  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS') || 2000;
 export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
@@ -443,6 +445,9 @@ export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
 
 export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
 
+export const WRAPS_ALLOWED_KEY_FILES: string =
+  getEnvironmentVariable('WRAPS_ALLOWED_KEY_FILES') || 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
+
 // TODO: in future define a better strategy to handle versioning
 export const WRAPS_LIB_DOWNLOAD_URL: string =
   getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
@@ -453,3 +458,6 @@ export const TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS: number =
 
 export const TSS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('TSS_READY_MAX_ATTEMPTS') || 60;
 export const TSS_READY_BACKOFF_SECONDS: number = +getEnvironmentVariable('TSS_READY_BACKOFF_SECONDS') || 3;
+
+export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
+  +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
