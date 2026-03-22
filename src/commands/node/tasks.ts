@@ -1829,7 +1829,7 @@ export class NodeCommandTasks {
               undefined,
               podReference,
               constants.GRPC_PORT, // Pod port
-              constants.GRPC_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
+              constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
               this.k8Factory.getK8(config.clusterContext),
               this.logger,
               ComponentTypes.HaProxy,

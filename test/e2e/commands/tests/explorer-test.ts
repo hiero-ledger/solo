@@ -78,7 +78,7 @@ export class ExplorerTest extends BaseCommandTest {
     expect(explorerPods).to.have.lengthOf(1);
     try {
       await sleep(Duration.ofSeconds(2));
-      const queryUrl: string = 'http://127.0.0.1:8080/api/v1/accounts?limit=15&order=desc';
+      const queryUrl: string = 'http://127.0.0.1:38080/api/v1/accounts?limit=15&order=desc';
       const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);
       expect(await packageDownloader.urlExists(queryUrl), 'the hedera explorer Accounts URL should exist').to.be.true;
 

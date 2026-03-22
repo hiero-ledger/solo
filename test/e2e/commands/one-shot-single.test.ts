@@ -97,7 +97,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         const operatorId: AccountId = AccountId.fromString('0.0.2');
         const operatorKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
         const recipientId: AccountId = AccountId.fromString('0.0.3');
-        const client: Client = Client.forNetwork({'localhost:50211': '0.0.3'}).setOperator(operatorId, operatorKey);
+        const client: Client = Client.forNetwork({'localhost:35211': '0.0.3'}).setOperator(operatorId, operatorKey);
 
         const tx: TransactionResponse = await new TransferTransaction()
           .addHbarTransfer(operatorId, new Hbar(-1))
