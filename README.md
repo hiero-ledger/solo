@@ -33,6 +33,24 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
+## Release-To-Docs Automation
+
+When a new Solo release is published, documentation regeneration is triggered
+automatically in the separate `solo-docs` repository.
+
+- Trigger source: `.github/workflows/flow-trigger-solo-docs-update.yaml`
+- Trigger event: `release.published`
+- Cross-repo signal: `repository_dispatch` with `event_type: solo-release`
+- Payload sent: release `version` tag and `release_url`
+
+This keeps the docs site aligned with released Solo versions without manual
+copy/paste updates.
+
+For detailed flow and implementation notes, see:
+
+- `solo-docs/README.md` (full pipeline overview)
+- `solo-docs/.github/workflows/flow-update-docs.yaml`
+
 ### Hardware Requirements
 
 Docker Desktop (or Docker Engine / Podman on Linux) with at least **12GB of memory** and **6 CPU cores**.
@@ -57,7 +75,7 @@ For detailed platform-specific instructions, see the [Solo User Guide](https://s
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/main/docs/solo-user-guide/#one-shot-deployment))
+[Solo docs: One-shot deployment](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment)
 
 ## Contributing
 

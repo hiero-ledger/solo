@@ -1,0 +1,67 @@
+##
+# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+# Fires whenever a GitHub Release is published in this repository and notifies
+# the hiero-ledger/solo-docs repo to regenerate its automated documentation.
+#
+# Required secret:
+#   SOLO_DOCS_DISPATCH_TOKEN — a fine-grained PAT with "contents: write" and
+#   "actions: write" scopes on hiero-ledger/solo-docs.
+
+name: "Trigger Solo-Docs Update"
+
+on:
+    release:
+        types: [published]
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        shell: bash
+
+jobs:
+    dispatch:
+        name: Dispatch release event to solo-docs
+        runs-on: ubuntu-latest
+        steps:
+            - name: Harden Runner
+              uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+              with:
+                  egress-policy: audit
+
+            # Send a repository_dispatch event to solo-docs carrying the release tag.
+            # solo-docs listens for the "solo-release" event type and uses the version
+            # in client_payload to check out solo at the correct tag.
+            - name: Send repository_dispatch to hiero-ledger/solo-docs
+              uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+              with:
+                  github-token: ${{ secrets.SOLO_DOCS_DISPATCH_TOKEN }}
+                  script: |
+                      const tag = context.payload.release.tag_name;
+                      const releaseUrl = context.payload.release.html_url;
+                      core.info(`Dispatching solo-release event for tag: ${tag}`);
+                      await github.rest.repos.createDispatchEvent({
+                        owner: context.repo.owner,
+                        repo:  'solo-docs',
+                        event_type: 'solo-release',
+                        client_payload: {
+                          version:     tag,
+                          release_url: releaseUrl,
+                        },
+                      });
+                      core.info(`Dispatch sent successfully for ${tag}`);
