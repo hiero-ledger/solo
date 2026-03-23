@@ -21,8 +21,8 @@ vars:
   # Consensus node version for local build
   CN_VERSION: "v0.72.0"
 
-  # Block node version for local chart checkout
-  BLOCK_NODE_VERSION: "v0.29.0"
+  # Block node chart version to deploy
+  BLOCK_NODE_VERSION: "0.29.0"
 
   # Mirror node version read from version.ts
   MIRROR_NODE_VERSION:
@@ -30,12 +30,10 @@ vars:
 
   # Local repository directories (cloned next to the solo repo)
   CN_REPO_DIR: "{{.ROOT_DIR}}/../hiero-consensus-node"
-  BLOCK_NODE_REPO_DIR: "{{.ROOT_DIR}}/../hiero-block-node"
   MIRROR_NODE_REPO_DIR: "{{.ROOT_DIR}}/../hiero-mirror-node"
 
   # Local build and chart paths derived from the cloned repos
   CN_LOCAL_BUILD_PATH: "{{.CN_REPO_DIR}}/hedera-node/data"
-  BLOCK_NODE_CHART_DIR: "{{.BLOCK_NODE_REPO_DIR}}/charts"
   MIRROR_NODE_CHART_DIR: "{{.MIRROR_NODE_REPO_DIR}}/charts"
 
   # Runtime values file generated when local charts/build are used
@@ -60,29 +58,6 @@ tasks:
           echo "Building consensus node from source at {{.CN_REPO_DIR}} for version {{.CN_VERSION}}..."
           cd {{.CN_REPO_DIR}}
           ./gradlew assemble --stacktrace --info
-
-  checkout-block-node:
-    desc: Checkout the block node repository at BLOCK_NODE_VERSION
-    cmds:
-      - cmd: |
-          if [ ! -d "{{.BLOCK_NODE_REPO_DIR}}" ]; then
-            git clone https://github.com/hiero-ledger/hiero-block-node.git \
-              --depth 1 --branch {{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
-          else
-            echo "Skipping clone: {{.BLOCK_NODE_REPO_DIR}} already exists"
-          fi
-
-  build-block-node-chart-deps:
-    desc: Run helm dependency build for the local block node chart directory
-    cmds:
-      - cmd: |
-          CHART_PATH="{{.BLOCK_NODE_CHART_DIR}}/block-node-server"
-          if [ -d "$CHART_PATH" ]; then
-            echo "Running helm dependency build in $CHART_PATH..."
-            helm dependency build "$CHART_PATH"
-          else
-            echo "Skipping: $CHART_PATH not found"
-          fi
 
   checkout-mirror-node:
     desc: Checkout the mirror node repository at the version defined in version.ts
@@ -122,7 +97,7 @@ tasks:
               echo ""
             fi
             echo "blockNode:"
-            echo "  --block-node-chart-dir: \"{{.BLOCK_NODE_CHART_DIR}}\""
+            echo "  --chart-version: \"{{.BLOCK_NODE_VERSION}}\""
             echo ""
             if [ "${USE_LOCAL_MIRROR_NODE_CHART}" = "true" ]; then
               echo "mirrorNode:"
@@ -137,12 +112,6 @@ tasks:
     cmds:
       - task: checkout-mirror-node
       - task: build-mirror-node-chart-deps
-
-  setup-local-block-node:
-    desc: Checkout block node repo and build chart deps
-    cmds:
-      - task: checkout-block-node
-      - task: build-block-node-chart-deps
 
   setup-local-build:
     desc: Checkout and build consensus node from source (when USE_LOCAL_BUILD=true)
@@ -178,9 +147,6 @@ tasks:
             echo "USE_LOCAL_BUILD=true: checking out and building consensus node..."
             task setup-local-build
           fi
-
-      # Checkout block node repo and build its chart dependencies
-      - cmd: task setup-local-block-node
 
       # If USE_LOCAL_MIRROR_NODE_CHART is enabled, set up local mirror node chart
       - cmd: |
