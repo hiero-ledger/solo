@@ -230,7 +230,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -256,11 +256,15 @@ jobs:
 
       - name: Install wget
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
-        run: |
-          if ! command -v wget >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y wget
-          fi
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 5
+          command: |
+            if ! command -v wget >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y wget
+            fi
 
       - name: Install Kubectl
         if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true }}
@@ -298,7 +302,7 @@ jobs:
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
-          version: 3.39.2
+          version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
@@ -312,10 +316,6 @@ jobs:
 
       - name: Compile Project
         run: task build:compile
-
-      - name: Pull Kind Docker Image
-        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && inputs.kind-install == true && !cancelled() && !failure() }}
-        run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
@@ -372,7 +372,7 @@ jobs:
             fi
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${EXEC_CG} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
-      - name: Build Block code locally
+      - name: Build Block Code Locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
@@ -410,7 +410,7 @@ jobs:
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         shell: bash
         run: |
-          export PATH="~/.solo/bin:${PATH}"
+          export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
@@ -460,16 +460,16 @@ jobs:
         if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
         shell: bash
         run: |
-          export PATH="~/.solo/bin:${PATH}"
+          export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Log Metrics
         id: log-metrics
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
-          export PATH="~/.solo/bin:${PATH}"
+          export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
           echo "json_log={}" >> $GITHUB_OUTPUT
            
@@ -575,7 +575,7 @@ jobs:
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ inputs.test-script != 'test-e2e-external-database' && steps.log-metrics.outputs.solo_log_dir != '' && !cancelled() }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: solo-${{ inputs.test-script }}.log

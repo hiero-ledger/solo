@@ -69,6 +69,7 @@ export class InjectTokens {
   public static ObjectMapper: symbol = Symbol.for('ObjectMapper');
   public static HelpRenderer: symbol = Symbol.for('HelpRenderer');
   public static Middlewares: symbol = Symbol.for('Middlewares');
+  public static NpmClient: symbol = Symbol.for('NpmClient');
   public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
   public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
   public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
@@ -89,6 +90,7 @@ export class InjectTokens {
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
+  public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
 
   // Command Definitions
