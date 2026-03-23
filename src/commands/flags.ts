@@ -2841,6 +2841,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly parallelDeploy: CommandFlag = {
+    constName: 'parallelDeploy',
+    name: 'parallel-deploy',
+    definition: {
+      describe:
+        'Deploy mirror node, explorer, and relay in parallel during one-shot deployment. When false, mirror node is deployed first and explorer/relay follow sequentially',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3000,6 +3012,7 @@ export class Flags {
     Flags.deployMirrorNode,
     Flags.deployExplorer,
     Flags.deployRelay,
+    Flags.parallelDeploy,
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
