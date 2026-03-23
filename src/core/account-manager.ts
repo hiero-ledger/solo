@@ -23,6 +23,7 @@ import {
   Status,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
+import {proto} from '@hiero-ledger/proto';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import {SoloError} from './errors/solo-error.js';
@@ -1012,6 +1013,7 @@ export class AccountManager {
 
   /**
    * Fetch and prepare address book as a base64 string
+   * @deprecated Use {@link buildAddressBookBase64} instead, which does not require a running consensus node.
    */
   async prepareAddressBookBase64(
     namespace: NamespaceName,
@@ -1035,6 +1037,58 @@ export class AccountManager {
       new FileId(shard, realm, FileId.ADDRESS_BOOK.num),
     );
     return Buffer.from(await query.execute(client)).toString('base64');
+  }
+
+  /**
+   * Build and prepare address book as a base64 string from the k8s node service map.
+   * This method does not require a running consensus node – it reads service metadata
+   * directly from Kubernetes.
+   */
+  public async buildAddressBookBase64(
+    namespace: NamespaceName,
+    clusterReferences: ClusterReferences,
+    deployment: DeploymentName,
+  ): Promise<string> {
+    const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
+      namespace,
+      clusterReferences,
+      deployment,
+    );
+
+    const nodeAddresses: proto.INodeAddress[] = [];
+
+    for (const networkNodeService of networkNodeServicesMap.values()) {
+      if (networkNodeService.accountId === IGNORED_NODE_ACCOUNT_ID) {
+        continue;
+      }
+
+      const accountId: AccountId = AccountId.fromString(networkNodeService.accountId);
+
+      // Build the service endpoint using the external address (FQDN or IP) from the k8s service
+      const serviceEndpoint: proto.IServiceEndpoint = {
+        domainName: networkNodeService.externalAddress,
+        port: networkNodeService.haProxyGrpcPort || constants.GRPC_PORT,
+      };
+
+      nodeAddresses.push({
+        nodeId: Long.fromNumber(networkNodeService.nodeId),
+        nodeAccountId: {
+          shardNum: Long.fromNumber(Number(accountId.shard)),
+          realmNum: Long.fromNumber(Number(accountId.realm)),
+          accountNum: Long.fromNumber(Number(accountId.num)),
+        },
+        serviceEndpoint: [serviceEndpoint],
+        description: networkNodeService.nodeAlias,
+      });
+    }
+
+    this.logger.debug(
+      `Built local address book with ${nodeAddresses.length} nodes for deployment ${deployment} ` +
+        `in namespace ${namespace.name}`,
+    );
+
+    const addressBookBytes: Uint8Array = proto.NodeAddressBook.encode({nodeAddress: nodeAddresses}).finish();
+    return Buffer.from(addressBookBytes).toString('base64');
   }
 
   public async getFileContents(

@@ -605,14 +605,10 @@ export class MirrorNodeCommand extends BaseCommand {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
                 const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-                const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
-                context_.addressBook = await this.accountManager.prepareAddressBookBase64(
+                context_.addressBook = await this.accountManager.buildAddressBookBase64(
                   context_.config.namespace,
                   this.remoteConfig.getClusterRefs(),
                   deployment,
-                  this.configManager.getFlag(flags.operatorId),
-                  this.configManager.getFlag(flags.operatorKey),
-                  portForward,
                 );
                 context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
               },
@@ -759,20 +755,30 @@ export class MirrorNodeCommand extends BaseCommand {
                   exchangeRatesFileIdNumber,
                 );
 
-                const fees: string = await this.accountManager.getFileContents(
-                  namespace,
-                  feesFileIdNumber,
-                  clusterReferences,
-                  deployment,
-                  this.configManager.getFlag<boolean>(flags.forcePortForward),
-                );
-                const exchangeRates: string = await this.accountManager.getFileContents(
-                  namespace,
-                  exchangeRatesFileIdNumber,
-                  clusterReferences,
-                  deployment,
-                  this.configManager.getFlag<boolean>(flags.forcePortForward),
-                );
+                let fees: string;
+                let exchangeRates: string;
+                try {
+                  fees = await this.accountManager.getFileContents(
+                    namespace,
+                    feesFileIdNumber,
+                    clusterReferences,
+                    deployment,
+                    this.configManager.getFlag<boolean>(flags.forcePortForward),
+                  );
+                  exchangeRates = await this.accountManager.getFileContents(
+                    namespace,
+                    exchangeRatesFileIdNumber,
+                    clusterReferences,
+                    deployment,
+                    this.configManager.getFlag<boolean>(flags.forcePortForward),
+                  );
+                } catch (error) {
+                  this.logger.warn(
+                    `Could not fetch fee schedule and exchange rate files from consensus node: ${error.message}. ` +
+                      'Skipping database seeding – the mirror node importer will sync these files once the consensus node is available.',
+                  );
+                  return;
+                }
 
                 const importFeesQuery: string = `
 INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
@@ -992,13 +998,6 @@ END $grant$;`;
 
             const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              deploymentName,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
@@ -1205,13 +1204,6 @@ END $grant$;`;
             config.valuesArg += await this.prepareValuesArg(config);
 
             const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
-
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              deploymentName,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
