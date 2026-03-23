@@ -21,19 +21,27 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {type Duration} from './time/duration.js';
 import {type NodeAddConfigClass} from '../commands/node/config-interfaces/node-add-config-class.js';
 import {type ConsensusNode} from './model/consensus-node.js';
-import {type Optional, type ReleaseNameData} from '../types/index.js';
-import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {
+  type ClusterReferenceName,
+  type ClusterReferences,
+  type Optional,
+  type ReleaseNameData,
+} from '../types/index.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
-import {Flags as flags} from '../commands/flags.js';
+import {Flags, Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
 import {execSync} from 'node:child_process';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import yaml from 'yaml';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../integration/kube/k8.js';
+import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
+import {K8Helper} from '../business/utils/k8-helper.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -616,4 +624,264 @@ export function remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): str
     }
   }
   return rows;
+}
+
+/**
+ * Prepare the values files map for each cluster
+ *
+ * Order of precedence:
+ * 1. Chart's default values file (if chartDirectory is set)
+ * 2. Profile values file
+ * 3. User's values file
+ * @param clusterReferences
+ * @param valuesFileInput - the values file input string
+ * @param chartDirectory - the chart directory
+ * @param profileValuesFile - the profile values file full path
+ */
+export function prepareValuesFilesMap(
+  clusterReferences: ClusterReferences,
+  chartDirectory?: string,
+  profileValuesFile?: string,
+  valuesFileInput?: string,
+): Record<ClusterReferenceName, string> {
+  // initialize the map with an empty array for each cluster-ref
+  const valuesFiles: Record<ClusterReferenceName, string> = {
+    [Flags.KEY_COMMON]: '',
+  };
+  for (const [clusterReference] of clusterReferences) {
+    valuesFiles[clusterReference] = '';
+  }
+
+  // add the chart's default values file for each cluster-ref if chartDirectory is set
+  // this should be the first in the list of values files as it will be overridden by user's input
+  if (chartDirectory) {
+    const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+    for (const clusterReference in valuesFiles) {
+      valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
+    }
+  }
+
+  if (profileValuesFile) {
+    const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(profileValuesFile);
+    for (const [clusterReference, files] of Object.entries(parsed)) {
+      let vf: string = '';
+      for (const file of files) {
+        vf += ` --values ${file}`;
+      }
+
+      if (clusterReference === Flags.KEY_COMMON) {
+        for (const [cf] of Object.entries(valuesFiles)) {
+          valuesFiles[cf] += vf;
+        }
+      } else {
+        valuesFiles[clusterReference] += vf;
+      }
+    }
+  }
+
+  if (valuesFileInput) {
+    const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
+    for (const [clusterReference, files] of Object.entries(parsed)) {
+      let vf: string = '';
+      for (const file of files) {
+        vf += ` --values ${file}`;
+      }
+
+      if (clusterReference === Flags.KEY_COMMON) {
+        for (const [clusterReference_] of Object.entries(valuesFiles)) {
+          valuesFiles[clusterReference_] += vf;
+        }
+      } else {
+        valuesFiles[clusterReference] += vf;
+      }
+    }
+  }
+
+  if (Object.keys(valuesFiles).length > 1) {
+    // delete the common key if there is another cluster to use
+    delete valuesFiles[Flags.KEY_COMMON];
+  }
+
+  return valuesFiles;
+}
+
+/**
+ * Prepare the values files map for each cluster
+ *
+ * Order of precedence:
+ * 1. Chart's default values file (if chartDirectory is set)
+ * 2. Base values files (applied after chart defaults, before the generated profile values file)
+ * 3. Profile values file
+ * 4. User's values file
+ * @param clusterReferences
+ * @param chartDirectory - the chart directory
+ * @param profileValuesFile - mapping of clusterRef to the profile values file full path
+ * @param valuesFileInput - the values file input string
+ * @param baseValuesFiles - optional list of values file paths inserted between chart defaults and profile values
+ */
+export function prepareValuesFilesMapMultipleCluster(
+  clusterReferences: ClusterReferences,
+  chartDirectory?: string,
+  profileValuesFile?: Record<ClusterReferenceName, string>,
+  valuesFileInput?: string,
+  baseValuesFiles?: string[],
+): Record<ClusterReferenceName, string> {
+  // initialize the map with an empty array for each cluster-ref
+  const valuesFiles: Record<ClusterReferenceName, string> = {[Flags.KEY_COMMON]: ''};
+  for (const [clusterReference] of clusterReferences) {
+    valuesFiles[clusterReference] = '';
+  }
+
+  // add the chart's default values file for each cluster-ref if chartDirectory is set
+  // this should be the first in the list of values files as it will be overridden by user's input
+  if (chartDirectory) {
+    const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+    for (const clusterReference in valuesFiles) {
+      valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
+    }
+  }
+
+  // add base values files (e.g. component defaults) after chart defaults but before profile values
+  if (baseValuesFiles) {
+    for (const file of baseValuesFiles) {
+      for (const clusterReference in valuesFiles) {
+        valuesFiles[clusterReference] += ` --values ${file}`;
+      }
+    }
+  }
+
+  if (profileValuesFile) {
+    for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
+      const valuesArgument: string = ` --values ${file}`;
+
+      if (clusterReference === Flags.KEY_COMMON) {
+        for (const clusterReference_ of Object.keys(valuesFiles)) {
+          valuesFiles[clusterReference_] += valuesArgument;
+        }
+      } else {
+        valuesFiles[clusterReference] += valuesArgument;
+      }
+    }
+  }
+
+  if (valuesFileInput) {
+    const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
+    for (const [clusterReference, files] of Object.entries(parsed)) {
+      let vf: string = '';
+      for (const file of files) {
+        vf += ` --values ${file}`;
+      }
+
+      if (clusterReference === Flags.KEY_COMMON) {
+        for (const [clusterReference_] of Object.entries(valuesFiles)) {
+          valuesFiles[clusterReference_] += vf;
+        }
+      } else {
+        valuesFiles[clusterReference] += vf;
+      }
+    }
+  }
+
+  if (Object.keys(valuesFiles).length > 1) {
+    // delete the common key if there is another cluster to use
+    delete valuesFiles[Flags.KEY_COMMON];
+  }
+
+  return valuesFiles;
+}
+
+/**
+ * @param consensusNode - the targeted consensus node
+ * @param logger
+ * @param k8Factory
+ */
+export async function createAndCopyBlockNodeJsonFileForConsensusNode(
+  consensusNode: ConsensusNode,
+  logger: SoloLogger,
+  k8Factory: K8Factory,
+): Promise<void> {
+  const {
+    nodeId,
+    context,
+    name: nodeAlias,
+    blockNodeMap,
+    externalBlockNodeMap,
+    namespace: namespaceNameAsString,
+  } = consensusNode;
+
+  const namespace: NamespaceName = NamespaceName.of(namespaceNameAsString);
+
+  const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
+
+  const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
+  const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+
+  fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+
+  // Check if the file exists before copying
+  if (!fs.existsSync(blockNodesJsonPath)) {
+    logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
+    return;
+  }
+
+  const k8: K8 = k8Factory.getK8(context);
+
+  const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+
+  await container.execContainer('pwd');
+
+  const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+
+  await container.execContainer(`mkdir -p ${targetDirectory}`);
+
+  // Copy the file and rename it to block-nodes.json in the destination
+  await container.copyTo(blockNodesJsonPath, targetDirectory);
+
+  // If using node-specific files, rename the copied file to the standard name
+  const sourceFilename: string = path.basename(blockNodesJsonPath);
+  await container.execContainer(
+    `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
+  );
+
+  const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
+
+  const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+
+  const lines: string[] = applicationPropertiesData.split('\n');
+
+  // Remove line to enable overriding below.
+  for (const line of lines) {
+    if (line === 'blockStream.streamMode=RECORDS') {
+      lines.splice(lines.indexOf(line), 1);
+    }
+  }
+
+  // Switch to block streaming.
+
+  if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
+    lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
+  }
+
+  if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+    lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
+  }
+
+  await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+    ['applicationProperties']: lines.join('\n'),
+    ['application.properties']: lines.join('\n'),
+  });
+
+  const configName: string = `network-${nodeAlias}-data-config-cm`;
+  const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
+
+  await (configMapExists
+    ? k8.configMaps().update(namespace, configName, {'block-nodes.json': blockNodesJsonData})
+    : k8.configMaps().create(namespace, configName, {}, {'block-nodes.json': blockNodesJsonData}));
+
+  logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
+
+  const updatedApplicationPropertiesFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'application.properties');
+
+  fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
+  await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
 }
