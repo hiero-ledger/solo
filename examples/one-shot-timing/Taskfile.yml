@@ -18,8 +18,9 @@ vars:
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
 
-  # Consensus node version for local build
-  CN_VERSION: "v0.72.0"
+  # Consensus node version for local build (prefer env var, fall back to version.ts)
+  CN_VERSION:
+    sh: echo "${CONSENSUS_NODE_VERSION:-$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' ../../version.ts)}"
 
   # Block node chart version to deploy
   BLOCK_NODE_VERSION: "0.29.0"
@@ -55,9 +56,12 @@ tasks:
     desc: Build the Hiero consensus node from source (requires Java 21 and Gradle)
     cmds:
       - cmd: |
+          LOG_FILE="/tmp/consensus-node-build.log"
           echo "Building consensus node from source at {{.CN_REPO_DIR}} for version {{.CN_VERSION}}..."
+          echo "Build log: $LOG_FILE"
           cd {{.CN_REPO_DIR}}
-          ./gradlew assemble --stacktrace --info
+          ./gradlew assemble --stacktrace --info > "$LOG_FILE" 2>&1 || { echo "Build failed. Last 100 lines of $LOG_FILE:"; tail -100 "$LOG_FILE"; exit 1; }
+          echo "Build complete."
 
   checkout-mirror-node:
     desc: Checkout the mirror node repository at the version defined in version.ts
