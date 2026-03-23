@@ -34,6 +34,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
 jobs:
   gcs-storage-test:
     name: "GCS Storage Test - ${{ matrix.storageType }}"
@@ -48,6 +51,7 @@ jobs:
     steps:
       - name: Check if job should be skipped
         id: check
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
             echo "run=false" >> $GITHUB_OUTPUT
@@ -56,37 +60,43 @@ jobs:
           fi
 
       - name: Harden Runner
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Authenticate to Google Cloud
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         id: google-auth
         uses: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Get Current Job Log URL
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: jobs
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           job_name: "GCS Storage Test - ${{ matrix.storageType }}"
 
       - name: Create Bucket Name and Prefix
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           export BUCKET_NAME="solo-ci-test-streams"
           export PREFIX=${{ steps.jobs.outputs.job_id }}
@@ -98,36 +108,41 @@ jobs:
           echo "BACKUP_BUCKET_NAME=${BACKUP_BUCKET_NAME}" >> $GITHUB_ENV
 
       - name: Setup Node
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 22
           cache: npm
 
       - name: Configure npm registry
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install Task
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Dependencies
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         id: npm-deps
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           npm ci
           npm install -g @hashgraph/solo
 
       - name: Compile Project
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         env:
           GCS_ACCESS_KEY: ${{ secrets.GCP_S3_ACCESS_KEY }}
           GCS_SECRET_KEY: ${{ secrets.GCP_S3_SECRET_KEY }}
@@ -146,8 +161,9 @@ jobs:
           fi
 
       - name: Upload Logs to GitHub
-        if: ${{ steps.check.outputs.run == 'true' && always() }}
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs-${{ matrix.storageType }}
           path: ~/.solo/logs/*
@@ -157,6 +173,7 @@ jobs:
         # Always attempt cleanup for object-store test modes, even if prior steps failed.
         if: ${{ steps.check.outputs.run == 'true' && always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only') }}
         continue-on-error: true
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           PROJECT_ID="${{ vars.GCP_S3_PROJECT_ID }}"
           JOB_PREFIX="${{ steps.jobs.outputs.job_id }}"
