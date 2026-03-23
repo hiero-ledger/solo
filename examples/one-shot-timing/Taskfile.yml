@@ -1,0 +1,147 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+  ONE_SHOT_WITH_BLOCK_NODE: "true"
+  # Set USE_LOCAL_MIRROR_NODE_CHART=true to check out the mirror node repo and use its local chart
+  USE_LOCAL_MIRROR_NODE_CHART: "false"
+
+vars:
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+
+  # Mirror node version read from version.ts
+  MIRROR_NODE_VERSION:
+    sh: awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' ../../version.ts
+
+  # Local mirror node repository directory (cloned next to the solo repo)
+  MIRROR_NODE_REPO_DIR: "{{.ROOT_DIR}}/../hiero-mirror-node"
+
+  # Local chart path inside the cloned mirror node repo
+  MIRROR_NODE_CHART_DIR: "{{.MIRROR_NODE_REPO_DIR}}/charts"
+
+  # Runtime values file generated when USE_LOCAL_MIRROR_NODE_CHART=true
+  RUNTIME_VALUES_FILE: "/tmp/one-shot-timing-runtime-values.yaml"
+
+tasks:
+  checkout-mirror-node:
+    desc: Checkout the mirror node repository at the version defined in version.ts
+    cmds:
+      - cmd: |
+          if [ ! -d "{{.MIRROR_NODE_REPO_DIR}}" ]; then
+            git clone https://github.com/hiero-ledger/hiero-mirror-node.git \
+              --depth 1 --branch {{.MIRROR_NODE_VERSION}} {{.MIRROR_NODE_REPO_DIR}}
+          else
+            echo "Skipping clone: {{.MIRROR_NODE_REPO_DIR}} already exists"
+          fi
+
+  build-mirror-node-chart-deps:
+    desc: Run helm dependency build for the local mirror node chart directory
+    cmds:
+      - cmd: |
+          CHART_PATH="{{.MIRROR_NODE_CHART_DIR}}/hedera-mirror"
+          if [ -d "$CHART_PATH" ]; then
+            echo "Running helm dependency build in $CHART_PATH..."
+            helm dependency build "$CHART_PATH"
+          else
+            echo "Skipping: $CHART_PATH not found"
+          fi
+
+  generate-values:
+    desc: Generate a runtime values YAML file with the local mirror node chart path
+    cmds:
+      - cmd: |
+          {
+            echo "mirrorNode:"
+            echo "  --mirror-node-chart-dir: \"{{.MIRROR_NODE_CHART_DIR}}\""
+          } > {{.RUNTIME_VALUES_FILE}}
+          echo "Generated runtime values file at {{.RUNTIME_VALUES_FILE}}:"
+          cat {{.RUNTIME_VALUES_FILE}}
+
+  setup-local-mirror-node:
+    desc: Checkout mirror node repo, build chart deps, and generate values file (when USE_LOCAL_MIRROR_NODE_CHART=true)
+    cmds:
+      - task: checkout-mirror-node
+      - task: build-mirror-node-chart-deps
+      - task: generate-values
+
+  cold-start:
+    desc: Measure cold start time for solo one-shot single deploy
+    cmds:
+      # if using released version of Solo, make sure to run from solo project root directory
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            cd ../../solo || exit 1
+          else
+            echo "Skipping cd - using development version"
+          fi
+
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # If USE_LOCAL_MIRROR_NODE_CHART is enabled, set up local mirror node chart
+      - cmd: |
+          if [ "${USE_LOCAL_MIRROR_NODE_CHART}" = "true" ]; then
+            echo "USE_LOCAL_MIRROR_NODE_CHART=true: setting up local mirror node chart..."
+            task setup-local-mirror-node
+          else
+            echo "USE_LOCAL_MIRROR_NODE_CHART=false: using published mirror node chart"
+          fi
+
+      # Measure cold start time: deploy for the first time (no cached Docker images)
+      - cmd: |
+          echo "==== Cold Start: Measuring solo one-shot single deploy time ===="
+          if [ "${USE_LOCAL_MIRROR_NODE_CHART}" = "true" ]; then
+            time $SOLO_COMMAND one-shot single deploy --values-file {{.RUNTIME_VALUES_FILE}}
+          else
+            time $SOLO_COMMAND one-shot single deploy
+          fi
+          echo "==== Cold start complete ===="
+
+  destroy:
+    desc: Destroy the Solo one-shot single deployment
+    cmds:
+      - cmd: |
+          echo "==== Destroying one-shot single deployment ===="
+          $SOLO_COMMAND one-shot single destroy
+
+  warm-start:
+    desc: Measure warm start time for solo one-shot single deploy (Docker images already cached)
+    cmds:
+      # Measure warm start time: redeploy after destroy (Docker images are already cached locally)
+      - cmd: |
+          echo "==== Warm Start: Measuring solo one-shot single deploy time ===="
+          if [ "${USE_LOCAL_MIRROR_NODE_CHART}" = "true" ]; then
+            time $SOLO_COMMAND one-shot single deploy --values-file {{.RUNTIME_VALUES_FILE}}
+          else
+            time $SOLO_COMMAND one-shot single deploy
+          fi
+          echo "==== Warm start complete ===="
+
+  test:
+    desc: Measure cold and warm start times for one-shot single deploy
+    cmds:
+      # Cold start: deploy with no cached images
+      - task: cold-start
+      # Destroy the deployment
+      - task: destroy
+      # Warm start: redeploy with cached images
+      - task: warm-start
+      # Final cleanup
+      - task: destroy
+
+  default:
+    desc: Measure cold and warm start times for one-shot single deploy
+    cmds:
+      - task: test
