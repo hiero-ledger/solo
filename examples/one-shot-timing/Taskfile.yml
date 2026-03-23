@@ -10,7 +10,7 @@ env:
       fi
   ONE_SHOT_WITH_BLOCK_NODE: "true"
   # Set USE_LOCAL_MIRROR_NODE_CHART=true to check out the mirror node repo and use its local chart
-  USE_LOCAL_MIRROR_NODE_CHART: "false"
+  USE_LOCAL_MIRROR_NODE_CHART: "true"
 
 vars:
   ROOT_DIR:
@@ -138,8 +138,6 @@ tasks:
       - task: destroy
       # Warm start: redeploy with cached images
       - task: warm-start
-      # Final cleanup
-      - task: destroy
 
   default:
     desc: Measure cold and warm start times for one-shot single deploy
