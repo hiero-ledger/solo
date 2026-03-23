@@ -3,36 +3,34 @@
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 import fs from 'node:fs';
+import {ComponentUpgradeMigrationRules} from '../../../../src/commands/migrations/component-upgrade-rules.js';
 import {
-  planComponentUpgradeMigrationPath,
-  resetUpgradeMigrationConfigCache,
   type ComponentUpgradeMigrationConfigFile,
   type ComponentUpgradeMigrationStep,
-} from '../../../../src/commands/migrations/component-upgrade-rules.js';
+} from '../../../../src/commands/migrations/component-upgrade-rules-types.js';
 import * as constants from '../../../../src/core/constants.js';
 import sinon from 'sinon';
 
-describe('planComponentUpgradeMigrationPath', (): void => {
+describe('ComponentUpgradeMigrationRules.planUpgradeMigrationPath', (): void => {
   let existsSyncStub: sinon.SinonStub;
   let readFileSyncStub: sinon.SinonStub;
 
   beforeEach((): void => {
-    resetUpgradeMigrationConfigCache();
+    ComponentUpgradeMigrationRules.resetCache();
     existsSyncStub = sinon.stub(fs, 'existsSync');
     readFileSyncStub = sinon.stub(fs, 'readFileSync');
-    existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(false);
     existsSyncStub.callThrough();
     readFileSyncStub.callThrough();
   });
 
   afterEach((): void => {
-    resetUpgradeMigrationConfigCache();
+    ComponentUpgradeMigrationRules.resetCache();
     sinon.restore();
   });
 
   describe('same version (no-op upgrade)', (): void => {
     it('returns a single in-place step for same version', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.27.0',
         '0.27.0',
@@ -47,7 +45,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
   describe('downgrade (no forward boundary crossing)', (): void => {
     it('returns a single in-place step when downgrading', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.1',
         '0.27.0',
@@ -62,7 +60,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
   describe('upgrade not crossing a boundary', (): void => {
     it('returns a single in-place step when already past the 0.28.1 boundary', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.1',
         '0.29.0',
@@ -75,7 +73,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     });
 
     it('returns a single in-place step for a larger upgrade already past 0.28.1', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.1',
         '0.35.0',
@@ -90,7 +88,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
   describe('upgrade crossing the 0.28.1 boundary', (): void => {
     it('returns a single recreate step when upgrading from below to exactly 0.28.1', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1',
@@ -103,7 +101,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     });
 
     it('returns a single recreate step going directly to target when crossing 0.28.1', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.35.0',
@@ -129,7 +127,11 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('block-node', '0.9.0', '1.0.0');
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+        'block-node',
+        '0.9.0',
+        '1.0.0',
+      );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
@@ -149,7 +151,11 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('block-node', '0.9.0', '1.5.0');
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+        'block-node',
+        '0.9.0',
+        '1.5.0',
+      );
 
       expect(steps).to.have.length(1);
       expect(steps[0].strategy).to.equal('recreate');
@@ -173,7 +179,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'multi-boundary',
         '1.0.0',
         '4.0.0',
@@ -204,7 +210,11 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('merge-test', '1.0.0', '4.0.0');
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+        'merge-test',
+        '1.0.0',
+        '4.0.0',
+      );
 
       // Both recreate boundaries should merge into a single step jumping to the target
       expect(steps).to.have.length(1);
@@ -230,7 +240,11 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('alternating', '1.0.0', '5.0.0');
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+        'alternating',
+        '1.0.0',
+        '5.0.0',
+      );
 
       // 3 distinct strategy segments: recreate → in-place → recreate
       expect(steps).to.have.length(3);
@@ -256,7 +270,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
       // Upgrading 1.0→3.0 only crosses 2.0, not 5.0
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'partial-cross',
         '1.0.0',
         '3.0.0',
@@ -271,7 +285,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
   describe('unknown component', (): void => {
     it('returns a single in-place step with default strategy for unknown component', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'unknown-component',
         '1.0.0',
         '2.0.0',
@@ -304,7 +318,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'my-component',
         '1.0.0',
         '2.0.0',
@@ -316,40 +330,40 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       expect(steps[0].toVersion).to.equal('2.0.0');
     });
 
-    it('falls back to default config if the file has invalid JSON', (): void => {
+    it('falls back to safe empty config if the file has invalid JSON', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns('not valid json');
 
-      // Falls back to block-node defaults: 0.28.0→0.28.1 crosses the 0.28.1 recreate boundary
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      // Falls back to the safe empty config, so the upgrade uses the default in-place strategy.
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1',
       );
 
       expect(steps).to.have.length(1);
-      expect(steps[0].strategy).to.equal('recreate');
+      expect(steps[0].strategy).to.equal('in-place');
     });
 
-    it('falls back to default config if the file is missing the components field', (): void => {
+    it('falls back to safe empty config if the file is missing the components field', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify({notComponents: {}}));
 
-      // Falls back to block-node defaults: 0.28.0→0.28.1 crosses the 0.28.1 recreate boundary
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      // Falls back to the safe empty config, so the upgrade uses the default in-place strategy.
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1',
       );
 
       expect(steps).to.have.length(1);
-      expect(steps[0].strategy).to.equal('recreate');
+      expect(steps[0].strategy).to.equal('in-place');
     });
   });
 
   describe('step metadata', (): void => {
     it('includes reason text in migration steps', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1',
@@ -359,7 +373,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     });
 
     it('includes extraCommandArgs array in migration steps', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1',
@@ -388,7 +402,11 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath('args-test', '1.0.0', '3.0.0');
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+        'args-test',
+        '1.0.0',
+        '3.0.0',
+      );
 
       expect(steps[0].extraCommandArgs).to.deep.equal(['--set', 'migration.enabled=true']);
     });
@@ -407,7 +425,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'default-args-test',
         '1.0.0',
         '2.0.0',
@@ -419,7 +437,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
   describe('version normalization', (): void => {
     it('handles versions with v prefix', (): void => {
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         'v0.28.0',
         'v0.28.1',
@@ -434,7 +452,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
 
     it('handles pre-release versions correctly', (): void => {
       // 0.28.1-rc.1 < 0.28.1 in semver, so the boundary at 0.28.1 is NOT crossed
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.28.1-rc.1',
@@ -459,7 +477,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'recreate-default',
         '1.0.0',
         '2.0.0',
@@ -482,7 +500,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(true);
       readFileSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE, 'utf8').returns(JSON.stringify(customConfig));
 
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'recreate-default',
         '2.0.0',
         '1.0.0',
@@ -499,9 +517,9 @@ describe('planComponentUpgradeMigrationPath', (): void => {
       existsSyncStub.withArgs(constants.UPGRADE_MIGRATIONS_FILE).returns(false);
 
       // First call loads and caches the default config
-      planComponentUpgradeMigrationPath('block-node', '0.27.0', '0.28.0');
+      ComponentUpgradeMigrationRules.planUpgradeMigrationPath('block-node', '0.27.0', '0.28.0');
       // Second call should use cached config
-      planComponentUpgradeMigrationPath('block-node', '0.27.0', '0.28.0');
+      ComponentUpgradeMigrationRules.planUpgradeMigrationPath('block-node', '0.27.0', '0.28.0');
 
       // existsSync should only be called once for the migration file
       const migrationFileCalls: sinon.SinonSpyCall[] = existsSyncStub
@@ -515,7 +533,7 @@ describe('planComponentUpgradeMigrationPath', (): void => {
     it('does not apply boundary rules when downgrading across a boundary version', (): void => {
       // Downgrading from 0.28.1 to 0.26.0 crosses the 0.28.0 boundary backwards,
       // but boundaries only apply to forward upgrades
-      const steps: ComponentUpgradeMigrationStep[] = planComponentUpgradeMigrationPath(
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.1',
         '0.26.0',

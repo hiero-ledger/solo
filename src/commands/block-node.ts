@@ -44,7 +44,7 @@ import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 import {
-  planComponentUpgradeMigrationPath,
+  ComponentUpgradeMigrationRules,
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
 
@@ -1154,7 +1154,7 @@ export class BlockNodeCommand extends BaseCommand {
       'Target block node chart version',
     );
 
-    return planComponentUpgradeMigrationPath(
+    return ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
       BlockNodeCommand.MIGRATION_COMPONENT_KEY,
       normalizedCurrentVersion,
       normalizedTargetVersion,
