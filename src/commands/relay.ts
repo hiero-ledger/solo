@@ -435,6 +435,32 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
+  private checkMirrorNodeIsRunningTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check Mirror Node is running',
+      skip: (): boolean => !this.oneShotState.isActive(),
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        try {
+          const mirrorNodeId: ComponentId = this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
+
+          await this.k8Factory
+            .getK8(config.context)
+            .pods()
+            .waitForRunningPhase(
+              config.namespace,
+              Templates.renderMirrorNodeLabels(mirrorNodeId),
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+            );
+        } catch (error) {
+          throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
+        }
+        // reset nodeAlias
+        this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+      },
+    };
+  }
+
   private checkRelayIsReadyTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check relay is ready',
@@ -497,44 +523,6 @@ export class RelayCommand extends BaseCommand {
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    // In one-shot mode, relay and explorer tasks run concurrently and share the same listr2 context.
-    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
-    // This closure variable preserves the relay's config independently of the shared context.
-    let deployConfig: RelayDeployConfigClass;
-
-    // Wraps a task definition to restore the correct config on the shared context before
-    // the task or skip function executes, preventing context collision in concurrent execution.
-    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
-      taskDefinition: SoloListrTask<AnyListrContext>,
-    ): SoloListrTask<AnyListrContext> => {
-      if (!this.oneShotState.isActive()) {
-        return taskDefinition;
-      }
-      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
-      if (wrapped.task) {
-        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
-        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
-          if (deployConfig) {
-            context_.config = deployConfig;
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (originalTask as (...arguments_: any[]) => any)(context_, task);
-        };
-      }
-      if (typeof wrapped.skip === 'function') {
-        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
-        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
-          if (deployConfig) {
-            context_.config = deployConfig;
-          }
-          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
-            context_,
-          );
-        };
-      }
-      return wrapped;
-    };
-
     const tasks: SoloListr<RelayDeployContext> = this.taskList.newTaskList<RelayDeployContext>(
       [
         {
@@ -567,7 +555,6 @@ export class RelayCommand extends BaseCommand {
             ) as RelayDeployConfigClass;
 
             context_.config = config;
-            deployConfig = config;
 
             config.isLegacyChartInstalled = false;
 
@@ -610,20 +597,21 @@ export class RelayCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        restoreConfig(this.checkChartIsInstalledTask()),
-        restoreConfig(this.prepareChartValuesTask()),
-        restoreConfig(this.deployJsonRpcRelayTask(RelayCommandType.ADD)),
-        restoreConfig(this.checkRelayIsRunningTask()),
-        restoreConfig(this.checkRelayIsReadyTask()),
-        restoreConfig(this.addRelayComponent()),
-        restoreConfig(this.enablePortForwardingTask()),
-        // TODO only show this if we are not running in one-shot mode
-        // {
-        //   title: 'Show user messages',
-        //   task: (): void => {
-        //     this.logger.showAllMessageGroups();
-        //   },
-        // },
+        this.checkChartIsInstalledTask(),
+        this.prepareChartValuesTask(),
+        this.deployJsonRpcRelayTask(RelayCommandType.ADD),
+        this.checkMirrorNodeIsRunningTask(),
+        this.checkRelayIsRunningTask(),
+        this.checkRelayIsReadyTask(),
+        this.addRelayComponent(),
+        this.enablePortForwardingTask(),
+        {
+          title: 'Show user messages',
+          skip: (): boolean => this.oneShotState.isActive(),
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -763,44 +751,6 @@ export class RelayCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    // In one-shot mode, explorer and relay destroy tasks run concurrently and share the same listr2 context.
-    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
-    // This closure variable preserves the relay's config independently of the shared context.
-    let destroyConfig: RelayDestroyConfigClass;
-
-    // Wraps a task definition to restore the correct config on the shared context before
-    // the task or skip function executes, preventing context collision in concurrent execution.
-    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
-      taskDefinition: SoloListrTask<AnyListrContext>,
-    ): SoloListrTask<AnyListrContext> => {
-      if (!this.oneShotState.isActive()) {
-        return taskDefinition;
-      }
-      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
-      if (wrapped.task) {
-        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
-        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
-          if (destroyConfig) {
-            context_.config = destroyConfig;
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (originalTask as (...arguments_: any[]) => any)(context_, task);
-        };
-      }
-      if (typeof wrapped.skip === 'function') {
-        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
-        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
-          if (destroyConfig) {
-            context_.config = destroyConfig;
-          }
-          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
-            context_,
-          );
-        };
-      }
-      return wrapped;
-    };
-
     const tasks: SoloListr<RelayDestroyContext> = this.taskList.newTaskList<RelayDestroyContext>(
       [
         {
@@ -847,7 +797,6 @@ export class RelayCommand extends BaseCommand {
             };
 
             context_.config = config;
-            destroyConfig = config;
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -855,7 +804,7 @@ export class RelayCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        restoreConfig({
+        {
           title: 'Destroy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
@@ -869,8 +818,8 @@ export class RelayCommand extends BaseCommand {
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
-        }),
-        restoreConfig(this.disableRelayComponent()),
+        },
+        this.disableRelayComponent(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -902,7 +851,8 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: ({config}): boolean => !this.remoteConfig.isLoaded() || config.isChartInstalled,
+      skip: ({config}): boolean =>
+        !this.remoteConfig.isLoaded() || config.isChartInstalled || this.oneShotState.isActive(),
       task: async ({config}): Promise<void> => {
         const {namespace, nodeAliases, clusterRef} = config;
 

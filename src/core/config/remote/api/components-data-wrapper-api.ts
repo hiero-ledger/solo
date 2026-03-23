@@ -14,7 +14,7 @@ export interface ComponentsDataWrapperApi {
   state: DeploymentStateSchema;
   componentIds: ComponentIdsStructure;
 
-  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void;
+  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean, skipIncrement?: boolean): void;
 
   changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void;
 
@@ -31,6 +31,10 @@ export interface ComponentsDataWrapperApi {
 
   getComponentById<T extends BaseStateSchema>(type: ComponentTypes, id: number): T;
 
+  /**
+   * When running in one-shot mode components are pre-created so we -1 the new component ID
+   * @param componentType
+   */
   getNewComponentId(componentType: ComponentTypes): number;
 
   managePortForward(

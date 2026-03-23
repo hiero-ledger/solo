@@ -26,7 +26,12 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void {
+  public addNewComponent(
+    component: BaseStateSchema,
+    type: ComponentTypes,
+    isReplace?: boolean,
+    skipIncrement: boolean = false,
+  ): void {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number') {
@@ -46,8 +51,10 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
 
-    // Increment the component id counter for the specified type when adding
-    this.componentIds[type] += 1;
+    if (!skipIncrement) {
+      // Increment the component id counter for the specified type when adding
+      this.componentIds[type] += 1;
+    }
   }
 
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {

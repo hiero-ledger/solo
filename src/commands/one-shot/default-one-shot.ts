@@ -5,7 +5,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
-import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
+import {type AnyListrContext, AnyObject, type ArgvStruct, NodeId} from '../../types/aliases.js';
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -62,6 +62,12 @@ import {type Lock} from '../../core/lock/lock.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
 import {NoKubeConfigContextError} from '../../business/runtime-state/errors/no-kube-config-context-error.js';
+import {RelayNodeStateSchema} from '../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
+import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
+import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
+import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -241,7 +247,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Acquire deployment lock',
             task: async (
-              context_: OneShotSingleDeployContext,
+              _: OneShotSingleDeployContext,
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               oneShotLease = await this.leaseManager.create();
@@ -251,7 +257,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Check for other deployments',
             task: async (
-              context_: OneShotSingleDeployContext,
+              _: OneShotSingleDeployContext,
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<void> => {
               const existingRemoteConfigs: ConfigMap[] = await this.k8Factory
@@ -360,22 +366,89 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
             this.taskList,
           ),
-          invokeSoloCommand(
-            `solo ${BlockCommandDefinition.ADD_COMMAND}`,
-            BlockCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              this.appendConfigToArgv(argv, config.blockNodeConfiguration);
-              return argvPushGlobalFlags(argv);
+          {
+            title: 'Create remote config components',
+            task: async (): Promise<void> => {
+              // Pre add remote config components to remote config
+
+              if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
+                // Add Block Node
+                const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
+                  config.clusterRef,
+                  config.namespace,
+                );
+
+                blockNode.metadata.phase = DeploymentPhase.REQUESTED;
+
+                this.remoteConfig.configuration.components.addNewComponent(
+                  blockNode,
+                  ComponentTypes.BlockNode,
+                  false,
+                  true,
+                );
+              }
+
+              // Add Explorer
+              if (config.deployExplorer) {
+                const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
+                  config.clusterRef,
+                  config.namespace,
+                );
+
+                explorer.metadata.phase = DeploymentPhase.REQUESTED;
+
+                this.remoteConfig.configuration.components.addNewComponent(
+                  explorer,
+                  ComponentTypes.Explorer,
+                  false,
+                  true,
+                );
+              }
+
+              // Add Mirror Node
+              if (config.deployMirrorNode) {
+                const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
+                  config.clusterRef,
+                  config.namespace,
+                );
+
+                mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
+
+                this.remoteConfig.configuration.components.addNewComponent(
+                  mirrorNode,
+                  ComponentTypes.MirrorNode,
+                  false,
+                  true,
+                );
+              }
+
+              // Add Relay
+              if (config.deployRelay) {
+                const nodeIds: NodeId[] = [];
+
+                for (const alias of Templates.renderNodeAliasesFromCount(config.numberOfConsensusNodes, 0)) {
+                  nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
+                }
+
+                const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
+                  config.clusterRef,
+                  config.namespace,
+                  nodeIds,
+                );
+
+                relay.metadata.phase = DeploymentPhase.REQUESTED;
+
+                this.remoteConfig.configuration.components.addNewComponent(
+                  relay,
+                  ComponentTypes.RelayNodes,
+                  false,
+                  true,
+                );
+              }
+
+              await this.remoteConfig.persist();
             },
-            this.taskList,
-            (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
-          ),
+          },
           invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
             ConsensusCommandDefinition.DEPLOY_COMMAND,
@@ -426,16 +499,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Deploy components and create accounts',
             task: async (
-              context_: OneShotSingleDeployContext,
+              _: OneShotSingleDeployContext,
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               return task.newListr(
                 [
-                  // Pipeline A: mirror → (explorer || relay)
                   {
                     title: 'Deploy mirror node and extensions',
                     task: async (
-                      context_: OneShotSingleDeployContext,
+                      _: OneShotSingleDeployContext,
                       task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
                     ): Promise<Listr<OneShotSingleDeployContext>> => {
                       return task.newListr(
@@ -460,67 +532,65 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             this.taskList,
                             (): boolean => !config.deployMirrorNode,
                           ),
-                          {
-                            title: 'Extended setup',
-                            task: async (
-                              context_: OneShotSingleDeployContext,
-                              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                            ): Promise<Listr<OneShotSingleDeployContext>> => {
-                              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
-                                invokeSoloCommand(
-                                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-                                  ExplorerCommandDefinition.ADD_COMMAND,
-                                  (): string[] => {
-                                    const argv: string[] = newArgv();
-                                    argv.push(
-                                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                                      optionFromFlag(Flags.deployment),
-                                      config.deployment,
-                                      optionFromFlag(Flags.clusterRef),
-                                      config.clusterRef,
-                                      optionFromFlag(Flags.explorerVersion),
-                                      version.EXPLORER_VERSION,
-                                    );
-                                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-                                    return argvPushGlobalFlags(argv, config.cacheDir);
-                                  },
-                                  this.taskList,
-                                  (): boolean => !config.deployExplorer,
-                                ),
-                                invokeSoloCommand(
-                                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                                  RelayCommandDefinition.ADD_COMMAND,
-                                  (): string[] => {
-                                    const argv: string[] = newArgv();
-                                    argv.push(
-                                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                                      optionFromFlag(Flags.deployment),
-                                      config.deployment,
-                                      optionFromFlag(Flags.clusterRef),
-                                      config.clusterRef,
-                                      optionFromFlag(Flags.nodeAliasesUnparsed),
-                                      'node1',
-                                    );
-                                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
-                                    return argvPushGlobalFlags(argv);
-                                  },
-                                  this.taskList,
-                                  (): boolean => !config.deployRelay,
-                                ),
-                              ];
-
-                              return task.newListr(subTasks, {
-                                concurrent: true,
-                                rendererOptions: {
-                                  collapseSubtasks: false,
-                                },
-                              });
+                          invokeSoloCommand(
+                            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                            ExplorerCommandDefinition.ADD_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                                optionFromFlag(Flags.clusterRef),
+                                config.clusterRef,
+                                optionFromFlag(Flags.explorerVersion),
+                                version.EXPLORER_VERSION,
+                              );
+                              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+                              return argvPushGlobalFlags(argv, config.cacheDir);
                             },
-                            skip: (): boolean => config.minimalSetup,
-                          },
+                            this.taskList,
+                            (): boolean => !config.deployExplorer || config.minimalSetup,
+                          ),
+                          invokeSoloCommand(
+                            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                            RelayCommandDefinition.ADD_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                                optionFromFlag(Flags.clusterRef),
+                                config.clusterRef,
+                                optionFromFlag(Flags.nodeAliasesUnparsed),
+                                'node1',
+                              );
+                              this.appendConfigToArgv(argv, config.relayNodeConfiguration);
+                              return argvPushGlobalFlags(argv);
+                            },
+                            this.taskList,
+                            (): boolean => !config.deployRelay || config.minimalSetup,
+                          ),
+                          invokeSoloCommand(
+                            `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+                            BlockCommandDefinition.ADD_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                              );
+                              this.appendConfigToArgv(argv, config.blockNodeConfiguration);
+                              return argvPushGlobalFlags(argv);
+                            },
+                            this.taskList,
+                            (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+                          ),
                         ],
                         {
-                          concurrent: false,
+                          concurrent: true,
                           rendererOptions: {
                             collapseSubtasks: false,
                           },

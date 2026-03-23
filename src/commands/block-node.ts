@@ -1066,7 +1066,7 @@ export class BlockNodeCommand extends BaseCommand {
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Add block node component in remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded() || this.oneShotState.isActive(),
       task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
           config.newBlockNodeComponent,

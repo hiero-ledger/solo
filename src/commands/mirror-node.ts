@@ -171,6 +171,12 @@ interface MirrorNodeDestroyContext {
   config: MirrorNodeDestroyConfigClass;
 }
 
+enum MirrorNodeCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
+}
+
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager) {
@@ -470,7 +476,10 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): Promise<void> {
+  private async deployMirrorNode(
+    {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
+    commandType: MirrorNodeCommandType,
+  ): Promise<void> {
     if (
       config.isChartInstalled &&
       semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
@@ -500,9 +509,13 @@ export class MirrorNodeCommand extends BaseCommand {
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
     const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
-    const shouldReuseValues: boolean = currentVersion
+    let shouldReuseValues: boolean = currentVersion
       ? semver.gt(currentVersion, constants.MIRROR_NODE_VERSION_BOUNDARY)
       : false; // If no current version (first install), don't reuse values
+
+    if (commandType === MirrorNodeCommandType.ADD) {
+      shouldReuseValues = false;
+    }
 
     await this.chartManager.upgrade(
       config.namespace,
@@ -595,7 +608,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
-  private enableMirrorNodeTask(): SoloListrTask<AnyListrContext> {
+  private enableMirrorNodeTask(commandType: MirrorNodeCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
       task: (_, parentTask): SoloListr<AnyListrContext> =>
@@ -652,7 +665,7 @@ export class MirrorNodeCommand extends BaseCommand {
             {
               title: 'Deploy mirror-node',
               task: async (context_): Promise<void> => {
-                await this.deployMirrorNode(context_);
+                await this.deployMirrorNode(context_, commandType);
               },
             },
           ],
@@ -1103,18 +1116,18 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.enableMirrorNodeTask(),
+        this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
         this.addMirrorNodeComponents(),
         this.enablePortForwardingTask(),
-        // TODO only show this if we are not running in one-shot mode
-        // {
-        //   title: 'Show user messages',
-        //   task: (): void => {
-        //     this.logger.showAllMessageGroups();
-        //   },
-        // },
+        {
+          title: 'Show user messages',
+          skip: (): boolean => this.oneShotState.isActive(),
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1317,7 +1330,7 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        this.enableMirrorNodeTask(),
+        this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
@@ -1560,7 +1573,7 @@ END $grant$;`;
     return {
       title: 'Add mirror node to remote config',
       skip: (context_): boolean => {
-        return !this.remoteConfig.isLoaded() || context_.config.isChartInstalled;
+        return !this.remoteConfig.isLoaded() || context_.config.isChartInstalled || this.oneShotState.isActive();
       },
       task: async (context_): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(

@@ -43,6 +43,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     );
   }
 
+  private static skipRequestedConditionCallback(component: BaseStateSchema): boolean {
+    return component.metadata.phase === DeploymentPhase.REQUESTED;
+  }
+
   public static componentValidationsMapping: Record<
     string,
     {
@@ -56,6 +60,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Relay Nodes',
       getLabelsCallback: Templates.renderRelayLabels,
       legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
+      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
     },
     haProxies: {
       displayName: 'HaProxy',
@@ -65,6 +70,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Mirror Node',
       getLabelsCallback: Templates.renderMirrorNodeLabels,
       legacyReleaseName: constants.MIRROR_NODE_RELEASE_NAME,
+      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
     },
     envoyProxies: {
       displayName: 'Envoy Proxy',
@@ -74,6 +80,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Explorer',
       getLabelsCallback: Templates.renderExplorerLabels,
       legacyReleaseName: 'hiero-explorer',
+      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
     },
     consensusNodes: {
       displayName: 'Consensus Node',
@@ -84,6 +91,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Block Node',
       getLabelsCallback: Templates.renderBlockNodeLabels,
       legacyReleaseName: `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
+      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
     },
   };
 
