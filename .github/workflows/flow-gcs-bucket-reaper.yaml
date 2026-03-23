@@ -1,0 +1,60 @@
+name: "Cron: GCS Bucket Reaper"
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      retention-hours:
+        description: "Delete prefixes with latest activity older than this many hours"
+        required: false
+        type: string
+        default: "24"
+      dry-run:
+        description: "If true, only log what would be deleted"
+        required: false
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  REAPER_SCRIPT: ${{ github.workspace }}/.github/workflows/script/gcs_bucket_reaper.sh
+
+jobs:
+  gcs-bucket-reaper:
+    name: "Reap stale CI bucket prefixes"
+    runs-on: hiero-solo-linux-medium
+    timeout-minutes: 20
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
+        with:
+          workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
+          service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Reap stale objects in CI buckets
+        env:
+          GCP_S3_PROJECT_ID: ${{ vars.GCP_S3_PROJECT_ID }}
+          REAPER_RETENTION_HOURS: ${{ inputs['retention-hours'] || '24' }}
+          DRY_RUN: ${{ inputs['dry-run'] && 'true' || 'false' }}
+        run: |
+          chmod +x "${REAPER_SCRIPT}"
+          bash "${REAPER_SCRIPT}"
