@@ -148,18 +148,6 @@ test:
         failureThreshold: 60
       livenessProbe:
         failureThreshold: 60
-    restjava:
-      resources:
-        requests:
-          cpu: 0
-          memory: 0
-        limits:
-          cpu: 250m
-          memory: 500Mi
-      readinessProbe:
-        failureThreshold: 60
-      livenessProbe:
-        failureThreshold: 60
     monitor:
       resources:
         requests:
