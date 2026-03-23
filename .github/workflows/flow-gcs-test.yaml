@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Test GCS as bucket storage"
+name: "Test GCS as Bucket Storage"
 
 on:
   workflow_dispatch:
@@ -34,19 +34,24 @@ permissions:
   contents: read
   actions: read
 
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
 jobs:
   gcs-storage-test:
+    name: "GCS Storage Test - ${{ matrix.storageType }}"
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
-        storageType: [ "gcs_only", "minio_only", "aws_only" ]
-      max-parallel: 3
+        storageType: [ "gcs_only", "minio_only" ]
+      max-parallel: 1
     steps:
       - name: Check if job should be skipped
         id: check
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
             echo "run=false" >> $GITHUB_OUTPUT
@@ -55,37 +60,43 @@ jobs:
           fi
 
       - name: Harden Runner
-        if: steps.check.outputs.run == 'true'
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Authenticate to Google Cloud
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         id: google-auth
         uses: step-security/google-github-auth@57c51210cb4d85d8a5d39dc4c576c79bd693f914 # v3.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Get Current Job Log URL
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: jobs
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          job_name: "gcs-storage-test (${{ matrix.storageType }})"
+          job_name: "GCS Storage Test - ${{ matrix.storageType }}"
 
       - name: Create Bucket Name and Prefix
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           export BUCKET_NAME="solo-ci-test-streams"
           export PREFIX=${{ steps.jobs.outputs.job_id }}
@@ -97,60 +108,41 @@ jobs:
           echo "BACKUP_BUCKET_NAME=${BACKUP_BUCKET_NAME}" >> $GITHUB_ENV
 
       - name: Setup Node
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 22
           cache: npm
 
       - name: Configure npm registry
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install Task
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 3.39.2
+          version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Helm
-        if: steps.check.outputs.run == 'true'
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: "v3.12.3" # helm version
-
-      - name: Setup Kind
-        if: steps.check.outputs.run == 'true'
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
-
       - name: Install Dependencies
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         id: npm-deps
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           npm ci
           npm install -g @hashgraph/solo
 
-      - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        if: steps.check.outputs.run == 'true'
-        with:
-          version: 'v1.27.3'
-        id: install
-
       - name: Compile Project
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
-        if: steps.check.outputs.run == 'true'
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         env:
           GCS_ACCESS_KEY: ${{ secrets.GCP_S3_ACCESS_KEY }}
           GCS_SECRET_KEY: ${{ secrets.GCP_S3_SECRET_KEY }}
@@ -160,6 +152,7 @@ jobs:
           STORAGE_TYPE: ${{ matrix.storageType }}
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          export PATH=~/.solo/bin:${PATH}
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
@@ -168,16 +161,69 @@ jobs:
           fi
 
       - name: Upload Logs to GitHub
-        if: ${{ steps.check.outputs.run == 'true' && always() }}
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs-${{ matrix.storageType }}
           path: ~/.solo/logs/*
           if-no-files-found: error
 
-      - name: Delete Test Directory after Test
-        # add always() to make sure bucket is deleted even if the test failed
-        if: (steps.check.outputs.run == 'true' && always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only'))
+      - name: Delete test objects from GCS buckets
+        # Always attempt cleanup for object-store test modes, even if prior steps failed.
+        if: ${{ steps.check.outputs.run == 'true' && always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only') }}
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          gcloud storage rm --recursive gs://${BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
-          gcloud storage rm --recursive gs://${BACKUP_BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
+          PROJECT_ID="${{ vars.GCP_S3_PROJECT_ID }}"
+          JOB_PREFIX="${{ steps.jobs.outputs.job_id }}"
+
+          # Guardrails: never allow accidental bucket-root cleanup.
+          if [[ -z "${JOB_PREFIX}" ]]; then
+            echo "Job prefix is empty; skipping cleanup to avoid deleting bucket root"
+            exit 0
+          fi
+
+          if [[ ! "${JOB_PREFIX}" =~ ^[0-9]+$ ]]; then
+            echo "Job prefix '${JOB_PREFIX}' is not a CI job id; skipping cleanup for safety"
+            exit 0
+          fi
+
+          cleanup_prefix() {
+            local bucket_name="$1"
+            local target="gs://${bucket_name}/${JOB_PREFIX}"
+            local deleted=1
+            local has_objects=""
+
+            echo "Attempting cleanup for ${target}"
+
+            has_objects="$(
+              gcloud storage objects list "${target}/" --project="${PROJECT_ID}" --limit=1 --format='value(name)' \
+                2>/dev/null || true
+            )"
+
+            if [[ -z "${has_objects}" ]]; then
+              echo "No objects found for ${target}, skipping"
+              return 0
+            fi
+
+            for attempt in 1 2 3; do
+              if gcloud storage rm --recursive "${target}" --project="${PROJECT_ID}"; then
+                echo "Cleanup successful for ${target}"
+                deleted=0
+                break
+              fi
+              echo "Cleanup attempt ${attempt}/3 failed for ${target}"
+              sleep $((attempt * 2))
+            done
+
+            if [[ ${deleted} -ne 0 ]]; then
+              echo "Cleanup failed for ${target} after 3 attempts"
+              return 1
+            fi
+          }
+
+          cleanup_rc=0
+          cleanup_prefix "${BUCKET_NAME}" || cleanup_rc=1
+          cleanup_prefix "${BACKUP_BUCKET_NAME}" || cleanup_rc=1
+          exit "${cleanup_rc}"

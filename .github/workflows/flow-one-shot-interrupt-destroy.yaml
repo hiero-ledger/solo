@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
@@ -86,7 +86,7 @@ jobs:
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
-          version: 3.39.2
+          version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Application
@@ -97,6 +97,7 @@ jobs:
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
+          export PATH=~/.solo/bin:${PATH}
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
             export SOLO_COMMAND="npx @hashgraph/solo"
           else
@@ -111,6 +112,7 @@ jobs:
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
+          export PATH=~/.solo/bin:${PATH}
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
             npx @hashgraph/solo one-shot single destroy --quiet-mode
           else

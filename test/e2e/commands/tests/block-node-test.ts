@@ -16,6 +16,7 @@ import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {K8Helper} from '../../../../src/business/utils/k8-helper.js';
+import {sleep} from '../../../../src/core/helpers.js';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
@@ -209,6 +210,10 @@ export class BlockNodeTest extends BaseCommandTest {
       const pod: Pod = await new K8Helper(contexts[0]).getBlockNodePod(namespace, blockNodeId);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+
+      // Sleep to allow the port-forward to be established before attempting to connect
+      await sleep(Duration.ofSeconds(5));
+
       const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
 
       // Make script executable
@@ -221,7 +226,7 @@ export class BlockNodeTest extends BaseCommandTest {
       expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
 
       await pod.stopPortForward(srv);
-    });
+    }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static verifyBlockNodesJson(

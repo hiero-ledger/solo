@@ -6,7 +6,6 @@ import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
-import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -41,12 +40,12 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {Duration} from '../core/time/duration.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -74,8 +73,6 @@ interface RelayDeployConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
-  profileFile: string;
-  profileName: string;
   relayReleaseTag: string;
   replicaCount: number;
   valuesFile: string;
@@ -112,8 +109,6 @@ interface RelayUpgradeConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
-  profileFile: string;
-  profileName: string;
   relayReleaseTag: string;
   replicaCount: number;
   valuesFile: string;
@@ -148,13 +143,9 @@ enum RelayCommandType {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
-  ) {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
 
-    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
@@ -172,8 +163,6 @@ export class RelayCommand extends BaseCommand {
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.relayReleaseTag,
       flags.replicaCount,
@@ -199,8 +188,6 @@ export class RelayCommand extends BaseCommand {
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.relayReleaseTag,
       flags.replicaCount,
@@ -239,24 +226,14 @@ export class RelayCommand extends BaseCommand {
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
-    const profileName: string = this.configManager.getFlag(flags.profileName);
-    const profileValuesFile: string = await this.profileManager.prepareValuesForRpcRelayChart(profileName);
-    if (profileValuesFile) {
-      valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
-    }
-
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
     valuesArgument += ' --set ws.enabled=true';
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
-    valuesArgument += ' --set relay.config.MIRROR_NODE_AGENT_CACHEABLE_DNS=false';
-    valuesArgument += ' --set relay.config.MIRROR_NODE_RETRY_DELAY=2001';
-    valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
 
     valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
-    valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
     if (chainId) {
       valuesArgument += ` --set relay.config.CHAIN_ID=${chainId}`;
