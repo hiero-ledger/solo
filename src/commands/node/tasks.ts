@@ -480,7 +480,7 @@ export class NodeCommandTasks {
               });
             }
 
-            context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
+            context_.config.podRefs[nodeAlias] = await this.checkNetworkNodeActiveness(
               namespace,
               nodeAlias,
               task,
@@ -504,7 +504,30 @@ export class NodeCommandTasks {
     });
   }
 
-  private async _checkNetworkNodeActiveness(
+  public waitForNodesTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for nodes to be active',
+      skip: (): boolean => !this.oneShotState.isActive(),
+      task: (_, task): SoloListr<AnyListrContext> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+
+        for (const node of this.remoteConfig.getConsensusNodes()) {
+          const title: string = `Check network pod: ${chalk.yellow(node.name)}`;
+
+          subTasks.push({
+            title,
+            task: async (_, task): Promise<void> => {
+              await this.checkNetworkNodeActiveness(NamespaceName.of(node.namespace), node.name, task, title);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public async checkNetworkNodeActiveness(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
     task: SoloListrTaskWrapper<AnyListrContext>,

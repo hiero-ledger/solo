@@ -6,7 +6,7 @@ import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
 import {type AnyListrContext, AnyObject, type ArgvStruct, NodeId} from '../../types/aliases.js';
-import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {type Realm, type Shard, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -449,53 +449,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               await this.remoteConfig.persist();
             },
           },
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
-            ConsensusCommandDefinition.DEPLOY_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              if (config.networkConfiguration) {
-                this.appendConfigToArgv(argv, config.networkConfiguration);
-              }
-              return argvPushGlobalFlags(argv, config.cacheDir);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
-            ConsensusCommandDefinition.SETUP_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              this.appendConfigToArgv(argv, config.setupConfiguration);
-              return argvPushGlobalFlags(argv, config.cacheDir);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.START_COMMAND}`,
-            ConsensusCommandDefinition.START_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
           {
             title: 'Deploy components and create accounts',
             task: async (
@@ -504,6 +457,71 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               return task.newListr(
                 [
+                  {
+                    title: 'Deploy consensus node',
+                    task: async (
+                      _: OneShotSingleDeployContext,
+                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                    ): Promise<SoloListr<OneShotSingleDeployContext>> => {
+                      return task.newListr(
+                        [
+                          invokeSoloCommand(
+                            `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
+                            ConsensusCommandDefinition.DEPLOY_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                              );
+                              if (config.networkConfiguration) {
+                                this.appendConfigToArgv(argv, config.networkConfiguration);
+                              }
+                              return argvPushGlobalFlags(argv, config.cacheDir);
+                            },
+                            this.taskList,
+                          ),
+                          invokeSoloCommand(
+                            `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
+                            ConsensusCommandDefinition.SETUP_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                              );
+                              this.appendConfigToArgv(argv, config.setupConfiguration);
+                              return argvPushGlobalFlags(argv, config.cacheDir);
+                            },
+                            this.taskList,
+                          ),
+                          invokeSoloCommand(
+                            `solo ${ConsensusCommandDefinition.START_COMMAND}`,
+                            ConsensusCommandDefinition.START_COMMAND,
+                            (): string[] => {
+                              const argv: string[] = newArgv();
+                              argv.push(
+                                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
+                                optionFromFlag(Flags.deployment),
+                                config.deployment,
+                              );
+                              this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
+                              return argvPushGlobalFlags(argv);
+                            },
+                            this.taskList,
+                          ),
+                        ],
+                        {
+                          concurrent: false,
+                          rendererOptions: {
+                            collapseSubtasks: false,
+                          },
+                        },
+                      );
+                    },
+                  },
                   {
                     title: 'Deploy mirror node and extensions',
                     task: async (
@@ -599,105 +617,105 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     },
                   },
                   // Pipeline B: create accounts (concurrent with Pipeline A)
-                  {
-                    title: 'Create Accounts',
-                    skip: (): boolean => config.predefinedAccounts === false,
-                    task: async (
-                      context_: OneShotSingleDeployContext,
-                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                    ): Promise<Listr<OneShotSingleDeployContext>> => {
-                      await this.localConfig.load();
-                      await this.remoteConfig.loadAndValidate(argv);
-                      const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
-
-                      const client: Client = await this.accountManager.loadNodeClient(
-                        config.namespace,
-                        this.remoteConfig.getClusterRefs(),
-                        context_.config.deployment,
-                      );
-
-                      const realm: Realm = this.localConfig.configuration.realmForDeployment(
-                        context_.config.deployment,
-                      );
-                      const shard: Shard = this.localConfig.configuration.shardForDeployment(
-                        context_.config.deployment,
-                      );
-
-                      // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
-                      // so that created accounts have IDs start from x.x.1002
-                      try {
-                        const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-                          TopicId.fromString(entityId(realm, shard, 1001)),
-                        );
-                        await entity1001Query.execute(client);
-                      } catch (error) {
-                        try {
-                          if (error.message.includes('INVALID_TOPIC_ID')) {
-                            const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
-                              'Buffer topic to bump entity IDs',
-                            );
-                            await bufferTopic.execute(client);
-                          }
-                        } catch (error) {
-                          this.logger.warn(
-                            'Failed to create topic. Created account IDs may be offset from the expected values.',
-                            error,
-                          );
-                        }
-                      }
-
-                      const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccounts,
-                        ...predefinedEcdsaAccountsWithAlias,
-                        ...predefinedEd25519Accounts,
-                      ];
-
-                      for (const [index, account] of accountsToCreate.entries()) {
-                        // inject index to avoid closure issues
-                        ((index: number, account: PredefinedAccount): void => {
-                          subTasks.push({
-                            title: `Creating Account ${index}`,
-                            task: async (
-                              context_: OneShotSingleDeployContext,
-                              subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                            ): Promise<void> => {
-                              await helpers.sleep(Duration.ofMillis(100 * index));
-
-                              const createdAccount: {
-                                accountId: string;
-                                privateKey: string;
-                                publicKey: string;
-                                balance: number;
-                                accountAlias?: string;
-                              } = await this.accountManager.createNewAccount(
-                                context_.config.namespace,
-                                account.privateKey,
-                                account.balance.to(HbarUnit.Hbar).toNumber(),
-                                account.alias,
-                                context_.config.context,
-                              );
-
-                              context_.createdAccounts.push({
-                                accountId: AccountId.fromString(createdAccount.accountId),
-                                data: account,
-                                alias: createdAccount.accountAlias,
-                                publicKey: createdAccount.publicKey,
-                              });
-
-                              subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
-                            },
-                          });
-                        })(index, account);
-                      }
-
-                      return task.newListr(subTasks, {
-                        concurrent: true,
-                        rendererOptions: {
-                          collapseSubtasks: false,
-                        },
-                      });
-                    },
-                  },
+                  // {
+                  //   title: 'Create Accounts',
+                  //   skip: (): boolean => config.predefinedAccounts === false,
+                  //   task: async (
+                  //     context_: OneShotSingleDeployContext,
+                  //     task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                  //   ): Promise<Listr<OneShotSingleDeployContext>> => {
+                  //     await this.localConfig.load();
+                  //     await this.remoteConfig.loadAndValidate(argv);
+                  //     const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
+                  //
+                  //     const client: Client = await this.accountManager.loadNodeClient(
+                  //       config.namespace,
+                  //       this.remoteConfig.getClusterRefs(),
+                  //       context_.config.deployment,
+                  //     );
+                  //
+                  //     const realm: Realm = this.localConfig.configuration.realmForDeployment(
+                  //       context_.config.deployment,
+                  //     );
+                  //     const shard: Shard = this.localConfig.configuration.shardForDeployment(
+                  //       context_.config.deployment,
+                  //     );
+                  //
+                  //     // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
+                  //     // so that created accounts have IDs start from x.x.1002
+                  //     try {
+                  //       const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
+                  //         TopicId.fromString(entityId(realm, shard, 1001)),
+                  //       );
+                  //       await entity1001Query.execute(client);
+                  //     } catch (error) {
+                  //       try {
+                  //         if (error.message.includes('INVALID_TOPIC_ID')) {
+                  //           const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
+                  //             'Buffer topic to bump entity IDs',
+                  //           );
+                  //           await bufferTopic.execute(client);
+                  //         }
+                  //       } catch (error) {
+                  //         this.logger.warn(
+                  //           'Failed to create topic. Created account IDs may be offset from the expected values.',
+                  //           error,
+                  //         );
+                  //       }
+                  //     }
+                  //
+                  //     const accountsToCreate: PredefinedAccount[] = [
+                  //       ...predefinedEcdsaAccounts,
+                  //       ...predefinedEcdsaAccountsWithAlias,
+                  //       ...predefinedEd25519Accounts,
+                  //     ];
+                  //
+                  //     for (const [index, account] of accountsToCreate.entries()) {
+                  //       // inject index to avoid closure issues
+                  //       ((index: number, account: PredefinedAccount): void => {
+                  //         subTasks.push({
+                  //           title: `Creating Account ${index}`,
+                  //           task: async (
+                  //             context_: OneShotSingleDeployContext,
+                  //             subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                  //           ): Promise<void> => {
+                  //             await helpers.sleep(Duration.ofMillis(100 * index));
+                  //
+                  //             const createdAccount: {
+                  //               accountId: string;
+                  //               privateKey: string;
+                  //               publicKey: string;
+                  //               balance: number;
+                  //               accountAlias?: string;
+                  //             } = await this.accountManager.createNewAccount(
+                  //               context_.config.namespace,
+                  //               account.privateKey,
+                  //               account.balance.to(HbarUnit.Hbar).toNumber(),
+                  //               account.alias,
+                  //               context_.config.context,
+                  //             );
+                  //
+                  //             context_.createdAccounts.push({
+                  //               accountId: AccountId.fromString(createdAccount.accountId),
+                  //               data: account,
+                  //               alias: createdAccount.accountAlias,
+                  //               publicKey: createdAccount.publicKey,
+                  //             });
+                  //
+                  //             subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
+                  //           },
+                  //         });
+                  //       })(index, account);
+                  //     }
+                  //
+                  //     return task.newListr(subTasks, {
+                  //       concurrent: true,
+                  //       rendererOptions: {
+                  //         collapseSubtasks: false,
+                  //       },
+                  //     });
+                  //   },
+                  // },
                 ],
                 {
                   concurrent: true,

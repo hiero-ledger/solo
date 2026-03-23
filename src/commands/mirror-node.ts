@@ -102,6 +102,7 @@ interface MirrorNodeDeployConfigClass {
   newMirrorNodeComponent: MirrorNodeStateSchema;
   isLegacyChartInstalled: boolean;
   id: number;
+  deployment: DeploymentName;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
@@ -1003,17 +1004,10 @@ END $grant$;`;
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
 
-            const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+            config.deployment = this.configManager.getFlag(flags.deployment);
 
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              deploymentName,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-
-            const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-            const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+            const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+            const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
@@ -1026,7 +1020,7 @@ END $grant$;`;
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=${constants.MIRROR_NODE_PINGER_TPS}`;
 
               const operatorId: string =
-                config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+                config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
               if (config.operatorKey) {
@@ -1114,6 +1108,18 @@ END $grant$;`;
               return ListrLock.newAcquireLockTask(lease, task);
             }
             return ListrLock.newSkippedLockTask(task);
+          },
+        },
+        this.nodeCommandTasks.waitForNodesTask(),
+        {
+          title: 'load node client',
+          task: async ({config}): Promise<void> => {
+            await this.accountManager.loadNodeClient(
+              config.namespace,
+              this.remoteConfig.getClusterRefs(),
+              config.deployment,
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
+            );
           },
         },
         this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),

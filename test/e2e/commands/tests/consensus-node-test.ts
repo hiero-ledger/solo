@@ -823,7 +823,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       container
         .resolve(NodeCommandTasks)
         // @ts-expect-error - TS2341: to access private property
-        ._checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
+        .checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
     ).to.be.rejected;
   }
 

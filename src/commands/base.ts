@@ -36,6 +36,7 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {Templates} from '../core/templates.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {NodeCommandTasks} from './node/tasks.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -51,6 +52,7 @@ export abstract class BaseCommand extends ShellRunner {
     protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
     @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
+    @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
   ) {
     super();
 
@@ -65,6 +67,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
+    this.nodeCommandTasks = patchInject(nodeCommandTasks, InjectTokens.NodeCommandTasks, this.constructor.name);
   }
 
   protected async loadRemoteConfigOrWarn(

@@ -598,6 +598,7 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.checkChartIsInstalledTask(),
+        this.nodeCommandTasks.waitForNodesTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkMirrorNodeIsRunningTask(),
