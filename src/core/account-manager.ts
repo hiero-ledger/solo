@@ -40,7 +40,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, isNumeric, sleep} from './helpers.js';
+import {entityId, isIpV4Address, isNumeric, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -1064,11 +1064,23 @@ export class AccountManager {
 
       const accountId: AccountId = AccountId.fromString(networkNodeService.accountId);
 
-      // Build the service endpoint using the external address (FQDN or IP) from the k8s service
-      const serviceEndpoint: proto.IServiceEndpoint = {
-        domainName: networkNodeService.externalAddress,
-        port: networkNodeService.haProxyGrpcPort || constants.GRPC_PORT,
-      };
+      // Build the service endpoint using the external address (FQDN or IP) from the k8s service.
+      // proto.IServiceEndpoint requires either ipAddressV4 (bytes) or domainName – never both.
+      let serviceEndpoint: proto.IServiceEndpoint;
+      const externalAddress: string = networkNodeService.externalAddress;
+      const grpcPort: number = networkNodeService.haProxyGrpcPort || constants.GRPC_PORT;
+      if (isIpV4Address(externalAddress)) {
+        const octets: number[] = externalAddress.split('.').map(Number);
+        serviceEndpoint = {ipAddressV4: new Uint8Array(octets), port: grpcPort};
+      } else {
+        if (!externalAddress || externalAddress.trim() === '') {
+          this.logger.warn(
+            `Node ${networkNodeService.nodeAlias} has an empty or missing external address; ` +
+              'address book entry may be invalid.',
+          );
+        }
+        serviceEndpoint = {domainName: externalAddress, port: grpcPort};
+      }
 
       nodeAddresses.push({
         nodeId: Long.fromNumber(networkNodeService.nodeId),
