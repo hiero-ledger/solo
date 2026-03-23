@@ -691,6 +691,10 @@ export class MirrorNodeCommand extends BaseCommand {
             title: 'Check Importer',
             labels: ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'],
           },
+          {
+            title: 'Check REST Java',
+            labels: ['app.kubernetes.io/component=rest-java', 'app.kubernetes.io/name=rest-java'],
+          },
         ].map(
           ({
             title,
