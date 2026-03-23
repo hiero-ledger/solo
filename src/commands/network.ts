@@ -144,6 +144,7 @@ export interface NetworkDeployConfigClass {
   enableMonitoringSupport: boolean;
   javaFlightRecorderConfiguration: string;
   wrapsEnabled: boolean;
+  wrapsKeyPath: string;
   tssEnabled: boolean;
 }
 
@@ -245,6 +246,7 @@ export class NetworkCommand extends BaseCommand {
       flags.enableMonitoringSupport,
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
+      flags.wrapsKeyPath,
       flags.tssEnabled,
     ],
   };
@@ -275,7 +277,7 @@ export class NetworkCommand extends BaseCommand {
 
         // set up the sub-tasks
         return task.newListr(subTasks, {
-          concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+          concurrent: true,
           rendererOptions: {
             collapseSubtasks: false,
           },
@@ -1243,7 +1245,7 @@ export class NetworkCommand extends BaseCommand {
               },
             ];
 
-            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+            return task.newListr(tasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
           },
         },
         {
@@ -1493,44 +1495,58 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config}): Promise<void> => {
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
 
-            if (fs.existsSync(extractedDirectory)) {
-              this.logger.debug('Wraps library already installed');
+            if (config.wrapsKeyPath) {
+              // Use user-provided local directory containing WRAPs proving key files
+              if (!fs.existsSync(config.wrapsKeyPath)) {
+                throw new SoloError(`WRAPs key path does not exist: ${config.wrapsKeyPath}`);
+              }
+              this.logger.info(`Using WRAPs proving key files from: ${config.wrapsKeyPath}`);
+
+              // Copy allowed .bin files from user path into the cache directory
+              if (!fs.existsSync(extractedDirectory)) {
+                fs.mkdirSync(extractedDirectory, {recursive: true});
+              }
+
+              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+
+              for (const file of fs.readdirSync(config.wrapsKeyPath)) {
+                if (allowedFiles.has(file)) {
+                  fs.copyFileSync(PathEx.join(config.wrapsKeyPath, file), PathEx.join(extractedDirectory, file));
+                }
+              }
             } else {
-              await this.downloader.fetchPackage(
-                constants.WRAPS_LIB_DOWNLOAD_URL,
-                'unusued',
-                constants.SOLO_CACHE_DIR,
-                false,
-                '',
-                false,
-              );
+              if (fs.existsSync(extractedDirectory)) {
+                this.logger.debug('Wraps library already installed');
+              } else {
+                await this.downloader.fetchPackage(
+                  constants.WRAPS_LIB_DOWNLOAD_URL,
+                  'unusued',
+                  constants.SOLO_CACHE_DIR,
+                  false,
+                  '',
+                  false,
+                );
 
-              const tarFilePath: string = PathEx.join(
-                constants.SOLO_CACHE_DIR,
-                `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
-              );
+                const tarFilePath: string = PathEx.join(
+                  constants.SOLO_CACHE_DIR,
+                  `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
+                );
 
-              // Create extraction dir
-              fs.mkdirSync(extractedDirectory);
+                // Create extraction dir
+                fs.mkdirSync(extractedDirectory);
 
-              // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-              this.zippy.untar(tarFilePath, extractedDirectory);
-            }
+                // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+                this.zippy.untar(tarFilePath, extractedDirectory);
+              }
 
-            // Having any files except for those inside the folder causes an error in CN
-            const allowedFiles: Set<string> = new Set([
-              'decider_pp.bin',
-              'decider_vp.bin',
-              'nova_pp.bin',
-              'nova_vp.bin',
-            ]);
+              // Having any files except for those inside the folder causes an error in CN
+              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
 
-            const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
-
-            for (const file of fs.readdirSync(sourcePath)) {
-              if (!allowedFiles.has(file)) {
-                const filePath: string = PathEx.join(sourcePath, file);
-                fs.unlinkSync(filePath); // delete unwanted file
+              for (const file of fs.readdirSync(extractedDirectory)) {
+                if (!allowedFiles.has(file)) {
+                  const filePath: string = PathEx.join(extractedDirectory, file);
+                  fs.unlinkSync(filePath); // delete unwanted file
+                }
               }
             }
 
@@ -1540,7 +1556,7 @@ export class NetworkCommand extends BaseCommand {
                 consensusNode.name,
               );
 
-              await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
+              await rootContainer.copyTo(extractedDirectory, constants.HEDERA_HAPI_PATH);
             }
           },
         },
