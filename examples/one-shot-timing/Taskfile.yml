@@ -93,6 +93,7 @@ tasks:
             if [ "${USE_LOCAL_BUILD}" = "true" ]; then
               echo "network:"
               echo "  --release-tag: \"{{.CN_VERSION}}\""
+              echo "  --tss: \"true\""
               echo ""
               echo "setup:"
               echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""
