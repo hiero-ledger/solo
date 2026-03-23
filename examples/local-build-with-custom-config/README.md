@@ -79,8 +79,8 @@ Each component can use custom Helm values files:
      * Deploy the network with local build and custom configuration
      * Set up and start consensus nodes using local builds
      * Create test ledger accounts to produce network activity
-     * Verify consensus metrics endpoint is exposed on each node (`:9999`)
-     * Verify Prometheus and Grafana can query `platform_PlatformStatus`
+     * Verify consensus metrics endpoint is exposed on each node local port `9999`
+     * Verify Prometheus and Grafana can query the metric `platform_PlatformStatus`
      * Deploy mirror node, relay, and explorer with custom versions and values
 
 ## Monitoring Validation in This Test
