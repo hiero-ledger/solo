@@ -95,7 +95,7 @@ jobs:
     uses: ./.github/workflows/zxc-unit-test.yaml
     needs:
       - code-style
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && !cancelled() }}
     with:
       custom-job-label: Standard
 
@@ -131,6 +131,7 @@ jobs:
       helm-version: ${{ matrix.e2e-test-type.helm-version }}
       node-version: ${{ matrix.e2e-test-type.node-version }}
       enable_s6_image: ${{ matrix.e2e-test-type.enable_s6_image }}
+      test-timeout-minutes: ${{ matrix.e2e-test-type.test-timeout-minutes }}
 
   codecov:
     name: CodeCov
@@ -138,7 +139,9 @@ jobs:
     needs:
       - unit-tests
       - e2e-tests
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) }}
+    if: >-
+      ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) &&
+      !cancelled() && !failure() }}
     with:
       custom-job-label: Standard
       enable-codecov-analysis: true
@@ -152,7 +155,9 @@ jobs:
     needs:
       - unit-tests
       - e2e-tests
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) }}
+    if: >-
+      ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) &&
+      !cancelled() && !failure() }}
     with:
       custom-job-label: Coverage
       enable-codacy-coverage: true
@@ -167,7 +172,8 @@ jobs:
     # If it is a PR, check if it's a draft PR. If a draft PR, check if it starts with 'trunk-merge', if true then run Hugo Docs Build job
     # If it is regular PR, always run Hugo Docs Build job
     if: >
-      ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) ||
-      (github.event_name == 'pull_request' && (github.event.pull_request.draft == false || startsWith(github.event.pull_request.title, 'trunk-merge'))) }}
+      ${{ (!(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) ||
+      (github.event_name == 'pull_request' && (github.event.pull_request.draft == false ||
+      startsWith(github.event.pull_request.title, 'trunk-merge')))) && !cancelled() }}
     with:
       ref: ${{ github.ref }}
