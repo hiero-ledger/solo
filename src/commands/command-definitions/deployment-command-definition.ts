@@ -140,7 +140,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               'Displays the full status of a deployment including components, versions, and port-forward status.',
               this.deploymentCommand,
               this.deploymentCommand.showDeploymentStatus,
-              DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
+              DeploymentCommand.SHOW_STATUS_FLAGS_LIST,
               [],
             ),
           ),

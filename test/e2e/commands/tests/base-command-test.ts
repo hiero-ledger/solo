@@ -152,14 +152,28 @@ export class BaseCommandTest {
     const originalStdoutWrite: typeof process.stdout.write = process.stdout.write.bind(process.stdout);
     const originalStderrWrite: typeof process.stderr.write = process.stderr.write.bind(process.stderr);
 
-    process.stdout.write = ((chunk: unknown, encoding?: BufferEncoding, callback?: (error?: Error | null) => void) => {
-      stdoutChunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk as Uint8Array).toString(encoding));
-      return originalStdoutWrite(chunk as any, encoding, callback);
+    process.stdout.write = ((
+      chunk: string | Uint8Array,
+      encoding?: BufferEncoding,
+      callback?: (error?: Error) => void,
+    ): boolean => {
+      stdoutChunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString(encoding));
+      if (encoding === undefined) {
+        return callback ? originalStdoutWrite(chunk, callback) : originalStdoutWrite(chunk);
+      }
+      return callback ? originalStdoutWrite(chunk, encoding, callback) : originalStdoutWrite(chunk, encoding);
     }) as typeof process.stdout.write;
 
-    process.stderr.write = ((chunk: unknown, encoding?: BufferEncoding, callback?: (error?: Error | null) => void) => {
-      stderrChunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk as Uint8Array).toString(encoding));
-      return originalStderrWrite(chunk as any, encoding, callback);
+    process.stderr.write = ((
+      chunk: string | Uint8Array,
+      encoding?: BufferEncoding,
+      callback?: (error?: Error) => void,
+    ): boolean => {
+      stderrChunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString(encoding));
+      if (encoding === undefined) {
+        return callback ? originalStderrWrite(chunk, callback) : originalStderrWrite(chunk);
+      }
+      return callback ? originalStderrWrite(chunk, encoding, callback) : originalStderrWrite(chunk, encoding);
     }) as typeof process.stderr.write;
 
     try {
@@ -181,7 +195,7 @@ export class BaseCommandTest {
       ...options.metadata,
     };
 
-    fs.writeFileSync(outputFilePath, JSON.stringify(payload, null, 2), 'utf8');
+    fs.writeFileSync(outputFilePath, JSON.stringify(payload, undefined, 2), 'utf8');
 
     return {
       stdout: payload.stdout as string,

@@ -100,6 +100,11 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.clusterRef, flags.quiet],
   };
 
+  public static SHOW_STATUS_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.quiet],
+  };
+
   public static REFRESH_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.quiet],
@@ -117,11 +122,15 @@ export class DeploymentCommand extends BaseCommand {
       shard: Shard;
     }
 
-    const tasks = this.taskList.newTaskList(
+    interface Context {
+      config: Config;
+    }
+
+    const tasks: ReturnType<typeof this.taskList.newTaskList> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_: Context, task): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
@@ -148,7 +157,7 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Add deployment to local config',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_: Context, task): Promise<void> => {
             const {namespace, deployment, realm, shard} = context_.config;
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
@@ -197,7 +206,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: any = this.taskList.newTaskList(
+    const tasks: ReturnType<typeof this.taskList.newTaskList> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -299,7 +308,7 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
-    const tasks = this.taskList.newTaskList(
+    const tasks: ReturnType<typeof this.taskList.newTaskList> = this.taskList.newTaskList(
       [
         this.initializeClusterAddConfig(argv),
         this.verifyClusterAddArgs(),
@@ -394,7 +403,7 @@ export class DeploymentCommand extends BaseCommand {
                 let status: 'connected' | 'disconnected' | 'not-found' = 'disconnected';
 
                 if (clusterContext) {
-                  const k8 = this.k8Factory.getK8(clusterContext);
+                  const k8: K8 = this.k8Factory.getK8(clusterContext);
                   try {
                     await k8.namespaces().list();
                     const remoteConfigExists: boolean = await k8
@@ -593,8 +602,8 @@ export class DeploymentCommand extends BaseCommand {
           .getK8(context)
           .namespaces()
           .list()
-          .then(() => true)
-          .catch(() => false);
+          .then((): boolean => true)
+          .catch((): boolean => false);
 
         if (!isConnected) {
           throw new SoloError(`Connection failed for cluster ${clusterRef} with context: ${context}`);
@@ -757,7 +766,7 @@ export class DeploymentCommand extends BaseCommand {
             } as Config;
 
             // Get namespace from deployment
-            const deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
             if (!deployment) {
               throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
             }
@@ -781,7 +790,7 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             const clusterReferences: string[] = [];
-            for (let index = 0; index < clusters.length; index++) {
+            for (let index: number = 0; index < clusters.length; index++) {
               const clusterReferenceFacade: StringFacade = clusters.get(index);
               if (clusterReferenceFacade) {
                 clusterReferences.push(clusterReferenceFacade.toString());
@@ -818,7 +827,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Refresh port-forwards for all components',
           task: async (_context_, task): Promise<void> => {
-            const componentsToCheck = [
+            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
               {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
               {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
               {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
