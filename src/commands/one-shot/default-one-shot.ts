@@ -79,6 +79,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.namespace,
       flags.clusterRef,
       flags.minimalSetup,
+      flags.valuesFile,
     ],
   };
 
