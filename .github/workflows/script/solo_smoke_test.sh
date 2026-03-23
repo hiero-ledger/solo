@@ -371,15 +371,28 @@ if [[ $result -ne 0 ]]; then
   echo "Current job status snapshot:"
   kubectl --context "${MIRROR_KUBE_CONTEXT}" get jobs -n "${SOLO_NAMESPACE}" || true
   echo "Attempting to dump logs for mirror test pods/jobs (if still present)..."
-  test_pods="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get pods -n "${SOLO_NAMESPACE}" -o name | sed 's#pod/##' | grep -E "^${mirror_release}.*test" || true)"
+  acceptance_pod_selector="app.kubernetes.io/instance=${mirror_release},app.kubernetes.io/name=acceptance"
+  test_pods="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get pods -n "${SOLO_NAMESPACE}" -l "${acceptance_pod_selector}" -o name 2>/dev/null | sed 's#pod/##' || true)"
+  if [[ -z "${test_pods}" ]]; then
+    test_pods="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get pods -n "${SOLO_NAMESPACE}" -o name | sed 's#pod/##' | grep -E "^${mirror_release}-(acceptance|.*test)" || true)"
+  fi
   if [[ -n "${test_pods}" ]]; then
     while IFS= read -r pod; do
       [[ -z "${pod}" ]] && continue
+      echo "----- describe pod/${pod} -----"
+      kubectl --context "${MIRROR_KUBE_CONTEXT}" describe "pod/${pod}" -n "${SOLO_NAMESPACE}" || true
       echo "----- logs for pod/${pod} -----"
       kubectl --context "${MIRROR_KUBE_CONTEXT}" logs "pod/${pod}" -n "${SOLO_NAMESPACE}" --all-containers=true || true
+      echo "----- previous logs for pod/${pod} -----"
+      kubectl --context "${MIRROR_KUBE_CONTEXT}" logs "pod/${pod}" -n "${SOLO_NAMESPACE}" --all-containers=true --previous || true
     done <<< "${test_pods}"
+  else
+    echo "No acceptance pod matched selector '${acceptance_pod_selector}' or name fallback."
   fi
-  test_jobs="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get jobs -n "${SOLO_NAMESPACE}" -o name | sed 's#job.batch/##' | grep -E "^${mirror_release}.*test" || true)"
+  test_jobs="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get jobs -n "${SOLO_NAMESPACE}" -l "${acceptance_pod_selector}" -o name 2>/dev/null | sed 's#job.batch/##' || true)"
+  if [[ -z "${test_jobs}" ]]; then
+    test_jobs="$(kubectl --context "${MIRROR_KUBE_CONTEXT}" get jobs -n "${SOLO_NAMESPACE}" -o name | sed 's#job.batch/##' | grep -E "^${mirror_release}-(acceptance|.*test)" || true)"
+  fi
   if [[ -n "${test_jobs}" ]]; then
     while IFS= read -r job; do
       [[ -z "${job}" ]] && continue
@@ -388,6 +401,8 @@ if [[ $result -ne 0 ]]; then
       echo "----- logs for job/${job} -----"
       kubectl --context "${MIRROR_KUBE_CONTEXT}" logs "job/${job}" -n "${SOLO_NAMESPACE}" --all-containers=true || true
     done <<< "${test_jobs}"
+  else
+    echo "No acceptance job matched selector '${acceptance_pod_selector}' or name fallback."
   fi
   echo "Helm release status snapshot:"
   helm status "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" || true
