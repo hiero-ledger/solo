@@ -52,6 +52,6 @@
   {
     "name": "One Shot Timing",
     "directory": "one-shot-timing",
-    "local-java-build": false
+    "local-java-build": true
   }
 ]
