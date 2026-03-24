@@ -718,20 +718,14 @@ export class RelayCommand extends BaseCommand {
             config.releaseName = releaseName;
             config.nodeAliases = nodeAliases;
 
-            if (this.oneShotState.isActive()) {
-              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
-              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
-              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeId);
-            } else {
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.context,
-              );
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.context,
+            );
 
-              config.mirrorNodeId = mirrorNodeId;
-              config.mirrorNamespace = mirrorNamespace;
-              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-            }
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
