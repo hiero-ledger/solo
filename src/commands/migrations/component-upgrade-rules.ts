@@ -207,8 +207,8 @@ export class ComponentUpgradeMigrationRules {
     targetVersion: string,
   ): ComponentUpgradeMigrationStep[] {
     // Normalize version strings to canonical semver (strips 'v' prefix, etc.)
-    const normalizedCurrentVersion: string = ComponentUpgradeMigrationRules.normalizeVersion(currentVersion);
-    const normalizedTargetVersion: string = ComponentUpgradeMigrationRules.normalizeVersion(targetVersion);
+    const normalizedCurrentVersion: string = new SemVer(currentVersion).version;
+    const normalizedTargetVersion: string = new SemVer(targetVersion).version;
 
     const current: SemVer = new SemVer(normalizedCurrentVersion);
     const target: SemVer = new SemVer(normalizedTargetVersion);
@@ -364,15 +364,6 @@ export class ComponentUpgradeMigrationRules {
   }
 
   /**
-   * Normalizes a version string to a canonical semver form.
-   * Strips leading 'v' prefixes so that comparisons are consistent.
-   * For example, 'v0.28.0' → '0.28.0'. Pre-release and build-metadata suffixes are preserved.
-   */
-  private static normalizeVersion(version: string): string {
-    return new SemVer(version).version;
-  }
-
-  /**
    * Finds all boundary rules that are "crossed" during a forward upgrade from `current` to `target`.
    *
    * A boundary is "crossed" when:
@@ -407,7 +398,7 @@ export class ComponentUpgradeMigrationRules {
       .map(
         (boundary): ComponentUpgradeBoundaryRule => ({
           ...boundary,
-          version: ComponentUpgradeMigrationRules.normalizeVersion(boundary.version),
+          version: new SemVer(boundary.version).version,
         }),
       )
       .filter(
