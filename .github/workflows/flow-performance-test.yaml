@@ -152,47 +152,6 @@ jobs:
             exit "${TASK_RC}"
           fi
 
-      - name: Debug Registry Pull Path (Performance Workflow)
-        if: ${{ !cancelled() && steps.run-e2e-tests.outcome == 'failure' }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        shell: bash
-        run: |
-          set +e
-          export PATH=~/.solo/bin:${PATH}
-          TEST_IMAGE="docker.io/library/maven:3-eclipse-temurin-25-alpine"
-          MIRROR_IMAGE="hub.mirror.docker.lat.ope.eng.hashgraph.io/library/maven:3-eclipse-temurin-25-alpine"
-          REGISTRY1_IMAGE="registry-1.docker.io/library/maven:3-eclipse-temurin-25-alpine"
-          CLUSTERS="$(kind get clusters | grep '^solo-e2e-c' || true)"
-
-          if [[ -z "${CLUSTERS}" ]]; then
-            echo "No solo-e2e clusters found; skipping registry debug."
-            exit 0
-          fi
-
-          for CLUSTER in ${CLUSTERS}; do
-            echo "::group::cluster ${CLUSTER} node discovery"
-            kind get nodes --name "${CLUSTER}" || true
-            echo "::endgroup::"
-
-            NODES="$(kind get nodes --name "${CLUSTER}" 2>/dev/null || true)"
-            while IFS= read -r NODE; do
-              [[ -z "${NODE}" ]] && continue
-              echo "::group::${NODE} containerd mirror config"
-              docker exec "${NODE}" sh -c "grep -n 'registry.mirrors' -A20 /etc/containerd/config.toml" || true
-              echo "::endgroup::"
-
-              echo "::group::${NODE} explicit ctr pulls"
-              docker exec "${NODE}" ctr --namespace=k8s.io images pull "${TEST_IMAGE}" || true
-              docker exec "${NODE}" ctr --namespace=k8s.io images pull "${MIRROR_IMAGE}" || true
-              docker exec "${NODE}" ctr --namespace=k8s.io images pull "${REGISTRY1_IMAGE}" || true
-              echo "::endgroup::"
-
-              echo "::group::${NODE} recent daemon logs (pull-related)"
-              docker logs "${NODE}" 2>&1 | grep -E 'maven|hub\\.mirror|registry-1\\.docker\\.io|unexpected EOF|ErrImagePull|ImagePullBackOff' | tail -n 200 || true
-              echo "::endgroup::"
-            done <<< "${NODES}"
-          done
-
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}

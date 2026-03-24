@@ -161,46 +161,6 @@ jobs:
             exit ${RC}
           fi
 
-      - name: Debug Registry Pull Path (GCS Workflow)
-        if: ${{ always() && steps.check.outputs.run == 'true' && !cancelled() && steps.run-gcs-script.outcome == 'failure' }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        shell: bash
-        run: |
-          set +e
-          export PATH=~/.solo/bin:${PATH}
-          CLUSTER_NAME="solo-e2e"
-          TEST_IMAGE="docker.io/library/maven:3-eclipse-temurin-25-alpine"
-          MIRROR_IMAGE="hub.mirror.docker.lat.ope.eng.hashgraph.io/library/maven:3-eclipse-temurin-25-alpine"
-          REGISTRY1_IMAGE="registry-1.docker.io/library/maven:3-eclipse-temurin-25-alpine"
-
-          echo "::group::kind cluster and node discovery"
-          kind get clusters || true
-          kind get nodes --name "${CLUSTER_NAME}" || true
-          echo "::endgroup::"
-
-          NODES="$(kind get nodes --name "${CLUSTER_NAME}" 2>/dev/null || true)"
-          if [[ -z "${NODES}" ]]; then
-            echo "No kind nodes found for cluster ${CLUSTER_NAME}; skipping registry debug."
-            exit 0
-          fi
-
-          while IFS= read -r NODE; do
-            [[ -z "${NODE}" ]] && continue
-            echo "::group::${NODE} containerd mirror config"
-            docker exec "${NODE}" sh -c "grep -n 'registry.mirrors' -A20 /etc/containerd/config.toml" || true
-            echo "::endgroup::"
-
-            echo "::group::${NODE} explicit ctr pulls"
-            docker exec "${NODE}" ctr --namespace=k8s.io images pull "${TEST_IMAGE}" || true
-            docker exec "${NODE}" ctr --namespace=k8s.io images pull "${MIRROR_IMAGE}" || true
-            docker exec "${NODE}" ctr --namespace=k8s.io images pull "${REGISTRY1_IMAGE}" || true
-            echo "::endgroup::"
-
-            echo "::group::${NODE} recent daemon logs (pull-related)"
-            docker logs "${NODE}" 2>&1 | grep -E 'maven|hub\\.mirror|registry-1\\.docker\\.io|unexpected EOF|ErrImagePull|ImagePullBackOff' | tail -n 200 || true
-            echo "::endgroup::"
-          done <<< "${NODES}"
-
       - name: Upload Logs to GitHub
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
