@@ -43,25 +43,23 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
-<<<<<<< 03349-D-ledger-reset
-      # Create Kind cluster"
-      - cmd: kind create cluster -n "{{ .CLUSTER_NAME }}" --config {{ .TASKFILE_DIR }}/kind-config.yaml
-=======
       # Run solo init to install dependencies
       - cmd: $SOLO_COMMAND init --dev
 
-      # Create Kind cluster
-      - cmd: kind create cluster -n "{{ .CLUSTER_NAME }}"
->>>>>>> main
+      # Create Kind cluster"
+      - cmd: |
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n "{{ .CLUSTER_NAME }}" --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n "{{ .CLUSTER_NAME }}"
+          fi
 
       # Wait for control plane
       - cmd: sleep 10 # wait for control plane to come up
 
       # Set kubectl context
       - cmd: kubectl config set-context {{ .CONTEXT }}
-
-      # Solo init
-      - cmd: $SOLO_COMMAND init
 
       # Solo cluster-ref config setup
       - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev

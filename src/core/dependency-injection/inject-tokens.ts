@@ -69,6 +69,7 @@ export class InjectTokens {
   public static ObjectMapper: symbol = Symbol.for('ObjectMapper');
   public static HelpRenderer: symbol = Symbol.for('HelpRenderer');
   public static Middlewares: symbol = Symbol.for('Middlewares');
+  public static NpmClient: symbol = Symbol.for('NpmClient');
   public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
   public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
   public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
@@ -84,20 +85,20 @@ export class InjectTokens {
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
-  public static DebugCommand: symbol = Symbol.for('DebugCommand');
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
   public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
+  public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
+  public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
   public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
   public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
-  public static DebugCommandDefinition: symbol = Symbol.for('DebugCommandDefinition');
   public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');
   public static ExplorerCommandDefinition: symbol = Symbol.for('ExplorerCommandDefinition');
   public static KeysCommandDefinition: symbol = Symbol.for('KeysCommandDefinition');
