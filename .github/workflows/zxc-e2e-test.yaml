@@ -473,7 +473,6 @@ jobs:
           ./.github/workflows/script/monitor-resources.sh start
          
           # Run the test
-          TEST_EXIT_CODE=0
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
           
           # Stop resource monitoring and display summary

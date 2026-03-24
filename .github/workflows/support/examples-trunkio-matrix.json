@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Consensus Node JVM Parameters",
+    "directory": "consensus-node-jvm-parameters",
+    "local-java-build": false
+  },
+  {
+    "name": "Multicluster Backup and Restore",
+    "directory": "multicluster-backup-restore",
+    "local-java-build": false
+  },
+  {
+    "name": "External Database Test",
+    "directory": "external-database-test",
+    "local-java-build": false
+  },
+  {
+    "name": "Version Upgrade Test",
+    "directory": "version-upgrade-test",
+    "local-java-build": false
+  },
+  {
+    "name": "State Save and Restore",
+    "directory": "state-save-and-restore",
+    "local-java-build": false
+  }
+]
