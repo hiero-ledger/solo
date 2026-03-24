@@ -74,9 +74,7 @@ export class K8Helper {
       } catch (error) {
         const message: string = error instanceof Error ? error.message : String(error);
         const isTransient: boolean =
-          message.includes('container not found') ||
-          message.includes('not found') ||
-          message.includes('Invalid pod');
+          message.includes('container not found') || message.includes('not found') || message.includes('Invalid pod');
         if (!isTransient) {
           throw error;
         }
