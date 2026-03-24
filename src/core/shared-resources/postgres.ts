@@ -58,40 +58,6 @@ export class PostgresSharedResource {
     return Base64.decode(value) || value;
   }
 
-  /**
-   * Checks whether the mirror node database is already accessible using the owner's credentials.
-   * Returns true if a previous run fully initialized the database (e.g., data persisted on a PVC
-   * across a Helm reinstall). Returns false if the database does not exist or is not yet set up.
-   */
-  private async checkDatabaseAccessible(
-    k8Container: Container,
-    databaseName: string,
-    ownerUsername: string,
-    ownerPassword: string,
-  ): Promise<boolean> {
-    const checkScriptName: string = 'check-db-accessible.sh';
-    const checkLines: string[] = [
-      '#!/usr/bin/env bash',
-      `echo "127.0.0.1:5432:${databaseName}:${ownerUsername}:${ownerPassword}" > /tmp/.pgpass_check`,
-      'chmod 600 /tmp/.pgpass_check',
-      `PGPASSFILE=/tmp/.pgpass_check psql -U ${ownerUsername} -h 127.0.0.1 -p 5432 -d ${databaseName} -tAc "SELECT 1"`,
-      'rm -f /tmp/.pgpass_check',
-    ];
-    const temporaryLocal: string = PathEx.join(constants.SOLO_CACHE_DIR, checkScriptName);
-    fs.writeFileSync(temporaryLocal, checkLines.join('\n'));
-    try {
-      await k8Container.copyTo(temporaryLocal, '/tmp');
-      await k8Container.execContainer(`chmod +x /tmp/${checkScriptName}`);
-      const output: string = await k8Container.execContainer(`/bin/bash /tmp/${checkScriptName}`);
-      return output?.trim().includes('1') ?? false;
-    } catch {
-      return false;
-    } finally {
-      await k8Container.execContainer(`rm -f /tmp/${checkScriptName}`).catch((): void => {});
-      fs.rmSync(temporaryLocal, {force: true});
-    }
-  }
-
   public async initializeMirrorNode(
     namespace: NamespaceName,
     context: string,
@@ -185,13 +151,6 @@ export class PostgresSharedResource {
     const ownerPassword: string = Base64.decode(
       mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
     );
-
-    // Idempotency check: if the database is already accessible as the owner user,
-    // a previous run fully initialized it (e.g., data persisted on a PVC across a Helm reinstall).
-    if (await this.checkDatabaseAccessible(k8Container, databaseName, ownerUsername, ownerPassword)) {
-      this.logger!.info(`Mirror Node database '${databaseName}' is already initialized. Skipping initialization.`);
-      return;
-    }
 
     const maxAttempts: number = 3;
     const backoff: number = 2;

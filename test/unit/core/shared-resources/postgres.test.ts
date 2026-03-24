@@ -145,7 +145,7 @@ describe('PostgresSharedResource', (): void => {
     it('copies check script, init script, and wrapper script to the postgres pod', async (): Promise<void> => {
       await postgres.initializeMirrorNode(namespace, context);
 
-      expect(k8ContainerStub.copyTo).to.have.been.calledThrice;
+      expect(k8ContainerStub.copyTo).to.have.been.calledTwice;
       for (const call of k8ContainerStub.copyTo.getCalls()) {
         expect(call.args[1]).to.equal('/tmp');
       }
@@ -210,23 +210,6 @@ describe('PostgresSharedResource', (): void => {
       const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export DB_NAME=custom_db');
       expect(writtenContent).to.include('export OWNER_USERNAME=custom_owner');
-    });
-
-    it('skips initialization when database is already accessible', async (): Promise<void> => {
-      // Simulate the check script returning '1' (database exists and owner can connect)
-      k8ContainerStub.execContainer.callsFake((cmd: string): Promise<string> => {
-        if ((cmd as string).includes('check-db-accessible.sh')) {
-          return Promise.resolve('1');
-        }
-        return Promise.resolve('');
-      });
-
-      await postgres.initializeMirrorNode(namespace, context);
-
-      expect(loggerStub.info).to.have.been.calledWithMatch(/already initialized/);
-      // The wrapper script (run-init.sh) must not have been executed
-      const execCalls: string[] = k8ContainerStub.execContainer.args.map((a: AnyObject[]): AnyObject => a[0]);
-      expect(execCalls.some((c: string): boolean => c.includes('run-init.sh'))).to.be.false;
     });
 
     it('uses the postgres pod from namespace zero', async (): Promise<void> => {
