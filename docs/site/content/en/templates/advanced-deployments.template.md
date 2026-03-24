@@ -488,7 +488,6 @@ $SOLO_NETWORK_DESTROY_OUTPUT
 Explore more deployment scenarios in the [Examples section](../examples/):
 
 - [Address Book Configuration](../examples/address-book/)
-- [Custom Network Configuration](../examples/custom-network-config/)
 - [Network with Domain Names](../examples/network-with-domain-names/)
 - [Local Build with Custom Config](../examples/local-build-with-custom-config/)
 - [State Save and Restore](../examples/state-save-and-restore/)
