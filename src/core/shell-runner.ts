@@ -23,7 +23,7 @@ export class ShellRunner {
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
   ): Promise<string[]> {
-    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: '${cmd}' ${arguments_.join(' ')}`;
+    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${arguments_.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
     this.logger.info(message);
 
