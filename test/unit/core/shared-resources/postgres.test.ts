@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {afterEach, beforeEach, describe, it} from 'mocha';
-import sinon from 'sinon';
+import sinon, {type SinonSpyCall} from 'sinon';
 import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 
@@ -163,7 +163,7 @@ describe('PostgresSharedResource', (): void => {
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
-        .find(call => (call.args[0] as string).includes('run-init'))!.args;
+        .find((call: SinonSpyCall<string[], string>): boolean => (call.args[0] as string).includes('run-init'))!.args;
       const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export DB_NAME=mirror_node');
       expect(writtenContent).to.include('export OWNER_USERNAME=mirror_node_owner');
@@ -174,7 +174,7 @@ describe('PostgresSharedResource', (): void => {
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
-        .find(call => (call.args[0] as string).includes('run-init'))!.args;
+        .find((call: SinonSpyCall<string[], string>): boolean => (call.args[0] as string).includes('run-init'))!.args;
       const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export GRAPHQL_PASSWORD=graphqlpass');
       expect(writtenContent).to.include('export GRPC_PASSWORD=grpcpass');
@@ -206,7 +206,7 @@ describe('PostgresSharedResource', (): void => {
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
-        .find(call => (call.args[0] as string).includes('run-init'))!.args;
+        .find((call: SinonSpyCall<string[], string>): boolean => (call.args[0] as string).includes('run-init'))!.args;
       const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export DB_NAME=custom_db');
       expect(writtenContent).to.include('export OWNER_USERNAME=custom_owner');

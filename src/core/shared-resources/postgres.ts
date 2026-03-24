@@ -69,7 +69,7 @@ export class PostgresSharedResource {
     ownerUsername: string,
     ownerPassword: string,
   ): Promise<boolean> {
-    const checkScriptName = 'check-db-accessible.sh';
+    const checkScriptName: string = 'check-db-accessible.sh';
     const checkLines: string[] = [
       '#!/usr/bin/env bash',
       `echo "127.0.0.1:5432:${databaseName}:${ownerUsername}:${ownerPassword}" > /tmp/.pgpass_check`,
@@ -87,7 +87,7 @@ export class PostgresSharedResource {
     } catch {
       return false;
     } finally {
-      await k8Container.execContainer(`rm -f /tmp/${checkScriptName}`).catch(() => {});
+      await k8Container.execContainer(`rm -f /tmp/${checkScriptName}`).catch((): void => {});
       fs.rmSync(temporaryLocal, {force: true});
     }
   }
