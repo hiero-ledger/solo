@@ -57,15 +57,15 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 
-const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
-const ADD_CONFIGS_NAME = 'addConfigs';
-const DESTROY_CONFIGS_NAME = 'destroyConfigs';
-const UPDATE_CONFIGS_NAME = 'updateConfigs';
-const UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
-const REFRESH_CONFIGS_NAME = 'refreshConfigs';
-const KEYS_CONFIGS_NAME = 'keyConfigs';
-const SETUP_CONFIGS_NAME = 'setupConfigs';
-const START_CONFIGS_NAME = 'startConfigs';
+const PREPARE_UPGRADE_CONFIGS_NAME: string = 'prepareUpgradeConfig';
+const ADD_CONFIGS_NAME: string = 'addConfigs';
+const DESTROY_CONFIGS_NAME: string = 'destroyConfigs';
+const UPDATE_CONFIGS_NAME: string = 'updateConfigs';
+const UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
+const REFRESH_CONFIGS_NAME: string = 'refreshConfigs';
+const KEYS_CONFIGS_NAME: string = 'keyConfigs';
+const SETUP_CONFIGS_NAME: string = 'setupConfigs';
+const START_CONFIGS_NAME: string = 'startConfigs';
 
 @injectable()
 export class NodeCommandConfigs {

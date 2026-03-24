@@ -207,4 +207,59 @@ export class DeploymentTest extends BaseCommandTest {
       });
     }
   }
+
+  private static soloDeploymentConfigInfoArgv(testName: string, deployment: DeploymentName): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
+    const argv: string[] = newArgv();
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_INFO,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static info(options: BaseTestOptions): void {
+    const {testName, testLogger, deployment} = options;
+    const {soloDeploymentConfigInfoArgv} = DeploymentTest;
+
+    it(`${testName}: solo deployment config info`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config info`);
+      await main(soloDeploymentConfigInfoArgv(testName, deployment));
+      testLogger.info(`${testName}: finished solo deployment config info`);
+    });
+  }
+
+  public static verifyDeploymentConfigInfo(options: BaseTestOptions): void {
+    const {testName, testLogger, deployment, namespace} = options;
+    const {soloDeploymentConfigInfoArgv, runMainAndCaptureOutputToJson} = DeploymentTest;
+
+    it(`${testName}: verify deployment config info output`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning deployment config info output verification`);
+
+      const {stdout, outputFilePath} = await runMainAndCaptureOutputToJson(
+        soloDeploymentConfigInfoArgv(testName, deployment),
+        {
+          testName,
+          outputFileName: 'deployment-config-info-output.json',
+          metadata: {
+            command: 'deployment config info',
+            deployment,
+            namespace: namespace.name,
+          },
+        },
+      );
+
+      expect(stdout).to.contain('Deployment:');
+      expect(stdout).to.contain(deployment);
+      expect(stdout).to.contain('Namespace:');
+      expect(stdout).to.contain(namespace.name);
+
+      testLogger.info(`${testName}: deployment config info output saved to ${outputFilePath}`);
+      testLogger.info(`${testName}: finished deployment config info output verification`);
+    });
+  }
 }

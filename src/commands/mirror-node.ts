@@ -62,6 +62,8 @@ import {Templates} from '../core/templates.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
+import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
+import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -102,7 +104,9 @@ interface MirrorNodeDeployConfigClass {
   newMirrorNodeComponent: MirrorNodeStateSchema;
   isLegacyChartInstalled: boolean;
   id: number;
+  soloChartVersion: string;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
+  installSharedResources: boolean;
 }
 
 interface MirrorNodeDeployContext {
@@ -147,6 +151,8 @@ interface MirrorNodeUpgradeConfigClass {
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
   id: number;
+  soloChartVersion: string;
+  installSharedResources: boolean;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
 }
 
@@ -173,10 +179,24 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager) {
+  public constructor(
+    @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
+    @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
+    @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
+  ) {
     super();
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.postgresSharedResource = patchInject(
+      postgresSharedResource,
+      InjectTokens.PostgresSharedResource,
+      this.constructor.name,
+    );
+    this.sharedResourceManager = patchInject(
+      sharedResourceManager,
+      InjectTokens.SharedResourceManager,
+      this.constructor.name,
+    );
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -214,6 +234,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
@@ -250,6 +271,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.id,
+      flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
     ],
   };
@@ -425,23 +447,24 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
+    let host: string, ownerPassword: string, ownerUsername: string, readonlyPassword: string, readonlyUsername: string;
+    valuesArgument += helpers.populateHelmArguments({
+      // Disable default database deployment
+      'stackgres.enabled': false,
+      'postgresql.enabled': false,
+      'db.name': 'mirror_node',
+    });
+
     if (config.useExternalDatabase) {
-      const {
-        externalDatabaseHost: host,
-        externalDatabaseOwnerUsername: ownerUsername,
-        externalDatabaseOwnerPassword: ownerPassword,
-        externalDatabaseReadonlyUsername: readonlyUsername,
-        externalDatabaseReadonlyPassword: readonlyPassword,
-      } = config;
+      host = config.externalDatabaseHost;
+      ownerPassword = config.externalDatabaseOwnerPassword;
+      ownerUsername = config.externalDatabaseOwnerUsername;
+      readonlyUsername = config.externalDatabaseReadonlyUsername;
+      readonlyPassword = config.externalDatabaseReadonlyPassword;
 
       valuesArgument += helpers.populateHelmArguments({
-        // Disable default database deployment
-        'stackgres.enabled': false,
-        'postgresql.enabled': false,
-
         // Set the host and name
         'db.host': host,
-        'db.name': 'mirror_node',
 
         // set the usernames
         'db.owner.username': ownerUsername,
@@ -595,6 +618,120 @@ export class MirrorNodeCommand extends BaseCommand {
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
+  private enableSharedResourcesTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable shared resources',
+      task: async (_, task): Promise<SoloListr<AnyListrContext>> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
+          {
+            title: 'Install Shared Resources chart',
+            task: async (context_): Promise<void> => {
+              if (!context_.config.useExternalDatabase) {
+                this.sharedResourceManager.enablePostgres();
+              }
+
+              this.sharedResourceManager.enableRedis();
+              context_.config.installSharedResources = await this.sharedResourceManager.installChart(
+                context_.config.namespace,
+                context_.config.chartDirectory,
+                context_.config.soloChartVersion,
+                context_.config.clusterContext,
+                {
+                  'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
+                  'redis.image.repository': constants.REDIS_IMAGE_REPOSITORY,
+                  'redis.image.tag': versions.REDIS_IMAGE_VERSION,
+                  'redis.sentinel.image.registry': constants.REDIS_SENTINEL_IMAGE_REGISTRY,
+                  'redis.sentinel.image.repository': constants.REDIS_SENTINEL_IMAGE_REPOSITORY,
+                  'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
+                  'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
+                },
+              );
+            },
+          },
+          {
+            title: 'Load redis credentials',
+            task: async (context_): Promise<void> => {
+              const secrets: Secret[] = await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .secrets()
+                .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+              const secret: Secret = secrets.find(
+                (secret: Secret): boolean => secret.name === 'solo-shared-resources-redis',
+              );
+
+              // Update values
+              context_.config.valuesArg += helpers.populateHelmArguments({
+                'redis.enabled': false,
+                'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
+                'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
+                'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
+              });
+            },
+          },
+          {
+            title: 'Initialize Postgres pod',
+            task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
+              const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+                {
+                  title: 'Wait for Postgres pod to be ready',
+                  task: async (context_): Promise<void> => {
+                    await this.postgresSharedResource.waitForPodReady(
+                      context_.config.namespace,
+                      context_.config.clusterContext,
+                    );
+                  },
+                },
+                {
+                  title: 'Set database connection details',
+                  task: async (context_: MirrorNodeDeployContext): Promise<void> => {
+                    // Only set the host. All passwords and usernames are
+                    // generated and persisted by the mirror-node chart via the mirror-passwords secret.
+                    // initializeMirrorNode() reads from that secret so everything stays consistent.
+                    context_.config.valuesArg += helpers.populateHelmArguments({
+                      'db.host': `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`,
+                    });
+                  },
+                },
+              ];
+
+              // set up the sub-tasks
+              return task.newListr(subTasks, {
+                concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+            skip: (context_): boolean => context_.config.useExternalDatabase,
+          },
+        ];
+
+        // set up the sub-tasks
+        return task.newListr(subTasks, {
+          concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
+          rendererOptions: {
+            collapseSubtasks: false,
+          },
+        });
+      },
+    };
+  }
+
+  private initializeSharedPostgresDatabaseTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Run database initialization script',
+      task: async (context_): Promise<void> => {
+        await this.postgresSharedResource.initializeMirrorNode(
+          context_.config.namespace,
+          context_.config.clusterContext,
+          this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
+        );
+      },
+      skip: ({config}: MirrorNodeDeployContext): boolean =>
+        config.useExternalDatabase || !config.installSharedResources,
+    };
+  }
+
   private enableMirrorNodeTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
@@ -666,11 +803,6 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Check pods are ready',
       task: (context_, task): SoloListr<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
         const subTasks: SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext>[] = [
-          {
-            title: 'Check Postgres DB',
-            labels: ['app.kubernetes.io/component=postgresql', 'app.kubernetes.io/name=postgres'],
-            skip: (): boolean => !!context_.config.useExternalDatabase,
-          },
           {
             title: 'Check REST API',
             labels: ['app.kubernetes.io/component=rest', 'app.kubernetes.io/name=rest'],
@@ -824,39 +956,31 @@ END $grant$;`;
                   return; //! stop the execution
                 }
 
-                const pods: Pod[] = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .pods()
-                  .list(namespace, ['app.kubernetes.io/name=postgres']);
-                if (pods.length === 0) {
-                  throw new SoloError('postgres pod not found');
-                }
-                const postgresPodName: PodName = pods[0].podReference.name;
-                const postgresContainerName: ContainerName = ContainerName.of('postgresql');
-                const postgresPodReference: PodReference = PodReference.of(namespace, postgresPodName);
+                const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
+                const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
                 const containerReference: ContainerReference = ContainerReference.of(
-                  postgresPodReference,
-                  postgresContainerName,
+                  podReference,
+                  ContainerName.of('postgresql'),
                 );
-                const mirrorEnvironmentVariables: string = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer('/bin/bash -c printenv');
-                const mirrorEnvironmentVariablesArray: string[] = mirrorEnvironmentVariables.split('\n');
                 const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 
-                const MIRROR_IMPORTER_DB_OWNER: string = helpers.getEnvironmentValue(
-                  mirrorEnvironmentVariablesArray,
-                  `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`,
+                const secrets: Secret[] = await this.k8Factory
+                  .getK8(config.clusterContext)
+                  .secrets()
+                  .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+                const sharedPostgresPasswordsSecret: Secret = secrets.find(
+                  (secret: Secret): boolean => secret.name === 'solo-shared-resources-passwords',
                 );
-                const MIRROR_IMPORTER_DB_OWNERPASSWORD: string = helpers.getEnvironmentValue(
-                  mirrorEnvironmentVariablesArray,
-                  `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`,
-                );
-                const MIRROR_IMPORTER_DB_NAME: string = helpers.getEnvironmentValue(
-                  mirrorEnvironmentVariablesArray,
-                  `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
+
+                const mirrorPasswordsSecrets: Secret = await this.k8Factory
+                  .getK8(config.clusterContext)
+                  .secrets()
+                  .read(config.namespace, 'mirror-passwords');
+
+                const DB_OWNER: string = 'postgres';
+                const DB_OWNER_PASSWORD: string = Base64.decode(sharedPostgresPasswordsSecret.data['password']);
+                const MIRROR_IMPORTER_DB_NAME: string = Base64.decode(
+                  mirrorPasswordsSecrets.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
                 );
 
                 const targetDirectory: string = '/tmp';
@@ -874,7 +998,7 @@ END $grant$;`;
                   .readByRef(containerReference)
                   .execContainer([
                     'psql',
-                    `postgresql://${MIRROR_IMPORTER_DB_OWNER}:${MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${MIRROR_IMPORTER_DB_NAME}`,
+                    `postgresql://${DB_OWNER}:${DB_OWNER_PASSWORD}@127.0.0.1:5432/${MIRROR_IMPORTER_DB_NAME}`,
                     '-f',
                     targetPath,
                   ]);
@@ -964,6 +1088,7 @@ END $grant$;`;
             );
 
             config.id = config.newMirrorNodeComponent.metadata.id;
+            config.installSharedResources = false;
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
             if (useMirrorNodeLegacyReleaseName) {
@@ -978,6 +1103,12 @@ END $grant$;`;
               config.namespace,
               config.releaseName,
               config.clusterContext,
+            );
+
+            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+              context_.config.soloChartVersion,
+              false,
+              'Solo chart version',
             );
 
             // predefined values first
@@ -1066,33 +1197,7 @@ END $grant$;`;
                 !config.externalDatabaseReadonlyUsername ||
                 !config.externalDatabaseReadonlyPassword)
             ) {
-              const missingFlags: CommandFlag[] = [];
-              if (!config.externalDatabaseHost) {
-                missingFlags.push(flags.externalDatabaseHost);
-              }
-              if (!config.externalDatabaseOwnerUsername) {
-                missingFlags.push(flags.externalDatabaseOwnerUsername);
-              }
-              if (!config.externalDatabaseOwnerPassword) {
-                missingFlags.push(flags.externalDatabaseOwnerPassword);
-              }
-
-              if (!config.externalDatabaseReadonlyUsername) {
-                missingFlags.push(flags.externalDatabaseReadonlyUsername);
-              }
-              if (!config.externalDatabaseReadonlyPassword) {
-                missingFlags.push(flags.externalDatabaseReadonlyPassword);
-              }
-
-              if (missingFlags.length > 0) {
-                const errorMessage: string =
-                  'There are missing values that need to be provided when' +
-                  `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
-
-                throw new SoloError(
-                  `${errorMessage} ${missingFlags.map((flag): string => `--${flag.name}`).join(', ')}`,
-                );
-              }
+              this.validateExternalDatabaseFlags(config);
             }
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
@@ -1103,7 +1208,9 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.enableSharedResourcesTask(),
         this.enableMirrorNodeTask(),
+        this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
         this.addMirrorNodeComponents(),
@@ -1189,6 +1296,13 @@ END $grant$;`;
             config.isChartInstalled = isChartInstalled;
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
+            config.installSharedResources = false;
+
+            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+              context_.config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
             if (useMirrorNodeLegacyReleaseName) {
@@ -1280,33 +1394,7 @@ END $grant$;`;
                 !config.externalDatabaseReadonlyUsername ||
                 !config.externalDatabaseReadonlyPassword)
             ) {
-              const missingFlags: CommandFlag[] = [];
-              if (!config.externalDatabaseHost) {
-                missingFlags.push(flags.externalDatabaseHost);
-              }
-              if (!config.externalDatabaseOwnerUsername) {
-                missingFlags.push(flags.externalDatabaseOwnerUsername);
-              }
-              if (!config.externalDatabaseOwnerPassword) {
-                missingFlags.push(flags.externalDatabaseOwnerPassword);
-              }
-
-              if (!config.externalDatabaseReadonlyUsername) {
-                missingFlags.push(flags.externalDatabaseReadonlyUsername);
-              }
-              if (!config.externalDatabaseReadonlyPassword) {
-                missingFlags.push(flags.externalDatabaseReadonlyPassword);
-              }
-
-              if (missingFlags.length > 0) {
-                const errorMessage: string =
-                  'There are missing values that need to be provided when' +
-                  `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
-
-                throw new SoloError(
-                  `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
-                );
-              }
+              this.validateExternalDatabaseFlags(config);
             }
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
@@ -1317,7 +1405,25 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.enableSharedResourcesTask(),
+        {
+          title: 'Delete stale mirror redis secret',
+          task: async (context_): Promise<void> => {
+            // The mirror-node chart stores sentinel config in the <release>-redis secret.
+            // On 'mirror node upgrade' we want to reconfigure the mirror node to use redis from
+            // the shared resources chart if it's not doing so already.
+            // Deleting the secret lets Helm recreate it cleanly without sentinel fields will
+            // be configured to use the shared redis. This is needed when upgrading from a version
+            // that did not use the shared redis to one that does.
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .secrets()
+              .delete(context_.config.namespace, `${context_.config.releaseName}-redis`);
+          },
+          skip: ({config}: MirrorNodeUpgradeContext): boolean => !config.installSharedResources,
+        },
         this.enableMirrorNodeTask(),
+        this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
@@ -1355,6 +1461,36 @@ END $grant$;`;
     }
 
     return true;
+  }
+
+  private validateExternalDatabaseFlags(config: MirrorNodeUpgradeConfigClass): void {
+    const missingFlags: CommandFlag[] = [];
+    if (!config.externalDatabaseHost) {
+      missingFlags.push(flags.externalDatabaseHost);
+    }
+    if (!config.externalDatabaseOwnerUsername) {
+      missingFlags.push(flags.externalDatabaseOwnerUsername);
+    }
+    if (!config.externalDatabaseOwnerPassword) {
+      missingFlags.push(flags.externalDatabaseOwnerPassword);
+    }
+
+    if (!config.externalDatabaseReadonlyUsername) {
+      missingFlags.push(flags.externalDatabaseReadonlyUsername);
+    }
+    if (!config.externalDatabaseReadonlyPassword) {
+      missingFlags.push(flags.externalDatabaseReadonlyPassword);
+    }
+
+    if (missingFlags.length > 0) {
+      const errorMessage: string =
+        'There are missing values that need to be provided when' +
+        `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
+
+      throw new SoloError(
+        `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
+      );
+    }
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
@@ -1470,6 +1606,25 @@ END $grant$;`;
             }
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
+        },
+        {
+          title: 'Destroy shared resources',
+          task: async (context_): Promise<void> => {
+            await this.sharedResourceManager.uninstallChart(context_.config.namespace, context_.config.clusterContext);
+
+            // Delete PVCs left behind by the shared resources chart (Postgres data volume)
+            const pvcs: string[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pvcs()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+
+            for (const pvc of pvcs) {
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .pvcs()
+                .delete(PvcReference.of(context_.config.namespace, PvcName.of(pvc)));
+            }
+          },
         },
         {
           title: 'Uninstall mirror ingress controller',
