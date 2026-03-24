@@ -39,6 +39,10 @@ CONSENSUS_JAVA_HEAP_MIN="${CONSENSUS_JAVA_HEAP_MIN:-32m}"
 CONSENSUS_JAVA_HEAP_MAX="${CONSENSUS_JAVA_HEAP_MAX:-64m}"
 CONSENSUS_JAVA_DIRECT_MEMORY="${CONSENSUS_JAVA_DIRECT_MEMORY:-32m}"
 CONSENSUS_OVERRIDE_JAVA_OPTS="${CONSENSUS_OVERRIDE_JAVA_OPTS:-false}"
+CONSENSUS_DYNAMIC_JAVA_OPTS="${CONSENSUS_DYNAMIC_JAVA_OPTS:-true}"
+CONSENSUS_JAVA_HEAP_MIN_PERCENT="${CONSENSUS_JAVA_HEAP_MIN_PERCENT:-20}"
+CONSENSUS_JAVA_HEAP_MAX_PERCENT="${CONSENSUS_JAVA_HEAP_MAX_PERCENT:-45}"
+CONSENSUS_JAVA_DIRECT_MEMORY_PERCENT="${CONSENSUS_JAVA_DIRECT_MEMORY_PERCENT:-20}"
 CONSENSUS_START_TIMEOUT_SECONDS="${CONSENSUS_START_TIMEOUT_SECONDS:-420}"
 BLOCK_ADD_TIMEOUT_SECONDS="${BLOCK_ADD_TIMEOUT_SECONDS:-420}"
 MIRROR_ADD_TIMEOUT_SECONDS="${MIRROR_ADD_TIMEOUT_SECONDS:-600}"
@@ -156,6 +160,45 @@ run_consensus_start_with_oom_guard() {
   wait "${cmd_pid}"
 }
 
+wait_for_swirlds_active_log() {
+  local timeout_seconds="${1:-120}"
+  local node_alias
+  node_alias="$(first_node_alias)"
+  local pod_name="network-${node_alias}-0"
+  local start_time=$SECONDS
+
+  log "Checking swirlds.log for ACTIVE status in ${pod_name}"
+  while (( SECONDS - start_time < timeout_seconds )); do
+    if kubectl --context "kind-${SOLO_CLUSTER_NAME}" exec "${pod_name}" -n "${SOLO_NAMESPACE}" -c root-container -- \
+      bash -lc "grep -R -m1 'ACTIVE' /opt/hgcapp/services-hedera/HapiApp2.0/output/swirlds.log* >/dev/null 2>&1"; then
+      log "swirlds.log in ${pod_name} reached ACTIVE status"
+      return 0
+    fi
+    sleep 2
+  done
+
+  log "swirlds.log in ${pod_name} did not show ACTIVE within ${timeout_seconds}s"
+  return 1
+}
+
+verify_consensus_node_functional() {
+  local swirlds_timeout="${1:-120}"
+  local ledger_timeout="${2:-180}"
+
+  if ! wait_for_swirlds_active_log "${swirlds_timeout}"; then
+    return 141
+  fi
+
+  log "Verifying consensus functionality via ledger account create"
+  if ! run_solo_with_timeout "${ledger_timeout}" ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1; then
+    log "Ledger account create verification failed"
+    return 142
+  fi
+
+  log "Consensus functional verification passed"
+  return 0
+}
+
 kill_process_tree() {
   local pid="$1"
   local children
@@ -220,6 +263,19 @@ increment_memory_var() {
   next_memory="$(increment_memory "${current_memory}" "${increment_mi}")" || return 1
   printf -v "${var_name}" '%s' "${next_memory}"
   return 0
+}
+
+memory_percent_to_m() {
+  local memory="$1"
+  local percent="$2"
+  local floor_m="${3:-16}"
+  local memory_mi
+  memory_mi="$(memory_to_mi "${memory}")" || return 1
+  local value_m="$((memory_mi * percent / 100))"
+  if (( value_m < floor_m )); then
+    value_m="${floor_m}"
+  fi
+  printf '%sm' "${value_m}"
 }
 
 release_oom_details_from_json() {
@@ -441,6 +497,20 @@ write_consensus_values() {
   local _unused_component_memory="$2"
   local file="$3"
   if [[ "${CONSENSUS_OVERRIDE_JAVA_OPTS}" == "true" ]]; then
+    local java_heap_min="${CONSENSUS_JAVA_HEAP_MIN}"
+    local java_heap_max="${CONSENSUS_JAVA_HEAP_MAX}"
+    local java_direct_memory="${CONSENSUS_JAVA_DIRECT_MEMORY}"
+    if [[ "${CONSENSUS_DYNAMIC_JAVA_OPTS}" == "true" ]]; then
+      java_heap_min="$(memory_percent_to_m "${consensus_memory}" "${CONSENSUS_JAVA_HEAP_MIN_PERCENT}" 16)"
+      java_heap_max="$(memory_percent_to_m "${consensus_memory}" "${CONSENSUS_JAVA_HEAP_MAX_PERCENT}" 32)"
+      java_direct_memory="$(memory_percent_to_m "${consensus_memory}" "${CONSENSUS_JAVA_DIRECT_MEMORY_PERCENT}" 16)"
+      local java_heap_min_m="${java_heap_min%m}"
+      local java_heap_max_m="${java_heap_max%m}"
+      if (( java_heap_min_m > java_heap_max_m )); then
+        java_heap_min="${java_heap_max}"
+      fi
+    fi
+    log "Consensus JVM sizing for ${consensus_memory}: Xms=${java_heap_min}, Xmx=${java_heap_max}, MaxDirectMemory=${java_direct_memory}"
     cat > "${file}" <<EOF
 defaults:
   root:
@@ -451,11 +521,11 @@ defaults:
         memory: "${consensus_memory}"
     extraEnv:
       - name: JAVA_HEAP_MIN
-        value: "${CONSENSUS_JAVA_HEAP_MIN}"
+        value: "${java_heap_min}"
       - name: JAVA_HEAP_MAX
-        value: "${CONSENSUS_JAVA_HEAP_MAX}"
+        value: "${java_heap_max}"
       - name: JAVA_OPTS
-        value: "-XX:+UseG1GC -XX:MaxDirectMemorySize=${CONSENSUS_JAVA_DIRECT_MEMORY} --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+        value: "-XX:+UseG1GC -XX:MaxDirectMemorySize=${java_direct_memory} --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
   sidecars:
     blockstreamUploader:
       enabled: false
@@ -762,8 +832,11 @@ ensure_baseline() {
       log "Using existing cluster '${SOLO_CLUSTER_NAME}'"
       cleanup_orphan_add_processes
       if run_consensus_start_with_oom_guard "${CONSENSUS_START_TIMEOUT_SECONDS}"; then
-        log "Existing baseline is healthy"
-        return
+        if verify_consensus_node_functional; then
+          log "Existing baseline is healthy and functional"
+          return
+        fi
+        log "Existing baseline failed functional verification; recreating baseline cluster"
       fi
       log "Existing baseline health check failed, recreating baseline cluster"
     fi
@@ -816,22 +889,24 @@ ensure_baseline() {
     start_exit=$?
     set -e
     if (( start_exit == 0 )); then
-      break
+      if verify_consensus_node_functional; then
+        break
+      fi
+      start_exit=127
     fi
 
     if (( start_exit != 124 && start_exit != 125 )); then
-      log "Baseline failed with non-memory startup error (exit ${start_exit})."
-      log "Hint: set USE_LOCAL_BUILD=false or verify LOCAL_BUILD_PATH build/version compatibility."
-      return 1
+      log "Baseline start failed with exit ${start_exit} at CONSENSUS_NODE_MEMORY=${CONSENSUS_NODE_MEMORY}."
+      log "Startup failures at low memory are often transient/non-specific; treating this as insufficient memory and retrying."
+    else
+      log "Baseline failed to reach ACTIVE with CONSENSUS_NODE_MEMORY=${CONSENSUS_NODE_MEMORY}"
     fi
-
-    log "Baseline failed to reach ACTIVE with CONSENSUS_NODE_MEMORY=${CONSENSUS_NODE_MEMORY}"
     if increment_memory_var CONSENSUS_NODE_MEMORY "${CONSENSUS_MEMORY_INCREMENT_MI}" "${CONSENSUS_MAX_MEMORY_MI}"; then
       log "Increasing CONSENSUS_NODE_MEMORY to ${CONSENSUS_NODE_MEMORY} and retrying baseline deployment"
       continue
     fi
 
-    log "Baseline failed: consensus node could not reach ACTIVE by ${CONSENSUS_MAX_MEMORY_MI}Mi"
+    log "Baseline failed: consensus node startup could not stabilize by ${CONSENSUS_MAX_MEMORY_MI}Mi (last exit ${start_exit})"
     return 1
   done
 }
