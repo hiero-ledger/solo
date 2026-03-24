@@ -48,7 +48,15 @@ tasks:
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
               --depth 1 --branch {{.CN_VERSION}} {{.CN_REPO_DIR}}
           else
-            echo "Skipping clone: {{.CN_REPO_DIR}} already exists"
+            EXISTING_TAG=$(cd "{{.CN_REPO_DIR}}" && git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+            if [ "${EXISTING_TAG}" != "{{.CN_VERSION}}" ]; then
+              echo "Existing clone at '${EXISTING_TAG}' does not match required '{{.CN_VERSION}}', re-cloning..."
+              rm -rf "{{.CN_REPO_DIR}}"
+              git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
+                --depth 1 --branch {{.CN_VERSION}} {{.CN_REPO_DIR}}
+            else
+              echo "Skipping clone: {{.CN_REPO_DIR}} already at {{.CN_VERSION}}"
+            fi
           fi
 
   build-consensus-node:
