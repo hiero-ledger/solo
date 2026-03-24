@@ -112,22 +112,35 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           EXAMPLE_DIR="${{ inputs.example-directory }}"
+          STANDARD_MATRIX_FILE=".github/workflows/support/examples-test-matrix.json"
+          TRUNK_MATRIX_FILE=".github/workflows/support/examples-trunkio-matrix.json"
+          EVENT_NAME="${{ github.event_name }}"
+          REF_NAME="${{ github.ref_name }}"
+
+          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == trunk-merge/* ]]; then
+            echo "Detected trunk.io merge queue context (push to ${REF_NAME})."
+            SOURCE_MATRIX_JSON=$(cat "${TRUNK_MATRIX_FILE}")
+          else
+            echo "Non-trunk merge queue context detected (${EVENT_NAME}:${REF_NAME})."
+            echo "Using concatenated matrix from standard + trunkio files."
+            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${STANDARD_MATRIX_FILE}" "${TRUNK_MATRIX_FILE}")
+          fi
           
           if [ -n "$EXAMPLE_DIR" ]; then
             # Filter to specific example
             echo "Filtering matrix for example directory: $EXAMPLE_DIR"
-            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
+            JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
             
             if [ "$JSON_CONTENT" = "[]" ]; then
               echo "Error: Example directory '$EXAMPLE_DIR' not found in matrix"
               echo "Available examples:"
-              cat .github/workflows/support/examples-test-matrix.json | jq -r '.[].directory'
+              echo "${SOURCE_MATRIX_JSON}" | jq -r '.[].directory'
               exit 1
             fi
           else
-            # Use all examples
-            echo "Using all examples from matrix"
-            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+            # Use all examples from selected source matrix
+            echo "Using all examples from selected matrix source"
+            JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c .)
           fi
           
           echo "Generated matrix: $JSON_CONTENT"
