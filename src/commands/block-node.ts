@@ -842,29 +842,33 @@ export class BlockNodeCommand extends BaseCommand {
                   `Applying block node recreate migration for ${releaseName} (${step.fromVersion} -> ${stepTargetVersion}): ${step.reason}`,
                 );
                 await this.recreateBlockNodeChart(config, stepTargetVersion, step);
-                continue;
-              }
-
-              try {
-                await this.chartManager.upgrade(
-                  namespace,
-                  releaseName,
-                  constants.BLOCK_NODE_CHART,
-                  config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
-                  stepTargetVersion,
-                  stepValuesArgument,
-                  context,
-                );
-              } catch (error) {
-                if (this.isImmutableStatefulSetError(error)) {
-                  this.logger.showUser(
-                    `Detected immutable StatefulSet upgrade for ${releaseName}; retrying with recreate migration`,
+              } else {
+                try {
+                  await this.chartManager.upgrade(
+                    namespace,
+                    releaseName,
+                    constants.BLOCK_NODE_CHART,
+                    config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
+                    stepTargetVersion,
+                    stepValuesArgument,
+                    context,
                   );
-                  await this.recreateBlockNodeChart(config, stepTargetVersion, step);
-                } else {
-                  throw error;
+                } catch (error) {
+                  if (this.isImmutableStatefulSetError(error)) {
+                    this.logger.showUser(
+                      `Detected immutable StatefulSet upgrade for ${releaseName}; retrying with recreate migration`,
+                    );
+                    await this.recreateBlockNodeChart(config, stepTargetVersion, step);
+                  } else {
+                    throw error;
+                  }
                 }
               }
+
+              // Persist the applied step version so remote config reflects the last
+              // successfully applied step even if a later step fails.
+              this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, new SemVer(stepTargetVersion));
+              await this.remoteConfig.persist();
             }
 
             showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);

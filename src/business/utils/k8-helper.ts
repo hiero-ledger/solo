@@ -73,7 +73,11 @@ export class K8Helper {
         return container;
       } catch (error) {
         const message: string = error instanceof Error ? error.message : String(error);
-        if (!message.includes('container not found')) {
+        const isTransient: boolean =
+          message.includes('container not found') ||
+          message.includes('not found') ||
+          message.includes('Invalid pod');
+        if (!isTransient) {
           throw error;
         }
         if (attempt === maxAttempts) {
