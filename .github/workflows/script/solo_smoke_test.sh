@@ -220,7 +220,8 @@ function preload_mirror_test_images_for_kind()
   local image_prefix source_registry dockerhub_qualified_image
   local kind_nodes
   local max_attempts=3
-  local attempt
+  local attempt pull_candidate pulled_image
+  local -a pull_candidates
 
   if [ -z "${mirror_release}" ] || [ -z "${namespace}" ]; then
     echo "Skipping mirror test image preload: mirror release or namespace not provided."
@@ -284,23 +285,36 @@ function preload_mirror_test_images_for_kind()
 
     dockerhub_qualified_image="docker.io/${short_image}"
     mirror_image="${hashgraph_mirror_registry}/${short_image}"
+    pull_candidates=(
+      "${mirror_image}"
+      "${dockerhub_qualified_image}"
+      "registry-1.docker.io/${short_image}"
+    )
 
     while IFS= read -r node; do
       [ -z "${node}" ] && continue
       attempt=1
       while [ "${attempt}" -le "${max_attempts}" ]; do
-        if docker exec "${node}" ctr --namespace=k8s.io images pull "${mirror_image}" >/dev/null 2>&1; then
-          docker exec "${node}" ctr --namespace=k8s.io images tag "${mirror_image}" "${dockerhub_qualified_image}" >/dev/null 2>&1 || true
-          docker exec "${node}" ctr --namespace=k8s.io images tag "${mirror_image}" "${short_image}" >/dev/null 2>&1 || true
-          docker exec "${node}" ctr --namespace=k8s.io images tag "${mirror_image}" "${source_image}" >/dev/null 2>&1 || true
-          echo "Preloaded ${source_image} on node ${node} from ${mirror_image}"
+        pulled_image=""
+        for pull_candidate in "${pull_candidates[@]}"; do
+          if docker exec "${node}" ctr --namespace=k8s.io images pull "${pull_candidate}" >/dev/null 2>&1; then
+            pulled_image="${pull_candidate}"
+            break
+          fi
+        done
+
+        if [ -n "${pulled_image}" ]; then
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${pulled_image}" "${dockerhub_qualified_image}" >/dev/null 2>&1 || true
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${pulled_image}" "${short_image}" >/dev/null 2>&1 || true
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${pulled_image}" "${source_image}" >/dev/null 2>&1 || true
+          echo "Preloaded ${source_image} on node ${node} from ${pulled_image}"
           break
         fi
 
         if [ "${attempt}" -eq "${max_attempts}" ]; then
-          echo "Warning: failed to preload ${source_image} on ${node} from ${mirror_image} after ${max_attempts} attempts."
+          echo "Warning: failed to preload ${source_image} on ${node} from mirror and Docker Hub fallback after ${max_attempts} attempts."
         else
-          echo "Retrying preload ${source_image} on ${node} (attempt ${attempt}/${max_attempts})..."
+          echo "Retrying preload ${source_image} on ${node} (attempt ${attempt}/${max_attempts}); trying mirror then Docker Hub fallback..."
           sleep 3
         fi
         attempt=$((attempt + 1))
