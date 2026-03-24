@@ -121,10 +121,30 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
-          set +e
-          task test-e2e-performance
+
+          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # test immediately rather than waiting 30-40 minutes for it to finish on
+          # its own.
+          TASK_PID=""
+          TASK_RC=0
+
+          cleanup() {
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID})..."
+              kill "${TASK_PID}" 2>/dev/null || true
+              wait "${TASK_PID}" 2>/dev/null || true
+            fi
+            exit 1
+          }
+          trap cleanup SIGTERM SIGINT
+
+          task test-e2e-performance &
+          TASK_PID=$!
+          wait "${TASK_PID}"
           TASK_RC=$?
-          set -e
+          TASK_PID=""
+          trap - SIGTERM SIGINT
 
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."

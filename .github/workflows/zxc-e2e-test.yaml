@@ -471,13 +471,35 @@ jobs:
           
           # Start resource monitoring in background
           ./.github/workflows/script/monitor-resources.sh start
-         
-          # Run the test
-          ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
-          
+
+          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # test immediately rather than waiting 30-60 minutes for it to finish on
+          # its own.
+          TASK_PID=""
+          TEST_EXIT_CODE=0
+
+          cleanup() {
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID})..."
+              kill "${TASK_PID}" 2>/dev/null || true
+              wait "${TASK_PID}" 2>/dev/null || true
+            fi
+            ./.github/workflows/script/monitor-resources.sh stop || true
+            exit 1
+          }
+          trap cleanup SIGTERM SIGINT
+
+          ${{ env.CG_EXEC }} task ${{ inputs.test-script }} &
+          TASK_PID=$!
+          wait "${TASK_PID}"
+          TEST_EXIT_CODE=$?
+          TASK_PID=""
+          trap - SIGTERM SIGINT
+
           # Stop resource monitoring and display summary
           ./.github/workflows/script/monitor-resources.sh stop
-          
+
           exit $TEST_EXIT_CODE
 
       - name: Debug Registry Pull Path
