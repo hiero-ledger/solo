@@ -40,7 +40,7 @@ export class Templates {
   }
 
   public static renderPostgresPodName(number_: number): PodName {
-    return PodName.of(`solo-shared-resources-postgres-postgresql-${number_}`);
+    return PodName.of(`solo-shared-resources-postgres-${number_}`);
   }
 
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {

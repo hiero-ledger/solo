@@ -33,5 +33,6 @@ minio-server:
     pools:
       - servers: 1
         name: pool-1
+        storageClassName: "standard"
         volumesPerServer: 1
         size: 10Gi

@@ -26,6 +26,12 @@ export class ComponentIdsSchema implements ComponentIdsStructure {
   @Expose()
   public explorers: number;
 
+  @Expose()
+  public postgres: number;
+
+  @Expose()
+  public redis: number;
+
   public constructor(
     consensusNodes?: number,
     blockNodes?: number,
@@ -34,6 +40,8 @@ export class ComponentIdsSchema implements ComponentIdsStructure {
     haProxies?: number,
     envoyProxies?: number,
     explorers?: number,
+    postgres?: number,
+    redis?: number,
   ) {
     this.consensusNodes = consensusNodes || 1;
     this.blockNodes = blockNodes || 1;
@@ -42,5 +50,7 @@ export class ComponentIdsSchema implements ComponentIdsStructure {
     this.haProxies = haProxies || 1;
     this.envoyProxies = envoyProxies || 1;
     this.explorers = explorers || 1;
+    this.postgres = postgres || 1;
+    this.redis = redis || 1;
   }
 }

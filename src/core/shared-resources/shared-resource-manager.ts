@@ -13,6 +13,7 @@ import * as constants from '../../core/constants.js';
 export class SharedResourceManager {
   private postgresEnabled: boolean = false;
   private redisEnabled: boolean = false;
+  private additionalValuesArgument: string = '';
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -22,6 +23,10 @@ export class SharedResourceManager {
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
+  }
+
+  public setAdditionalValuesArgument(additionalArguments: string): void {
+    this.additionalValuesArgument = additionalArguments;
   }
 
   public enablePostgres(): void {
@@ -88,13 +93,16 @@ export class SharedResourceManager {
       .map(([key, value]): string => `--set ${key}=${value}`)
       .join(' ');
 
+    const fullValues: string = this.additionalValuesArgument ? `${values} ${this.additionalValuesArgument}` : values;
+    this.additionalValuesArgument = '';
+
     await this.chartManager.install(
       namespace,
       constants.SOLO_SHARED_RESOURCES_CHART,
       constants.SOLO_SHARED_RESOURCES_CHART,
       chartDirectory || constants.SOLO_TESTING_CHART_URL,
       soloChartVersion,
-      values,
+      fullValues,
       context,
     );
 

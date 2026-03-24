@@ -16,6 +16,8 @@ import {type EnvoyProxyStateSchema} from '../../../../data/schema/model/remote/s
 import {type ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/block-node-state-schema.js';
+import {type PostgresStateSchema} from '../../../../data/schema/model/remote/state/postgres-state-schema.js';
+import {type RedisStateSchema} from '../../../../data/schema/model/remote/state/redis-state-schema.js';
 
 export interface ComponentFactoryApi {
   createNewRelayComponent(
@@ -49,4 +51,8 @@ export interface ComponentFactoryApi {
     clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
   ): ConsensusNodeStateSchema[];
+
+  createNewPostgresComponent(clusterReference: ClusterReferenceName, namespace: NamespaceName): PostgresStateSchema;
+
+  createNewRedisComponent(clusterReference: ClusterReferenceName, namespace: NamespaceName): RedisStateSchema;
 }

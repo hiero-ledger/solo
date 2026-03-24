@@ -190,6 +190,16 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
+      case ComponentTypes.Postgres: {
+        callback(this.state.postgres);
+        break;
+      }
+
+      case ComponentTypes.Redis: {
+        callback(this.state.redis);
+        break;
+      }
+
       default: {
         throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
       }
