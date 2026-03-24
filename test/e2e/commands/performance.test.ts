@@ -135,7 +135,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           );
 
           const namespacePath: string = PathEx.join(tartgetDirectory, `${namespace}.json`);
-          const namespaceJson = JSON.parse(fs.readFileSync(namespacePath, 'utf8'));
+          const namespaceJson: Record<string, unknown> = JSON.parse(fs.readFileSync(namespacePath, 'utf8'));
           namespaceJson.peakMemoryInMebibytes = maxMemoryMetrics;
           fs.writeFileSync(namespacePath, JSON.stringify(namespaceJson), 'utf8');
 
