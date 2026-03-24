@@ -56,6 +56,7 @@ import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {type Lock} from '../../core/lock/lock.js';
@@ -180,20 +181,32 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     this._isRollback = true;
     try {
       await this.destroyInternal(destroyArgv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
-      this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
-      throw new SoloError(`Deploy failed: ${deployError.message}. Rollback completed successfully.`, deployError);
     } catch (rollbackError) {
-      if (rollbackError instanceof SoloError && rollbackError.message.startsWith('Deploy failed:')) {
-        throw rollbackError;
-      }
       this.logger.error(`Rollback failed for deployment '${config.deployment}': ${rollbackError.message}`);
       throw new SoloError(
         `Deploy failed: ${deployError.message}. Rollback also failed: ${rollbackError.message}`,
         deployError,
       );
     } finally {
+      // Safety net: ensure namespace is always deleted during rollback, even if destroyInternal
+      // failed or skipped namespace cleanup (e.g. due to skipAll, helm uninstall failure, etc.)
+      try {
+        const k8: K8 = this.k8Factory.getK8(config.context);
+        if (await k8.namespaces().has(config.namespace)) {
+          this.logger.warn(`Rollback cleanup: deleting namespace '${config.namespace.name}'`);
+          await k8.namespaces().delete(config.namespace);
+        }
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to delete namespace '${config.namespace.name}' during rollback cleanup: ${cleanupError.message}`,
+        );
+      }
+
       this._isRollback = false;
     }
+
+    this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
+    throw new SoloError(`Deploy failed: ${deployError.message}. Rollback completed successfully.`, deployError);
   }
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
