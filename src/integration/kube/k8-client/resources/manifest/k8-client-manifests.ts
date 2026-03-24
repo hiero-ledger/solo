@@ -44,7 +44,6 @@ export class K8ClientManifests implements Manifests {
     );
   }
 
-
   public async scaleStatefulSet(namespace: string, statefulSetName: string, replicas: number): Promise<void> {
     await this.k8sObjectApi.patch(
       {
@@ -86,5 +85,4 @@ export class K8ClientManifests implements Manifests {
       PatchStrategy.StrategicMergePatch,
     );
   }
-  
 }

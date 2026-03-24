@@ -178,6 +178,8 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
+  private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
+  private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -698,7 +700,7 @@ export class MirrorNodeCommand extends BaseCommand {
         await this.postgresSharedResource.initializeMirrorNode(
           context_.config.namespace,
           context_.config.clusterContext,
-          this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
+          MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX,
         );
       },
       skip: ({config}: MirrorNodeDeployContext): boolean =>
@@ -936,7 +938,7 @@ END $grant$;`;
                   podReference,
                   ContainerName.of('postgresql'),
                 );
-                const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+                const environmentVariablePrefix: string = MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX;
 
                 const secrets: Secret[] = await this.k8Factory
                   .getK8(config.clusterContext)
