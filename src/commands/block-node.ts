@@ -588,7 +588,6 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.checkBlockNodeReadiness(),
         this.addBlockNodeComponent(),
-        this.nodeCommandTasks.waitForNodesTask(),
         this.handleConsensusNodeUpdating(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

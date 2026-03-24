@@ -1216,7 +1216,6 @@ END $grant$;`;
           },
         },
         this.enableSharedResourcesTask(),
-        this.nodeCommandTasks.waitForNodesTask(),
         {
           title: 'load node client',
           task: async ({config}): Promise<void> => {

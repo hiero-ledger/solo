@@ -376,13 +376,6 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Prepare chart values',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
-        await this.accountManager.loadNodeClient(
-          config.namespace,
-          this.remoteConfig.getClusterRefs(),
-          config.deployment,
-          config.forcePortForward,
-        );
-
         config.valuesArg = await this.prepareValuesArgForRelay(config);
       },
     };
@@ -425,32 +418,6 @@ export class RelayCommand extends BaseCommand {
               Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
               constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
               constants.RELAY_PODS_RUNNING_DELAY,
-            );
-        } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
-        }
-        // reset nodeAlias
-        this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-      },
-    };
-  }
-
-  private checkMirrorNodeIsRunningTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Check Mirror Node is running',
-      skip: (): boolean => !this.oneShotState.isActive(),
-      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
-        try {
-          const mirrorNodeId: ComponentId = this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
-
-          await this.k8Factory
-            .getK8(config.context)
-            .pods()
-            .waitForRunningPhase(
-              config.namespace,
-              Templates.renderMirrorNodeLabels(mirrorNodeId),
-              constants.PODS_READY_MAX_ATTEMPTS,
-              constants.PODS_READY_DELAY,
             );
         } catch (error) {
           throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
@@ -598,10 +565,8 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.checkChartIsInstalledTask(),
-        this.nodeCommandTasks.waitForNodesTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
-        this.checkMirrorNodeIsRunningTask(),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
         this.addRelayComponent(),
@@ -628,14 +593,12 @@ export class RelayCommand extends BaseCommand {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
         }
-        await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
         }
-        await this.accountManager.close();
       });
     }
 
@@ -735,14 +698,12 @@ export class RelayCommand extends BaseCommand {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
         }
-        await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
         }
-        await this.accountManager.close();
       });
     }
 
