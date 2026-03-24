@@ -171,6 +171,7 @@ export class ExplorerCommand extends BaseCommand {
       // Mirror Node
       flags.mirrorNodeId,
       flags.mirrorNamespace,
+      flags.mirrorNodeReleaseName,
     ],
   };
 
@@ -653,14 +654,20 @@ export class ExplorerCommand extends BaseCommand {
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.clusterContext,
-            );
+            if (this.oneShotState.isActive()) {
+              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
+              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
+              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeReleaseName);
+            } else {
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.clusterContext,
+              );
 
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+            }
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
@@ -767,14 +774,20 @@ export class ExplorerCommand extends BaseCommand {
             config.isChartInstalled = isChartInstalled;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.clusterContext,
-            );
+            if (this.oneShotState.isActive()) {
+              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
+              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
+              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeReleaseName);
+            } else {
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.clusterContext,
+              );
 
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+            }
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 

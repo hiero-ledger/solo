@@ -175,6 +175,7 @@ export class RelayCommand extends BaseCommand {
       // Mirror Node
       flags.mirrorNodeId,
       flags.mirrorNamespace,
+      flags.mirrorNodeReleaseName,
     ],
   };
 
@@ -587,14 +588,20 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.context,
-            );
+            if (this.oneShotState.isActive()) {
+              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
+              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
+              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeId);
+            } else {
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.context,
+              );
 
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+            }
 
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,
@@ -711,14 +718,20 @@ export class RelayCommand extends BaseCommand {
             config.releaseName = releaseName;
             config.nodeAliases = nodeAliases;
 
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.context,
-            );
+            if (this.oneShotState.isActive()) {
+              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
+              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
+              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeId);
+            } else {
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.context,
+              );
 
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+            }
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
