@@ -15,6 +15,6 @@ networking:
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io", "https://registry-1.docker.io"]
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-1.docker.io"]
-      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io", "https://registry-1.docker.io"]
