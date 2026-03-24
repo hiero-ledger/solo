@@ -1012,8 +1012,9 @@ export class AccountManager {
   }
 
   /**
-   * Fetch and prepare address book as a base64 string
-   * @deprecated Use {@link buildAddressBookBase64} instead, which does not require a running consensus node.
+   * Fetch and prepare address book as a base64 string from the on-chain state (file 0.0.102).
+   * Requires a running and reachable consensus node.
+   * Use {@link buildAddressBookBase64} as a fallback when the consensus node is unavailable.
    */
   async prepareAddressBookBase64(
     namespace: NamespaceName,

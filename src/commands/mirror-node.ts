@@ -605,11 +605,33 @@ export class MirrorNodeCommand extends BaseCommand {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
                 const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-                context_.addressBook = await this.accountManager.buildAddressBookBase64(
-                  context_.config.namespace,
-                  this.remoteConfig.getClusterRefs(),
-                  deployment,
-                );
+                const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
+                try {
+                  // Prefer the on-chain address book (file 0.0.102) when the consensus node is
+                  // reachable – it contains additional fields (cert hashes, RSA keys) and
+                  // reflects any post-genesis address book updates.
+                  context_.addressBook = await this.accountManager.prepareAddressBookBase64(
+                    context_.config.namespace,
+                    this.remoteConfig.getClusterRefs(),
+                    deployment,
+                    this.configManager.getFlag(flags.operatorId),
+                    this.configManager.getFlag(flags.operatorKey),
+                    portForward,
+                  );
+                } catch (error) {
+                  // Consensus node not yet available (e.g. one-shot deployment where mirror node
+                  // is started before the consensus node is fully ready).  Build the address book
+                  // directly from Kubernetes service metadata so that deployment can proceed.
+                  this.logger.warn(
+                    `Could not fetch address book from consensus node: ${error.message}. ` +
+                      'Falling back to local k8s-based address book.',
+                  );
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
+                    context_.config.namespace,
+                    this.remoteConfig.getClusterRefs(),
+                    deployment,
+                  );
+                }
                 context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
               },
             },
