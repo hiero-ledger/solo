@@ -346,23 +346,38 @@ jobs:
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' ../../version-test.ts | sed -E "s/.*'([^']+)';/\1/")
           TASK_PID=""
+          TASK_PGID=""
           TASK_RC=0
 
           cleanup() {
             if [[ -n "${TASK_PID}" ]]; then
-              echo "Received cancellation signal, stopping task (PID ${TASK_PID})..."
-              kill "${TASK_PID}" 2>/dev/null || true
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID}, PGID ${TASK_PGID})..."
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
+              else
+                kill -TERM "${TASK_PID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL "${TASK_PID}" 2>/dev/null || true
+              fi
               wait "${TASK_PID}" 2>/dev/null || true
             fi
-            exit 1
+            exit 130
           }
           trap cleanup SIGTERM SIGINT
 
-          task &
+          if command -v setsid >/dev/null 2>&1; then
+            setsid task &
+          else
+            task &
+          fi
           TASK_PID=$!
+          TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
           wait "${TASK_PID}"
           TASK_RC=$?
           TASK_PID=""
+          TASK_PGID=""
           trap - SIGTERM SIGINT
 
           if [ "${TASK_RC}" -ne 0 ]; then
