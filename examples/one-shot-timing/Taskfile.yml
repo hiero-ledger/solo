@@ -19,7 +19,7 @@ vars:
     sh: git rev-parse --show-toplevel
 
   # Consensus node version for local build
-  CN_VERSION: "v0.72.0"
+  CN_VERSION: "v0.72.0-rc.4"
 
   # Block node chart version to deploy
   BLOCK_NODE_VERSION: "0.29.0"
@@ -44,16 +44,21 @@ tasks:
     desc: Checkout the consensus node repository at CN_VERSION
     cmds:
       - cmd: |
-          if [ ! -d "{{.CN_REPO_DIR}}" ]; then
+          clone_at_tag() {
+            local tag="${1}" dir="${2}"
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
-              --depth 1 --branch {{.CN_VERSION}} {{.CN_REPO_DIR}}
+              --depth 1 --branch "${tag}" "${dir}" 2>/dev/null || \
+            git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
+              --depth 1 --branch "refs/tags/${tag}" "${dir}"
+          }
+          if [ ! -d "{{.CN_REPO_DIR}}" ]; then
+            clone_at_tag "{{.CN_VERSION}}" "{{.CN_REPO_DIR}}"
           else
             EXISTING_TAG=$(cd "{{.CN_REPO_DIR}}" && git describe --tags --exact-match HEAD 2>/dev/null || echo "")
             if [ "${EXISTING_TAG}" != "{{.CN_VERSION}}" ]; then
               echo "Existing clone at '${EXISTING_TAG}' does not match required '{{.CN_VERSION}}', re-cloning..."
               rm -rf "{{.CN_REPO_DIR}}"
-              git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
-                --depth 1 --branch {{.CN_VERSION}} {{.CN_REPO_DIR}}
+              clone_at_tag "{{.CN_VERSION}}" "{{.CN_REPO_DIR}}"
             else
               echo "Skipping clone: {{.CN_REPO_DIR}} already at {{.CN_VERSION}}"
             fi
@@ -88,7 +93,7 @@ tasks:
           CHART_PATH="{{.MIRROR_NODE_CHART_DIR}}/hedera-mirror"
           if [ -d "$CHART_PATH" ]; then
             echo "Running helm dependency build in $CHART_PATH..."
-            helm dependency build "$CHART_PATH"
+            helm dependency update "$CHART_PATH"
           else
             echo "Skipping: $CHART_PATH not found"
           fi
