@@ -161,8 +161,10 @@ describe('PostgresSharedResource', (): void => {
     it('wrapper script contains correct DB_NAME and OWNER_USERNAME from secrets', async (): Promise<void> => {
       await postgres.initializeMirrorNode(namespace, context);
 
-      const wrapperArgs = writeFileSyncStub.getCalls().find(call => (call.args[0] as string).includes('run-init'))!.args;
-      const writtenContent: string = wrapperArgs[1] as string;
+      const wrapperArguments: string[] = writeFileSyncStub
+        .getCalls()
+        .find(call => (call.args[0] as string).includes('run-init'))!.args;
+      const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export DB_NAME=mirror_node');
       expect(writtenContent).to.include('export OWNER_USERNAME=mirror_node_owner');
     });
@@ -170,8 +172,10 @@ describe('PostgresSharedResource', (): void => {
     it('wrapper script contains all required service passwords', async (): Promise<void> => {
       await postgres.initializeMirrorNode(namespace, context);
 
-      const wrapperArgs = writeFileSyncStub.getCalls().find(call => (call.args[0] as string).includes('run-init'))!.args;
-      const writtenContent: string = wrapperArgs[1] as string;
+      const wrapperArguments: string[] = writeFileSyncStub
+        .getCalls()
+        .find(call => (call.args[0] as string).includes('run-init'))!.args;
+      const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export GRAPHQL_PASSWORD=graphqlpass');
       expect(writtenContent).to.include('export GRPC_PASSWORD=grpcpass');
       expect(writtenContent).to.include('export IMPORTER_PASSWORD=importerpass');
@@ -200,8 +204,10 @@ describe('PostgresSharedResource', (): void => {
 
       await postgres.initializeMirrorNode(namespace, context, 'CUSTOM');
 
-      const wrapperArgs = writeFileSyncStub.getCalls().find(call => (call.args[0] as string).includes('run-init'))!.args;
-      const writtenContent: string = wrapperArgs[1] as string;
+      const wrapperArguments: string[] = writeFileSyncStub
+        .getCalls()
+        .find(call => (call.args[0] as string).includes('run-init'))!.args;
+      const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export DB_NAME=custom_db');
       expect(writtenContent).to.include('export OWNER_USERNAME=custom_owner');
     });
