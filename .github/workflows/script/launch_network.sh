@@ -56,8 +56,16 @@ export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
 
+KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
+
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
+if [[ -f "${KIND_CLUSTER_CONFIG_FILE}" ]]; then
+  echo "Using kind config file: ${KIND_CLUSTER_CONFIG_FILE}"
+  kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+else
+  echo "kind config file not found: ${KIND_CLUSTER_CONFIG_FILE}; creating cluster without custom registry mirror config."
+  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+fi
 
 rm -rf ~/.solo/*
 echo "::endgroup::"

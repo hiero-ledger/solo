@@ -80,6 +80,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ClusterReferenceTest.connect(options);
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
+        DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
         BlockNodeTest.add(options);
