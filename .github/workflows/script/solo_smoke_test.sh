@@ -212,8 +212,9 @@ function preload_mirror_test_images_for_kind()
 {
   local mirror_release="${1:-}"
   local namespace="${2:-}"
+  local mirror_context="${3:-${MIRROR_KUBE_CONTEXT}}"
   local hashgraph_mirror_registry="hub.mirror.docker.lat.ope.eng.hashgraph.io"
-  local current_context cluster_name
+  local cluster_name
   local node source_image short_image mirror_image
   local hook_images
   local image_prefix source_registry dockerhub_qualified_image
@@ -231,13 +232,12 @@ function preload_mirror_test_images_for_kind()
     return 0
   fi
 
-  current_context="$(kubectl config current-context 2>/dev/null || true)"
-  if [[ "${current_context}" != kind-* ]]; then
-    echo "Skipping mirror test image preload: current context '${current_context}' is not kind."
+  if [[ "${mirror_context}" != kind-* ]]; then
+    echo "Skipping mirror test image preload: mirror context '${mirror_context}' is not kind."
     return 0
   fi
 
-  cluster_name="${current_context#kind-}"
+  cluster_name="${mirror_context#kind-}"
 
   kind_nodes="$(kind get nodes --name "${cluster_name}" 2>/dev/null || true)"
   if [ -z "${kind_nodes}" ]; then
@@ -246,7 +246,7 @@ function preload_mirror_test_images_for_kind()
   fi
 
   hook_images="$(
-    helm get hooks "${mirror_release}" -n "${namespace}" 2>/dev/null \
+    helm get hooks "${mirror_release}" -n "${namespace}" --kube-context "${mirror_context}" 2>/dev/null \
       | awk '
           /^kind: Pod$/ { in_pod = 1 }
           in_pod && $1 == "image:" {
@@ -255,7 +255,8 @@ function preload_mirror_test_images_for_kind()
           }
           /^---$/ { in_pod = 0 }
         ' \
-      | sort -u
+      | sort -u \
+      || true
   )"
 
   if [ -z "${hook_images}" ]; then
@@ -353,7 +354,7 @@ fi
 
 printf "\r::group::mirror-test log dump\n"
 echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}), running 'helm test'..."
-preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}"
+preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
 result=0
 mirror_test_log="mirror_test.log"
 echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 20m"
