@@ -1,0 +1,14 @@
+{
+  "components": {
+    "block-node": {
+      "defaultStrategy": "in-place",
+      "boundaries": [
+        {
+          "version": "0.28.1",
+          "strategy": "recreate",
+          "reason": "The 0.28.1 chart introduced blockNode.persistence.plugins; --reuse-values from 0.28.0 fails with a nil pointer error. StatefulSet must be recreated with fresh values."
+        }
+      ]
+    }
+  }
+}

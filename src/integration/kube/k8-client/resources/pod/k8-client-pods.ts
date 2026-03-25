@@ -98,6 +98,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     labels: string[],
     maxAttempts: number = 10,
     delay: number = 500,
+    createdAfter?: Date,
   ): Promise<Pod[]> {
     const podReadyCondition: Map<string, string> = new Map<string, string>().set(
       constants.POD_CONDITION_READY,
@@ -105,7 +106,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     );
 
     try {
-      return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay);
+      return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay, createdAfter);
     } catch (error: Error | unknown) {
       throw new SoloError(`Pod not ready [maxAttempts = ${maxAttempts}]`, error);
     }
@@ -118,6 +119,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * @param [labels] - pod labels
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
+   * @param [createdAfter] - if provided, only pods created strictly after this date are considered
    */
   private async waitForPodConditions(
     namespace: NamespaceName,
@@ -125,29 +127,37 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     labels: string[] = [],
     maxAttempts: number = 10,
     delay: number = 500,
+    createdAfter?: Date,
   ): Promise<Pod[]> {
     if (!conditionsMap || conditionsMap.size === 0) {
       throw new MissingArgumentError('pod conditions are required');
     }
 
-    return await this.waitForRunningPhase(namespace, labels, maxAttempts, delay, (pod): boolean => {
-      if (pod.conditions?.length > 0) {
-        for (const cond of pod.conditions) {
-          for (const entry of conditionsMap.entries()) {
-            const condType: string = entry[0];
-            const condStatus: string = entry[1];
-            if (cond.type === condType && cond.status === condStatus) {
-              this.logger.info(
-                `Pod condition met for ${pod.podReference.name.name} [type: ${cond.type} status: ${cond.status}]`,
-              );
-              return true;
+    return await this.waitForRunningPhase(
+      namespace,
+      labels,
+      maxAttempts,
+      delay,
+      (pod): boolean => {
+        if (pod.conditions?.length > 0) {
+          for (const cond of pod.conditions) {
+            for (const entry of conditionsMap.entries()) {
+              const condType: string = entry[0];
+              const condStatus: string = entry[1];
+              if (cond.type === condType && cond.status === condStatus) {
+                this.logger.info(
+                  `Pod condition met for ${pod.podReference.name.name} [type: ${cond.type} status: ${cond.status}]`,
+                );
+                return true;
+              }
             }
           }
         }
-      }
-      // condition not found
-      return false;
-    });
+        // condition not found
+        return false;
+      },
+      createdAfter,
+    );
   }
 
   public async waitForRunningPhase(
@@ -156,6 +166,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     maxAttempts: number,
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
+    createdAfter?: Date,
   ): Promise<Pod[]> {
     const phases: string[] = [constants.POD_PHASE_RUNNING];
     const labelSelector: string = labels ? labels.join(',') : undefined;
@@ -192,17 +203,27 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               return bTime - aTime;
             });
 
-            // Only check the newest pod
-            const newestItem: V1Pod = sortedItems[0];
-            const pod: Pod = K8ClientPod.fromV1Pod(
-              newestItem,
-              this,
-              this.kubeClient,
-              this.kubeConfig,
-              this.kubectlInstallationDirectory,
-            );
-            if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
-              return resolve([pod]);
+            // When a createdAfter cutoff is provided, skip pods that existed before the
+            // cutoff (e.g. a terminating predecessor from a recreate migration).
+            const eligibleItems: V1Pod[] = createdAfter
+              ? sortedItems.filter(
+                  (p): boolean => (p.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
+                )
+              : sortedItems;
+
+            if (eligibleItems.length > 0) {
+              // Only check the newest eligible pod
+              const newestItem: V1Pod = eligibleItems[0];
+              const pod: Pod = K8ClientPod.fromV1Pod(
+                newestItem,
+                this,
+                this.kubeClient,
+                this.kubeConfig,
+                this.kubectlInstallationDirectory,
+              );
+              if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
+                return resolve([pod]);
+              }
             }
           }
         } catch (error) {

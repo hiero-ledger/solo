@@ -14,7 +14,6 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
-import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
@@ -36,7 +35,6 @@ import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
@@ -697,12 +695,12 @@ export class MirrorNodeCommand extends BaseCommand {
                 },
                 {
                   title: 'Set database connection details',
-                  task: async (context_: MirrorNodeDeployContext): Promise<void> => {
+                  task: (context_: MirrorNodeDeployContext): void => {
                     // Only set the host. All passwords and usernames are
                     // generated and persisted by the mirror-node chart via the mirror-passwords secret.
                     // initializeMirrorNode() reads from that secret so everything stays consistent.
                     context_.config.valuesArg += helpers.populateHelmArguments({
-                      'db.host': `solo-shared-resources-postgres-postgresql.${context_.config.namespace.name}.svc.cluster.local`,
+                      'db.host': `solo-shared-resources-postgres.${context_.config.namespace.name}.svc.cluster.local`,
                     });
                   },
                 },
@@ -970,12 +968,8 @@ END $grant$;`;
                   return; //! stop the execution
                 }
 
-                const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
-                const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
-                const containerReference: ContainerReference = ContainerReference.of(
-                  podReference,
-                  ContainerName.of('postgresql'),
-                );
+                const containerReference: ContainerReference =
+                  await this.postgresSharedResource.resolveContainerReference(namespace, config.clusterContext);
                 const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 
                 const secrets: Secret[] = await this.k8Factory
