@@ -679,14 +679,18 @@ export class ExplorerCommand extends BaseCommand {
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.clusterContext,
-            );
+            if (this.oneShotState.isActive()) {
+              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
+            } else {
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.clusterContext,
+              );
 
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+            }
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
