@@ -124,8 +124,7 @@ describe('PostgresSharedResource', (): void => {
     let existsSyncStub: sinon.SinonStub;
     let mkdirSyncStub: sinon.SinonStub;
     let writeFileSyncStub: sinon.SinonStub;
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    let rmSyncStub: sinon.SinonStub;
+    let _rmSyncStub: sinon.SinonStub;
 
     beforeEach((): void => {
       secretsStub.list.resolves([postgresPasswordsSecret]);
@@ -135,7 +134,7 @@ describe('PostgresSharedResource', (): void => {
       existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
       mkdirSyncStub = sinon.stub(fs, 'mkdirSync');
       writeFileSyncStub = sinon.stub(fs, 'writeFileSync');
-      rmSyncStub = sinon.stub(fs, 'rmSync');
+      _rmSyncStub = sinon.stub(fs, 'rmSync');
     });
 
     it('reads secrets from correct labels and secret names', async (): Promise<void> => {
@@ -247,7 +246,11 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('creates cache directory and downloads init script when not cached', async (): Promise<void> => {
-      const fakeStream = {write: sinon.stub().callsArg(1), end: sinon.stub(), on: sinon.stub()};
+      const fakeStream: {write: sinon.SinonStub; end: sinon.SinonStub; on: sinon.SinonStub} = {
+        write: sinon.stub().callsArg(1),
+        end: sinon.stub(),
+        on: sinon.stub(),
+      };
       sinon.stub(fs, 'createWriteStream').returns(fakeStream as any);
 
       existsSyncStub.restore();
