@@ -4,7 +4,9 @@ apiVersion: kind.x-k8s.io/v1alpha4
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+      endpoint = ["https://registry-1.docker.io", "https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-1.docker.io"]
+      endpoint = ["https://registry-1.docker.io", "https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
 nodes:
   - role: control-plane
     # stay in the lower range for static ports, full range: 30000-32767

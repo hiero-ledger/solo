@@ -31,9 +31,7 @@ import {
   CreatedPredefinedAccount,
   PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
-  predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
 import {
@@ -56,6 +54,7 @@ import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {type Lock} from '../../core/lock/lock.js';
@@ -69,6 +68,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
+  private _isRollback: boolean = false;
+
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
@@ -79,6 +80,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.namespace,
       flags.clusterRef,
       flags.minimalSetup,
+      flags.rollback,
     ],
   };
 
@@ -100,6 +102,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.rollback,
     ],
   };
 
@@ -140,6 +143,68 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public async deployFalcon(argv: ArgvStruct): Promise<boolean> {
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
+  }
+
+  private async performRollback(
+    deployError: Error,
+    config: OneShotSingleDeployConfigClass | undefined,
+  ): Promise<never> {
+    if (!config) {
+      throw new SoloError(
+        `Deploy failed: ${deployError.message}. Rollback skipped: no resources created.`,
+        deployError,
+      );
+    }
+
+    if (config.rollback === false) {
+      this.logger.warn('Automatic rollback skipped (--no-rollback flag provided)');
+      this.logger.warn('To clean up: solo one-shot single destroy');
+      this.logger.warn(`Or: kubectl delete ns ${config.namespace.name}`);
+      throw new SoloError(`Deploy failed: ${deployError.message}. Rollback skipped (--no-rollback).`, deployError);
+    }
+
+    this.logger.warn(
+      `Deploy failed. Starting automatic rollback for deployment '${config.deployment}' in namespace '${config.namespace.name}'...`,
+    );
+
+    const destroyArgv: ArgvStruct = {
+      _: [],
+      deployment: config.deployment,
+      clusterRef: config.clusterRef,
+      namespace: config.namespace.name,
+      context: config.context,
+      quiet: true,
+    };
+
+    this._isRollback = true;
+    try {
+      await this.destroyInternal(destroyArgv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
+    } catch (rollbackError) {
+      this.logger.error(`Rollback failed for deployment '${config.deployment}': ${rollbackError.message}`);
+      throw new SoloError(
+        `Deploy failed: ${deployError.message}. Rollback also failed: ${rollbackError.message}`,
+        deployError,
+      );
+    } finally {
+      // Safety net: ensure namespace is always deleted during rollback, even if destroyInternal
+      // failed or skipped namespace cleanup (e.g. due to skipAll, helm uninstall failure, etc.)
+      try {
+        const k8: K8 = this.k8Factory.getK8(config.context);
+        if (await k8.namespaces().has(config.namespace)) {
+          this.logger.warn(`Rollback cleanup: deleting namespace '${config.namespace.name}'`);
+          await k8.namespaces().delete(config.namespace);
+        }
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to delete namespace '${config.namespace.name}' during rollback cleanup: ${cleanupError.message}`,
+        );
+      }
+
+      this._isRollback = false;
+    }
+
+    this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
+    throw new SoloError(`Deploy failed: ${deployError.message}. Rollback completed successfully.`, deployError);
   }
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
@@ -576,11 +641,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         }
                       }
 
-                      const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccounts,
-                        ...predefinedEcdsaAccountsWithAlias,
-                        ...predefinedEd25519Accounts,
-                      ];
+                      const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues
@@ -659,7 +720,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying Solo in one-shot mode: ${error.message}`, error);
+      await this.performRollback(error, config);
     } finally {
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
@@ -1292,6 +1353,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         task: async (): Promise<void> => {
           fs.rmSync(config.cacheDir, {recursive: true, force: true});
         },
+        skip: (): boolean => this._isRollback,
       },
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
