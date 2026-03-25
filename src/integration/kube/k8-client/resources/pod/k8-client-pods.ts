@@ -34,6 +34,7 @@ import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
+import {sleep} from '../../../../../core/helpers.js';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -143,7 +144,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       this.logger.debug(
         `waitForPodByReference: pod ${podName} not yet visible in API, attempt ${attempt}/${maxAttempts}`,
       );
-      await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, delay));
+      await sleep(Duration.ofMillis(delay));
     }
     throw new SoloError(`Pod ${podName} not found after ${maxAttempts} attempts`);
   }
@@ -209,7 +210,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         stableChecks = 0;
       }
 
-      await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, delay));
+      await sleep(Duration.ofMillis(delay));
     }
 
     throw new SoloError(

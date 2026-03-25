@@ -1210,22 +1210,36 @@ export class NodeCommandTasks {
     };
   }
 
-  public async getExistingNodeAliases(namespace: NamespaceName, deployment: DeploymentName): Promise<NodeAliases> {
-    const existingNodeAliases: NodeAliases = [];
+  /**
+   * Resolve the active node aliases and their service map for the given namespace/deployment.
+   * Nodes whose accountId equals {@link constants.IGNORED_NODE_ACCOUNT_ID} are excluded.
+   *
+   * Shared by {@link getExistingNodeAliases} (non-task callers) and
+   * {@link identifyExistingNodes} (Listr task) to avoid duplicating the
+   * `getNodeServiceMap` + filter loop in both places.
+   */
+  private async resolveExistingNodes(
+    namespace: NamespaceName,
+    deployment: DeploymentName,
+  ): Promise<{existingNodeAliases: NodeAliases; serviceMap: NodeServiceMapping}> {
     const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
     const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
       namespace,
       clusterReferences,
       deployment,
     );
-
+    const existingNodeAliases: NodeAliases = [];
     for (const networkNodeServices of serviceMap.values()) {
       if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
         continue;
       }
       existingNodeAliases.push(networkNodeServices.nodeAlias);
     }
+    return {existingNodeAliases, serviceMap};
+  }
 
+  public async getExistingNodeAliases(namespace: NamespaceName, deployment: DeploymentName): Promise<NodeAliases> {
+    const {existingNodeAliases} = await this.resolveExistingNodes(namespace, deployment);
     return existingNodeAliases;
   }
 
@@ -1234,19 +1248,8 @@ export class NodeCommandTasks {
       title: 'Identify existing network nodes',
       task: async (context_, task): Promise<any> => {
         const config: CheckedNodesConfigClass = context_.config;
-        config.existingNodeAliases = [];
-        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-        config.serviceMap = await this.accountManager.getNodeServiceMap(
-          config.namespace,
-          clusterReferences,
-          config.deployment,
-        );
-        for (const networkNodeServices of config.serviceMap.values()) {
-          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
-            continue;
-          }
-          config.existingNodeAliases.push(networkNodeServices.nodeAlias);
-        }
+        ({existingNodeAliases: config.existingNodeAliases, serviceMap: config.serviceMap} =
+          await this.resolveExistingNodes(config.namespace, config.deployment));
         config.allNodeAliases = [...config.existingNodeAliases];
         return this.taskCheckNetworkNodePods(context_, task, config.existingNodeAliases);
       },
