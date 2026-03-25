@@ -79,15 +79,7 @@ function start_contract_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     printf "\r::group::Test local network connection using nc\n"
     echo "Test local network connection using nc"
-    if command -v nc >/dev/null 2>&1; then
-      nc -zv 127.0.0.1 50211 || true
-    elif command -v ncat >/dev/null 2>&1; then
-      ncat -zv 127.0.0.1 50211 || true
-    elif timeout 2 bash -c '</dev/tcp/127.0.0.1/50211' >/dev/null 2>&1; then
-      echo "Connected to 127.0.0.1:50211 via /dev/tcp probe"
-    else
-      echo "Skipping nc probe: neither nc nor ncat installed"
-    fi
+    nc -zv 127.0.0.1 50211 || ncat -zv 127.0.0.1 50211 || true
     printf "\r::endgroup::\n"
   fi
 
@@ -101,95 +93,13 @@ function start_sdk_test ()
 {
   realm_num="${1:-0}"
   shard_num="${2:-0}"
-  mirror_release_name="${3:-mirror}"
-  mirror_context="${4:-$(kubectl config current-context)}"
-  mirror_namespace="${5:-${SOLO_NAMESPACE}}"
-  mirror_grpc_service="${mirror_release_name}-grpc"
-
-  # NOTE:
-  # mirror node add already validates component readiness at deploy time.
-  # We intentionally re-check here because this SDK probe runs later via localhost:8081
-  # (ingress + local port-forward path), and CI can still observe short transition windows:
-  # - ingress backend programming lagging pod readiness,
-  # - endpoint set not populated yet,
-  # - runner-side port-forward process not present/alive.
-  # These checks make that race explicit and easier to debug.
-
-  if ! kubectl --context "${mirror_context}" get svc "${mirror_grpc_service}" -n "${mirror_namespace}" >/dev/null 2>&1; then
-    if kubectl --context "${mirror_context}" get svc mirror-grpc -n "${mirror_namespace}" >/dev/null 2>&1; then
-      mirror_grpc_service="mirror-grpc"
-    elif kubectl --context "${mirror_context}" get svc mirror-1-grpc -n "${mirror_namespace}" >/dev/null 2>&1; then
-      mirror_grpc_service="mirror-1-grpc"
-    else
-      echo "Could not find mirror gRPC service in namespace ${mirror_namespace} on context ${mirror_context}."
-      kubectl --context "${mirror_context}" get svc -n "${mirror_namespace}" | grep -E 'mirror|ingress' || true
-      log_and_exit 1
-    fi
-  fi
-
-  echo "Waiting for mirror gRPC pod readiness on context ${mirror_context}, namespace ${mirror_namespace}..."
-  # Needed when pod is Running but not yet Ready for gRPC requests.
-  if ! kubectl --context "${mirror_context}" wait --for=condition=Ready pod -n "${mirror_namespace}" -l app.kubernetes.io/component=grpc --timeout=5m; then
-    echo "Mirror gRPC pod did not become Ready in time."
-    kubectl --context "${mirror_context}" get pods -n "${mirror_namespace}" -o wide || true
-    log_and_exit 1
-  fi
-
-  endpoint_ready=0
-  # Needed because service endpoints may trail pod readiness briefly.
-  # In that state ingress can return transient 502/Unavailable even though pods look healthy.
-  for attempt in {1..30}
-  do
-    endpoint_ip="$(kubectl --context "${mirror_context}" get endpoints "${mirror_grpc_service}" -n "${mirror_namespace}" -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)"
-    if [[ -n "${endpoint_ip}" ]]; then
-      endpoint_ready=1
-      break
-    fi
-    echo "Waiting for endpoint on service ${mirror_grpc_service} attempt ${attempt}/30..."
-    sleep 2
-  done
-
-  if [[ ${endpoint_ready} -ne 1 ]]; then
-    echo "Mirror gRPC service ${mirror_grpc_service} has no ready endpoints."
-    kubectl --context "${mirror_context}" get endpoints "${mirror_grpc_service}" -n "${mirror_namespace}" -o yaml || true
-    log_and_exit 1
-  fi
-
-  echo "Waiting for mirror ingress controller readiness on context ${mirror_context}, namespace ${mirror_namespace}..."
-  # Required for the localhost:8081 path specifically; this protects against
-  # ingress controller restarts/rollouts between deployment and SDK probing.
-  if ! kubectl --context "${mirror_context}" wait --for=condition=Ready pod -n "${mirror_namespace}" -l app.kubernetes.io/name=haproxy-ingress --timeout=5m; then
-    echo "Mirror ingress controller pod did not become Ready in time."
-    kubectl --context "${mirror_context}" get pods -n "${mirror_namespace}" -o wide || true
-    log_and_exit 1
-  fi
-
   cd solo
-  result=0
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if ! command -v grpcurl >/dev/null 2>&1; then
-      curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
-    fi
+    curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  # Port-forward is expected to be managed by the deployment flow.
-  # We do not create/kill it here to avoid interfering with existing lifecycle management.
-  if ! ps -ef | grep -E '[p]ort-forward.*8081' >/dev/null 2>&1; then
-    echo "Warning: no existing localhost:8081 port-forward process detected. Expecting Solo-managed mirror ingress port-forward."
-  fi
-  # Retry loop handles brief ingress/backend convergence windows that can surface as 502.
-  for attempt in {1..20}
-  do
-    grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes && break
-    result=$?
-    echo "grpcurl attempt ${attempt}/20 failed with exit code ${result}; waiting for mirror ingress route/backend to become ready"
-    sleep 5
-  done
+  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
-    echo "Process snapshot for existing port-forward:"
-    ps -ef | grep -E '[p]ort-forward|persist-port-forward' || true
-    kubectl --context "${mirror_context}" get pods -n "${mirror_namespace}" -o wide || true
-    kubectl --context "${mirror_context}" get svc -n "${mirror_namespace}" | grep -E 'mirror|ingress' || true
     log_and_exit $result
   fi
   result=0
@@ -426,6 +336,16 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
   export SOLO_NAMESPACE="solo-e2e"
 fi
 
+create_test_account "${SOLO_DEPLOYMENT}"
+clone_smart_contract_repo
+setup_smart_contract_test
+check_port_forward
+start_contract_test
+start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
+echo "Sleep a while to wait background transactions to finish"
+sleep 30
+
+echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 mirror_release=""
 MIRROR_KUBE_CONTEXT=""
 if ! mirror_release_and_context="$(resolve_mirror_release_name "${SOLO_NAMESPACE}")"; then
@@ -445,17 +365,6 @@ if [ -z "${mirror_release}" ] || [ -z "${MIRROR_KUBE_CONTEXT}" ]; then
   echo "Failed to resolve both mirror release and kube context for namespace ${SOLO_NAMESPACE}."
   log_and_exit 1
 fi
-
-create_test_account "${SOLO_DEPLOYMENT}"
-clone_smart_contract_repo
-setup_smart_contract_test
-check_port_forward
-start_contract_test
-start_sdk_test "${REALM_NUM}" "${SHARD_NUM}" "${mirror_release}" "${MIRROR_KUBE_CONTEXT}" "${SOLO_NAMESPACE}"
-echo "Sleep a while to wait background transactions to finish"
-sleep 30
-
-echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 
 printf "\r::group::mirror-test log dump\n"
 echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}), running 'helm test'..."
