@@ -179,10 +179,35 @@ cd ..; create_test_account ${SOLO_DEPLOYMENT}; cd -
 ps -ef |grep port-forward
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
+  if ! command -v grpcurl >/dev/null 2>&1; then
+    curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
+  fi
 fi
 
-grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
+# Wait for mirror gRPC pod to be Ready before probing via localhost:8081.
+# Even after mirror node deploy completes, the pod may briefly be Running
+# but not yet Ready, causing the ingress to return 502 Bad Gateway.
+echo "Waiting for mirror gRPC pod readiness in namespace ${SOLO_NAMESPACE}..."
+if ! kubectl wait --for=condition=Ready pod -n "${SOLO_NAMESPACE}" -l app.kubernetes.io/component=grpc --timeout=5m; then
+  echo "Mirror gRPC pod did not become Ready in time."
+  kubectl get pods -n "${SOLO_NAMESPACE}" -o wide || true
+  exit 1
+fi
+
+# Retry loop handles brief ingress/backend convergence windows that surface as 502.
+grpc_result=1
+for attempt in {1..20}
+do
+  grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes && grpc_result=0 && break
+  grpc_result=$?
+  echo "grpcurl attempt ${attempt}/20 failed with exit code ${grpc_result}; waiting for mirror ingress to become ready"
+  sleep 5
+done
+
+if [[ $grpc_result -ne 0 ]]; then
+  echo "grpcurl command failed after 20 attempts"
+  exit $grpc_result
+fi
 
 npm run solo-test -- consensus node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
