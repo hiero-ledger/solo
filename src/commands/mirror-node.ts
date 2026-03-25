@@ -30,8 +30,8 @@ import {
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
-import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import * as versions from '../../version.js';
+import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
@@ -49,16 +49,17 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {Lock} from '../core/lock/lock.js';
 import * as semver from 'semver';
+import {SemVer} from 'semver';
 import {Base64} from 'js-base64';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
-import {SemVer} from 'semver';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Templates} from '../core/templates.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 // Port forwarding is now a method on the components object
@@ -172,6 +173,20 @@ interface MirrorNodeDestroyConfigClass {
 
 interface MirrorNodeDestroyContext {
   config: MirrorNodeDestroyConfigClass;
+}
+
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  isChartInstalled: boolean;
+  ingressReleaseName: string;
+  isLegacyChartInstalled: boolean;
+}
+
+enum MirrorNodeCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
 }
 
 @injectable()
@@ -492,7 +507,10 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deployMirrorNode({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): Promise<void> {
+  private async deployMirrorNode(
+    {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
+    commandType: MirrorNodeCommandType,
+  ): Promise<void> {
     // Determine if we should reuse values based on the currently deployed version from remote config
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
@@ -513,6 +531,16 @@ export class MirrorNodeCommand extends BaseCommand {
     );
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
+
+    if (commandType === MirrorNodeCommandType.ADD) {
+      this.remoteConfig.configuration.components.changeComponentPhase(
+        (config as MirrorNodeDeployConfigClass).newMirrorNodeComponent.metadata.id,
+        ComponentTypes.MirrorNode,
+        DeploymentPhase.DEPLOYED,
+      );
+
+      await this.remoteConfig.persist();
+    }
 
     if (config.enableIngress) {
       const existingIngressClasses: IngressClass[] = await this.k8Factory
@@ -706,7 +734,7 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
-  private enableMirrorNodeTask(): SoloListrTask<AnyListrContext> {
+  private enableMirrorNodeTask(commandType: MirrorNodeCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
       task: (_, parentTask): SoloListr<AnyListrContext> =>
@@ -763,7 +791,7 @@ export class MirrorNodeCommand extends BaseCommand {
             {
               title: 'Deploy mirror-node',
               task: async (context_): Promise<void> => {
-                await this.deployMirrorNode(context_);
+                await this.deployMirrorNode(context_, commandType);
               },
             },
           ],
@@ -1062,6 +1090,8 @@ END $grant$;`;
               config.namespace,
             );
 
+            config.newMirrorNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
             config.id = config.newMirrorNodeComponent.metadata.id;
             config.installSharedResources = false;
 
@@ -1179,12 +1209,12 @@ END $grant$;`;
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        this.addMirrorNodeComponents(),
         this.enableSharedResourcesTask(),
-        this.enableMirrorNodeTask(),
+        this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
-        this.addMirrorNodeComponents(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in one-shot mode
         // {
@@ -1391,7 +1421,7 @@ END $grant$;`;
           },
           skip: ({config}: MirrorNodeUpgradeContext): boolean => !config.installSharedResources,
         },
-        this.enableMirrorNodeTask(),
+        this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
@@ -1683,11 +1713,13 @@ END $grant$;`;
           context_.config.newMirrorNodeComponent,
           ComponentTypes.MirrorNode,
         );
+
         // update mirror node version in remote config
         this.remoteConfig.updateComponentVersion(
           ComponentTypes.MirrorNode,
           new SemVer(context_.config.mirrorNodeVersion),
         );
+
         await this.remoteConfig.persist();
       },
     };
@@ -1719,16 +1751,7 @@ END $grant$;`;
     return this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
   }
 
-  private async inferDestroyData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    isChartInstalled: boolean;
-    ingressReleaseName: string;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferDestroyData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferMirrorNodeId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
