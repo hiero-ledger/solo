@@ -38,12 +38,36 @@ get_latest_activity_epoch_for_prefix() {
   local prefix="$2"
   local latest_updated
 
+  # Primary: structured metadata query — works when objects have a populated
+  # 'updated' field.  Also fetches 'timeCreated' as a fallback column so that
+  # newly-uploaded objects that have never been mutated still return a date.
   latest_updated="$(
-    gcloud storage objects list "gs://${bucket}/${prefix}/" --project="${PROJECT_ID}" --format='value(updated)' \
+    gcloud storage objects list "gs://${bucket}/${prefix}/" \
+      --project="${PROJECT_ID}" \
+      --format='value(updated,timeCreated)' \
       2>/dev/null \
+      | tr '\t' '\n' \
+      | grep -v '^$' \
       | sort \
       | tail -n1 || true
   )"
+
+  # Secondary fallback: recursive ls -l.  GCS virtual folder placeholders
+  # (zero-byte objects created by the console "Create folder" button) show no
+  # timestamp in the metadata API, but their real child objects do appear in
+  # the recursive listing.  Output format: "  SIZE  TIMESTAMP  gs://..."
+  if [[ -z "${latest_updated}" ]]; then
+    latest_updated="$(
+      gcloud storage ls -l -r "gs://${bucket}/${prefix}/**" \
+        --project="${PROJECT_ID}" \
+        2>/dev/null \
+        | grep -v '^TOTAL:' \
+        | awk 'NF>=3 {print $2}' \
+        | grep -v '^$' \
+        | sort \
+        | tail -n1 || true
+    )"
+  fi
 
   if [[ -z "${latest_updated}" ]]; then
     echo ""

@@ -213,6 +213,11 @@ export const LOGS_FLAGS: CommandFlags = {
   optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
+export const ANALYZE_FLAGS: CommandFlags = {
+  required: [],
+  optional: [flags.inputDir, flags.quiet],
+};
+
 export const STATES_FLAGS: CommandFlags = {
   required: [flags.deployment, flags.nodeAliasesUnparsed],
   optional: [flags.clusterRef, flags.quiet],

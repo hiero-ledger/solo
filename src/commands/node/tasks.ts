@@ -168,6 +168,8 @@ import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client
 import {CommandFlag} from '../../types/flag-types.js';
 import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 
+import {DiagnosticsAnalyzer} from './diagnostics-analyzer.js';
+
 const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
@@ -4001,6 +4003,23 @@ export class NodeCommandTasks {
         }
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
+      },
+    };
+  }
+
+  public analyzeCollectedDiagnostics(
+    customOutputDirectory: string = '',
+    namespaceName?: string,
+  ): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Analyze collected logs for common failures',
+      task: async (context_): Promise<void> => {
+        try {
+          const resolvedNamespace: string | undefined = namespaceName ?? context_?.config?.namespace?.name;
+          new DiagnosticsAnalyzer(this.logger).analyze(customOutputDirectory, resolvedNamespace);
+        } catch (error) {
+          this.logger.warn(`Failed to analyze collected diagnostics: ${(error as Error).message}`);
+        }
       },
     };
   }
