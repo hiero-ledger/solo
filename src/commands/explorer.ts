@@ -41,6 +41,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {K8} from '../integration/kube/k8.js';
 import {SemVer} from 'semver';
 import {createHash} from 'node:crypto';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -132,6 +133,20 @@ interface ExplorerDestroyContext {
     ingressReleaseName: string;
     isLegacyChartInstalled: boolean;
   };
+}
+
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  ingressReleaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
+}
+
+enum ExplorerCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
 }
 
 @injectable()
@@ -352,7 +367,7 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private installExplorerTask(): SoloListrTask<AnyListrContext> {
+  private installExplorerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
@@ -377,6 +392,17 @@ export class ExplorerCommand extends BaseCommand {
           exploreValuesArgument,
           config.clusterContext,
         );
+
+        if (commandType === ExplorerCommandType.ADD) {
+          this.remoteConfig.configuration.components.changeComponentPhase(
+            (config as ExplorerDeployConfigClass).newExplorerComponent.metadata.id,
+            ComponentTypes.Explorer,
+            DeploymentPhase.DEPLOYED,
+          );
+
+          await this.remoteConfig.persist();
+        }
+
         showVersionBanner(this.logger, config.releaseName, config.explorerVersion);
       },
     };
@@ -667,6 +693,8 @@ export class ExplorerCommand extends BaseCommand {
               config.namespace,
             );
 
+            config.newExplorerComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
             config.id = config.newExplorerComponent.metadata.id;
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
@@ -680,12 +708,12 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
         restoreConfig(this.loadRemoteConfigTask(argv)),
+        restoreConfig(this.addExplorerComponents()),
         restoreConfig(this.installCertManagerTask()),
-        restoreConfig(this.installExplorerTask()),
+        restoreConfig(this.installExplorerTask(ExplorerCommandType.ADD)),
         restoreConfig(this.installExplorerIngressControllerTask()),
         restoreConfig(this.checkExplorerPodIsReadyTask()),
         restoreConfig(this.checkExplorerIngressControllerPodIsReadyTask()),
-        restoreConfig(this.addExplorerComponents()),
         restoreConfig(this.enablePortForwardingTask()),
         // TODO only show this if we are not running in one-shot mode
         // {
@@ -788,7 +816,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(),
-        this.installExplorerTask(),
+        this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
@@ -1009,8 +1037,10 @@ export class ExplorerCommand extends BaseCommand {
           config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
+
         // update explorer version in remote config
         this.remoteConfig.updateComponentVersion(ComponentTypes.Explorer, new SemVer(config.explorerVersion));
+
         await this.remoteConfig.persist();
       },
     };
@@ -1042,16 +1072,7 @@ export class ExplorerCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
   }
 
-  private async inferExplorerData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    ingressReleaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferExplorerData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferExplorerId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
