@@ -175,7 +175,6 @@ export class RelayCommand extends BaseCommand {
       // Mirror Node
       flags.mirrorNodeId,
       flags.mirrorNamespace,
-      flags.mirrorNodeReleaseName,
     ],
   };
 
@@ -589,9 +588,7 @@ export class RelayCommand extends BaseCommand {
             );
 
             if (this.oneShotState.isActive()) {
-              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
-              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
-              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeId);
+              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
             } else {
               const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
                 config.namespace,

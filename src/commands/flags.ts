@@ -254,16 +254,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly mirrorNodeReleaseName: CommandFlag = {
-    constName: 'mirrorNodeReleaseName',
-    name: 'mirror-node-release-name',
-    definition: {
-      describe: 'Helm release name of the mirror node to connect to. Inferred automatically when not provided.',
-      type: 'string',
-    },
-    prompt: undefined,
-  };
-
   /**
    * Parse the values files input string that includes the cluster reference and the values file path
    * <p>It supports input as below:

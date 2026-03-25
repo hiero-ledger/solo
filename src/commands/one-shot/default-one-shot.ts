@@ -550,8 +550,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     this.appendConfigToArgv(argv, {
                                       [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                                       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                      [optionFromFlag(Flags.mirrorNodeReleaseName)]:
-                                        Templates.renderMirrorNodeName(mirrorNodeId),
                                       ...config.explorerNodeConfiguration,
                                     });
                                     return argvPushGlobalFlags(argv, config.cacheDir);
@@ -576,8 +574,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     this.appendConfigToArgv(argv, {
                                       [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                                       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                      [optionFromFlag(Flags.mirrorNodeReleaseName)]:
-                                        Templates.renderMirrorNodeName(mirrorNodeId),
                                       ...config.relayNodeConfiguration,
                                     });
                                     return argvPushGlobalFlags(argv);

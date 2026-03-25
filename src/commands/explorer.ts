@@ -171,7 +171,6 @@ export class ExplorerCommand extends BaseCommand {
       // Mirror Node
       flags.mirrorNodeId,
       flags.mirrorNamespace,
-      flags.mirrorNodeReleaseName,
     ],
   };
 
@@ -655,9 +654,7 @@ export class ExplorerCommand extends BaseCommand {
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
             if (this.oneShotState.isActive()) {
-              config.mirrorNodeId = this.configManager.getFlag(flags.mirrorNodeId);
-              config.mirrorNamespace = this.configManager.getFlag(flags.mirrorNamespace);
-              config.mirrorNodeReleaseName = this.configManager.getFlag(flags.mirrorNodeReleaseName);
+              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
             } else {
               const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
                 config.namespace,
