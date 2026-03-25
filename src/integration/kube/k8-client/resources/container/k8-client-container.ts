@@ -16,7 +16,6 @@ import * as tar from 'tar';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {type KubeConfig} from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
-import {type Pod} from '../../../resources/pod/pod.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type TarCreateFilter} from '../../../../../types/aliases.js';
@@ -46,26 +45,28 @@ export class K8ClientContainer implements Container {
   }
 
   /**
-   * Waits until `pods.read()` returns a valid pod, then returns.
-   * Throws {@link IllegalArgumentError} if the pod is still not found after all attempts.
+   * Ensures the pod backing this container reference is visible in the Kubernetes API
+   * before a `copyTo`, `copyFrom`, or `execContainer` call is made.
    *
-   * The retry loop is necessary because Kubernetes may momentarily report a pod
-   * as "not found" or return an incomplete object right after it transitions to
-   * Ready — especially on slower GitHub-hosted runners — causing the
-   * `copyTo` / `copyFrom` / `execContainer` guard to throw "Invalid pod" even
-   * though the pod is healthy.
+   * Delegates the polling logic to {@link Pods.waitForPodByReference} and converts
+   * any failure into an {@link IllegalArgumentError} with the pod name, which is the
+   * error contract expected by container-operation callers.
+   *
+   * The retry is necessary because Kubernetes can momentarily return null for a pod
+   * that has just been marked Ready — a race condition that is more pronounced on
+   * slower GitHub-hosted runners.  See {@link Pods.waitForPodByReference} for the
+   * full polling behaviour.
+   *
+   * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
+   * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)
    */
   private async waitForValidPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
     const podName: string = this.containerReference.parentReference.name.toString();
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      const pod: Pod = await this.pods.read(this.containerReference.parentReference);
-      if (pod) {
-        return;
-      }
-      this.logger.debug(`waitForValidPod: pod ${podName} not yet available, attempt ${attempt}/${maxAttempts}`);
-      await sleep(Duration.ofMillis(delayMs));
+    try {
+      await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
+    } catch {
+      throw new IllegalArgumentError(`Invalid pod ${podName}`);
     }
-    throw new IllegalArgumentError(`Invalid pod ${podName}`);
   }
 
   private async execKubectl(

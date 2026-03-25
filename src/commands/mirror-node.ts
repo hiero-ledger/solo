@@ -61,8 +61,6 @@ import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import yaml from 'yaml';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
-import {PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -932,12 +930,13 @@ END $grant$;`;
                   return; //! stop the execution
                 }
 
-                const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
-                const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
-                const containerReference: ContainerReference = ContainerReference.of(
-                  podReference,
-                  ContainerName.of('postgresql'),
-                );
+                // Resolve the postgres container reference dynamically via label selector so the
+                // correct pod name is used regardless of the Helm chart version or release name.
+                // Using Templates.renderPostgresPodName() caused failures when the actual pod name
+                // did not match the hardcoded pattern (e.g. solo-shared-resources-postgres-0 vs
+                // solo-shared-resources-postgres-postgresql-0).
+                const containerReference: ContainerReference =
+                  await this.postgresSharedResource.resolveContainerReference(namespace, config.clusterContext);
                 const environmentVariablePrefix: string = MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX;
 
                 const secrets: Secret[] = await this.k8Factory

@@ -46,13 +46,45 @@ export interface Pods {
   ): Promise<Pod[]>;
 
   /**
+   * Poll until a pod with the given reference appears in the Kubernetes API.
+   *
+   * Use this when you already know the exact pod name (e.g. a StatefulSet pod
+   * like `postgres-0`) and need to guard a follow-up operation — such as
+   * `copyTo`, `copyFrom`, or `execContainer` — against the brief window where
+   * Kubernetes marks the pod Ready but the API object is not yet returned by
+   * `read()`.  This transient "pod not found" gap is more pronounced on slower
+   * GitHub-hosted runners than on local kind clusters.
+   *
+   * Contrast with {@link waitForStableReadyPod}, which resolves a pod by label
+   * selector and additionally requires the result to be stable across
+   * consecutive polls (suited for rolling deployments where the pod name can
+   * change between restarts).
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum number of polling attempts (default 20)
+   * @param delay - milliseconds to wait between attempts (default 3000)
+   */
+  waitForPodByReference(podReference: PodReference, maxAttempts?: number, delay?: number): Promise<void>;
+
+  /**
    * Wait for the newest ready pod matching the labels to remain the newest ready pod
    * for a number of consecutive polls.
+   *
+   * Use this when you need a pod that has fully stabilised after a rolling
+   * update — i.e. the pod name or creation-timestamp must stop changing across
+   * several successive polls before the function returns.  This is stricter
+   * than {@link waitForReadyStatus}, which returns as soon as any matching pod
+   * reports Ready=True without verifying that the pod identity has settled.
+   *
+   * Typical callers: post-upgrade readiness checks, port-forward setup after
+   * a restart, and any operation where acting on a pod that is mid-replacement
+   * would be incorrect.
+   *
    * @param namespace - namespace
-   * @param labels - pod labels
-   * @param consecutiveStableChecks - number of consecutive polls that must see the same newest ready pod
-   * @param maxAttempts - maximum attempts to check
-   * @param delay - delay between checks in milliseconds
+   * @param labels - pod labels used to find the target pod
+   * @param consecutiveStableChecks - number of consecutive polls that must see the same newest ready pod (default 3)
+   * @param maxAttempts - maximum attempts to check (default 120)
+   * @param delay - delay between checks in milliseconds (default 1000)
    */
   waitForStableReadyPod(
     namespace: NamespaceName,

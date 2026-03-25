@@ -114,21 +114,60 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   }
 
   /**
+   * Poll until the pod identified by `podReference` is returned by the Kubernetes API.
+   *
+   * This guards container operations (copyTo / copyFrom / execContainer) against the
+   * brief window where Kubernetes has marked a pod Ready but `pods.read()` still returns
+   * null — a race that is more common on slower GitHub-hosted runners than on local
+   * kind clusters.
+   *
+   * Use this when the exact pod name is already known (e.g. a StatefulSet replica such
+   * as `postgres-0`).  If the pod name is unknown and must be resolved by label selector,
+   * use {@link waitForStableReadyPod} instead.
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum polling attempts before throwing (default 20 × 3 s = 60 s)
+   * @param delay - milliseconds between attempts (default 3000)
+   */
+  public async waitForPodByReference(
+    podReference: PodReference,
+    maxAttempts: number = 20,
+    delay: number = 3000,
+  ): Promise<void> {
+    const podName: string = podReference.name.toString();
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pod: Pod = await this.read(podReference);
+      if (pod) {
+        return;
+      }
+      this.logger.debug(
+        `waitForPodByReference: pod ${podName} not yet visible in API, attempt ${attempt}/${maxAttempts}`,
+      );
+      await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, delay));
+    }
+    throw new SoloError(`Pod ${podName} not found after ${maxAttempts} attempts`);
+  }
+
+  /**
    * Wait for a ready pod to become stable enough for follow-up operations such as exec or port-forward.
    *
-   * This is stricter than waitForReadyStatus(): callers need the newest ready pod instance
-   * to stop changing, not just any pod to become ready once.
+   * Use this when the pod name is not fixed — e.g. after a rolling update the pod
+   * may have a new name or creation timestamp.  The method polls until the same newest
+   * ready pod (identified by name + creation timestamp) is observed for
+   * `consecutiveStableChecks` polls in a row, ensuring the replacement has fully settled
+   * before the caller proceeds.
    *
-   * Instead of sleeping for a fixed settle window, this method polls until the same newest ready pod
-   * is observed for a configurable number of consecutive checks. This keeps restart flows fast when
-   * Kubernetes stabilizes quickly, while still protecting callers from exec'ing into a pod that is
-   * being replaced.
+   * This is stricter than {@link waitForReadyStatus}, which returns as soon as any
+   * matching pod reports Ready=True without verifying that the pod identity has settled.
+   *
+   * Use {@link waitForPodByReference} instead when the exact pod name is already known
+   * and you only need to confirm it has appeared in the API (no stability check needed).
    *
    * @param namespace - namespace containing the target pod(s)
    * @param labels - labels used to select the target pod(s)
-   * @param [consecutiveStableChecks] - consecutive checks that must see the same newest ready pod
-   * @param [maxAttempts] - maximum attempts for the initial ready check
-   * @param [delay] - delay between poll attempts in milliseconds
+   * @param [consecutiveStableChecks] - consecutive checks that must see the same newest ready pod (default 3)
+   * @param [maxAttempts] - maximum polling attempts (default 120)
+   * @param [delay] - delay between poll attempts in milliseconds (default 1000)
    * @returns the newest stable ready pod
    */
   public async waitForStableReadyPod(
