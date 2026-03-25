@@ -41,4 +41,5 @@ export enum NodeSubcommandType {
   ADD,
   DESTROY,
   UPDATE,
+  START,
 }

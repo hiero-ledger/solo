@@ -33,7 +33,9 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import psList, {type ProcessDescriptor} from 'ps-list';
+import find from 'find-process';
+import type FindConfig from 'find-process';
+import type ProcessInfo from 'find-process';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
@@ -136,7 +138,7 @@ export class K8ClientPod implements Pod {
       });
       this.logger.debug(`Returned from http request against http://${constants.LOCAL_HOST}:${localPort}`);
 
-      let matchedProcesses: ProcessDescriptor[] = [];
+      let matchedProcesses: ProcessInfo[] = [];
       if (reuse) {
         try {
           matchedProcesses = await this.searchProcessListCommandByStrings([
@@ -281,11 +283,14 @@ export class K8ClientPod implements Pod {
     }
   }
 
-  private async searchProcessListCommandByStrings(substringsToMatch: string[]): Promise<ProcessDescriptor[]> {
-    let matchedProcesses: ProcessDescriptor[] = [];
-    const processes: ProcessDescriptor[] = await psList();
+  private async searchProcessListCommandByStrings(substringsToMatch: string[]): Promise<ProcessInfo[]> {
+    let matchedProcesses: ProcessInfo[] = [];
+    const findConfig: FindConfig = {
+      skipSelf: true,
+    };
+    const processes: ProcessInfo[] = await find('name', substringsToMatch.shift(), findConfig);
     for (const substring of substringsToMatch) {
-      matchedProcesses = processes.filter((p: ProcessDescriptor): boolean => {
+      matchedProcesses = processes.filter((p: ProcessInfo): boolean => {
         this.logger.debug(`Checking process PID ${p.pid} with p=${JSON.stringify(p)} for substring '${substring}'`);
         return p.cmd && p.cmd.includes(substring);
       });
@@ -304,10 +309,7 @@ export class K8ClientPod implements Pod {
     this.logger.showUser(chalk.yellow(`Stopping port-forward for port [${port}]`));
 
     try {
-      let matchedProcesses: ProcessDescriptor[] = await this.searchProcessListCommandByStrings([
-        'port-forward',
-        `${port}:`,
-      ]);
+      let matchedProcesses: ProcessInfo[] = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
       try {
         matchedProcesses = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
       } catch (error) {
@@ -325,7 +327,7 @@ export class K8ClientPod implements Pod {
       }
 
       // Extract PIDs and kill the processes
-      for (const pid of matchedProcesses.map((p: ProcessDescriptor): number => p.pid)) {
+      for (const pid of matchedProcesses.map((p: ProcessInfo): number => p.pid)) {
         try {
           process.kill(pid, 'SIGTERM');
           this.logger.debug(`Successfully sent SIGTERM to PID: ${pid}`);
@@ -333,18 +335,12 @@ export class K8ClientPod implements Pod {
           // Wait a moment for graceful shutdown
           await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, 1000));
 
-          // Check if process is still running
-          const processes: ProcessDescriptor[] = await psList();
-          matchedProcesses = processes.filter((p: ProcessDescriptor): boolean => p.pid && p.pid === pid);
+          const foundProcess: ProcessInfo[] = await find('pid', pid.toString());
 
-          for (const process of matchedProcesses) {
-            this.logger.debug(`Found process with PID ${process.pid} and command ${process.cmd}`);
-          }
-
-          // If process still exists, use SIGKILL
-          if (matchedProcesses.length > 0) {
-            this.logger.debug(`Process ${pid} still running, sending SIGKILL`);
-
+          if (foundProcess.length > 0) {
+            this.logger.debug(
+              `Process with PID ${pid} is still running after SIGTERM, attempting to kill with SIGKILL`,
+            );
             process.kill(pid, 'SIGKILL');
           }
         } catch (killError) {

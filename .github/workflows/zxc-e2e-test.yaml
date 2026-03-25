@@ -471,13 +471,51 @@ jobs:
           
           # Start resource monitoring in background
           ./.github/workflows/script/monitor-resources.sh start
-         
-          # Run the test
-          ${{ env.CG_EXEC }} task ${{ inputs.test-script }} || TEST_EXIT_CODE=$?
-          
+
+          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # test immediately rather than waiting 30-60 minutes for it to finish on
+          # its own.
+          TASK_PID=""
+          TASK_PGID=""
+          TEST_EXIT_CODE=0
+
+          cleanup() {
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID}, PGID ${TASK_PGID})..."
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
+              else
+                kill -TERM "${TASK_PID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL "${TASK_PID}" 2>/dev/null || true
+              fi
+              wait "${TASK_PID}" 2>/dev/null || true
+            fi
+            ./.github/workflows/script/monitor-resources.sh stop || true
+            exit 130
+          }
+          trap cleanup SIGTERM SIGINT
+
+          TASK_COMMAND="${{ env.CG_EXEC }} task ${{ inputs.test-script }}"
+          if command -v setsid >/dev/null 2>&1; then
+            setsid bash -lc "${TASK_COMMAND}" &
+          else
+            bash -lc "${TASK_COMMAND}" &
+          fi
+          TASK_PID=$!
+          TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
+          wait "${TASK_PID}"
+          TEST_EXIT_CODE=$?
+          TASK_PID=""
+          TASK_PGID=""
+          trap - SIGTERM SIGINT
+
           # Stop resource monitoring and display summary
           ./.github/workflows/script/monitor-resources.sh stop
-          
+
           exit $TEST_EXIT_CODE
 
       - name: Log Metrics
