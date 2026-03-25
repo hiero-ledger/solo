@@ -103,10 +103,20 @@ function start_sdk_test ()
   # Wait for mirror gRPC pod to be Ready before probing via localhost:8081.
   # Even after `solo mirror-node deploy` completes, the pod may briefly be Running
   # but not yet Ready, causing the ingress to return 502 Bad Gateway.
+  #
+  # In dual-cluster setups (e.g. external-database test), mirror node is deployed to
+  # a different cluster than the consensus nodes.  SOLO_CLUSTER_CONTEXT must be set to
+  # the context of that cluster so kubectl targets the right API server; otherwise
+  # kubectl wait finds no pods and exits immediately with "no matching resources found".
+  KUBECTL_CONTEXT_ARGS=()
+  if [[ -n "${SOLO_CLUSTER_CONTEXT:-}" ]]; then
+    KUBECTL_CONTEXT_ARGS=(--context "${SOLO_CLUSTER_CONTEXT}")
+  fi
+
   echo "Waiting for mirror gRPC pod readiness in namespace ${SOLO_NAMESPACE}..."
-  if ! kubectl wait --for=condition=Ready pod -n "${SOLO_NAMESPACE}" -l app.kubernetes.io/component=grpc --timeout=5m; then
+  if ! kubectl wait "${KUBECTL_CONTEXT_ARGS[@]}" --for=condition=Ready pod -n "${SOLO_NAMESPACE}" -l app.kubernetes.io/component=grpc --timeout=5m; then
     echo "Mirror gRPC pod did not become Ready in time."
-    kubectl get pods -n "${SOLO_NAMESPACE}" -o wide || true
+    kubectl get pods "${KUBECTL_CONTEXT_ARGS[@]}" -n "${SOLO_NAMESPACE}" -o wide || true
     log_and_exit 1
   fi
 
