@@ -16,6 +16,7 @@ import * as tar from 'tar';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {type KubeConfig} from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
+import {type Pod} from '../../../resources/pod/pod.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type TarCreateFilter} from '../../../../../types/aliases.js';
@@ -42,6 +43,29 @@ export class K8ClientContainer implements Container {
 
   private async getContext(): Promise<string> {
     return this.kubeConfig.getCurrentContext();
+  }
+
+  /**
+   * Waits until `pods.read()` returns a valid pod, then returns.
+   * Throws {@link IllegalArgumentError} if the pod is still not found after all attempts.
+   *
+   * The retry loop is necessary because Kubernetes may momentarily report a pod
+   * as "not found" or return an incomplete object right after it transitions to
+   * Ready — especially on slower GitHub-hosted runners — causing the
+   * `copyTo` / `copyFrom` / `execContainer` guard to throw "Invalid pod" even
+   * though the pod is healthy.
+   */
+  private async waitForValidPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
+    const podName: string = this.containerReference.parentReference.name.toString();
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pod: Pod = await this.pods.read(this.containerReference.parentReference);
+      if (pod) {
+        return;
+      }
+      this.logger.debug(`waitForValidPod: pod ${podName} not yet available, attempt ${attempt}/${maxAttempts}`);
+      await sleep(Duration.ofMillis(delayMs));
+    }
+    throw new IllegalArgumentError(`Invalid pod ${podName}`);
   }
 
   private async execKubectl(
@@ -166,9 +190,7 @@ export class K8ClientContainer implements Container {
     sourcePath = this.toKubectlSafePath(sourcePath);
     destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForValidPod();
 
     if (!fs.existsSync(destinationDirectory)) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -216,9 +238,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForValidPod();
 
     if (!(await this.hasDir(destinationDirectory))) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -291,9 +311,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForValidPod();
 
     if (!cmd) {
       throw new MissingArgumentError('command cannot be empty');
