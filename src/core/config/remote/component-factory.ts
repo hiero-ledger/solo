@@ -121,7 +121,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
   ): ComponentStateMetadataSchema {
     const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(componentType);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const phase: DeploymentPhase = DeploymentPhase.DEPLOYED;
     return new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
   }
 }
