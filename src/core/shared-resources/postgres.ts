@@ -26,6 +26,7 @@ import * as Base64 from 'js-base64';
 import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Pod} from '../../integration/kube/resources/pod/pod.js';
+import {type Pods} from '../../integration/kube/resources/pod/pods.js';
 
 @injectable()
 export class PostgresSharedResource {
@@ -59,7 +60,7 @@ export class PostgresSharedResource {
   }
 
   public async resolveContainerReference(namespace: NamespaceName, context: string): Promise<ContainerReference> {
-    const pods = this.k8Factory.getK8(context).pods();
+    const pods: Pods = this.k8Factory.getK8(context).pods();
     const matchingPods: Pod[] = await pods.list(namespace, PostgresSharedResource.POSTGRES_LABEL_SELECTOR);
     const postgresPod: Pod = matchingPods.find((pod: Pod): boolean => Boolean(pod.podReference)) ?? matchingPods[0];
     if (postgresPod?.podReference) {
