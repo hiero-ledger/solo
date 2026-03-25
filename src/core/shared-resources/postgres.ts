@@ -10,9 +10,7 @@ import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
-import {PodName} from '../../integration/kube/resources/pod/pod-name.js';
 import {Templates} from '../templates.js';
-import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 import * as constants from '../../core/constants.js';
@@ -27,9 +25,16 @@ import {SoloError} from '../errors/solo-error.js';
 import * as Base64 from 'js-base64';
 import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
+import {type Pod} from '../../integration/kube/resources/pod/pod.js';
+import {type Pods} from '../../integration/kube/resources/pod/pods.js';
 
 @injectable()
 export class PostgresSharedResource {
+  private static readonly POSTGRES_LABEL_SELECTOR: string[] = [
+    'app.kubernetes.io/name=postgres',
+    'app.kubernetes.io/instance=solo-shared-resources',
+  ];
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
@@ -48,10 +53,23 @@ export class PostgresSharedResource {
       .pods()
       .waitForRunningPhase(
         namespace,
-        ['app.kubernetes.io/component=postgresql', 'app.kubernetes.io/instance=solo-shared-resources'],
+        PostgresSharedResource.POSTGRES_LABEL_SELECTOR,
         constants.PODS_RUNNING_MAX_ATTEMPTS,
         constants.PODS_RUNNING_DELAY,
       );
+  }
+
+  public async resolveContainerReference(namespace: NamespaceName, context: string): Promise<ContainerReference> {
+    const pods: Pods = this.k8Factory.getK8(context).pods();
+    const matchingPods: Pod[] = await pods.list(namespace, PostgresSharedResource.POSTGRES_LABEL_SELECTOR);
+    const postgresPod: Pod = matchingPods.find((pod: Pod): boolean => Boolean(pod.podReference)) ?? matchingPods[0];
+    if (postgresPod?.podReference) {
+      return ContainerReference.of(postgresPod.podReference, ContainerName.of('postgresql'));
+    }
+
+    throw new SoloError(
+      `Postgres pod not found in namespace ${namespace.name} with selector: ${PostgresSharedResource.POSTGRES_LABEL_SELECTOR.join(',')}`,
+    );
   }
 
   private static tryToDecode(value: string): string {
@@ -63,9 +81,7 @@ export class PostgresSharedResource {
     context: string,
     prefix: string = 'HIERO',
   ): Promise<void> {
-    const postgresFullyQualifiedPodName: PodName = Templates.renderPostgresPodName(0);
-    const podReference: PodReference = PodReference.of(namespace, postgresFullyQualifiedPodName);
-    const containerReference: ContainerReference = ContainerReference.of(podReference, ContainerName.of('postgresql'));
+    const containerReference: ContainerReference = await this.resolveContainerReference(namespace, context);
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
     const version: SemanticVersion = SemanticVersion.parse(MIRROR_NODE_VERSION.replaceAll('v', ''));
     const tag: string = `v${version.major}.${version.minor}.${version.patch}`;

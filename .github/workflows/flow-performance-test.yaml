@@ -122,7 +122,16 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
+          set +e
           task test-e2e-performance
+          TASK_RC=$?
+          set -e
+
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            exit "${TASK_RC}"
+          fi
 
       - name: Log Metrics
         id: log-metrics
