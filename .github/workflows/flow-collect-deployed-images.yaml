@@ -1,0 +1,136 @@
+##
+# Copyright (C) 2023-2025 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "Collect Deployed Images"
+
+on:
+  workflow_dispatch:
+    inputs:
+      num-consensus-nodes:
+        description: "Number of consensus nodes to deploy"
+        required: false
+        default: "1"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
+jobs:
+  collect-images:
+    name: Deploy Solo Network and Collect Images
+    timeout-minutes: 60
+    runs-on: hiero-solo-linux-large
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Posix Dependencies
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
+          sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile Project
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: task build:compile
+
+      - name: Deploy Solo Network (one-shot)
+        timeout-minutes: 45
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+
+          # Run in the background with signal trap so this step can be cancelled
+          # immediately (e.g. via a new commit) rather than waiting up to 45 minutes.
+          DEPLOY_PID=""
+          DEPLOY_RC=0
+
+          cleanup() {
+            if [[ -n "${DEPLOY_PID}" ]]; then
+              echo "Received cancellation signal, stopping deploy (PID ${DEPLOY_PID})..."
+              kill "${DEPLOY_PID}" 2>/dev/null || true
+              wait "${DEPLOY_PID}" 2>/dev/null || true
+            fi
+            exit 1
+          }
+          trap cleanup SIGTERM SIGINT
+
+          npm run solo -- one-shot falcon deploy \
+            --num-consensus-nodes "${{ inputs.num-consensus-nodes }}" &
+          DEPLOY_PID=$!
+          wait "${DEPLOY_PID}"
+          DEPLOY_RC=$?
+          DEPLOY_PID=""
+          trap - SIGTERM SIGINT
+
+          if [[ "${DEPLOY_RC}" -ne 0 ]]; then
+            echo "one-shot falcon deploy failed with exit code ${DEPLOY_RC}"
+            npm run solo -- deployment diagnostics logs -q --dev || true
+            exit "${DEPLOY_RC}"
+          fi
+
+      - name: Collect Images from Live Cluster
+        id: collect-images
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          OUTPUT_DIR="${HOME}/.solo/image-report"
+          chmod +x .github/workflows/script/collect_deployed_images.sh
+          .github/workflows/script/collect_deployed_images.sh "${OUTPUT_DIR}"
+          echo "image_report_dir=${OUTPUT_DIR}" >> "${GITHUB_OUTPUT}"
+          echo "total_images=$(wc -l < "${OUTPUT_DIR}/all-images.txt" | tr -d ' ')" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Image Report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: deployed-images-report
+          path: ${{ steps.collect-images.outputs.image_report_dir }}/*
+          overwrite: true
+          if-no-files-found: warn

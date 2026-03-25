@@ -23,8 +23,13 @@ echo "Cutoff UTC: $(date -u -d "@${cutoff_epoch}" '+%Y-%m-%d %H:%M:%S')"
 
 get_prefixes() {
   local bucket="$1"
+  # Use grep+cut instead of sed to avoid $# being expanded by bash inside the
+  # double-quoted sed expression (inside this function $# == 1, which corrupts
+  # the s-command delimiter structure and produces "unterminated s command").
   gcloud storage ls "gs://${bucket}/" --project="${PROJECT_ID}" 2>/dev/null \
-    | sed -nE "s#^gs://${bucket}/([0-9]+)/$#\1#p" \
+    | grep -E "^gs://${bucket}/[0-9]+/" \
+    | cut -d'/' -f4 \
+    | grep -E '^[0-9]+$' \
     | sort -u
 }
 
