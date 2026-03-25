@@ -39,6 +39,9 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
       - cmd: |
           # Clean up any existing Kind clusters
           for cluster in $(kind get clusters); do
@@ -49,13 +52,17 @@ tasks:
           # Clean up Solo data
           rm -Rf ~/.solo
 
-      - cmd: |
-          # Create Kind cluster
-          kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
 
       - cmd: |
-          # Solo init
-          $SOLO_COMMAND init --dev
+          # Create Kind cluster
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
+          fi
 
       - cmd: |
           # Solo cluster-ref config connect

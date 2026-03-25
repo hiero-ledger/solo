@@ -39,6 +39,12 @@ export const KUBECTL: string = 'kubectl';
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
+export const KIND_CLUSTER_CONFIG_FILE: string =
+  getEnvironmentVariable('SOLO_KIND_CLUSTER_CONFIG_FILE') || PathEx.joinWithRealPath(RESOURCES_DIR, 'kind-config.yaml');
+export const KIND_NODE_IMAGE: string =
+  getEnvironmentVariable('SOLO_KIND_NODE_IMAGE') ||
+  getEnvironmentVariable('KIND_IMAGE') ||
+  'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211';
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
@@ -93,6 +99,12 @@ export const HEDERA_NODE_SIDECARS: string[] = [
   'blockstreamUploader',
 ];
 
+export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
+export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
+export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
+export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
+export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
+
 // --------------- Charts related constants ----------------------------------------------------------------------------
 export const SOLO_SETUP_NAMESPACE: NamespaceName = NamespaceName.of('solo-setup');
 
@@ -102,6 +114,7 @@ export const SOLO_TESTING_CHART_URL: string = 'oci://ghcr.io/hashgraph/solo-char
 export const SOLO_DEPLOYMENT_CHART: string = 'solo-deployment';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CERT_MANAGER_CHART: string = 'solo-cert-manager';
+export const SOLO_SHARED_RESOURCES_CHART: string = 'solo-shared-resources';
 
 export const JSON_RPC_RELAY_CHART_URL: string =
   getEnvironmentVariable('JSON_RPC_RELAY_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
@@ -120,6 +133,7 @@ export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
 export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
+export const SOLO_SERVICE_MONITOR_NAME: string = 'solo-service-monitor';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
@@ -155,7 +169,7 @@ export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_CHART_URL: string =
   getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_URL') ??
-  'oci://swirldslabs.jfrog.io/load-generator-helm-release-local';
+  'oci://artifacts.hashgraph.io/load-generator-helm-release-local';
 export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
   'app.kubernetes.io/instance=network-load-generator',
   'app.kubernetes.io/name=network-load-generator',
@@ -185,7 +199,7 @@ export const SOLO_MIRROR_REST_NAME_LABEL: string = 'app.kubernetes.io/name=rest'
 export const SOLO_MIRROR_WEB3_NAME_LABEL: string = 'app.kubernetes.io/name=web3';
 export const SOLO_MIRROR_POSTGRES_NAME_LABEL: string = 'app.kubernetes.io/name=postgres';
 export const SOLO_MIRROR_REDIS_NAME_LABEL: string = 'app.kubernetes.io/name=redis';
-export const SOLO_MIRROR_RESTJAVA_NAME_LABEL: string = 'app.kubernetes.io/name=rest-java';
+export const SOLO_MIRROR_RESTJAVA_NAME_LABEL: string = 'app.kubernetes.io/name=restjava';
 export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'app.kubernetes.io/name=block-node-1';
 export const SOLO_INGRESS_CONTROLLER_NAME_LABEL: string = 'app.kubernetes.io/name=haproxy-ingress';
 
@@ -248,6 +262,8 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
+export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
@@ -331,15 +347,6 @@ export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
 export const LOCAL_HOST: string = '127.0.0.1';
 
-export const PROFILE_LARGE: string = 'large';
-export const PROFILE_MEDIUM: string = 'medium';
-export const PROFILE_SMALL: string = 'small';
-export const PROFILE_TINY: string = 'tiny';
-export const PROFILE_LOCAL: string = 'local';
-
-export const ALL_PROFILES: string[] = [PROFILE_LOCAL, PROFILE_TINY, PROFILE_SMALL, PROFILE_MEDIUM, PROFILE_LARGE];
-export const DEFAULT_PROFILE_FILE: string = PathEx.join('profiles', 'custom-spec.yaml');
-
 export const STANDARD_DATAMASK: string = '***';
 
 // ------ Hedera SDK Related ------
@@ -371,6 +378,8 @@ export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS: number =
+  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS') || 2000;
 export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
@@ -433,6 +442,7 @@ export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_ST
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
+export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
 export const enum StorageType {
   MINIO_ONLY = 'minio_only',
   AWS_ONLY = 'aws_only',
@@ -452,6 +462,9 @@ export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
 
 export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
 
+export const WRAPS_ALLOWED_KEY_FILES: string =
+  getEnvironmentVariable('WRAPS_ALLOWED_KEY_FILES') || 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
+
 // TODO: in future define a better strategy to handle versioning
 export const WRAPS_LIB_DOWNLOAD_URL: string =
   getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
@@ -462,3 +475,6 @@ export const TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS: number =
 
 export const TSS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('TSS_READY_MAX_ATTEMPTS') || 60;
 export const TSS_READY_BACKOFF_SECONDS: number = +getEnvironmentVariable('TSS_READY_BACKOFF_SECONDS') || 3;
+
+export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
+  +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;

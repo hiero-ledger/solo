@@ -46,6 +46,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.grpcEndpoints,
   flags.domainNames,
   flags.releaseTag,
+  flags.wrapsKeyPath,
 ];
 
 export const UPGRADE_FLAGS: CommandFlags = {
@@ -54,6 +55,7 @@ export const UPGRADE_FLAGS: CommandFlags = {
     ...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 
     flags.upgradeVersion,
+    flags.wrapsKeyPath,
 
     // Node config file flags
     flags.networkDeploymentValuesFile,
@@ -164,6 +166,7 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.blockNodeMapping,
   flags.externalBlockNodeMapping,
   flags.grpcWebEndpoint,
+  flags.wrapsKeyPath,
 ];
 
 export const DESTROY_FLAGS: CommandFlags = {
@@ -264,13 +267,14 @@ export const START_FLAGS: CommandFlags = {
     flags.stateFile,
     flags.stakeAmounts,
     flags.forcePortForward,
+    flags.wrapsKeyPath,
     flags.grpcWebEndpoints,
   ],
 };
 
 export const RESTART_FLAGS: CommandFlags = {
   required: [flags.deployment],
-  optional: [flags.quiet],
+  optional: [flags.quiet, flags.wrapsKeyPath],
 };
 
 export const SETUP_FLAGS: CommandFlags = {

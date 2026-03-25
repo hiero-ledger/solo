@@ -323,71 +323,6 @@ export class Flags {
     },
   };
 
-  public static readonly profileFile: CommandFlag = {
-    constName: 'profileFile',
-    name: 'profile-file',
-    definition: {
-      describe: 'Resource profile definition (e.g. custom-spec.yaml)',
-      defaultValue: constants.DEFAULT_PROFILE_FILE,
-      type: 'string',
-    },
-    prompt: async function promptProfileFile(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      if (input && !fs.existsSync(input)) {
-        input = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          default: Flags.profileFile.definition.defaultValue as string,
-          message: 'Enter path to custom resource profile definition file: ',
-        });
-      }
-
-      if (input && !fs.existsSync(input)) {
-        throw new IllegalArgumentError(`Invalid profile definition file: ${input}}`, input);
-      }
-
-      return input;
-    },
-  };
-
-  public static readonly profileName: CommandFlag = {
-    constName: 'profileName',
-    name: 'profile',
-    definition: {
-      describe: `Resource profile (${constants.ALL_PROFILES.join(' | ')})`,
-      defaultValue: constants.PROFILE_LOCAL,
-      type: 'string',
-    },
-    prompt: async function promptProfile(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-      choices: string[] = constants.ALL_PROFILES,
-    ): Promise<string> {
-      try {
-        const initial: number = choices.indexOf(input);
-        if (initial === -1) {
-          const input: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
-            message: 'Select profile for solo network deployment',
-            choices: structuredClone(choices).map((profile): {name: string; value: string} => ({
-              name: profile,
-              value: profile,
-            })),
-          })) as string;
-
-          if (!input) {
-            throw new SoloError('key-format cannot be empty');
-          }
-
-          return input;
-        }
-
-        return input;
-      } catch (error) {
-        throw new SoloError(`input failed: ${Flags.profileName.name}`, error);
-      }
-    },
-  };
-
   public static readonly deployPrometheusStack: CommandFlag = {
     constName: 'deployPrometheusStack',
     name: 'prometheus-stack',
@@ -744,6 +679,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeTssOverlay: CommandFlag = {
+    constName: 'blockNodeTssOverlay',
+    name: 'block-node-tss-overlay',
+    definition: {
+      describe:
+        'Force-apply block-node TSS values overlay when deploying block nodes before consensus deployment sets tssEnabled in remote config.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly blockNodeMapping: CommandFlag = {
     constName: 'blockNodeIds',
     name: 'block-node-mapping',
@@ -766,11 +713,10 @@ export class Flags {
 
   public static renderBlockNodeMappingDescription(name: 'block-node' | 'external-block-node'): string {
     return (
-      grey(`Configure ${name} priority mapping`) +
-      blue(`\n(Default: all ${name} included, first's priority is 2)`) +
-      yellow('\n[Format: <id>=<priority>[,<id>=<priority>]]') +
-      yellow(`\n[Example: "--${name}-mapping 1=2,2=1"]`) +
-      red(`\n[Unlisted ${name} will not routed to the consensus node node]`)
+      `Configure ${name} priority mapping.` +
+      ` Default: all ${name} included, first's priority is 2.` +
+      ` Unlisted ${name} will not routed to the consensus node node.` +
+      ` Example: --${name}-mapping 1=2,2=1`
     );
   }
 
@@ -1222,11 +1168,10 @@ export class Flags {
     name: 'priority-mapping',
     definition: {
       describe:
-        grey('Configure block node priority mapping') +
-        blue('\n(Default: all consensus nodes included, first node priority is 2)') +
-        yellow('\n[Format: <node>=<priority>[,<node>=<priority>]]') +
-        yellow('\n[Example: "priority-mapping node1=2,node2=1"]') +
-        red('\n[Unlisted nodes will not be routed to a block node]'),
+        'Configure block node priority mapping.' +
+        ' Unlisted nodes will not be routed to a block node' +
+        ' Default: all consensus nodes included, first node priority is 2.' +
+        ' Example: "priority-mapping node1=2,node2=1"',
       type: 'string',
     },
     prompt: undefined,
@@ -1237,10 +1182,9 @@ export class Flags {
     name: 'address',
     definition: {
       describe:
-        grey(`Provide external block node address ${grey('(IP or domain)')}, with optional port`) +
-        blue(`\n(Default port: ${constants.BLOCK_NODE_PORT})`) +
-        yellow('\n[Format: <address>[:<port>]]') +
-        yellow('\n[Examples: "--address localhost:8080", "--address 192.0.0.1"]'),
+        'Provide external block node address (IP or domain), with optional port' +
+        ` (Default port: ${constants.BLOCK_NODE_PORT})` +
+        ' Examples: "--address localhost:8080", "--address 192.0.0.1"',
       type: 'string',
     },
     prompt: undefined,
@@ -1253,6 +1197,16 @@ export class Flags {
       describe: 'Enable recursive WRAPs aggregation for hinTS/TSS (CN >= v0.72).',
       type: 'boolean',
       defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly wrapsKeyPath: CommandFlag = {
+    constName: 'wrapsKeyPath',
+    name: 'wraps-key-path',
+    definition: {
+      describe: 'Path to a local directory containing pre-existing WRAPs proving key files (.bin)',
+      type: 'string',
     },
     prompt: undefined,
   };
@@ -1916,6 +1870,19 @@ export class Flags {
       describe: 'Quiet mode, do not prompt for confirmation',
       defaultValue: false,
       alias: 'q',
+      type: 'boolean',
+      disablePrompt: true,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly rollback: CommandFlag = {
+    constName: 'rollback',
+    name: 'rollback',
+    definition: {
+      describe:
+        'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
+      defaultValue: true,
       type: 'boolean',
       disablePrompt: true,
     },
@@ -2784,7 +2751,7 @@ export class Flags {
     definition: {
       describe:
         'Custom domain names for consensus nodes mapping for the' +
-        `${grey('(e.g. node0=domain.name where key is node alias and value is domain name)')}` +
+        '(e.g. node0=domain.name where key is node alias and value is domain name)' +
         'with multiple nodes comma separated',
       type: 'string',
     },
@@ -3005,8 +2972,6 @@ export class Flags {
     Flags.pinger,
     Flags.predefinedAccounts,
     Flags.privateKey,
-    Flags.profileFile,
-    Flags.profileName,
     Flags.quiet,
     Flags.output,
     Flags.imageTag,
@@ -3062,6 +3027,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeTssOverlay,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
@@ -3089,9 +3055,11 @@ export class Flags {
     Flags.grpcWebEndpoints,
     Flags.grpcWebEndpoint,
     Flags.wrapsEnabled,
+    Flags.wrapsKeyPath,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
+    Flags.rollback,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
@@ -3140,12 +3108,12 @@ export class Flags {
       }
 
       // remove flags that use the default value
-      const flag = Flags.allFlags.find(flag => flag.name === name);
+      const flag: CommandFlag = Flags.allFlags.find((flag: CommandFlag): boolean => flag.name === name);
       if (!flag || (flag.definition.defaultValue && flag.definition.defaultValue === value)) {
         continue;
       }
 
-      const flagName = flag.name;
+      const flagName: string = flag.name;
 
       // if the flag is boolean based, render it without value
       if (value === true) {

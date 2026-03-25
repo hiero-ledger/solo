@@ -9,6 +9,7 @@ set -eo pipefail
 # Then run smart contract test, and also javascript sdk sample test to interact with solo network
 #
 export USE_MIRROR_NODE_LEGACY_RELEASE_NAME="true"
+export PATH=~/.solo/bin:${PATH}
 source .github/workflows/script/helper.sh
 
 function clone_smart_contract_repo ()
@@ -113,15 +114,16 @@ function start_sdk_test ()
 function check_monitor_log()
 {
   namespace="${1}"
-  monitorPods=$(kubectl get pods -n "${namespace}" -o name | sed 's#pod/##' | grep -E '^mirror(-1)?-monitor' || true)
+  context="${2:-${MIRROR_KUBE_CONTEXT}}"
+  monitorPods=$(kubectl --context "${context}" get pods -n "${namespace}" -o name | sed 's#pod/##' | grep -E '^mirror(-1)?-monitor' || true)
   if [[ -z "${monitorPods}" ]]; then
-    echo "No mirror monitor pod found in namespace ${namespace} (expected mirror-monitor or mirror-1-monitor)."
+    echo "No mirror monitor pod found in namespace ${namespace} on context ${context} (expected mirror-monitor or mirror-1-monitor)."
     log_and_exit 1
   fi
   # get the logs of mirror-monitor
   while IFS= read -r podName; do
     [[ -z "${podName}" ]] && continue
-    kubectl logs -n "${namespace}" "${podName}"
+    kubectl --context "${context}" logs -n "${namespace}" "${podName}"
   done <<< "${monitorPods}" > mirror-monitor.log
 
   if grep -q "ERROR" mirror-monitor.log; then
@@ -152,15 +154,16 @@ function check_monitor_log()
 function check_importer_log()
 {
   namespace="${1}"
-  importerPods=$(kubectl get pods -n "${namespace}" -o name | sed 's#pod/##' | grep -E '^mirror(-1)?-importer' || true)
+  context="${2:-${MIRROR_KUBE_CONTEXT}}"
+  importerPods=$(kubectl --context "${context}" get pods -n "${namespace}" -o name | sed 's#pod/##' | grep -E '^mirror(-1)?-importer' || true)
   if [[ -z "${importerPods}" ]]; then
-    echo "No mirror importer pod found in namespace ${namespace} (expected mirror-importer or mirror-1-importer)."
+    echo "No mirror importer pod found in namespace ${namespace} on context ${context} (expected mirror-importer or mirror-1-importer)."
     log_and_exit 1
   fi
 
   while IFS= read -r podName; do
     [[ -z "${podName}" ]] && continue
-    kubectl logs -n "${namespace}" "${podName}"
+    kubectl --context "${context}" logs -n "${namespace}" "${podName}"
   done <<< "${importerPods}" > mirror-importer.log || result=$?
   if [[ $result -ne 0 ]]; then
     echo "Failed to get the mirror node importer logs with exit code $result"
@@ -182,22 +185,142 @@ function check_importer_log()
 
 function resolve_mirror_release_name()
 {
+  local namespace="$1"
+  local context
   local release_name
 
-  # Prefer canonical mirror release names from all namespaces.
-  release_name="$(helm list -A --filter '^mirror(-[0-9]+)?$' -q | head -n 1)"
+  for context in $(kubectl config get-contexts -o name); do
+    # Prefer canonical mirror release names from the target namespace.
+    release_name="$(helm list -n "${namespace}" --kube-context "${context}" --filter '^mirror(-[0-9]+)?$' -q 2>/dev/null | head -n 1)"
 
-  # Fallback: detect by chart name if release naming differs.
-  if [ -z "${release_name}" ]; then
-    release_name="$(helm list -A | awk 'NR>1 && $6 ~ /^hedera-mirror-/ {print $1; exit}')"
+    # Fallback: detect by chart name if release naming differs.
+    if [ -z "${release_name}" ]; then
+      release_name="$(helm list -n "${namespace}" --kube-context "${context}" 2>/dev/null | awk 'NR>1 && $6 ~ /^hedera-mirror-/ {print $1; exit}')"
+    fi
+
+    if [ -n "${release_name}" ]; then
+      echo "${release_name}|${context}"
+      return 0
+    fi
+  done
+
+  echo "Unable to detect mirror Helm release from 'helm list -n ${namespace}' across kube contexts" >&2
+  return 1
+}
+
+function preload_mirror_test_images_for_kind()
+{
+  local mirror_release="${1:-}"
+  local namespace="${2:-}"
+  local mirror_context="${3:-${MIRROR_KUBE_CONTEXT}}"
+  local hashgraph_mirror_registry="hub.mirror.docker.lat.ope.eng.hashgraph.io"
+  local cluster_name
+  local node source_image short_image mirror_image
+  local hook_images
+  local image_prefix source_registry dockerhub_qualified_image
+  local kind_nodes
+  local max_attempts=3
+  local attempt pull_candidate pulled_image
+  local -a pull_candidates
+
+  if [ -z "${mirror_release}" ] || [ -z "${namespace}" ]; then
+    echo "Skipping mirror test image preload: mirror release or namespace not provided."
+    return 0
   fi
 
-  if [ -z "${release_name}" ]; then
-    echo "Unable to detect mirror Helm release from 'helm list -A'" >&2
-    return 1
+  if ! command -v docker >/dev/null 2>&1 || ! command -v kind >/dev/null 2>&1; then
+    echo "Skipping mirror test image preload: docker and/or kind not available."
+    return 0
   fi
 
-  echo "${release_name}"
+  if [[ "${mirror_context}" != kind-* ]]; then
+    echo "Skipping mirror test image preload: mirror context '${mirror_context}' is not kind."
+    return 0
+  fi
+
+  cluster_name="${mirror_context#kind-}"
+
+  kind_nodes="$(kind get nodes --name "${cluster_name}" 2>/dev/null || true)"
+  if [ -z "${kind_nodes}" ]; then
+    echo "Warning: unable to resolve kind nodes for cluster ${cluster_name}; skipping test image preload."
+    return 0
+  fi
+
+  hook_images="$(
+    helm get hooks "${mirror_release}" -n "${namespace}" --kube-context "${mirror_context}" 2>/dev/null \
+      | awk '
+          /^kind: Pod$/ { in_pod = 1 }
+          in_pod && $1 == "image:" {
+            gsub(/"/, "", $2)
+            print $2
+          }
+          /^---$/ { in_pod = 0 }
+        ' \
+      | sort -u \
+      || true
+  )"
+
+  if [ -z "${hook_images}" ]; then
+    echo "Warning: no Helm hook pod images found for release '${mirror_release}' in namespace '${namespace}'."
+    return 0
+  fi
+
+  echo "Preloading mirror acceptance test images into kind cluster '${cluster_name}' via ${hashgraph_mirror_registry}"
+  while IFS= read -r source_image; do
+    [ -z "${source_image}" ] && continue
+
+    image_prefix="${source_image%%/*}"
+    if [[ "${image_prefix}" == *.* || "${image_prefix}" == *:* || "${image_prefix}" == "localhost" ]]; then
+      source_registry="${image_prefix}"
+      short_image="${source_image#*/}"
+    else
+      source_registry="docker.io"
+      short_image="${source_image}"
+    fi
+
+    if [[ "${source_registry}" != "docker.io" && "${source_registry}" != "registry-1.docker.io" ]]; then
+      echo "Skipping preload for non-DockerHub hook image ${source_image}"
+      continue
+    fi
+
+    dockerhub_qualified_image="docker.io/${short_image}"
+    mirror_image="${hashgraph_mirror_registry}/${short_image}"
+    pull_candidates=(
+      "${mirror_image}"
+      "${dockerhub_qualified_image}"
+      "registry-1.docker.io/${short_image}"
+    )
+
+    while IFS= read -r node; do
+      [ -z "${node}" ] && continue
+      attempt=1
+      while [ "${attempt}" -le "${max_attempts}" ]; do
+        pulled_image=""
+        for pull_candidate in "${pull_candidates[@]}"; do
+          if docker exec "${node}" ctr --namespace=k8s.io images pull "${pull_candidate}" >/dev/null 2>&1; then
+            pulled_image="${pull_candidate}"
+            break
+          fi
+        done
+
+        if [ -n "${pulled_image}" ]; then
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${pulled_image}" "${dockerhub_qualified_image}" >/dev/null 2>&1 || true
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${pulled_image}" "${short_image}" >/dev/null 2>&1 || true
+          docker exec "${node}" ctr --namespace=k8s.io images tag "${pulled_image}" "${source_image}" >/dev/null 2>&1 || true
+          echo "Preloaded ${source_image} on node ${node} from ${pulled_image}"
+          break
+        fi
+
+        if [ "${attempt}" -eq "${max_attempts}" ]; then
+          echo "Warning: failed to preload ${source_image} on ${node} from mirror and Docker Hub fallback after ${max_attempts} attempts."
+        else
+          echo "Retrying preload ${source_image} on ${node} (attempt ${attempt}/${max_attempts}); trying mirror then Docker Hub fallback..."
+          sleep 3
+        fi
+        attempt=$((attempt + 1))
+      done
+    done <<< "${kind_nodes}"
+  done <<< "${hook_images}"
 }
 
 echo "Change to parent directory"
@@ -224,29 +347,51 @@ sleep 30
 
 echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 mirror_release=""
-if helm status mirror-1 -n "${SOLO_NAMESPACE}" >/dev/null 2>&1; then
-  mirror_release="mirror-1"
-elif helm status mirror -n "${SOLO_NAMESPACE}" >/dev/null 2>&1; then
-  mirror_release="mirror"
-else
-  echo "No mirror Helm release found in namespace ${SOLO_NAMESPACE} (expected mirror-1 or mirror)."
+MIRROR_KUBE_CONTEXT=""
+if ! mirror_release_and_context="$(resolve_mirror_release_name "${SOLO_NAMESPACE}")"; then
+  echo "No mirror Helm release found in namespace ${SOLO_NAMESPACE}."
+  echo "Current Helm releases in ${SOLO_NAMESPACE}:"
+  for context in $(kubectl config get-contexts -o name); do
+    echo "Context: ${context}"
+    helm list -n "${SOLO_NAMESPACE}" --kube-context "${context}" || true
+  done
+  echo "All contexts:"
+  kubectl config get-contexts -o name || true
+  log_and_exit 1
+fi
+IFS='|' read -r mirror_release MIRROR_KUBE_CONTEXT <<< "${mirror_release_and_context}"
+
+if [ -z "${mirror_release}" ] || [ -z "${MIRROR_KUBE_CONTEXT}" ]; then
+  echo "Failed to resolve both mirror release and kube context for namespace ${SOLO_NAMESPACE}."
   log_and_exit 1
 fi
 
-echo "Using mirror release: ${mirror_release}"
-helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --timeout 20m || result=$?
+printf "\r::group::mirror-test log dump\n"
+echo "Using mirror release: ${mirror_release} (context: ${MIRROR_KUBE_CONTEXT}), running 'helm test'..."
+preload_mirror_test_images_for_kind "${mirror_release}" "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
+result=0
+mirror_test_log="mirror_test.log"
+echo "Helm test command: helm test ${mirror_release} -n ${SOLO_NAMESPACE} --kube-context ${MIRROR_KUBE_CONTEXT} --timeout 20m"
+set +e
+helm test "${mirror_release}" -n "${SOLO_NAMESPACE}" --kube-context "${MIRROR_KUBE_CONTEXT}" --timeout 20m 2>&1 | tee "${mirror_test_log}"
+result=${PIPESTATUS[0]}
+set -e
 if [[ $result -ne 0 ]]; then
-  echo "Mirror node acceptance test failed with exit code $result"
+  echo "------- BEGIN mirror test log -------"
+  cat "${mirror_test_log}" || true
+  echo "------- END mirror test log -------"
+  printf "\r::endgroup::\n"
   log_and_exit $result
 fi
 echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
+printf "\r::endgroup::\n"
 result=0
 
-check_monitor_log "${SOLO_NAMESPACE}"
+check_monitor_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
 
 if [ -n "$1" ]; then
   echo "Skip mirror importer log check"
 else
-  check_importer_log "${SOLO_NAMESPACE}"
+  check_importer_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
 fi
 log_and_exit $?

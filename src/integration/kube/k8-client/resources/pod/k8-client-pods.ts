@@ -3,6 +3,8 @@
 import {
   type CoreV1Api,
   type KubeConfig,
+  Metrics,
+  type PodMetricsList,
   V1Container,
   V1ExecAction,
   V1ObjectMeta,
@@ -29,6 +31,7 @@ import {InjectTokens} from '../../../../../core/dependency-injection/inject-toke
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
+import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
@@ -95,6 +98,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     labels: string[],
     maxAttempts: number = 10,
     delay: number = 500,
+    createdAfter?: Date,
   ): Promise<Pod[]> {
     const podReadyCondition: Map<string, string> = new Map<string, string>().set(
       constants.POD_CONDITION_READY,
@@ -102,7 +106,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     );
 
     try {
-      return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay);
+      return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay, createdAfter);
     } catch (error: Error | unknown) {
       throw new SoloError(`Pod not ready [maxAttempts = ${maxAttempts}]`, error);
     }
@@ -115,6 +119,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * @param [labels] - pod labels
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
+   * @param [createdAfter] - if provided, only pods created strictly after this date are considered
    */
   private async waitForPodConditions(
     namespace: NamespaceName,
@@ -122,29 +127,37 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     labels: string[] = [],
     maxAttempts: number = 10,
     delay: number = 500,
+    createdAfter?: Date,
   ): Promise<Pod[]> {
     if (!conditionsMap || conditionsMap.size === 0) {
       throw new MissingArgumentError('pod conditions are required');
     }
 
-    return await this.waitForRunningPhase(namespace, labels, maxAttempts, delay, (pod): boolean => {
-      if (pod.conditions?.length > 0) {
-        for (const cond of pod.conditions) {
-          for (const entry of conditionsMap.entries()) {
-            const condType: string = entry[0];
-            const condStatus: string = entry[1];
-            if (cond.type === condType && cond.status === condStatus) {
-              this.logger.info(
-                `Pod condition met for ${pod.podReference.name.name} [type: ${cond.type} status: ${cond.status}]`,
-              );
-              return true;
+    return await this.waitForRunningPhase(
+      namespace,
+      labels,
+      maxAttempts,
+      delay,
+      (pod): boolean => {
+        if (pod.conditions?.length > 0) {
+          for (const cond of pod.conditions) {
+            for (const entry of conditionsMap.entries()) {
+              const condType: string = entry[0];
+              const condStatus: string = entry[1];
+              if (cond.type === condType && cond.status === condStatus) {
+                this.logger.info(
+                  `Pod condition met for ${pod.podReference.name.name} [type: ${cond.type} status: ${cond.status}]`,
+                );
+                return true;
+              }
             }
           }
         }
-      }
-      // condition not found
-      return false;
-    });
+        // condition not found
+        return false;
+      },
+      createdAfter,
+    );
   }
 
   public async waitForRunningPhase(
@@ -153,6 +166,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     maxAttempts: number,
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
+    createdAfter?: Date,
   ): Promise<Pod[]> {
     const phases: string[] = [constants.POD_PHASE_RUNNING];
     const labelSelector: string = labels ? labels.join(',') : undefined;
@@ -189,17 +203,27 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               return bTime - aTime;
             });
 
-            // Only check the newest pod
-            const newestItem: V1Pod = sortedItems[0];
-            const pod: Pod = K8ClientPod.fromV1Pod(
-              newestItem,
-              this,
-              this.kubeClient,
-              this.kubeConfig,
-              this.kubectlInstallationDirectory,
-            );
-            if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
-              return resolve([pod]);
+            // When a createdAfter cutoff is provided, skip pods that existed before the
+            // cutoff (e.g. a terminating predecessor from a recreate migration).
+            const eligibleItems: V1Pod[] = createdAfter
+              ? sortedItems.filter(
+                  (p): boolean => (p.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
+                )
+              : sortedItems;
+
+            if (eligibleItems.length > 0) {
+              // Only check the newest eligible pod
+              const newestItem: V1Pod = eligibleItems[0];
+              const pod: Pod = K8ClientPod.fromV1Pod(
+                newestItem,
+                this,
+                this.kubeClient,
+                this.kubeConfig,
+                this.kubectlInstallationDirectory,
+              );
+              if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
+                return resolve([pod]);
+              }
             }
           }
         } catch (error) {
@@ -308,9 +332,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
     const containerNames: string[] = [
-      ...(pod.spec?.initContainers?.map(container => container.name) ?? []),
-      ...(pod.spec?.containers?.map(container => container.name) ?? []),
-      ...(pod.spec?.ephemeralContainers?.map(container => container.name) ?? []),
+      ...(pod.spec?.initContainers?.map((container): string => container.name) ?? []),
+      ...(pod.spec?.containers?.map((container): string => container.name) ?? []),
+      ...(pod.spec?.ephemeralContainers?.map((container): string => container.name) ?? []),
     ].filter(Boolean);
 
     if (containerNames.length === 0) {
@@ -346,13 +370,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
-    const events = await this.kubeClient.listNamespacedEvent({
+    const events: {items?: any[]} = await this.kubeClient.listNamespacedEvent({
       namespace,
       fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
     });
 
     // eslint-disable-next-line unicorn/no-array-sort
-    const sortedEvents = [...(events?.items ?? [])].sort((left, right): number => {
+    const sortedEvents: any[] = [...(events?.items ?? [])].sort((left, right): number => {
       const leftTime: number = new Date(
         left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
       ).getTime();
@@ -368,5 +392,102 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     };
 
     return yaml.stringify(describeData);
+  }
+
+  public async topPods(namespace?: NamespaceName, labelSelector?: string): Promise<PodMetricsItem[]> {
+    const metrics: Metrics = new Metrics(this.kubeConfig);
+    const podMetricsList: PodMetricsList = await metrics.getPodMetrics(namespace?.name);
+
+    let allowedPodKeys: Set<string> | undefined;
+    if (labelSelector) {
+      const podList: V1PodList = namespace
+        ? await this.kubeClient.listNamespacedPod({
+            namespace: namespace.name,
+            labelSelector,
+            timeoutSeconds: Duration.ofMinutes(5).toMillis(),
+          })
+        : await this.kubeClient.listPodForAllNamespaces({labelSelector});
+      allowedPodKeys = new Set(
+        podList.items.map((p): string => `${p.metadata?.namespace ?? ''}/${p.metadata?.name ?? ''}`),
+      );
+    }
+
+    return podMetricsList.items
+      .filter((podMetric): boolean => {
+        if (!allowedPodKeys) {
+          return true;
+        }
+        return allowedPodKeys.has(`${podMetric.metadata.namespace}/${podMetric.metadata.name}`);
+      })
+      .map((podMetric): PodMetricsItem => {
+        let cpuInMillicores: number = 0;
+        let memoryInMebibytes: number = 0;
+        for (const c of podMetric.containers) {
+          cpuInMillicores += K8ClientPods.parseMillicores(c.usage.cpu);
+          memoryInMebibytes += K8ClientPods.parseMebibytes(c.usage.memory);
+        }
+        return {
+          namespace: NamespaceName.of(podMetric.metadata.namespace),
+          podName: PodName.of(podMetric.metadata.name),
+          cpuInMillicores,
+          memoryInMebibytes,
+        };
+      });
+  }
+
+  /**
+   * Parse a Kubernetes CPU quantity string into millicores.
+   * Examples: "100m" -> 100, "1" -> 1000, "0.5" -> 500, "100000n" -> 0 (rounded)
+   */
+  private static parseMillicores(quantity: string): number {
+    if (!quantity) {
+      return 0;
+    }
+    if (quantity.endsWith('n')) {
+      return Math.round(Number.parseInt(quantity.slice(0, -1), 10) / 1_000_000);
+    }
+    if (quantity.endsWith('u')) {
+      return Math.round(Number.parseInt(quantity.slice(0, -1), 10) / 1000);
+    }
+    if (quantity.endsWith('m')) {
+      return Number.parseInt(quantity.slice(0, -1), 10);
+    }
+    return Math.round(Number.parseFloat(quantity) * 1000);
+  }
+
+  /**
+   * Parse a Kubernetes memory quantity string into mebibytes (MiB).
+   * Examples: "50Mi" -> 50, "1Gi" -> 1024, "52428800" -> 50, "512Ki" -> 0 (rounded)
+   */
+  private static parseMebibytes(quantity: string): number {
+    if (!quantity) {
+      return 0;
+    }
+    if (quantity.endsWith('Ki')) {
+      return Math.round(Number.parseInt(quantity.slice(0, -2), 10) / 1024);
+    }
+    if (quantity.endsWith('Mi')) {
+      return Number.parseInt(quantity.slice(0, -2), 10);
+    }
+    if (quantity.endsWith('Gi')) {
+      return Number.parseInt(quantity.slice(0, -2), 10) * 1024;
+    }
+    if (quantity.endsWith('Ti')) {
+      return Number.parseInt(quantity.slice(0, -2), 10) * 1024 * 1024;
+    }
+    if (quantity.endsWith('Pi')) {
+      return Number.parseInt(quantity.slice(0, -2), 10) * 1024 * 1024 * 1024;
+    }
+    if (quantity.endsWith('k')) {
+      return Math.round((Number.parseInt(quantity.slice(0, -1), 10) * 1000) / (1024 * 1024));
+    }
+    if (quantity.endsWith('M')) {
+      return Math.round((Number.parseInt(quantity.slice(0, -1), 10) * 1_000_000) / (1024 * 1024));
+    }
+    if (quantity.endsWith('G')) {
+      return Math.round((Number.parseInt(quantity.slice(0, -1), 10) * 1_000_000_000) / (1024 * 1024));
+    }
+    // Plain number (bytes)
+    return Math.round(Number.parseFloat(quantity) / (1024 * 1024));
   }
 }

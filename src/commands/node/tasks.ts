@@ -589,7 +589,9 @@ export class NodeCommandTasks {
       );
     }
 
-    await sleep(Duration.ofSeconds(2)); // delaying prevents - gRPC service error
+    if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
+      await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
+    }
 
     return podReference;
   }
@@ -621,7 +623,7 @@ export class NodeCommandTasks {
 
     // set up the sub-tasks
     return task.newListr(subTasks, {
-      concurrent: false,
+      concurrent: true,
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -1290,7 +1292,6 @@ export class NodeCommandTasks {
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
-          await sleep(Duration.ofSeconds(1));
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
@@ -1303,7 +1304,6 @@ export class NodeCommandTasks {
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
-            await sleep(Duration.ofSeconds(1));
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,
@@ -1913,6 +1913,37 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Returns a task that checks node activeness and proxy readiness in parallel, reducing total
+   * start time by running both independent checks concurrently instead of sequentially.
+   */
+  public checkNodesAndProxiesAreActive(
+    nodeAliasesProperty: string,
+  ): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
+    return {
+      title: 'Check nodes are ACTIVE and proxies are ready',
+      task: (context_, task): SoloListr<AnyListrContext> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
+          {
+            title: 'Check all nodes are ACTIVE',
+            task: async (context__, t): Promise<SoloListr<AnyListrContext>> =>
+              this._checkNodeActivenessTask(context__, t, context__.config[nodeAliasesProperty]),
+          },
+          {
+            title: 'Check node proxies are ACTIVE',
+            task: (context__, t): SoloListr<AnyListrContext> =>
+              this._checkNodesProxiesTask(t, context__.config.nodeAliases) as SoloListr<AnyListrContext>,
+            skip: (context__): boolean =>
+              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
+              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+          },
+        ];
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
+
   public checkAllNodeProxiesAreActive(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
@@ -1935,9 +1966,9 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: AnyObject = context_.config;
         this.logger.info(
-          'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
+          `Waiting ${constants.TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS} seconds for the handler to be able to trigger the network node stake weight recalculate`,
         );
-        await sleep(Duration.ofSeconds(60));
+        await sleep(Duration.ofSeconds(constants.TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS));
         const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.allNodeAliases,
@@ -3026,23 +3057,44 @@ export class NodeCommandTasks {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        await this.downloader.fetchPackage(
-          constants.WRAPS_LIB_DOWNLOAD_URL,
-          'unusued', // doesn't check checksum
-          constants.SOLO_CACHE_DIR,
-          false,
-          '',
-          false,
-        );
-
-        const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
         const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+        const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
-        // Create extraction dir
-        fs.mkdirSync(extractedDirectory);
+        if (wrapsKeyPath) {
+          // Use user-provided local directory containing WRAPs proving key files
+          if (!fs.existsSync(wrapsKeyPath)) {
+            throw new SoloError(`WRAPs key path does not exist: ${wrapsKeyPath}`);
+          }
 
-        // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-        this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+          if (!fs.existsSync(extractedDirectory)) {
+            fs.mkdirSync(extractedDirectory, {recursive: true});
+          }
+
+          const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+
+          for (const file of fs.readdirSync(wrapsKeyPath)) {
+            if (allowedFiles.has(file)) {
+              fs.copyFileSync(PathEx.join(wrapsKeyPath, file), PathEx.join(extractedDirectory, file));
+            }
+          }
+        } else {
+          await this.downloader.fetchPackage(
+            constants.WRAPS_LIB_DOWNLOAD_URL,
+            'unusued', // doesn't check checksum
+            constants.SOLO_CACHE_DIR,
+            false,
+            '',
+            false,
+          );
+
+          const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
+
+          // Create extraction dir
+          fs.mkdirSync(extractedDirectory);
+
+          // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+          this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+        }
 
         for (const consensusNode of config.consensusNodes) {
           const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
@@ -3050,15 +3102,13 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
-
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${constants.WRAPS_DIRECTORY_NAME}`;
 
           if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
           }
 
-          await rootContainer.copyTo(sourcePath, constants.HEDERA_HAPI_PATH);
+          await rootContainer.copyTo(extractedDirectory, constants.HEDERA_HAPI_PATH);
         }
       },
     };

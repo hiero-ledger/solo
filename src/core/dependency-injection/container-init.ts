@@ -53,6 +53,7 @@ import {NetworkCommand} from '../../commands/network.js';
 import {NodeCommand} from '../../commands/node/index.js';
 import {ClusterCommand} from '../../commands/cluster/index.js';
 import {Middlewares} from '../middlewares.js';
+import {NpmClient} from '../../integration/npm/npm-client.js';
 import {SoloPinoLogger} from '../logging/solo-pino-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
@@ -93,6 +94,8 @@ import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
 import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
+import {PostgresSharedResource} from '../shared-resources/postgres.js';
+import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -147,6 +150,7 @@ export class Container {
       new SingletonContainer(InjectTokens.RemoteConfigRuntimeState, RemoteConfigRuntimeState),
       new SingletonContainer(InjectTokens.ClusterChecks, ClusterChecks),
       new SingletonContainer(InjectTokens.NetworkNodes, NetworkNodes),
+      new SingletonContainer(InjectTokens.NpmClient, NpmClient),
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),
       new SingletonContainer(InjectTokens.HelpRenderer, HelpRenderer),
       new SingletonContainer(InjectTokens.ConfigProvider, LayeredConfigProvider),
@@ -182,6 +186,8 @@ export class Container {
       new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
+      new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
+      new SingletonContainer(InjectTokens.SharedResourceManager, SharedResourceManager),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),

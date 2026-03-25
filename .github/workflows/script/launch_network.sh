@@ -54,9 +54,18 @@ export SOLO_DEPLOYMENT=solo-e2e
 export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
 export SOLO_LOG_LEVEL=debug
+export PREV_BLOCK_VERSION=v0.28.0
+
+KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
+if [[ -f "${KIND_CLUSTER_CONFIG_FILE}" ]]; then
+  echo "Using kind config file: ${KIND_CLUSTER_CONFIG_FILE}"
+  kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+else
+  echo "kind config file not found: ${KIND_CLUSTER_CONFIG_FILE}; creating cluster without custom registry mirror config."
+  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+fi
 
 rm -rf ~/.solo/*
 echo "::endgroup::"
@@ -74,6 +83,7 @@ solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref $
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --chart-version "${PREV_BLOCK_VERSION}"
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
@@ -119,7 +129,7 @@ npm run solo -- init --dev
 # The old released Solo command executed above may have installed either naming scheme.
 unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # using new solo to redeploy solo deployment chart to new version
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
@@ -168,6 +178,7 @@ kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
+
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
 
@@ -200,6 +211,9 @@ export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+
+# block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 echo "::endgroup::"
 
 echo "::group::Final Verification"

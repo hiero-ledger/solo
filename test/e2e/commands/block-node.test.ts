@@ -61,7 +61,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         after(async (): Promise<void> => {
           await preDestroy(endToEndTestSuite);
-        });
+        }).timeout(Duration.ofMinutes(10).toMillis());
 
         beforeEach(async (): Promise<void> => {
           testLogger.info(`${testName}: resetting containers for each test`);
@@ -76,6 +76,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
         DeploymentTest.listDeployments(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
         BlockNodeTest.add(options);
@@ -87,6 +88,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         BlockNodeTest.testBlockNode(options, 1);
 
         BlockNodeTest.add(options, ['node2']);
+        DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
 
         BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2], {});
         BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2], [], {});

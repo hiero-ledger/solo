@@ -88,6 +88,7 @@ permissions:
 
 env:
   ENABLE_S6_IMAGE: ${{ inputs.enable-s6-image }}
+  STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
   generate_matrix:
@@ -97,33 +98,49 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Generate Matrix
         id: set_matrix
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           EXAMPLE_DIR="${{ inputs.example-directory }}"
+          STANDARD_MATRIX_FILE=".github/workflows/support/examples-test-matrix.json"
+          TRUNK_MATRIX_FILE=".github/workflows/support/examples-trunkio-matrix.json"
+          EVENT_NAME="${{ github.event_name }}"
+          REF_NAME="${{ github.ref_name }}"
+
+          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == trunk-merge/* ]]; then
+            echo "Detected trunk.io merge queue context (push to ${REF_NAME})."
+            SOURCE_MATRIX_JSON=$(cat "${TRUNK_MATRIX_FILE}")
+          else
+            echo "Non-trunk merge queue context detected (${EVENT_NAME}:${REF_NAME})."
+            echo "Using concatenated matrix from standard + trunkio files."
+            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${STANDARD_MATRIX_FILE}" "${TRUNK_MATRIX_FILE}")
+          fi
           
           if [ -n "$EXAMPLE_DIR" ]; then
             # Filter to specific example
             echo "Filtering matrix for example directory: $EXAMPLE_DIR"
-            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
+            JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
             
             if [ "$JSON_CONTENT" = "[]" ]; then
               echo "Error: Example directory '$EXAMPLE_DIR' not found in matrix"
               echo "Available examples:"
-              cat .github/workflows/support/examples-test-matrix.json | jq -r '.[].directory'
+              echo "${SOURCE_MATRIX_JSON}" | jq -r '.[].directory'
               exit 1
             fi
           else
-            # Use all examples
-            echo "Using all examples from matrix"
-            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+            # Use all examples from selected source matrix
+            echo "Using all examples from selected matrix source"
+            JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c .)
           fi
           
           echo "Generated matrix: $JSON_CONTENT"
@@ -141,45 +158,28 @@ jobs:
       fail-fast: false
       matrix:
         example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 5
+      max-parallel: 3
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
 
       - name: Configure npm registry
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
-
-      - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
-        with:
-          version: 'v1.27.3'
-        id: install
-
-      - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
-
-      - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: "v3.17.1" # helm version
 
       - name: Install Dependencies
         id: npm-deps
@@ -192,22 +192,26 @@ jobs:
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 3.39.2
+          version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           go-version: '1.22.3'
 
       - name: Install grpcurl
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
           java-version: 21.0.1
@@ -215,25 +219,32 @@ jobs:
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        run: |
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-          cd ..
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
-          cd hiero-consensus-node
-          ls -ltr
-          ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
-          cd ../solo
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 30
+          command: |
+            export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            cd ..
+            git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
+            cd hiero-consensus-node
+            ls -ltr
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            cd ../solo
 
       - name: Build Application
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           set -euo pipefail
 
@@ -308,6 +319,7 @@ jobs:
         timeout-minutes: 45
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
+          export PATH=~/.solo/bin:${PATH}
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
@@ -347,8 +359,9 @@ jobs:
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
-        if: ${{ github.ref == 'refs/heads/main' && failure() }}
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && failure() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
           SLACK_COLOR: danger
@@ -362,31 +375,10 @@ jobs:
             :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
           SLACK_FOOTER: ${{ github.workflow }}
 
-      - name: Cleanup Example - ${{ matrix.example.name }}
-        if: success()
-        timeout-minutes: 10
-        working-directory: ${{ steps.prepare_example.outputs.run_dir }}
-        run: |
-          echo "Cleaning up example source: ${{ steps.prepare_example.outputs.display_dir }}"
-          
-          # Keep cleanup mode aligned with execution mode.
-          if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
-            export USE_RELEASED_VERSION="true"
-          else
-            export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
-          fi
-          
-          # Check if Taskfile.yml exists and has destroy task
-          if [ -f "Taskfile.yml" ] && grep -q "destroy:" Taskfile.yml; then
-            echo "Running task destroy..."
-            task destroy || echo "Destroy task failed or not available, continuing..."
-          else
-            echo "No destroy task found in Taskfile.yml, skipping cleanup"
-          fi
-
       - name: Upload Logs to GitHub
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs-${{ matrix.example.directory }}
           path: ~/.solo/logs/*

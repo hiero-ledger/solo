@@ -9,7 +9,6 @@ import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/alia
 import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
@@ -32,9 +31,7 @@ import {
   CreatedPredefinedAccount,
   PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
-  predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
 import {
@@ -57,6 +54,7 @@ import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {type Lock} from '../../core/lock/lock.js';
@@ -70,9 +68,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
+  private _isRollback: boolean = false;
+
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force, flags.deployment, flags.minimalSetup],
+    optional: [
+      flags.quiet,
+      flags.numberOfConsensusNodes,
+      flags.force,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
+      flags.minimalSetup,
+      flags.rollback,
+    ],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -87,9 +96,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.force,
       flags.valuesFile,
       flags.numberOfConsensusNodes,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.rollback,
     ],
   };
 
@@ -132,6 +145,68 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
   }
 
+  private async performRollback(
+    deployError: Error,
+    config: OneShotSingleDeployConfigClass | undefined,
+  ): Promise<never> {
+    if (!config) {
+      throw new SoloError(
+        `Deploy failed: ${deployError.message}. Rollback skipped: no resources created.`,
+        deployError,
+      );
+    }
+
+    if (config.rollback === false) {
+      this.logger.warn('Automatic rollback skipped (--no-rollback flag provided)');
+      this.logger.warn('To clean up: solo one-shot single destroy');
+      this.logger.warn(`Or: kubectl delete ns ${config.namespace.name}`);
+      throw new SoloError(`Deploy failed: ${deployError.message}. Rollback skipped (--no-rollback).`, deployError);
+    }
+
+    this.logger.warn(
+      `Deploy failed. Starting automatic rollback for deployment '${config.deployment}' in namespace '${config.namespace.name}'...`,
+    );
+
+    const destroyArgv: ArgvStruct = {
+      _: [],
+      deployment: config.deployment,
+      clusterRef: config.clusterRef,
+      namespace: config.namespace.name,
+      context: config.context,
+      quiet: true,
+    };
+
+    this._isRollback = true;
+    try {
+      await this.destroyInternal(destroyArgv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
+    } catch (rollbackError) {
+      this.logger.error(`Rollback failed for deployment '${config.deployment}': ${rollbackError.message}`);
+      throw new SoloError(
+        `Deploy failed: ${deployError.message}. Rollback also failed: ${rollbackError.message}`,
+        deployError,
+      );
+    } finally {
+      // Safety net: ensure namespace is always deleted during rollback, even if destroyInternal
+      // failed or skipped namespace cleanup (e.g. due to skipAll, helm uninstall failure, etc.)
+      try {
+        const k8: K8 = this.k8Factory.getK8(config.context);
+        if (await k8.namespaces().has(config.namespace)) {
+          this.logger.warn(`Rollback cleanup: deleting namespace '${config.namespace.name}'`);
+          await k8.namespaces().delete(config.namespace);
+        }
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to delete namespace '${config.namespace.name}' during rollback cleanup: ${cleanupError.message}`,
+        );
+      }
+
+      this._isRollback = false;
+    }
+
+    this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
+    throw new SoloError(`Deploy failed: ${deployError.message}. Rollback completed successfully.`, deployError);
+  }
+
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | undefined = undefined;
     let oneShotLease: Lock | undefined;
@@ -166,8 +241,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 allFlags,
               ) as OneShotSingleDeployConfigClass;
               config = context_.config;
-
-              const uniquePostfix: string = uuid4().slice(-8);
 
               // Initialize component config sections to empty objects to prevent undefined errors
               config.consensusNodeConfiguration = {};
@@ -210,10 +283,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.relayNodeConfiguration = profileItems.relayNode;
                 }
               }
-              config.clusterRef = config.clusterRef || `solo-${uniquePostfix}`;
+              config.clusterRef = config.clusterRef || 'one-shot';
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-              config.deployment = config.deployment || `solo-deployment-${uniquePostfix}`;
-              config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
+              config.deployment = config.deployment || 'one-shot';
+              config.namespace = config.namespace || NamespaceName.of('one-shot');
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
@@ -568,11 +641,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         }
                       }
 
-                      const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccounts,
-                        ...predefinedEcdsaAccountsWithAlias,
-                        ...predefinedEd25519Accounts,
-                      ];
+                      const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues
@@ -651,7 +720,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying Solo in one-shot mode: ${error.message}`, error);
+      await this.performRollback(error, config);
     } finally {
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
@@ -1284,6 +1353,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         task: async (): Promise<void> => {
           fs.rmSync(config.cacheDir, {recursive: true, force: true});
         },
+        skip: (): boolean => this._isRollback,
       },
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];

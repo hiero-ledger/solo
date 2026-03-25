@@ -17,15 +17,16 @@ vars:
   CLUSTER_NAME: "localbuild-with-custom-config-cluster"
   CONTEXT: "kind-localbuild-with-custom-config-cluster"
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
+  CLUSTER_SETUP_NAMESPACE: "solo-setup"
 
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
-  CN_VERSION: '{{default "v0.70.0" .CONSENSUS_NODE_VERSION}}'
+  CN_VERSION: '{{default "v0.71.0" .CONSENSUS_NODE_VERSION}}'
   RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
-  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.143.0"
+  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.149.0"
   EXPLORER_VERSION_FLAG: "--explorer-version 25.0.0"
 
   BLOCK_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/block-node-values.yaml"
@@ -44,8 +45,17 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
       # Create Kind cluster
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: |
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .CLUSTER_NAME }}
+          fi
 
       # Wait for control plane
       - cmd: sleep 10 # wait for control plane to come up
@@ -68,11 +78,11 @@ tasks:
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
       # Solo cluster-ref config setup
-      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }} --prometheus-stack true
 
       # Solo block node add
       - cmd: |
-          export BLOCK_NODE_RELEASE_TAG=$(grep "'BLOCK_NODE_VERSION'" version.ts | sed -E "s/.*'([^']+)';/\1/")          
+          export BLOCK_NODE_RELEASE_TAG=$(grep "'BLOCK_NODE_VERSION'" {{ .ROOT_DIR }}/version.ts | sed -E "s/.*'([^']+)';/\1/")
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
           --chart-version $BLOCK_NODE_RELEASE_TAG {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
 
@@ -91,6 +101,8 @@ tasks:
       # Solo network deploy
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --service-monitor true \
+          --enable-monitoring-support true \
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
@@ -102,6 +114,162 @@ tasks:
 
       # Solo node start
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+
+      # create some accounts
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }}
+
+      # Verify consensus node metrics endpoint is exposed by each consensus pod
+      - cmd: |
+          PODS=$(kubectl -n {{ .NAMESPACE }} get pods -l solo.hedera.com/type=network-node \
+            -o jsonpath='{.items[*].metadata.name}')
+          if [ -z "$PODS" ]; then
+            echo "No consensus node pods found in namespace {{ .NAMESPACE }}"
+            kubectl -n {{ .NAMESPACE }} get pods -o wide
+            exit 1
+          fi
+
+          for pod in $PODS; do
+            echo "Checking metrics endpoint on pod ${pod}"
+            if ! kubectl -n {{ .NAMESPACE }} exec "$pod" -c root-container -- sh -c \
+              "curl -sf http://127.0.0.1:9999/metrics | grep -m1 '^platform_PlatformStatus'" >/tmp/"${pod}"-metrics-check.log; then
+              echo "Consensus metrics endpoint check failed for pod ${pod}"
+              kubectl -n {{ .NAMESPACE }} logs "$pod" -c root-container --tail=200 || true
+              exit 1
+            fi
+            cat /tmp/"${pod}"-metrics-check.log
+          done
+
+      # Verify consensus node metrics are collected by Prometheus (Grafana datasource backend)
+      - cmd: |
+          kubectl get servicemonitor -n {{ .NAMESPACE }}
+          if ! kubectl -n {{ .NAMESPACE }} get servicemonitor solo-service-monitor >/dev/null 2>&1; then
+            echo "ServiceMonitor solo-service-monitor not found in namespace {{ .NAMESPACE }}"
+            exit 1
+          fi
+          kubectl -n {{ .NAMESPACE }} patch servicemonitor solo-service-monitor --type merge -p \
+            '{"metadata":{"labels":{"release":"kube-prometheus-stack"}},"spec":{"selector":{"matchLabels":{"solo.hedera.com/type":"network-node-svc"}},"namespaceSelector":{"matchNames":["{{ .NAMESPACE }}"]}}}' >/dev/null
+
+          PROM_SVC=""
+          for selector in \
+            "app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=kube-prometheus-stack" \
+            "app=kube-prometheus-stack-prometheus,release=kube-prometheus-stack"
+          do
+            PROM_SVC=$(kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} get svc \
+              -l "$selector" \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+            if [ -n "$PROM_SVC" ]; then
+              break
+            fi
+          done
+
+          if [ -z "$PROM_SVC" ] && kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} get svc kube-prometheus-stack-prometheus >/dev/null 2>&1; then
+            PROM_SVC="kube-prometheus-stack-prometheus"
+          fi
+
+          if [ -z "$PROM_SVC" ]; then
+            echo "Prometheus service not found in namespace {{ .CLUSTER_SETUP_NAMESPACE }}"
+            kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} get svc --show-labels
+            exit 1
+          fi
+
+          kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} port-forward "svc/${PROM_SVC}" 9090:9090 >/tmp/prom-port-forward.log 2>&1 &
+          PF_PID=$!
+          trap 'kill ${PF_PID} >/dev/null 2>&1 || true' EXIT
+
+          METRICS_FOUND=false
+          for attempt in $(seq 1 30); do
+            RESP=$(curl -sG --data-urlencode 'query=platform_PlatformStatus' http://127.0.0.1:9090/api/v1/query || true)
+            if echo "$RESP" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"success"' && \
+               ! echo "$RESP" | grep -Eq '"result"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]'; then
+              echo "Consensus metrics detected by Prometheus on attempt ${attempt}"
+              METRICS_FOUND=true
+              break
+            fi
+            echo "Waiting for Prometheus scrape data (attempt ${attempt}/30)..."
+            sleep 10
+          done
+
+          if [ "$METRICS_FOUND" != "true" ]; then
+            echo "Consensus metrics were not found in Prometheus after 30 attempts."
+            echo "Dumping active scrape targets for debugging:"
+            curl -s http://127.0.0.1:9090/api/v1/targets?state=active || true
+            echo
+            echo "ServiceMonitor snapshot:"
+            kubectl -n {{ .NAMESPACE }} get servicemonitor solo-service-monitor -o yaml || true
+            echo "Consensus services snapshot:"
+            kubectl -n {{ .NAMESPACE }} get svc -l solo.hedera.com/type=network-node-svc --show-labels || true
+            exit 1
+          fi
+
+          kill ${PF_PID} >/dev/null 2>&1 || true
+          trap - EXIT
+
+      # Verify Grafana is healthy and can query Prometheus datasource for consensus metrics
+      - cmd: |
+          GRAFANA_SVC=$(kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} get svc \
+            -l app.kubernetes.io/name=grafana,app.kubernetes.io/instance=kube-prometheus-stack \
+            -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$GRAFANA_SVC" ]; then
+            echo "Grafana service not found in namespace {{ .CLUSTER_SETUP_NAMESPACE }}"
+            exit 1
+          fi
+
+          GRAFANA_PASSWORD=$(kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} get secret kube-prometheus-stack-grafana \
+            -o jsonpath='{.data.admin-password}' | base64 --decode)
+          if [ -z "$GRAFANA_PASSWORD" ]; then
+            echo "Grafana admin password not found"
+            exit 1
+          fi
+
+          kubectl -n {{ .CLUSTER_SETUP_NAMESPACE }} port-forward "svc/${GRAFANA_SVC}" 3000:80 >/tmp/grafana-port-forward.log 2>&1 &
+          GRAFANA_PF_PID=$!
+          trap 'kill ${GRAFANA_PF_PID} >/dev/null 2>&1 || true' EXIT
+
+          HEALTH_RESPONSE=""
+          for attempt in $(seq 1 30); do
+            HEALTH_RESPONSE=$(curl -s -u "admin:${GRAFANA_PASSWORD}" http://127.0.0.1:3000/api/health || true)
+            if echo "$HEALTH_RESPONSE" | grep -Eq '"database"[[:space:]]*:[[:space:]]*"ok"'; then
+              break
+            fi
+            echo "Waiting for Grafana health endpoint (attempt ${attempt}/30)..."
+            sleep 2
+          done
+
+          if ! echo "$HEALTH_RESPONSE" | grep -Eq '"database"[[:space:]]*:[[:space:]]*"ok"'; then
+            echo "Grafana health check failed: ${HEALTH_RESPONSE}"
+            exit 1
+          fi
+
+          PROM_DS_INFO=$(curl -sSf -u "admin:${GRAFANA_PASSWORD}" \
+            http://127.0.0.1:3000/api/datasources/name/Prometheus || true)
+          PROM_DS_ID=$(echo "$PROM_DS_INFO" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+          if [ -z "$PROM_DS_ID" ]; then
+            echo "Grafana Prometheus datasource not found: ${PROM_DS_INFO}"
+            exit 1
+          fi
+
+          GRAFANA_METRICS_FOUND=false
+          for attempt in $(seq 1 30); do
+            GRAFANA_QUERY_RESPONSE=$(curl -sSf -u "admin:${GRAFANA_PASSWORD}" \
+              "http://127.0.0.1:3000/api/datasources/proxy/${PROM_DS_ID}/api/v1/query?query=platform_PlatformStatus" || true)
+            if echo "$GRAFANA_QUERY_RESPONSE" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"success"' && \
+               ! echo "$GRAFANA_QUERY_RESPONSE" | grep -Eq '"result"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]'; then
+              GRAFANA_METRICS_FOUND=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$GRAFANA_METRICS_FOUND" != "true" ]; then
+            echo "Consensus metrics were not found via Grafana datasource after 30 attempts."
+            echo "Last Grafana datasource response: ${GRAFANA_QUERY_RESPONSE}"
+            exit 1
+          fi
+
+          kill ${GRAFANA_PF_PID} >/dev/null 2>&1 || true
+          trap - EXIT
 
       # Solo mirror node add
       - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress {{ .MIRROR_NODE_VERSION_FLAG }} {{ .MIRROR_NODE_VALUE_FILE_FLAG }}
