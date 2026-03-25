@@ -14,8 +14,9 @@ import {type ChartManager} from '../../../../src/core/chart-manager.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import * as constants from '../../../../src/core/constants.js';
-import {Templates} from '../../../../src/core/templates.js';
 import {type AnyObject} from '../../../../src/types/aliases.js';
+import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 
 describe('PostgresSharedResource', (): void => {
   const encode: (s: string) => string = (s: string): string => Base64.encode(s);
@@ -32,6 +33,7 @@ describe('PostgresSharedResource', (): void => {
   let k8Stub: AnyObject;
   let k8ContainerStub: AnyObject;
   let postgres: PostgresSharedResource;
+  const postgresPodReference: PodReference = PodReference.of(namespace, PodName.of('solo-shared-resources-postgres-0'));
 
   beforeEach((): void => {
     helmStub = sinon.stub() as any;
@@ -48,6 +50,7 @@ describe('PostgresSharedResource', (): void => {
 
     podsStub = {
       waitForRunningPhase: sinon.stub().resolves(),
+      list: sinon.stub().resolves([{podReference: postgresPodReference}]),
     };
 
     secretsStub = {
@@ -121,8 +124,7 @@ describe('PostgresSharedResource', (): void => {
     let existsSyncStub: sinon.SinonStub;
     let mkdirSyncStub: sinon.SinonStub;
     let writeFileSyncStub: sinon.SinonStub;
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    let rmSyncStub: sinon.SinonStub;
+    let _rmSyncStub: sinon.SinonStub;
 
     beforeEach((): void => {
       secretsStub.list.resolves([postgresPasswordsSecret]);
@@ -132,7 +134,7 @@ describe('PostgresSharedResource', (): void => {
       existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
       mkdirSyncStub = sinon.stub(fs, 'mkdirSync');
       writeFileSyncStub = sinon.stub(fs, 'writeFileSync');
-      rmSyncStub = sinon.stub(fs, 'rmSync');
+      _rmSyncStub = sinon.stub(fs, 'rmSync');
     });
 
     it('reads secrets from correct labels and secret names', async (): Promise<void> => {
@@ -216,7 +218,7 @@ describe('PostgresSharedResource', (): void => {
       await postgres.initializeMirrorNode(namespace, context);
 
       const containerReference: AnyObject = containersStub.readByRef.firstCall.args[0];
-      expect(containerReference.parentReference.name.name).to.equal(Templates.renderPostgresPodName(0).name);
+      expect(containerReference.parentReference.name.name).to.equal(postgresPodReference.name.name);
     });
 
     it('throws SoloError when container copy fails', async (): Promise<void> => {
@@ -252,7 +254,11 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('creates cache directory and downloads init script when not cached', async (): Promise<void> => {
-      const fakeStream = {write: sinon.stub().callsArg(1), end: sinon.stub(), on: sinon.stub()};
+      const fakeStream: {write: sinon.SinonStub; end: sinon.SinonStub; on: sinon.SinonStub} = {
+        write: sinon.stub().callsArg(1),
+        end: sinon.stub(),
+        on: sinon.stub(),
+      };
       sinon.stub(fs, 'createWriteStream').returns(fakeStream as any);
 
       existsSyncStub.restore();
