@@ -49,9 +49,7 @@ import {
   type CreatedPredefinedAccount,
   type PredefinedAccount,
   PREDEFINED_ACCOUNT_GROUPS,
-  predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
   type SystemAccount,
 } from './one-shot/predefined-accounts.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
@@ -1295,11 +1293,7 @@ export class AccountCommand extends BaseCommand {
           title: 'Create predefined accounts',
           task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<Listr<Context>> => {
             const subTasks: SoloListrTask<Context>[] = [];
-            const accountsToCreate: PredefinedAccount[] = [
-              ...predefinedEcdsaAccounts,
-              ...predefinedEcdsaAccountsWithAlias,
-              ...predefinedEd25519Accounts,
-            ];
+            const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
             for (const [index, account] of accountsToCreate.entries()) {
               subTasks.push({

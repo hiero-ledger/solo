@@ -35,8 +35,15 @@ export interface Pods {
    * @param [labels] - pod labels
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
+   * @param [createdAfter] - if provided, only pods created strictly after this date are considered
    */
-  waitForReadyStatus(namespace: NamespaceName, labels: string[], maxAttempts?: number, delay?: number): Promise<Pod[]>;
+  waitForReadyStatus(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts?: number,
+    delay?: number,
+    createdAfter?: Date,
+  ): Promise<Pod[]>;
 
   /**
    * Wait for the newest ready pod matching the labels to remain the newest ready pod
@@ -62,6 +69,7 @@ export interface Pods {
    * @param maxAttempts - maximum attempts to check
    * @param delay - delay between checks in milliseconds
    * @param [podItemPredicate] - pod item predicate
+   * @param [createdAfter] - if provided, only pods created strictly after this date are considered
    */
   waitForRunningPhase(
     namespace: NamespaceName,
@@ -69,6 +77,7 @@ export interface Pods {
     maxAttempts: number,
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
+    createdAfter?: Date,
   ): Promise<Pod[]>;
 
   /**

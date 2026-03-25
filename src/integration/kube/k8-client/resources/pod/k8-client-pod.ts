@@ -202,11 +202,54 @@ export class K8ClientPod implements Pod {
       const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
       const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
 
-      const cmd: string = persist
-        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} ${constants.KUBECTL} ${this.kubectlInstallationDirectory} &`
-        : `${constants.KUBECTL} port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+      let cmd: string;
+      let cmdArguments: string[];
+      if (persist) {
+        cmd = 'node';
+        cmdArguments = [
+          persistPortForwardScriptPath,
+          this.podReference.namespace.name,
+          `pods/${this.podReference.name}`,
+          this.kubeConfig.currentContext,
+          `${availablePort}:${podPort}`,
+          constants.KUBECTL,
+          this.kubectlInstallationDirectory,
+          '&',
+        ];
+      } else {
+        cmd = constants.KUBECTL;
+        cmdArguments = [
+          'port-forward',
+          '-n',
+          this.podReference.namespace.name,
+          '--context',
+          this.kubeConfig.currentContext,
+          `pods/${this.podReference.name}`,
+          `${availablePort}:${podPort}`,
+        ];
+      }
 
-      await new ShellRunner().run(cmd, [], true, true, {
+      if (os.platform() === 'win32') {
+        const argumentsLength: number = cmdArguments.length;
+        cmdArguments = cmdArguments.map((anArgument, index): string => {
+          if (index < argumentsLength - 1) {
+            return `"${anArgument}",`;
+          }
+          return `"${anArgument}"`;
+        });
+        cmdArguments = [
+          'Start-Process',
+          '-FilePath',
+          `"${cmd}"`,
+          '-WindowStyle',
+          'Hidden',
+          '-ArgumentList',
+          ...cmdArguments,
+        ];
+        cmd = 'powershell.exe';
+      }
+
+      await new ShellRunner().run(cmd, cmdArguments, true, true, {
         PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
       });
 
@@ -242,7 +285,10 @@ export class K8ClientPod implements Pod {
     let matchedProcesses: ProcessDescriptor[] = [];
     const processes: ProcessDescriptor[] = await psList();
     for (const substring of substringsToMatch) {
-      matchedProcesses = processes.filter((p: ProcessDescriptor): boolean => p.cmd && p.cmd.includes(substring));
+      matchedProcesses = processes.filter((p: ProcessDescriptor): boolean => {
+        this.logger.debug(`Checking process PID ${p.pid} with p=${JSON.stringify(p)} for substring '${substring}'`);
+        return p.cmd && p.cmd.includes(substring);
+      });
     }
     for (const process of matchedProcesses) {
       this.logger.debug(`Found process with PID ${process.pid} and command ${process.cmd}`);
