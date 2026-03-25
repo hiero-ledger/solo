@@ -16,9 +16,6 @@ import {
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
 import {type ClusterReferenceName} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
-import chalk from 'chalk';
-const {grey, blue, yellow, red} = chalk;
-
 import {PathEx} from '../business/utils/path-ex.js';
 import validator from 'validator';
 
@@ -773,14 +770,14 @@ export class Flags {
     name: 'grpc-web-endpoints',
     definition: {
       describe:
-        grey('Configure gRPC Web endpoints mapping, comma separated') +
-        blue(`\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})`) +
-        blue('\n(Aliases can be provided explicitly, or inferred by node id order)') +
-        yellow('\n[Format: <alias>=<address>[:<port>][,<alias>=<address>[:<port>]]]') +
-        yellow('\nExamples:') +
-        yellow('\n\tnode1=127.0.0.1:8080,node2=127.0.0.1:8081') +
-        yellow('\n\tnode1=localhost,node2=localhost:8081') +
-        yellow('\n\tlocalhost,127.0.0.2:8081'),
+        'Configure gRPC Web endpoints mapping, comma separated' +
+        `\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})` +
+        '\n(Aliases can be provided explicitly, or inferred by node id order)' +
+        '\n[Format: <alias>=<address>[:<port>][,<alias>=<address>[:<port>]]]' +
+        '\nExamples:' +
+        '\n\tnode1=127.0.0.1:8080,node2=127.0.0.1:8081' +
+        '\n\tnode1=localhost,node2=localhost:8081' +
+        '\n\tlocalhost,127.0.0.2:8081',
       type: 'string',
     },
     prompt: undefined,
@@ -791,9 +788,9 @@ export class Flags {
     name: 'grpc-web-endpoint',
     definition: {
       describe:
-        grey('Configure gRPC Web endpoint') +
-        blue(`\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})`) +
-        yellow('\n[Format: <address>[:<port>]]'),
+        'Configure gRPC Web endpoint' +
+        `\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})` +
+        '\n[Format: <address>[:<port>]]',
       type: 'string',
     },
     prompt: undefined,
@@ -2697,7 +2694,7 @@ export class Flags {
           task,
           input,
           Flags.numberOfConsensusNodes.definition.defaultValue,
-          `Enter number of consensus nodes to add to the provided cluster ${grey('(must be a positive number)')}:`,
+          'Enter number of consensus nodes to add to the provided cluster (must be a positive number):',
           undefined,
           Flags.numberOfConsensusNodes.name,
         );
