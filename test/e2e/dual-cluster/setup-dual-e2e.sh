@@ -52,7 +52,7 @@ done
 
 docker network rm -f kind || true
 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
-docker info | grep -i cgroup
+docker info | grep -i cgroup || true
 
 # Setup Helm Repos
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
