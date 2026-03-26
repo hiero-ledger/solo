@@ -668,7 +668,7 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
-              const postgresPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=postgres']);
+              const postgresPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]);
               if (postgresPods.length === 0) {
                 throw new SoloError(`postgres pod not found in namespace ${namespace}`);
               }
@@ -679,30 +679,23 @@ export class AccountCommand extends BaseCommand {
                 ContainerName.of('postgresql'),
               );
 
-              const environmentOutput: string = await k8
-                .containers()
-                .readByRef(postgresContainerReference)
-                .execContainer('/bin/bash -c printenv');
-              const environmentLines: string[] = environmentOutput.split('\n');
-              const prefixLine: string | undefined = environmentLines.find((line: string): boolean =>
-                /_MIRROR_IMPORTER_DB_OWNER=/.test(line),
+              const mirrorPasswordsSecret: Secret = await k8.secrets().read(namespace, 'mirror-passwords');
+              const ownerKey: string | undefined = Object.keys(mirrorPasswordsSecret.data).find(
+                (key: string): boolean => key.endsWith('_MIRROR_IMPORTER_DB_OWNER'),
               );
-              if (!prefixLine) {
-                throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror postgres environment.');
+              if (!ownerKey) {
+                throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror-passwords secret.');
               }
 
-              const environmentVariablePrefix: string = prefixLine.split('_MIRROR_IMPORTER_DB_OWNER=')[0];
-              const databaseOwner: string = helpers.getEnvironmentValue(
-                environmentLines,
-                `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`,
+              const environmentVariablePrefix: string = ownerKey.replace('_MIRROR_IMPORTER_DB_OWNER', '');
+              const databaseOwner: string = Base64.decode(
+                mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`],
               );
-              const databaseOwnerPassword: string = helpers.getEnvironmentValue(
-                environmentLines,
-                `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`,
+              const databaseOwnerPassword: string = Base64.decode(
+                mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
               );
-              const databaseName: string = helpers.getEnvironmentValue(
-                environmentLines,
-                `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
+              const databaseName: string = Base64.decode(
+                mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
               );
 
               await k8
@@ -731,7 +724,7 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
-              const redisPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=redis']);
+              const redisPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_REDIS_NAME_LABEL]);
 
               for (const redisPod of redisPods) {
                 const redisContainerReference: ContainerReference = ContainerReference.of(
@@ -912,7 +905,7 @@ export class AccountCommand extends BaseCommand {
         },
         {
           title: 'Bring services back online',
-          task: async (context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> =>
+          task: async (_context_, task: SoloListrTaskWrapper<ResetContext>): Promise<SoloListr<ResetContext>> =>
             task.newListr(
               [
                 {
@@ -951,17 +944,6 @@ export class AccountCommand extends BaseCommand {
                       const k8: K8 = this.k8Factory.getK8(context);
 
                       await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
-
-                      // The importer depends on postgres, but consensus node start no longer strictly validates
-                      // mirror components, so importer recovery can proceed in parallel with node startup.
-                      await k8
-                        .pods()
-                        .waitForReadyStatus(
-                          namespaceName,
-                          ['app.kubernetes.io/name=postgres', `app.kubernetes.io/instance=${mirrorNodeReleaseName}`],
-                          constants.PODS_READY_MAX_ATTEMPTS,
-                          constants.PODS_READY_DELAY,
-                        );
 
                       await k8
                         .pods()
@@ -1291,7 +1273,7 @@ export class AccountCommand extends BaseCommand {
         },
         {
           title: 'Create predefined accounts',
-          task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<Listr<Context>> => {
+          task: async (_context_: Context, task: SoloListrTaskWrapper<Context>): Promise<Listr<Context>> => {
             const subTasks: SoloListrTask<Context>[] = [];
             const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
