@@ -988,9 +988,13 @@ export class NetworkCommand extends BaseCommand {
    * Retries up to maxRetries times; waits retryDelayMs * 2^attempt milliseconds between attempts.
    */
   private async fetchWithRetry(url: string, maxRetries: number = 5, retryDelayMs: number = 2000): Promise<Response> {
+    const headers: Record<string, string> = {};
+    if (process.env.GITHUB_TOKEN) {
+      headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
     let lastError: Error | undefined;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const response: Response = await fetch(url);
+      const response: Response = await fetch(url, {headers});
       if (response.status !== 429) {
         return response;
       }
@@ -1020,7 +1024,10 @@ export class NetworkCommand extends BaseCommand {
 
       this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
 
-      const temporaryFile: string = PathEx.join(os.tmpdir(), 'podlogs-crd.yaml');
+      const temporaryFile: string = PathEx.join(
+        constants.SOLO_CACHE_DIR,
+        `podlogs-crd-${versions.GRAFANA_PODLOGS_CRD_VERSION}.yaml`,
+      );
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
