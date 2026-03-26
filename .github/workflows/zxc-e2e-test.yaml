@@ -393,6 +393,26 @@ jobs:
             ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
             cd ../solo
 
+      - name: Switch Docker to Linux Engine (Windows)
+        # Kind requires Linux containers. On windows-latest, Docker Desktop defaults to Windows
+        # containers mode. Switch to Linux engine and wait for the daemon to become ready.
+        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        shell: pwsh
+        run: |
+          & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+          $maxWait = 60
+          $waited = 0
+          while ($waited -lt $maxWait) {
+            try {
+              $null = docker info 2>&1
+              if ($LASTEXITCODE -eq 0) { break }
+            } catch {}
+            Start-Sleep 3
+            $waited += 3
+          }
+          docker info
+
       - name: Setup E2E Tests
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
