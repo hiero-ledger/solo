@@ -425,7 +425,11 @@ jobs:
             "  sudo apt-get update -q`n" +
             "  sudo apt-get install -y -q docker.io`n" +
             "fi`n" +
-            "sudo nohup dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &`n" +
+            "# Use cgroupfs driver: systemd is not running in WSL2 on GitHub-hosted runners,`n" +
+            "# so dockerd defaults to 'systemd' cgroup driver and crashes when creating containers.`n" +
+            "sudo mkdir -p /etc/docker`n" +
+            'echo ''{"exec-opts": ["native.cgroupdriver=cgroupfs"], "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]}'' | sudo tee /etc/docker/daemon.json' + "`n" +
+            "sudo nohup dockerd > /tmp/dockerd.log 2>&1 &`n" +
             "timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done'`n" +
             "echo 'Docker is ready'`n" +
             "docker info`n"
