@@ -48,5 +48,10 @@
     "name": "One Shot Local Build",
     "directory": "one-shot-local-build",
     "local-java-build": true
+  },
+  {
+    "name": "WRAPs E2E Test",
+    "directory": "wraps-e2e-test",
+    "local-java-build": false
   }
 ]

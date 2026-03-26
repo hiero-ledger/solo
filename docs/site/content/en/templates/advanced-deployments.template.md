@@ -483,6 +483,57 @@ Example output:
 $SOLO_NETWORK_DESTROY_OUTPUT
 ```
 
+## Deploying with TSS and WRAPs
+
+TSS (Threshold Signature Scheme / hinTS) and WRAPs (recursive WRAPs aggregation) provide cryptographic threshold signing across consensus nodes. Both require Consensus Node **>= v0.72.0**.
+
+### Enabling TSS and WRAPs
+
+Pass `--tss` and `--wraps` to `consensus network deploy`:
+
+```bash
+# Deploy block node first with TSS message sizing applied
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --block-node-tss-overlay
+
+# Generate keys
+solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+
+# Deploy network with TSS and WRAPs enabled
+solo consensus network deploy \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --tss \
+  --wraps
+
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}"
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
+```
+
+### What the flags do
+
+| Flag | Effect |
+|------|--------|
+| `--tss` | Enables hinTS: sets `tss.hintsEnabled=true` and `tss.historyEnabled=true` in the consensus node config |
+| `--wraps` | Enables recursive WRAPs aggregation: sets `tss.wrapsEnabled=true`; requires CN >= v0.72.0 |
+| `--block-node-tss-overlay` | Applies larger message size limits to the block node (soft: 4 MiB, hard: 36 MiB) to accommodate the ~30 MiB WRAPs genesis proof |
+
+> **Note**: The block node must be deployed **before** `consensus network deploy` so that `blockNodes.json` is written with TSS-aware message limits and the block node address is registered in the remote config before consensus nodes start.
+
+### Supplying Pre-existing WRAPs Proving Keys
+
+By default, Solo downloads the WRAPs proving key archive (`wraps-v0.2.0.tar.gz`) from `https://builds.hedera.com`. To use locally cached keys instead:
+
+```bash
+solo consensus network deploy \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --tss \
+  --wraps \
+  --wraps-key-path /path/to/local/wraps-keys/
+```
+
+The directory must contain the allowed key files: `decider_pp.bin`, `decider_vp.bin`, `nova_pp.bin`, `nova_vp.bin`.
+
+See the [WRAPs E2E Test example](../examples/wraps-e2e-test/) for a complete Taskfile-based workflow.
+
 ## Additional Examples
 
 Explore more deployment scenarios in the [Examples section](../examples/):
@@ -492,3 +543,4 @@ Explore more deployment scenarios in the [Examples section](../examples/):
 - [Local Build with Custom Config](../examples/local-build-with-custom-config/)
 - [State Save and Restore](../examples/state-save-and-restore/)
 - [Multicluster Backup/Restore](../examples/multicluster-backup-restore/)
+- [WRAPs E2E Test](../examples/wraps-e2e-test/)

@@ -1,0 +1,227 @@
+# SPDX-License-Identifier: Apache-2.0
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  # Network topology: 3 consensus nodes for meaningful TSS/WRAPs threshold (2-of-3)
+  NODE_ALIASES: "node1,node2,node3"
+  NETWORK_SIZE: "3"
+  DEPLOYMENT: "wraps-e2e-deployment"
+  NAMESPACE: "wraps-e2e-namespace"
+  CLUSTER_NAME: "wraps-e2e-cluster"
+  CONTEXT: "kind-wraps-e2e-cluster"
+  CLUSTER_REFERENCE: "kind-wraps-e2e-cluster"
+
+  # WRAPs requires consensus node >= v0.72.0
+  # Override via CONSENSUS_NODE_VERSION env var or --cn-version CLI flag
+  CN_VERSION: '{{default "latest" (env "CONSENSUS_NODE_VERSION")}}'
+  MIRROR_NODE_VERSION_FLAG: ""
+  BLOCK_NODE_VERSION_FLAG: ""
+
+  # Port-forward targets (managed by solo CLI automatically during deployment)
+  MIRROR_NODE_REST_PORT: "8081"
+  BLOCK_NODE_GRPC_PORT: "40840"
+
+tasks:
+  default:
+    desc: Deploy a Hiero network with WRAPs/TSS enabled and verify it is working
+    cmds:
+      - task: deploy
+      - task: verify
+
+  deploy:
+    desc: Deploy a Hiero network with WRAPs and TSS enabled
+    cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Run solo init to install dependencies (helm, kubectl, etc.)
+      - cmd: $SOLO_COMMAND init --dev
+
+      # Create Kind cluster
+      - cmd: |
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n "{{ .CLUSTER_NAME }}" --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n "{{ .CLUSTER_NAME }}"
+          fi
+
+      # Wait for control plane to come up
+      - cmd: sleep 10
+
+      # Set kubectl context
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+      # Solo init (sets up local state)
+      - cmd: $SOLO_COMMAND init
+
+      # Connect cluster reference
+      - cmd: |
+          $SOLO_COMMAND cluster-ref config connect \
+            --cluster-ref {{ .CLUSTER_REFERENCE }} \
+            --context {{ .CONTEXT }}
+
+      # Create deployment
+      - cmd: |
+          $SOLO_COMMAND deployment config create \
+            --deployment {{ .DEPLOYMENT }} \
+            --namespace {{ .NAMESPACE }}
+
+      # Attach cluster to deployment with 3 consensus nodes
+      - cmd: |
+          $SOLO_COMMAND deployment cluster attach \
+            --deployment {{ .DEPLOYMENT }} \
+            --cluster-ref {{ .CLUSTER_REFERENCE }} \
+            --num-consensus-nodes {{ .NETWORK_SIZE }}
+
+      # Setup cluster (installs supporting Helm charts)
+      - cmd: |
+          $SOLO_COMMAND cluster-ref config setup \
+            --cluster-ref {{ .CLUSTER_REFERENCE }} \
+            --quiet-mode --dev
+
+      # Add block node (before consensus deploy so TSS message sizing is applied)
+      - cmd: |
+          $SOLO_COMMAND block node add \
+            --deployment {{ .DEPLOYMENT }} \
+            --block-node-tss-overlay \
+            {{ .BLOCK_NODE_VERSION_FLAG }} \
+            --quiet-mode --dev
+
+      # Generate consensus node keys (gossip + TLS)
+      - cmd: |
+          $SOLO_COMMAND keys consensus generate \
+            --gossip-keys --tls-keys \
+            --node-aliases {{ .NODE_ALIASES }} \
+            --deployment {{ .DEPLOYMENT }} \
+            --quiet-mode --dev
+
+      # Deploy consensus network with TSS and WRAPs enabled
+      # --tss enables threshold signature scheme (hinTS)
+      # --wraps enables recursive WRAPs aggregation (requires CN >= v0.72.0)
+      - cmd: |
+          $SOLO_COMMAND consensus network deploy \
+            --deployment {{ .DEPLOYMENT }} \
+            --node-aliases {{ .NODE_ALIASES }} \
+            --release-tag {{ .CN_VERSION }} \
+            --tss \
+            --wraps \
+            --quiet-mode --dev
+
+      # Setup consensus nodes (copies software + config)
+      - cmd: |
+          $SOLO_COMMAND consensus node setup \
+            --deployment {{ .DEPLOYMENT }} \
+            --node-aliases {{ .NODE_ALIASES }} \
+            --quiet-mode --dev
+
+      # Start consensus nodes and wait for TSS to be ready
+      - cmd: |
+          $SOLO_COMMAND consensus node start \
+            --deployment {{ .DEPLOYMENT }} \
+            --node-aliases {{ .NODE_ALIASES }} \
+            --quiet-mode --dev
+
+      # Add mirror node (validates block node / CN integration)
+      - cmd: |
+          $SOLO_COMMAND mirror node add \
+            --deployment {{ .DEPLOYMENT }} \
+            --pinger \
+            {{ .MIRROR_NODE_VERSION_FLAG }} \
+            --quiet-mode --dev
+
+      # Add JSON-RPC relay
+      - cmd: |
+          $SOLO_COMMAND relay node add \
+            --deployment {{ .DEPLOYMENT }} \
+            --node-aliases {{ .NODE_ALIASES }} \
+            --quiet-mode --dev
+
+  verify:
+    desc: Verify that WRAPs/TSS is operational (blocks produced, mirror node synced)
+    cmds:
+      # Wait for mirror node to ingest initial blocks from the TSS-bootstrapped network
+      - cmd: |
+          echo "Waiting for mirror node to ingest blocks..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
+            BLOCK_COUNT=$(curl -sf "http://127.0.0.1:{{ .MIRROR_NODE_REST_PORT }}/api/v1/blocks?limit=1&order=desc" \
+              | grep -o '"count":[0-9]*' | grep -o '[0-9]*' || echo "0")
+            if [ -n "$BLOCK_COUNT" ] && [ "$BLOCK_COUNT" -gt 0 ]; then
+              echo "Mirror node has ingested ${BLOCK_COUNT} block(s)"
+              break
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt ${ATTEMPT}/${MAX_ATTEMPTS}: no blocks yet, retrying in 10s..."
+            sleep 10
+          done
+          if [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
+            echo "ERROR: Mirror node did not ingest any blocks after ${MAX_ATTEMPTS} attempts"
+            exit 1
+          fi
+
+      # Validate latest block via mirror node REST API
+      - cmd: |
+          echo "Fetching latest block from mirror node..."
+          LATEST_BLOCK=$(curl -sf "http://127.0.0.1:{{ .MIRROR_NODE_REST_PORT }}/api/v1/blocks?limit=1&order=desc")
+          echo "Latest block response: ${LATEST_BLOCK}"
+          BLOCK_NUMBER=$(echo "${LATEST_BLOCK}" | grep -o '"number":[0-9]*' | head -1 | grep -o '[0-9]*')
+          if [ -z "${BLOCK_NUMBER}" ] || [ "${BLOCK_NUMBER}" -lt 1 ]; then
+            echo "ERROR: Expected at least block #1, got: ${BLOCK_NUMBER}"
+            exit 1
+          fi
+          echo "SUCCESS: Mirror node reports latest block #${BLOCK_NUMBER} - WRAPs/TSS is producing signed blocks"
+
+      # Show deployment diagnostics for record-keeping
+      - cmd: |
+          $SOLO_COMMAND deployment diagnostics logs \
+            --deployment {{ .DEPLOYMENT }} \
+            --dev || true
+
+  destroy:
+    desc: Destroy the WRAPs E2E test cluster and all resources
+    cmds:
+      # Stop consensus nodes
+      - cmd: |
+          $SOLO_COMMAND consensus node stop \
+            --deployment {{ .DEPLOYMENT }} \
+            --node-aliases {{ .NODE_ALIASES }} || true
+
+      # Destroy relay
+      - cmd: |
+          $SOLO_COMMAND relay node destroy \
+            --deployment {{ .DEPLOYMENT }} \
+            --node-aliases {{ .NODE_ALIASES }} || true
+
+      # Destroy mirror node
+      - cmd: |
+          $SOLO_COMMAND mirror node destroy \
+            --deployment {{ .DEPLOYMENT }} --force || true
+
+      # Destroy block node
+      - cmd: |
+          $SOLO_COMMAND block node destroy \
+            --deployment {{ .DEPLOYMENT }} || true
+
+      # Destroy consensus network
+      - cmd: |
+          $SOLO_COMMAND consensus network destroy \
+            --deployment {{ .DEPLOYMENT }} --force || true
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster --name "{{ .CLUSTER_NAME }}"

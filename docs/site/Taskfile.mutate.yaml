@@ -339,3 +339,25 @@ tasks:
         ---
         EOF
       - cat examples/version-upgrade-test/README.md >> docs/site/build/version-upgrade-test.md
+
+  mutate:wraps-e2e-test-example:
+    desc: "Mutate the examples/wraps-e2e-test/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/wraps-e2e-test/README.md
+    generates:
+      - docs/site/build/wraps-e2e-test.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/wraps-e2e-test.md << 'EOF'
+        ---
+        title: "WRAPs E2E Test Example"
+        weight: 1
+        description: >
+          E2E test verifying TSS/WRAPs (Threshold Signature Scheme with recursive aggregation) is working on a 3-node Hiero network
+        type: docs
+        ---
+        EOF
+      - cat examples/wraps-e2e-test/README.md >> docs/site/build/wraps-e2e-test.md

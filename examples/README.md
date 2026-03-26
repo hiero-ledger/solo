@@ -18,6 +18,7 @@
 | [rapid-fire](./rapid-fire/)                                         | Example of how to use the Solo **rapid-fire** commands                                                              |
 | [state-save-and-restore](./state-save-and-restore/)                 | Save network state, recreate network, and restore state with mirror node (with optional external database)          |
 | [version-upgrade-test](./version-upgrade-test/)                     | Example of how to upgrade all components of a Hiero network to current versions                                     |
+| [wraps-e2e-test](./wraps-e2e-test/)                                 | E2E test verifying TSS/WRAPs (Threshold Signature Scheme with recursive aggregation) is working on a 3-node network |
 
 ## Accessing Examples
 

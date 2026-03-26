@@ -62,6 +62,7 @@ tasks:
       - task: "mutate:state-save-and-restore-example"
       - task: "mutate:multicluster-backup-restore-example"
       - task: "mutate:version-upgrade-test-example"
+      - task: "mutate:wraps-e2e-test-example"
       - task: "build:all"
 
   check-doc-dir:
