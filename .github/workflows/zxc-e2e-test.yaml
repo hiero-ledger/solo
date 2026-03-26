@@ -394,16 +394,28 @@ jobs:
             cd ../solo
 
       - name: Switch Docker to Linux Engine (Windows)
-        # Kind requires Linux containers. On windows-latest, Docker Desktop defaults to Windows
-        # containers mode. Switching to the Linux engine requires two things:
-        # 1. Call DockerCli.exe -SwitchLinuxEngine to switch Docker Desktop to Linux mode.
-        # 2. Set DOCKER_HOST to the Linux engine named pipe — the docker CLI at
-        #    C:\Windows\system32\docker binds to the Windows Engine daemon by default and will
-        #    still report Windows containers even after the switch unless DOCKER_HOST is set.
+        # Kind requires Linux containers. On windows-latest, Docker Engine runs as a Windows
+        # service in Windows containers mode — it cannot run Linux images. Docker Desktop
+        # provides a Linux engine (via Hyper-V/WSL2) but is not started by default.
+        # Steps:
+        # 1. Launch Docker Desktop so the Linux engine named pipe is created.
+        # 2. Wait up to 3 minutes for \\.\pipe\dockerDesktopLinuxEngine to appear.
+        # 3. Call DockerCli.exe -SwitchLinuxEngine to ensure Linux mode is active.
+        # 4. Set DOCKER_HOST to the Linux engine pipe and export via GITHUB_ENV so all
+        #    subsequent steps (including Git Bash) bind to the Linux daemon.
         if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        timeout-minutes: 10
         shell: pwsh
         run: |
+          Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+          $maxWait = 180
+          $waited = 0
+          while ($waited -lt $maxWait) {
+            if (Test-Path "\\.\pipe\dockerDesktopLinuxEngine") { break }
+            Write-Host "Waiting for Docker Desktop Linux engine... ($waited/$maxWait s)"
+            Start-Sleep 5
+            $waited += 5
+          }
           & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
           $dockerHost = "npipe:////./pipe/dockerDesktopLinuxEngine"
           $env:DOCKER_HOST = $dockerHost
