@@ -395,19 +395,24 @@ jobs:
 
       - name: Switch Docker to Linux Engine (Windows)
         # Kind requires Linux containers. On windows-latest, Docker Desktop defaults to Windows
-        # containers mode. Switch to Linux engine and wait for the daemon to become ready.
+        # containers mode. Switching to the Linux engine requires two things:
+        # 1. Call DockerCli.exe -SwitchLinuxEngine to switch Docker Desktop to Linux mode.
+        # 2. Set DOCKER_HOST to the Linux engine named pipe — the docker CLI at
+        #    C:\Windows\system32\docker binds to the Windows Engine daemon by default and will
+        #    still report Windows containers even after the switch unless DOCKER_HOST is set.
         if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         shell: pwsh
         run: |
           & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+          $dockerHost = "npipe:////./pipe/dockerDesktopLinuxEngine"
+          $env:DOCKER_HOST = $dockerHost
+          echo "DOCKER_HOST=$dockerHost" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $maxWait = 60
           $waited = 0
           while ($waited -lt $maxWait) {
-            try {
-              $null = docker info 2>&1
-              if ($LASTEXITCODE -eq 0) { break }
-            } catch {}
+            $null = docker info 2>&1
+            if ($LASTEXITCODE -eq 0) { break }
             Start-Sleep 3
             $waited += 3
           }
