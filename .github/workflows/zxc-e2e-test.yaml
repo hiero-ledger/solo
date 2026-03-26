@@ -393,40 +393,40 @@ jobs:
             ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
             cd ../solo
 
-      - name: Switch Docker to Linux Engine (Windows)
-        # Kind requires Linux containers. On windows-latest, Docker Engine runs as a Windows
-        # service in Windows containers mode — it cannot run Linux images. Docker Desktop
-        # provides a Linux engine (via Hyper-V/WSL2) but is not started by default.
-        # Steps:
-        # 1. Launch Docker Desktop so the Linux engine named pipe is created.
-        # 2. Wait up to 3 minutes for \\.\pipe\dockerDesktopLinuxEngine to appear.
-        # 3. Call DockerCli.exe -SwitchLinuxEngine to ensure Linux mode is active.
-        # 4. Set DOCKER_HOST to the Linux engine pipe and export via GITHUB_ENV so all
-        #    subsequent steps (including Git Bash) bind to the Linux daemon.
+      - name: Configure Docker for Linux Containers via WSL2 (Windows)
+        # Docker Engine on windows-latest runs as a Windows service in Windows containers mode
+        # and cannot run Linux images. Docker Desktop cannot start in a non-interactive runner
+        # session. Instead, use WSL2 Ubuntu (pre-installed on windows-latest) with Docker CE,
+        # expose it over TCP, and point DOCKER_HOST at it so Kind uses the Linux daemon.
         if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: 10
         shell: pwsh
         run: |
-          Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
-          $maxWait = 180
-          $waited = 0
-          while ($waited -lt $maxWait) {
-            if (Test-Path "\\.\pipe\dockerDesktopLinuxEngine") { break }
-            Write-Host "Waiting for Docker Desktop Linux engine... ($waited/$maxWait s)"
-            Start-Sleep 5
-            $waited += 5
-          }
-          & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
-          $dockerHost = "npipe:////./pipe/dockerDesktopLinuxEngine"
-          $env:DOCKER_HOST = $dockerHost
-          echo "DOCKER_HOST=$dockerHost" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $maxWait = 60
+          # Install Docker CE in WSL2 Ubuntu and expose via TCP
+          wsl -d Ubuntu -- bash -c "
+            set -e
+            if ! command -v docker &>/dev/null; then
+              export DEBIAN_FRONTEND=noninteractive
+              sudo apt-get update -q
+              sudo apt-get install -y -q docker.io
+            fi
+            sudo mkdir -p /etc/docker
+            echo '{\"hosts\": [\"unix:///var/run/docker.sock\", \"tcp://0.0.0.0:2375\"]}' | sudo tee /etc/docker/daemon.json
+            sudo service docker start || sudo service docker restart
+            timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done'
+            echo 'Docker is ready'
+            docker info
+          "
+          $env:DOCKER_HOST = "tcp://localhost:2375"
+          echo "DOCKER_HOST=tcp://localhost:2375" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Verify Windows-side docker CLI can reach the WSL2 daemon
+          $maxWait = 30
           $waited = 0
           while ($waited -lt $maxWait) {
             $null = docker info 2>&1
             if ($LASTEXITCODE -eq 0) { break }
-            Start-Sleep 3
-            $waited += 3
+            Start-Sleep 2
+            $waited += 2
           }
           docker info
 
