@@ -1,0 +1,11 @@
+defaults:
+  root:
+    extraEnv:
+      - name: JAVA_HEAP_MIN
+        value: "196m"
+      - name: JAVA_HEAP_MAX
+        value: "196m"
+      - name: JAVA_OPTS
+        value: "-XX:+UseSerialGC -XX:+AlwaysPreTouch -XX:MaxMetaspaceSize=84M -XX:CompressedClassSpaceSize=48M -Xss256K -XX:-TieredCompilation -XX:CICompilerCount=1 -XX:ReservedCodeCacheSize=24M -XX:MaxDirectMemorySize=16M -Dio.netty.allocator.type=unpooled -Djava.util.concurrent.ForkJoinPool.common.parallelism=2"
+      - name: MALLOC_ARENA_MAX
+        value: "1"
