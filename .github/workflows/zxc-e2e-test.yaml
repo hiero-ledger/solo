@@ -428,7 +428,7 @@ jobs:
             "# docker.io apt package auto-starts dockerd on install. Kill it so we can`n" +
             "# restart with TCP host and cgroupfs driver (systemd is not running in WSL2).`n" +
             "if [ -f /var/run/docker.pid ]; then`n" +
-            "  sudo kill \`$(cat /var/run/docker.pid) 2>/dev/null || true`n" +
+            "  sudo kill `$(cat /var/run/docker.pid) 2>/dev/null || true`n" +
             "  sleep 2`n" +
             "  sudo rm -f /var/run/docker.pid`n" +
             "fi`n" +
