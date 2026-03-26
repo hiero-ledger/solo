@@ -169,9 +169,16 @@ jobs:
           # Snapshot updated_at before starting the task.  GitHub updates this
           # field immediately when a cancel is submitted; during normal test
           # execution only step transitions change it.
-          RUN_UPDATED_AT_INITIAL="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --jq '.updated_at' 2>/dev/null || echo "")"
+          # gh CLI is not pre-authenticated on self-hosted runners; use curl
+          # with GITHUB_TOKEN (always set by Actions) and jq (installed earlier).
+          _run_updated_at() {
+            curl -sf \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              | jq -r '.updated_at // empty' 2>/dev/null || echo ""
+          }
+          RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
           echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
 
           if command -v setsid >/dev/null 2>&1; then
@@ -189,9 +196,7 @@ jobs:
           api_cancel_poller() {
             while true; do
               sleep 30
-              current="$(gh api \
-                "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-                --jq '.updated_at' 2>/dev/null || echo "")"
+              current="$(_run_updated_at)"
               if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
                     && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
                 echo "=== API poller: updated_at changed ${RUN_UPDATED_AT_INITIAL} -> ${current}, signalling main shell ==="
