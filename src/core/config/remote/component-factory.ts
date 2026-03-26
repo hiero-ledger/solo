@@ -25,16 +25,13 @@ import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/env
 import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {BlockNodeStateSchema} from '../../../data/schema/model/remote/state/block-node-state-schema.js';
 import {Templates} from '../../templates.js';
-import {OneShotState} from '../../one-shot-state.js';
 
 @injectable()
 export class ComponentFactory implements ComponentFactoryApi {
   public constructor(
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
-    @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
-    this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
   public createNewRelayComponent(

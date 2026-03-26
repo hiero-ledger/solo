@@ -716,115 +716,89 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             title: 'Create Accounts',
                             skip: (): boolean => config.predefinedAccounts === false,
                             task: async (
-                              context_: OneShotSingleDeployContext,
+                              _: OneShotSingleDeployContext,
                               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
                             ): Promise<Listr<OneShotSingleDeployContext>> => {
                               await this.localConfig.load();
                               await this.remoteConfig.loadAndValidate(argv);
 
-                              return task.newListr(
-                                [
-                                  this.nodeCommandTasks.waitForNodesTask(),
-                                  {
-                                    title: 'Create Accounts',
-                                    task: async (_, task): Promise<Listr<OneShotSingleDeployContext>> => {
-                                      const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
+                              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
-                                      const client: Client = await this.accountManager.loadNodeClient(
-                                        config.namespace,
-                                        this.remoteConfig.getClusterRefs(),
-                                        context_.config.deployment,
-                                      );
-
-                                      const realm: Realm = this.localConfig.configuration.realmForDeployment(
-                                        context_.config.deployment,
-                                      );
-                                      const shard: Shard = this.localConfig.configuration.shardForDeployment(
-                                        context_.config.deployment,
-                                      );
-
-                                      // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
-                                      // so that created accounts have IDs start from x.x.1002
-                                      try {
-                                        const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-                                          TopicId.fromString(entityId(realm, shard, 1001)),
-                                        );
-                                        await entity1001Query.execute(client);
-                                      } catch (error) {
-                                        try {
-                                          if (error.message.includes('INVALID_TOPIC_ID')) {
-                                            const bufferTopic: TopicCreateTransaction =
-                                              new TopicCreateTransaction().setTopicMemo(
-                                                'Buffer topic to bump entity IDs',
-                                              );
-                                            await bufferTopic.execute(client);
-                                          }
-                                        } catch (error) {
-                                          this.logger.warn(
-                                            'Failed to create topic. Created account IDs may be offset from the expected values.',
-                                            error,
-                                          );
-                                        }
-                                      }
-
-                                      const accountsToCreate: PredefinedAccount[] = [
-                                        ...predefinedEcdsaAccountsWithAlias,
-                                      ];
-
-                                      for (const [index, account] of accountsToCreate.entries()) {
-                                        // inject index to avoid closure issues
-                                        ((index: number, account: PredefinedAccount): void => {
-                                          subTasks.push({
-                                            title: `Creating Account ${index}`,
-                                            task: async (
-                                              context_: OneShotSingleDeployContext,
-                                              subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                                            ): Promise<void> => {
-                                              await helpers.sleep(Duration.ofMillis(100 * index));
-
-                                              const createdAccount: {
-                                                accountId: string;
-                                                privateKey: string;
-                                                publicKey: string;
-                                                balance: number;
-                                                accountAlias?: string;
-                                              } = await this.accountManager.createNewAccount(
-                                                context_.config.namespace,
-                                                account.privateKey,
-                                                account.balance.to(HbarUnit.Hbar).toNumber(),
-                                                account.alias,
-                                                context_.config.context,
-                                              );
-
-                                              context_.createdAccounts.push({
-                                                accountId: AccountId.fromString(createdAccount.accountId),
-                                                data: account,
-                                                alias: createdAccount.accountAlias,
-                                                publicKey: createdAccount.publicKey,
-                                              });
-
-                                              subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
-                                            },
-                                          });
-                                        })(index, account);
-                                      }
-
-                                      return task.newListr(subTasks, {
-                                        concurrent: true,
-                                        rendererOptions: {
-                                          collapseSubtasks: false,
-                                        },
-                                      });
-                                    },
-                                  },
-                                ],
-                                {
-                                  concurrent: false,
-                                  rendererOptions: {
-                                    collapseSubtasks: false,
-                                  },
-                                },
+                              const client: Client = await this.accountManager.loadNodeClient(
+                                config.namespace,
+                                this.remoteConfig.getClusterRefs(),
+                                config.deployment,
                               );
+
+                              const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+                              const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
+
+                              // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
+                              // so that created accounts have IDs start from x.x.1002
+                              try {
+                                const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
+                                  TopicId.fromString(entityId(realm, shard, 1001)),
+                                );
+                                await entity1001Query.execute(client);
+                              } catch (error) {
+                                try {
+                                  if (error.message.includes('INVALID_TOPIC_ID')) {
+                                    const bufferTopic: TopicCreateTransaction =
+                                      new TopicCreateTransaction().setTopicMemo('Buffer topic to bump entity IDs');
+                                    await bufferTopic.execute(client);
+                                  }
+                                } catch (error) {
+                                  this.logger.warn(
+                                    'Failed to create topic. Created account IDs may be offset from the expected values.',
+                                    error,
+                                  );
+                                }
+                              }
+
+                              const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
+
+                              for (const [index, account] of accountsToCreate.entries()) {
+                                // inject index to avoid closure issues
+                                ((index: number, account: PredefinedAccount): void => {
+                                  subTasks.push({
+                                    title: `Creating Account ${index}`,
+                                    task: async (
+                                      context_: OneShotSingleDeployContext,
+                                      subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                                    ): Promise<void> => {
+                                      await helpers.sleep(Duration.ofMillis(100 * index));
+
+                                      const createdAccount: {
+                                        accountId: string;
+                                        privateKey: string;
+                                        publicKey: string;
+                                        balance: number;
+                                        accountAlias?: string;
+                                      } = await this.accountManager.createNewAccount(
+                                        context_.config.namespace,
+                                        account.privateKey,
+                                        account.balance.to(HbarUnit.Hbar).toNumber(),
+                                        account.alias,
+                                        context_.config.context,
+                                      );
+
+                                      context_.createdAccounts.push({
+                                        accountId: AccountId.fromString(createdAccount.accountId),
+                                        data: account,
+                                        alias: createdAccount.accountAlias,
+                                        publicKey: createdAccount.publicKey,
+                                      });
+
+                                      subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
+                                    },
+                                  });
+                                })(index, account);
+                              }
+
+                              return task.newListr(subTasks, {
+                                concurrent: true,
+                                rendererOptions: {collapseSubtasks: false},
+                              });
                             },
                           },
                         ],
@@ -833,10 +807,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     },
                   },
                 ],
-                {
-                  concurrent: false,
-                  rendererOptions: {collapseSubtasks: false},
-                },
+                {concurrent: false, rendererOptions: {collapseSubtasks: false}},
               );
             },
           },

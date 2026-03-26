@@ -674,12 +674,12 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
         this.loadRemoteConfigTask(argv),
+        this.addExplorerComponents(),
         this.installCertManagerTask(ExplorerCommandType.ADD),
         this.installExplorerTask(ExplorerCommandType.ADD),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
-        this.addExplorerComponents(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
