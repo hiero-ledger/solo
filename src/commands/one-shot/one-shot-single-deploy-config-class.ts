@@ -26,4 +26,12 @@ export interface OneShotSingleDeployConfigClass {
   force: boolean;
   quiet: boolean;
   rollback: boolean;
+  // ── EVM profile ────────────────────────────────────────────────────────────
+  // evm: true activates the EVM developer profile (20 pre-funded ECDSA alias accounts,
+  //   mirror-node explorer on by default, JSON-RPC relay included).
+  evm: boolean;
+  // noExplorer: true disables the explorer in EVM mode, overriding the default.
+  noExplorer: boolean;
+  // explorerType selects which explorer to deploy: 'mirror-node' (default) or 'blockscout'.
+  explorerType: string;
 }

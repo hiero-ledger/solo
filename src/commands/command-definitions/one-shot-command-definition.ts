@@ -31,6 +31,13 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
     'Creates a uniquely named deployment with a single consensus node, ' +
     'mirror node, block node, relay node, and explorer node.';
 
+  public static readonly EVM_SUBCOMMAND_NAME: string = 'evm';
+  private static readonly EVM_SUBCOMMAND_DESCRIPTION: string =
+    'EVM developer profile: deploys a single consensus node with mirror node, JSON-RPC relay, ' +
+    'and mirror-node explorer (default). Automatically creates 20 pre-funded ECDSA accounts ' +
+    'with public-key (0x…) aliases so smart-contract tools work out of the box. ' +
+    'Use --no-explorer to skip the explorer or --explorer to choose a different explorer type.';
+
   public static readonly MULTI_SUBCOMMAND_NAME: string = 'multi';
   private static readonly MULTI_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with multiple consensus nodes, ' +
@@ -56,10 +63,12 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.SINGLE_DEPLOY,
-              'Deploys all required components for the selected one shot configuration.',
+              'Deploys all required components for the selected one shot configuration. ' +
+                'Pass --evm to activate the EVM developer profile (20 pre-funded ECDSA alias accounts, ' +
+                'mirror-node explorer on by default). Combine with --no-explorer or --explorer.',
               this.oneShotCommand,
-              this.oneShotCommand.deploy,
-              DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
+              this.oneShotCommand.deployEvm,
+              DefaultOneShotCommand.EVM_DEPLOY_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
               true,
             ),
@@ -125,6 +134,36 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
+            ),
+          ),
+      )
+      .addCommandGroup(
+        // `solo one-shot evm deploy` is a convenience alias for
+        // `solo one-shot single deploy --evm`.  It pre-wires the --evm flag
+        // into the registered flags list so users can also pass --no-explorer
+        // or --explorer without typing --evm every time.
+        new CommandGroup(OneShotCommandDefinition.EVM_SUBCOMMAND_NAME, OneShotCommandDefinition.EVM_SUBCOMMAND_DESCRIPTION)
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.SINGLE_DEPLOY,
+              'Deploy the EVM developer profile: consensus node, mirror node, JSON-RPC relay, ' +
+                '20 pre-funded ECDSA alias accounts, and mirror-node explorer (default). ' +
+                'Pass --no-explorer to skip the explorer or --explorer to choose its type.',
+              this.oneShotCommand,
+              this.oneShotCommand.deployEvm,
+              DefaultOneShotCommand.EVM_DEPLOY_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
+              true,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.SINGLE_DESTROY,
+              'Remove all resources for an EVM profile deployment.',
+              this.oneShotCommand,
+              this.oneShotCommand.destroy,
+              DefaultOneShotCommand.DESTROY_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
             ),
           ),

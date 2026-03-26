@@ -40,6 +40,11 @@
     "local-java-build": false
   },
   {
+    "name": "One Shot EVM",
+    "directory": "one-shot-evm",
+    "local-java-build": false
+  },
+  {
     "name": "Rapid Fire",
     "directory": "rapid-fire",
     "local-java-build": false

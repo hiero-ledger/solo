@@ -51,6 +51,22 @@ const ecdsaAliasKeys: string[] = [
   '0xeae4e00ece872dd14fb6dc7a04f390563c7d69d16326f2a703ec8e0934060cc7',
 ];
 
+// 10 additional ECDSA alias keys used exclusively for the EVM profile (accounts 11-20).
+// Combined with ecdsaAliasKeys above these produce the 20 pre-funded EVM accounts
+// required by the EVM profile spec (each funded with 1 000 000 HBAR, alias from pub key).
+const evmEcdsaAliasAdditionalKeys: string[] = [
+  '0x7da1b61b5b7a1c9a2d93c6f9b3e740a8d12fd5e0c4b67a3f1e8295d6c041b3a',
+  '0xa3f8d217e64b095c73f1a824d590be36c2e5a078f94b1d2c30e76d815a249c1',
+  '0x4c9e35af72b081d36a15c8e2f74d9063b5e1a2dc80f4b937265a18e4d7c0b59',
+  '0x18d427fc9e0b35a17c84f2d65b309e7a4c23f9805d61b47e3a0258c91f6d84e',
+  '0xd72e58a1b0463c9ef82d51b7a96c3042f175ae8d0c9b34761e5f280b4a9c12d',
+  '0x3a6f1b4c8e72d09a5c3f27b468e91d50c82a3b7f94e16d285a30c759b4e81f2',
+  '0x8b14d3a2f56c790e1d4b8327a0c9e641f52b38d7a10e6c453b9271d8f0a3c95',
+  '0xf93a72c6d1e80b254a3c9f7162d05e83b47a91c6208f35d74b1e9280c5d6a47',
+  '0x2c8f51a0e37d9b46c8f1a253d7b0941e6c52a38f097d14b6238e7051a9c4d83',
+  '0x61b4e2f08d39a7c5b1f824e9a0c36d17b58a2f93e0d74c161b5280f9e3a7d42',
+];
+
 const ed25519Keys: string[] = [
   '0x44162cd9b9a2f5582bd13b43cfd8be3bc20b8a81ee77f6bf77391598bcfbae4c',
   '0x50426a7375c3e033608e48a62db7bb8da8be27dc1c9034c5961a1ad15545c3d2',
@@ -88,6 +104,22 @@ export const predefinedEcdsaAccountsWithAlias: PredefinedAccount[] = ecdsaAliasK
       alias: true,
     } as PredefinedAccount;
   },
+);
+
+// All 20 ECDSA-alias accounts for the EVM profile: the original 10 (ecdsaAliasKeys) plus
+// 10 additional (evmEcdsaAliasAdditionalKeys).  Every account has alias=true so an EVM-
+// compatible public-key alias (0x…) is derived and attached at creation time.  Each is
+// funded with 1 000 000 HBAR to satisfy the EVM profile pre-funded account requirement.
+export const predefinedEvmAccounts: PredefinedAccount[] = [
+  ...ecdsaAliasKeys,
+  ...evmEcdsaAliasAdditionalKeys,
+].map(
+  (key: string): PredefinedAccount => ({
+    group: PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
+    balance: defaultBalance,
+    privateKey: PrivateKey.fromStringECDSA(key),
+    alias: true,
+  }),
 );
 
 export const predefinedEd25519Accounts: PredefinedAccount[] = ed25519Keys.map((key: string): PredefinedAccount => {

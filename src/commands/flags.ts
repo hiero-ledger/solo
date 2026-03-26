@@ -2884,6 +2884,54 @@ export class Flags {
     prompt: undefined,
   };
 
+  // ── EVM profile flags ────────────────────────────────────────────────────────
+  // These flags are added to `solo one-shot single deploy` to enable the EVM
+  // developer profile.  The profile:
+  //   • Creates 20 pre-funded ECDSA accounts with EVM-compatible public-key aliases
+  //   • Defaults to deploying the mirror-node explorer (overridable via --no-explorer
+  //     or --explorer)
+  //   • Keeps the JSON-RPC relay so MetaMask / ethers.js can connect immediately
+
+  public static readonly evm: CommandFlag = {
+    constName: 'evm',
+    name: 'evm',
+    definition: {
+      describe:
+        'Enable the EVM developer profile: 20 pre-funded ECDSA accounts with public-key aliases, ' +
+        'mirror-node explorer enabled by default, and JSON-RPC relay included.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  // --no-explorer is the user-facing shorthand to skip the explorer entirely in EVM
+  // mode.  It overrides the EVM profile default of deploying the mirror-node explorer.
+  public static readonly noExplorer: CommandFlag = {
+    constName: 'noExplorer',
+    name: 'no-explorer',
+    definition: {
+      describe: 'Disable the explorer when using the EVM profile (overrides the mirror-node explorer default).',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  // --explorer selects which explorer implementation to deploy in EVM mode.
+  // Currently only "mirror-node" is supported; "blockscout" is reserved for a future release.
+  public static readonly explorerType: CommandFlag = {
+    constName: 'explorerType',
+    name: 'explorer',
+    definition: {
+      describe: 'Explorer type to use with the EVM profile. Choices: mirror-node (default), blockscout (coming soon).',
+      defaultValue: 'mirror-node',
+      type: 'string',
+      choices: ['mirror-node', 'blockscout'],
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3057,6 +3105,9 @@ export class Flags {
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
     Flags.rollback,
+    Flags.evm,
+    Flags.noExplorer,
+    Flags.explorerType,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

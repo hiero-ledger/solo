@@ -32,6 +32,7 @@ import {
   PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
   predefinedEcdsaAccountsWithAlias,
+  predefinedEvmAccounts,
   SystemAccount,
 } from './predefined-accounts.js';
 import {
@@ -111,6 +112,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     optional: [...DefaultOneShotCommand.DESTROY_FLAGS_LIST.optional],
   };
 
+  // EVM profile flags extend the standard DEPLOY_FLAGS_LIST with three additional options:
+  //   --evm          activates EVM mode (20 pre-funded ECDSA alias accounts, explorer on)
+  //   --no-explorer  disables the explorer even when --evm is set
+  //   --explorer     selects the explorer type (mirror-node | blockscout)
+  public static readonly EVM_DEPLOY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [
+      ...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional,
+      flags.evm,
+      flags.noExplorer,
+      flags.explorerType,
+    ],
+  };
+
   public static readonly INFO_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
@@ -143,6 +158,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public async deployFalcon(argv: ArgvStruct): Promise<boolean> {
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
+  }
+
+  // EVM profile entry-point: `solo one-shot single deploy --evm [--no-explorer] [--explorer <type>]`
+  // Delegates to the shared deployInternal with the EVM flag list so that all EVM-specific
+  // options are registered and parsed correctly before the deploy tasks run.
+  public async deployEvm(argv: ArgvStruct): Promise<boolean> {
+    return this.deployInternal(argv, DefaultOneShotCommand.EVM_DEPLOY_FLAGS_LIST);
   }
 
   private async performRollback(
@@ -296,6 +318,33 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
               config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
               config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
+
+              // ── EVM profile overrides ────────────────────────────────────────────────
+              // These run AFTER generic defaults so they take precedence where appropriate.
+              if (config.evm) {
+                // Mirror node and relay are always required for EVM (relay = JSON-RPC endpoint
+                // that MetaMask / ethers.js connect to).
+                config.deployMirrorNode = true;
+                config.deployRelay = true;
+
+                // Explorer defaults to ON in EVM mode (mirror-node explorer).
+                // --no-explorer overrides this, letting users skip it for minimal setups.
+                if (config.noExplorer) {
+                  config.deployExplorer = false;
+                } else {
+                  config.deployExplorer = config.deployExplorer === false ? false : true;
+                }
+
+                // Validate the requested explorer type.  Currently only mirror-node is
+                // implemented; blockscout support is reserved for a future release.
+                if (config.explorerType && config.explorerType !== 'mirror-node') {
+                  this.logger.warn(
+                    `Explorer type '${config.explorerType}' is not yet implemented; ` +
+                      `falling back to mirror-node explorer.`,
+                  );
+                  config.explorerType = 'mirror-node';
+                }
+              }
 
               context_.createdAccounts = [];
 
@@ -650,7 +699,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         }
                       }
 
-                      const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
+                      // EVM profile creates 20 ECDSA alias accounts (all with public-key alias
+                      // = EVM address) so that smart-contract developers can use familiar
+                      // 0x… addresses immediately.  Standard (non-EVM) single deploy keeps
+                      // the original 10 alias accounts for backward compatibility.
+                      const accountsToCreate: PredefinedAccount[] = config.evm
+                        ? [...predefinedEvmAccounts]
+                        : [...predefinedEcdsaAccountsWithAlias];
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues

@@ -1,0 +1,137 @@
+version: 3
+
+# ── EVM Developer Profile Example ────────────────────────────────────────────
+# Demonstrates the `solo one-shot single deploy --evm` command family.
+#
+# The EVM profile spins up a full Hiero network optimised for smart-contract
+# developers:
+#   • 1 consensus node
+#   • Mirror node (indexer / REST API)
+#   • JSON-RPC relay  ← MetaMask / ethers.js / Hardhat connect here
+#   • Mirror-node explorer (default; disable with --no-explorer)
+#   • 20 pre-funded ECDSA accounts with 0x… public-key aliases (1 000 000 HBAR each)
+#     Private keys are printed to stdout and saved to ~/.solo/one-shot-<deployment>/accounts.json
+#
+# Usage from this directory:
+#   task          → deploy (--evm, default mirror-node explorer) + smoke-test + destroy
+#   task deploy   → deploy with default explorer
+#   task deploy-no-explorer   → --evm --no-explorer
+#   task deploy-explorer-mirror-node → --evm --explorer mirror-node (explicit)
+#   task deploy-explorer-blockscout  → --evm --explorer blockscout (future; falls back to mirror-node)
+#   task destroy  → tear down and delete Kind cluster
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  DEPLOYMENT: "evm-deployment"
+  CLUSTER_NAME: "evm-cluster"
+  CONTEXT: "kind-evm-cluster"
+
+tasks:
+  # ── Deploy variants ────────────────────────────────────────────────────────
+
+  deploy:
+    desc: >
+      Deploy the EVM profile (1 consensus node, mirror node, JSON-RPC relay,
+      mirror-node explorer) and create 20 pre-funded ECDSA alias accounts.
+    cmds:
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            cd ../../solo || exit 1
+          else
+            echo "Skipping cd - using development version"
+          fi
+
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # solo one-shot single deploy --evm
+      # Mirror-node explorer is included by default in EVM mode.
+      - cmd: |
+          $SOLO_COMMAND one-shot single deploy --evm \
+            --deployment {{ .DEPLOYMENT }} \
+            --cluster-ref {{ .CLUSTER_NAME }}
+
+  deploy-no-explorer:
+    desc: >
+      Deploy the EVM profile without any explorer.
+      Useful for resource-constrained environments or headless CI setups.
+    cmds:
+      # solo one-shot single deploy --evm --no-explorer
+      - cmd: |
+          $SOLO_COMMAND one-shot single deploy --evm --no-explorer \
+            --deployment {{ .DEPLOYMENT }} \
+            --cluster-ref {{ .CLUSTER_NAME }}
+
+  deploy-explorer-mirror-node:
+    desc: >
+      Deploy the EVM profile and explicitly select the mirror-node explorer.
+      Equivalent to `deploy` (mirror-node is the default in EVM mode).
+    cmds:
+      # solo one-shot single deploy --evm --explorer mirror-node
+      - cmd: |
+          $SOLO_COMMAND one-shot single deploy --evm --explorer mirror-node \
+            --deployment {{ .DEPLOYMENT }} \
+            --cluster-ref {{ .CLUSTER_NAME }}
+
+  deploy-explorer-blockscout:
+    desc: >
+      Deploy the EVM profile requesting the Blockscout explorer.
+      NOTE: Blockscout integration is not yet implemented; the command will
+      log a warning and fall back to the mirror-node explorer automatically.
+    cmds:
+      # solo one-shot single deploy --evm --explorer blockscout
+      - cmd: |
+          $SOLO_COMMAND one-shot single deploy --evm --explorer blockscout \
+            --deployment {{ .DEPLOYMENT }} \
+            --cluster-ref {{ .CLUSTER_NAME }}
+
+  # ── Verify ────────────────────────────────────────────────────────────────
+
+  verify:
+    desc: Run smoke tests against the deployed EVM network.
+    cmds:
+      - cmd: |
+          export SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}"
+          RESOLVED_NAMESPACE="$($SOLO_COMMAND one-shot show deployment --deployment {{ .DEPLOYMENT }} 2>/dev/null | grep 'Namespace' | awk '{print $NF}' || echo "one-shot")"
+          export SOLO_NAMESPACE="${RESOLVED_NAMESPACE}"
+
+          if [ "$(node -p "process.platform")" = "win32" ]; then
+            echo "Skipping solo smoke test on Windows: solo_smoke_test.sh is POSIX shell."
+          elif git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
+
+  # ── Destroy ───────────────────────────────────────────────────────────────
+
+  destroy:
+    desc: Destroy the EVM profile deployment and delete the Kind cluster.
+    cmds:
+      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .DEPLOYMENT }}
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+
+  # ── Default (CI entry-point) ───────────────────────────────────────────────
+  # The "Test Examples" workflow runs `task` with no arguments, which invokes this
+  # target.  It deploys the EVM profile, runs a smoke test, then destroys everything.
+
+  default:
+    desc: Deploy EVM profile, run smoke tests, then destroy (CI entry-point).
+    cmds:
+      - task: deploy
+      - task: verify
+      - task: destroy
