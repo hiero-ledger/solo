@@ -36,6 +36,9 @@ tasks:
   deploy:
     desc: "Create kind cluster and deploy consensus/mirror/explorer/block nodes"
     cmds:
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+    
       - cmd: |
           kind delete cluster -n "{{.SOLO_CLUSTER_NAME}}" || true
           kind create cluster -n "{{.SOLO_CLUSTER_NAME}}" --config {{ .TASKFILE_DIR }}/kind-config.yaml
