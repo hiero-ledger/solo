@@ -414,21 +414,25 @@ jobs:
             # Initialize Ubuntu (create default user noninteractively)
             wsl -d Ubuntu -- bash -c "whoami" 2>&1 | Write-Host
           }
-          # Install Docker CE in WSL2 Ubuntu and expose via TCP
-          wsl -d Ubuntu -- bash -c "
-            set -e
-            if ! command -v docker &>/dev/null; then
-              export DEBIAN_FRONTEND=noninteractive
-              sudo apt-get update -q
-              sudo apt-get install -y -q docker.io
-            fi
-            sudo mkdir -p /etc/docker
-            echo '{\"hosts\": [\"unix:///var/run/docker.sock\", \"tcp://0.0.0.0:2375\"]}' | sudo tee /etc/docker/daemon.json
-            sudo service docker start || sudo service docker restart
-            timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done'
-            echo 'Docker is ready'
-            docker info
-          "
+          # Write the Docker setup script with Unix line endings (LF only).
+          # Passing a multi-line string directly to wsl bash -c embeds Windows CRLF
+          # line endings which cause bash to fail with "$'\r': command not found".
+          $setupScript = "#!/bin/bash`nset -e`n" +
+            "if ! command -v docker &>/dev/null; then`n" +
+            "  export DEBIAN_FRONTEND=noninteractive`n" +
+            "  sudo apt-get update -q`n" +
+            "  sudo apt-get install -y -q docker.io`n" +
+            "fi`n" +
+            "sudo mkdir -p /etc/docker`n" +
+            'echo ''{"hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]}'' | sudo tee /etc/docker/daemon.json' + "`n" +
+            "sudo service docker start || sudo service docker restart`n" +
+            "timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done'`n" +
+            "echo 'Docker is ready'`n" +
+            "docker info`n"
+          $tmpScript = "$env:TEMP\wsl-docker-setup.sh"
+          [System.IO.File]::WriteAllText($tmpScript, $setupScript)
+          $wslScript = wsl wslpath -u $tmpScript.Replace('\', '\\')
+          wsl -d Ubuntu -- bash "$wslScript"
           $env:DOCKER_HOST = "tcp://localhost:2375"
           echo "DOCKER_HOST=tcp://localhost:2375" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           # Verify Windows-side docker CLI can reach the WSL2 daemon
