@@ -431,8 +431,12 @@ jobs:
             "docker info`n"
           $tmpScript = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "wsl-docker-setup.sh")
           [System.IO.File]::WriteAllText($tmpScript, $setupScript)
-          # Convert Windows temp path to WSL path without mangling backslashes
-          $wslScript = (& wsl wslpath -u $tmpScript).Trim()
+          # Convert Windows path to WSL /mnt/... format manually.
+          # wslpath drops backslashes when called via PowerShell (C:\foo becomes C:foo).
+          $driveLetter = $tmpScript.Substring(0, 1).ToLower()
+          $relativePath = $tmpScript.Substring(3).Replace('\', '/')
+          $wslScript = "/mnt/$driveLetter/$relativePath"
+          Write-Host "WSL script path: $wslScript"
           wsl -d Ubuntu -- bash $wslScript
           $env:DOCKER_HOST = "tcp://localhost:2375"
           echo "DOCKER_HOST=tcp://localhost:2375" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
