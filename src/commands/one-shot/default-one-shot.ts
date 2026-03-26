@@ -216,6 +216,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | undefined = undefined;
     let oneShotLease: Lock | undefined;
+    const mirrorNodeId: number = 1;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newOneShotSingleDeployTaskList(
@@ -666,11 +667,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                                 optionFromFlag(Flags.explorerVersion),
                                                 version.EXPLORER_VERSION,
                                               );
-                                              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+                                              this.appendConfigToArgv(argv, {
+                                                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                                ...config.explorerNodeConfiguration,
+                                              });
                                               return argvPushGlobalFlags(argv, config.cacheDir);
                                             },
                                             this.taskList,
-                                            (): boolean => !config.deployExplorer || config.minimalSetup,
+                                            (): boolean => !config.deployExplorer,
                                           ),
                                           invokeSoloCommand(
                                             `solo ${RelayCommandDefinition.ADD_COMMAND}`,
@@ -686,11 +691,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                                 optionFromFlag(Flags.nodeAliasesUnparsed),
                                                 'node1',
                                               );
-                                              this.appendConfigToArgv(argv, config.relayNodeConfiguration);
+                                              this.appendConfigToArgv(argv, {
+                                                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                                ...config.relayNodeConfiguration,
+                                              });
                                               return argvPushGlobalFlags(argv);
                                             },
                                             this.taskList,
-                                            (): boolean => !config.deployRelay || config.minimalSetup,
+                                            (): boolean => !config.deployRelay,
                                           ),
                                         ],
                                         {concurrent: true, rendererOptions: {collapseSubtasks: false}},
