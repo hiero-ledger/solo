@@ -13,10 +13,15 @@ env:
   USE_LOCAL_MIRROR_NODE_CHART: "true"
   # Set USE_LOCAL_BUILD=true to check out and build consensus node from source (requires Java 21 and Gradle)
   USE_LOCAL_BUILD: "true"
+  # Set PRELOAD_IMAGES=true to pull all images in image_list.txt, create the Kind cluster up front,
+  # and preload the images into the cluster before running one-shot deploy.
+  PRELOAD_IMAGES: "true"
 
 vars:
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
+
+  SOLO_CLUSTER_NAME: "one-shot-timing-cluster"
 
   # Consensus node version for local build
   CN_VERSION: "v0.72.0-rc.4"
@@ -136,6 +141,47 @@ tasks:
       - task: checkout-consensus-node
       - task: build-consensus-node
 
+  pull-images:
+    desc: Pull all Docker images listed in image_list.txt
+    cmds:
+      - cmd: |
+          IMAGE_LIST="{{ .TASKFILE_DIR }}/image_list.txt"
+          echo "==== Pulling images from ${IMAGE_LIST} ===="
+          while IFS= read -r image || [ -n "$image" ]; do
+            [ -z "$image" ] && continue
+            echo "Pulling: $image"
+            docker pull "$image"
+          done < "${IMAGE_LIST}"
+          echo "==== Done pulling images ===="
+
+  create-cluster:
+    desc: Create the Kind cluster for preloaded image deployment
+    cmds:
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
+      - cmd: |
+          # Create Kind cluster
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .SOLO_CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
+          fi
+
+  load-images-to-cluster:
+    desc: Load all images from image_list.txt into the Kind cluster
+    cmds:
+      - cmd: |
+          IMAGE_LIST="{{ .TASKFILE_DIR }}/image_list.txt"
+          echo "==== Loading images into cluster {{ .SOLO_CLUSTER_NAME }} ===="
+          while IFS= read -r image || [ -n "$image" ]; do
+            [ -z "$image" ] && continue
+            echo "Loading: $image"
+            kind load docker-image "$image" --name {{ .SOLO_CLUSTER_NAME }}
+          done < "${IMAGE_LIST}"
+          echo "==== Done loading images ===="
+
   cold-start:
     desc: Measure cold start time for solo one-shot single deploy
     cmds:
@@ -177,6 +223,19 @@ tasks:
       # Generate values file with local build and chart paths
       - cmd: |
           task generate-values
+
+      # If PRELOAD_IMAGES is enabled, pull all images, create the cluster, then load images into it
+      - cmd: |
+          if [ "${PRELOAD_IMAGES}" = "true" ]; then
+            echo "PRELOAD_IMAGES=true: pulling images..."
+            task pull-images
+            echo "PRELOAD_IMAGES=true: creating cluster..."
+            task create-cluster
+            echo "PRELOAD_IMAGES=true: loading images into cluster..."
+            task load-images-to-cluster
+          else
+            echo "PRELOAD_IMAGES=false: skipping image preload and cluster pre-creation"
+          fi
 
       # Measure cold start time: deploy for the first time (no cached Docker images)
       - cmd: |
