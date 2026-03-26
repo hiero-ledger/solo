@@ -191,7 +191,16 @@ jobs:
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          wait "${TASK_PID}"
+
+          # On bash 4.x (common on self-hosted Ubuntu runners), the `wait PID`
+          # builtin is NOT interrupted by signals: it blocks until PID exits,
+          # so a trapped SIGTERM never fires until the 35-minute test finishes.
+          # Polling with `sleep 5` (an external command) is interruptible:
+          # when SIGTERM arrives, bash fires the trap within ≤5 seconds.
+          while kill -0 "${TASK_PID}" 2>/dev/null; do
+            sleep 5
+          done
+          wait "${TASK_PID}" 2>/dev/null
           TASK_RC=$?
           TASK_PID=""
           TASK_PGID=""
