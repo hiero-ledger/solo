@@ -101,15 +101,23 @@ export class DiagnosticsAnalyzer {
       : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
     const findings: DiagnosticsFinding[] = [];
 
+    this.logger.showUser(`Scanning directory: ${hieroOutputDirectory}`);
+
     if (fs.existsSync(hieroOutputDirectory)) {
       this.analyzeDescribeFiles(hieroOutputDirectory, findings);
+    } else {
+      this.logger.showUser(yellow(`  Pod describe directory not found, skipping: ${hieroOutputDirectory}`));
     }
 
-    const consensusArchiveDirectory: string = namespaceName
-      ? PathEx.join(constants.SOLO_LOGS_DIR, namespaceName)
-      : constants.SOLO_LOGS_DIR;
+    const consensusArchiveDirectory: string = customOutputDirectory
+      ? path.resolve(customOutputDirectory)
+      : namespaceName
+        ? PathEx.join(constants.SOLO_LOGS_DIR, namespaceName)
+        : constants.SOLO_LOGS_DIR;
     if (fs.existsSync(consensusArchiveDirectory)) {
       this.analyzeConsensusNodeArchives(consensusArchiveDirectory, findings);
+    } else {
+      this.logger.showUser(yellow(`  Consensus archive directory not found, skipping: ${consensusArchiveDirectory}`));
     }
 
     if (!fs.existsSync(hieroOutputDirectory)) {
@@ -117,6 +125,7 @@ export class DiagnosticsAnalyzer {
     }
 
     const reportPath: string = PathEx.join(hieroOutputDirectory, 'diagnostics-analysis.txt');
+    this.logger.showUser(`Writing report to: ${reportPath}`);
     const reportText: string = this.renderDiagnosticsFindings(findings);
     fs.writeFileSync(reportPath, reportText, 'utf8');
 
@@ -168,12 +177,16 @@ export class DiagnosticsAnalyzer {
     // "reason: OOMKilled" is the structured field in the container status JSON.
     const oomPattern: RegExp = /OOMKilled|out of memory|reason:\s*OOMKilled/i;
 
+    this.logger.showUser(`  Found ${describeFiles.length} pod describe file(s)`);
+
     for (const describeFile of describeFiles) {
+      const relPath: string = path.relative(rootDirectory, describeFile);
+      this.logger.showUser(`  Reading: ${relPath}`);
       let content: string;
       try {
         content = fs.readFileSync(describeFile, 'utf8');
       } catch (error) {
-        this.logger.debug(`Unable to read describe file ${describeFile}: ${(error as Error).message}`);
+        this.logger.showUser(yellow(`  Unable to read describe file ${relPath}: ${(error as Error).message}`));
         continue;
       }
 
@@ -253,21 +266,25 @@ export class DiagnosticsAnalyzer {
       filePath.endsWith('-log-config.zip'),
     );
 
+    this.logger.showUser(`  Found ${archiveFiles.length} consensus log archive(s)`);
+
     for (const archiveFile of archiveFiles) {
+      const archiveName: string = path.basename(archiveFile);
+      this.logger.showUser(`  Unzipping: ${archiveName}`);
       let archive: AdmZip;
       try {
         archive = new AdmZip(archiveFile, {readEntries: true});
       } catch (error) {
-        this.logger.debug(`Unable to read archive ${archiveFile}: ${(error as Error).message}`);
+        this.logger.showUser(yellow(`  Unable to read archive ${archiveName}: ${(error as Error).message}`));
         continue;
       }
 
-      const archiveName: string = path.basename(archiveFile);
       for (const entry of archive.getEntries()) {
         const entryName: string = entry.entryName;
         if (!entryName.endsWith('output/swirlds.log') && !entryName.endsWith('output/hgcaa.log')) {
           continue;
         }
+        this.logger.showUser(`    Reading entry: ${entryName}`);
 
         const source: string = `${archiveName}:${entryName}`;
         const content: string = entry.getData().toString('utf8');
