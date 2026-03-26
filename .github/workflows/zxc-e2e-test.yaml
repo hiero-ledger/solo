@@ -292,7 +292,9 @@ jobs:
         id: install
 
       - name: Setup Kind
-        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && !cancelled() && !failure() }}
+        # helm/kind-action installs the Linux binary even on Windows runners, causing an Exec format error.
+        # Use this action only on non-Windows runners; Windows uses chocolatey below.
+        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && runner.os != 'Windows' && !cancelled() && !failure() }}
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -302,6 +304,13 @@ jobs:
           kubectl_version: 'v${{ inputs.kubectl-version }}'
           verbosity: 3
           wait: 120s
+
+      - name: Setup Kind (Windows)
+        # helm/kind-action does not support Windows runners; install the native Windows binary via chocolatey.
+        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && runner.os == 'Windows' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        shell: pwsh
+        run: choco install kind --version '${{ inputs.kind-version }}' -y
 
       - name: Setup Helm
         if: ${{ inputs.install-dependencies == true && inputs.helm-install == true && !cancelled() && !failure() }}
@@ -357,7 +366,7 @@ jobs:
           cache-read-only: false
 
       - name: Create Diagnostic Script
-        if: ${{ !cancelled() && !failure() }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
@@ -385,7 +394,7 @@ jobs:
             cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
+        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && runner.os != 'Windows' && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -519,6 +528,21 @@ jobs:
 
           exit $TEST_EXIT_CODE
 
+      - name: Run E2E Tests (Windows)
+        id: run-e2e-tests-windows
+        # The Linux Run E2E Tests step uses setsid/ps/ionice which are not available on Windows.
+        # This step runs the same test task on Windows using pwsh without process-group management.
+        if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          if ("${{ inputs.consensus-node-version }}" -ne "") {
+            $env:CONSENSUS_NODE_VERSION = "${{ inputs.consensus-node-version }}"
+          }
+          "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1" | Out-File -FilePath .env -Encoding utf8
+          task ${{ inputs.test-script }}
+
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
@@ -557,6 +581,7 @@ jobs:
 
       - name: Generate ASCII Resource Chart
         id: generate-chart
+        if: ${{ runner.os != 'Windows' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
