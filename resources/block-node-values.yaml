@@ -44,6 +44,13 @@ blockNode:
     # blockNode.config.BACKFILL_BLOCK_NODE_SOURCES_PATH
     path: "/opt/hiero/block-node/backfill"
     filename: "block-node-sources.json"
+  health:
+    readiness:
+      initialDelaySeconds: 0
+    liveness:
+      initialDelaySeconds: 0
+      periodSeconds: 1
+      failureThreshold: 60
 
 kubepromstack:
   enabled: false
