@@ -26,7 +26,7 @@ defaults:
       - name: JAVA_HEAP_MAX
         value: 6g
       - name: JAVA_OPTS
-        value: "-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+        value: '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true'
 
 minio-server:
   tenant:
@@ -35,3 +35,4 @@ minio-server:
         name: pool-1
         volumesPerServer: 1
         size: 10Gi
+        storageClassName: standard
