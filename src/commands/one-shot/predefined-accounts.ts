@@ -114,12 +114,14 @@ export const predefinedEvmAccounts: PredefinedAccount[] = [
   ...ecdsaAliasKeys,
   ...evmEcdsaAliasAdditionalKeys,
 ].map(
-  (key: string): PredefinedAccount => ({
-    group: PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
-    balance: defaultBalance,
-    privateKey: PrivateKey.fromStringECDSA(key),
-    alias: true,
-  }),
+  (key: string): PredefinedAccount => {
+    return {
+      group: PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
+      balance: defaultBalance,
+      privateKey: PrivateKey.fromStringECDSA(key),
+      alias: true,
+    } as PredefinedAccount;
+  },
 );
 
 export const predefinedEd25519Accounts: PredefinedAccount[] = ed25519Keys.map((key: string): PredefinedAccount => {

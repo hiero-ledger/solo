@@ -19,6 +19,7 @@ export interface Definition {
   type?: string;
   disablePrompt?: boolean;
   dataMask?: string;
+  choices?: string[];
 }
 
 export interface CommandFlags {
