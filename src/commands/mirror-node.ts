@@ -672,7 +672,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
           {
             title: 'Initialize Postgres pod',
-            task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
+            task: (_context_, task): SoloListr<MirrorNodeDeployContext> => {
               const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
                 {
                   title: 'Wait for Postgres pod to be ready',
@@ -1121,7 +1121,7 @@ END $grant$;`;
             );
 
             // predefined values first
-            config.valuesArg = helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA);
+            config.valuesArg = helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
@@ -1316,7 +1316,7 @@ END $grant$;`;
             }
 
             // predefined values first
-            config.valuesArg = helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA);
+            config.valuesArg = helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
