@@ -118,10 +118,12 @@ tasks:
             --quiet-mode --dev
 
       # Setup consensus nodes (copies software + config)
+      # --release-tag is passed explicitly so CONSENSUS_NODE_VERSION env var is not needed
       - cmd: |
           $SOLO_COMMAND consensus node setup \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} \
+            --release-tag {{ .CN_VERSION }} \
             --quiet-mode --dev
 
       # Start consensus nodes; solo waits for TSS to be ready before returning
@@ -129,6 +131,7 @@ tasks:
           $SOLO_COMMAND consensus node start \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} \
+            --release-tag {{ .CN_VERSION }} \
             --quiet-mode --dev
 
       # Add mirror node to verify blocks are being produced
