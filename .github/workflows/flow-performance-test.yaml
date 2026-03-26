@@ -128,31 +128,58 @@ jobs:
           # test immediately rather than waiting 30-40 minutes for it to finish on
           # its own.
           TASK_PID=""
+          TASK_PGID=""
           TASK_RC=0
+
+          # Recursively kill a process and all its descendants (depth-first).
+          # go-task spawns each command in a new process group (Setpgid), so
+          # kill -- -PGID only reaches task itself; the mocha/node child ends up
+          # in a different process group.  This function walks pgrep -P to reach
+          # every descendant regardless of process-group boundaries.
+          kill_tree() {
+            local pid=$1 sig=$2
+            for child in $(pgrep -P "$pid" 2>/dev/null || true); do
+              kill_tree "$child" "$sig"
+            done
+            kill "-${sig}" "$pid" 2>/dev/null || true
+          }
 
           cleanup() {
             if [[ -n "${TASK_PID}" ]]; then
-              echo "Received cancellation signal, stopping task (PID ${TASK_PID})..."
-              # Kill by session ID rather than process group: setsid makes TASK_PID the
-              # session leader so TASK_PID == session ID.  All processes spawned by task
-              # (across any number of process groups that go-task creates with Setpgid)
-              # share this session and are therefore reachable via pkill -s.
-              pkill -TERM -s "${TASK_PID}" 2>/dev/null || true
+              echo "=== CANCELLATION SIGNAL RECEIVED ==="
+              echo "Stopping task tree (PID ${TASK_PID}, PGID ${TASK_PGID:-?})..."
+              echo "Process tree at signal time:"
+              ps -eo pid,ppid,pgid,sid,comm --sort=ppid 2>/dev/null \
+                | awk -v root="${TASK_PID}" 'NR==1 || $2==root || $1==root' || true
+
+              # Layer 1: kill task's own process group (matches working flows)
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
+              fi
+              # Layer 2: kill task PID directly
+              kill -TERM "${TASK_PID}" 2>/dev/null || true
+              # Layer 3: recursively kill all descendants (reaches mocha across PG boundaries)
+              kill_tree "${TASK_PID}" TERM
               sleep 2
-              pkill -KILL -s "${TASK_PID}" 2>/dev/null || true
+              # Repeat with SIGKILL for any survivors
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
+              fi
+              kill -KILL "${TASK_PID}" 2>/dev/null || true
+              kill_tree "${TASK_PID}" KILL
               wait "${TASK_PID}" 2>/dev/null || true
             fi
             exit 130
           }
           trap cleanup SIGTERM SIGINT
 
-          # Start in a separate session so cancellation can terminate the full task process tree.
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
           else
             task test-e2e-performance &
           fi
           TASK_PID=$!
+          TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
           wait "${TASK_PID}"
           TASK_RC=$?
           TASK_PID=""
