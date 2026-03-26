@@ -147,9 +147,9 @@ jobs:
             kill "-${sig}" "$pid" 2>/dev/null || true
           }
 
-          do_cancel() {
-            local reason="${1:-SIGNAL}"
-            echo "=== CANCELLATION DETECTED (${reason}) ==="
+          cleanup() {
+            trap - SIGTERM SIGINT
+            echo "=== CANCELLATION DETECTED ==="
             echo "Stopping task tree (PID ${TASK_PID:-?}, PGID ${TASK_PGID:-?})..."
             [[ -n "${TASK_PGID}" ]] && kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
             [[ -n "${TASK_PID}"  ]] && kill -TERM "${TASK_PID}" 2>/dev/null || true
@@ -163,39 +163,15 @@ jobs:
             [[ -n "${CANCEL_POLLER_PID}" ]] && kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
             exit 130
           }
-
-          cleanup() {
-            trap - SIGTERM SIGINT
-            do_cancel "SIGNAL"
-          }
           trap cleanup SIGTERM SIGINT
 
-          # Snapshot updated_at before starting the task so the poller can
-          # detect when a cancellation request changes it.
+          # Snapshot updated_at before starting the task.  GitHub updates this
+          # field immediately when a cancel is submitted; during normal test
+          # execution only step transitions change it.
           RUN_UPDATED_AT_INITIAL="$(gh api \
             "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             --jq '.updated_at' 2>/dev/null || echo "")"
           echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
-
-          # Background API poller — checks updated_at every 30 s.
-          api_cancel_poller() {
-            while true; do
-              sleep 30
-              # Stop polling if task has already exited
-              [[ -z "${TASK_PID}" ]] && return
-              kill -0 "${TASK_PID}" 2>/dev/null || return
-              current="$(gh api \
-                "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-                --jq '.updated_at' 2>/dev/null || echo "")"
-              if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
-                    && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
-                echo "=== API poller: updated_at changed ${RUN_UPDATED_AT_INITIAL} -> ${current} ==="
-                do_cancel "API_POLL"
-              fi
-            done
-          }
-          api_cancel_poller &
-          CANCEL_POLLER_PID=$!
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -205,9 +181,28 @@ jobs:
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
 
-          # Sleep-poll loop so SIGTERM interrupts within ≤5 s on bash 4.x
-          # (the `wait PID` builtin ignores signals until the PID exits on
-          # older bash; sleep is an external command and IS interruptible).
+          # Background API poller — started AFTER TASK_PID is known.
+          # It sends SIGTERM to the main bash (via $$, which always refers to
+          # the parent shell's PID even from subshells) so the cleanup trap
+          # fires in the right context with all variables available.
+          api_cancel_poller() {
+            while true; do
+              sleep 30
+              current="$(gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+                --jq '.updated_at' 2>/dev/null || echo "")"
+              if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
+                    && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
+                echo "=== API poller: updated_at changed ${RUN_UPDATED_AT_INITIAL} -> ${current}, signalling main shell ==="
+                kill -TERM $$ 2>/dev/null || true
+                return
+              fi
+            done
+          }
+          api_cancel_poller &
+          CANCEL_POLLER_PID=$!
+
+          # Sleep-poll so SIGTERM fires within ≤5 s even on bash 4.x
           while kill -0 "${TASK_PID}" 2>/dev/null; do
             sleep 5
           done
