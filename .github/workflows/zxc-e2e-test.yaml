@@ -425,14 +425,20 @@ jobs:
             "  sudo apt-get update -q`n" +
             "  sudo apt-get install -y -q docker.io`n" +
             "fi`n" +
-            "# Use cgroupfs driver: systemd is not running in WSL2 on GitHub-hosted runners,`n" +
-            "# so dockerd defaults to 'systemd' cgroup driver and crashes when creating containers.`n" +
-            "sudo mkdir -p /etc/docker`n" +
-            'echo ''{"exec-opts": ["native.cgroupdriver=cgroupfs"], "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]}'' | sudo tee /etc/docker/daemon.json' + "`n" +
-            "sudo nohup dockerd > /tmp/dockerd.log 2>&1 &`n" +
+            "# Pass all options on the command line to avoid daemon.json conflicts with the`n" +
+            "# docker.io apt package's systemd unit. Use cgroupfs: systemd is not running in`n" +
+            "# WSL2 on GitHub-hosted runners and the default 'systemd' driver crashes dockerd`n" +
+            "# when containers are created.`n" +
+            "sudo nohup dockerd \`n" +
+            "  --exec-opt native.cgroupdriver=cgroupfs \`n" +
+            "  --host unix:///var/run/docker.sock \`n" +
+            "  --host tcp://0.0.0.0:2375 \`n" +
+            "  > /tmp/dockerd.log 2>&1 &`n" +
             "timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done'`n" +
             "echo 'Docker is ready'`n" +
-            "docker info`n"
+            "docker info`n" +
+            "echo '--- dockerd log ---'`n" +
+            "sudo tail -20 /tmp/dockerd.log`n"
           $tmpScript = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "wsl-docker-setup.sh")
           [System.IO.File]::WriteAllText($tmpScript, $setupScript)
           # Convert Windows path to WSL /mnt/... format manually.
