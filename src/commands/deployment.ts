@@ -3,7 +3,6 @@
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
-import psList, {type ProcessDescriptor} from 'ps-list';
 import {SoloError} from '../core/errors/solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -42,6 +41,8 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import * as version from '../../version.js';
+import find from 'find-process';
+import type ProcessInfo from 'find-process';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -951,8 +952,8 @@ export class DeploymentCommand extends BaseCommand {
     }
 
     try {
-      const processes: ProcessDescriptor[] = await psList();
-      return processes.some((process: ProcessDescriptor): boolean => {
+      const foundProcess: ProcessInfo[] = await find('name', 'port-forward', {skipSelf: true});
+      return foundProcess.some((process: ProcessInfo): boolean => {
         const command: string = (process.cmd ?? '').toLowerCase();
         return command.includes('port-forward') && command.includes(`${port}:`);
       });

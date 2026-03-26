@@ -43,7 +43,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     );
   }
 
-  private static skipRequestedConditionCallback(component: BaseStateSchema): boolean {
+  // This skips components that are requested, because they are not yet deployed.
+  // This is needed to avoid errors during the deployment of the requested components.
+  // Especially during one-shot deployments.
+  private static componentSkipConditionCallback(component: BaseStateSchema): boolean {
     return component.metadata.phase === DeploymentPhase.REQUESTED;
   }
 
@@ -60,7 +63,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Relay Nodes',
       getLabelsCallback: Templates.renderRelayLabels,
       legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
-      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
     haProxies: {
       displayName: 'HaProxy',
@@ -70,7 +73,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Mirror Node',
       getLabelsCallback: Templates.renderMirrorNodeLabels,
       legacyReleaseName: constants.MIRROR_NODE_RELEASE_NAME,
-      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
     envoyProxies: {
       displayName: 'Envoy Proxy',
@@ -80,7 +83,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Explorer',
       getLabelsCallback: Templates.renderExplorerLabels,
       legacyReleaseName: 'hiero-explorer',
-      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
     consensusNodes: {
       displayName: 'Consensus Node',
@@ -91,7 +94,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Block Node',
       getLabelsCallback: Templates.renderBlockNodeLabels,
       legacyReleaseName: `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
-      skipCondition: RemoteConfigValidator.skipRequestedConditionCallback,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
   };
 

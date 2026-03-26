@@ -113,7 +113,31 @@ jobs:
           
           npm install
           task build:compile
-          .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} || RC=$? || true
+
+          # Run the script in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # launch immediately rather than waiting up to 60 minutes for it to finish
+          # on its own.
+          SCRIPT_PID=""
+          RC=0
+
+          cleanup() {
+            if [[ -n "${SCRIPT_PID}" ]]; then
+              echo "Received cancellation signal, stopping launch_network.sh (PID ${SCRIPT_PID})..."
+              kill "${SCRIPT_PID}" 2>/dev/null || true
+              wait "${SCRIPT_PID}" 2>/dev/null || true
+            fi
+            exit 1
+          }
+          trap cleanup SIGTERM SIGINT
+
+          .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} &
+          SCRIPT_PID=$!
+          wait "${SCRIPT_PID}"
+          RC=$?
+          SCRIPT_PID=""
+          trap - SIGTERM SIGINT
+
           if [[ "$RC" != "0" ]]; then
             echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
             exit $RC

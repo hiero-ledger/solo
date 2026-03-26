@@ -41,6 +41,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {K8} from '../integration/kube/k8.js';
 import {SemVer} from 'semver';
 import {createHash} from 'node:crypto';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -134,7 +135,15 @@ interface ExplorerDestroyContext {
   };
 }
 
-export enum ExplorerCommandType {
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  ingressReleaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
+}
+
+enum ExplorerCommandType {
   ADD = 'add',
   UPGRADE = 'upgrade',
   DESTROY = 'destroy',
@@ -359,7 +368,7 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private installExplorerTask(): SoloListrTask<AnyListrContext> {
+  private installExplorerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
@@ -384,6 +393,17 @@ export class ExplorerCommand extends BaseCommand {
           exploreValuesArgument,
           config.clusterContext,
         );
+
+        if (commandType === ExplorerCommandType.ADD) {
+          this.remoteConfig.configuration.components.changeComponentPhase(
+            (config as ExplorerDeployConfigClass).newExplorerComponent.metadata.id,
+            ComponentTypes.Explorer,
+            DeploymentPhase.DEPLOYED,
+          );
+
+          await this.remoteConfig.persist();
+        }
+
         showVersionBanner(this.logger, config.releaseName, config.explorerVersion);
       },
     };
@@ -635,6 +655,8 @@ export class ExplorerCommand extends BaseCommand {
               config.namespace,
             );
 
+            config.newExplorerComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
             config.id = config.newExplorerComponent.metadata.id;
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
@@ -649,7 +671,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(ExplorerCommandType.ADD),
-        this.installExplorerTask(),
+        this.installExplorerTask(ExplorerCommandType.ADD),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
@@ -756,7 +778,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(ExplorerCommandType.UPGRADE),
-        this.installExplorerTask(),
+        this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
@@ -937,8 +959,10 @@ export class ExplorerCommand extends BaseCommand {
           config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
+
         // update explorer version in remote config
         this.remoteConfig.updateComponentVersion(ComponentTypes.Explorer, new SemVer(config.explorerVersion));
+
         await this.remoteConfig.persist();
       },
     };
@@ -970,16 +994,7 @@ export class ExplorerCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
   }
 
-  private async inferExplorerData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    ingressReleaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferExplorerData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferExplorerId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
