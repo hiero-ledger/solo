@@ -589,47 +589,11 @@ export class NodeCommandTasks {
       );
     }
 
-    if (status !== NodeStatusCodes.FREEZE_COMPLETE) {
-      await this.waitForNodeGrpcReady(namespace, nodeAlias, context);
-    }
-
     if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
       await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
     }
 
     return podReference;
-  }
-
-  private async waitForNodeGrpcReady(
-    namespace: NamespaceName,
-    nodeAlias: NodeAlias,
-    context: string,
-    maxAttempts: number = 20,
-    delayMs: number = 250,
-  ): Promise<void> {
-    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-    const grpcReadyCommand: string = `timeout 1 bash -lc '</dev/tcp/127.0.0.1/${constants.GRPC_PORT}' >/dev/null 2>&1`;
-
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        await container.execContainer(['bash', '-c', grpcReadyCommand]);
-        this.logger.debug(
-          `Confirmed gRPC listener for ${nodeAlias} after ${attempt} attempt(s) on port ${constants.GRPC_PORT}`,
-        );
-        return;
-      } catch (error) {
-        this.logger.debug(
-          `Waiting for gRPC listener for ${nodeAlias}: attempt ${attempt}/${maxAttempts}: ` +
-            `${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-
-      await sleep(Duration.ofMillis(delayMs));
-    }
-
-    throw new SoloError(
-      `Node ${nodeAlias} did not open gRPC port ${constants.GRPC_PORT} after ${maxAttempts} attempts`,
-    );
   }
 
   /** Return task for check if node proxies are ready */
