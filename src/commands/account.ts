@@ -738,13 +738,17 @@ export class AccountCommand extends BaseCommand {
                   .execContainer([
                     'sh',
                     '-c',
+                    // Credentials are read from the mounted secret file or the REDIS_PASSWORD env var
+                    // already present inside the container — never passed as a CLI argument.
+                    // REDISCLI_AUTH is the env var that redis-cli reads natively, so the password
+                    // never appears in the process argument list and is not visible in `ps` output.
                     'PASSWORD_FILE="${REDIS_PASSWORD_FILE:-/opt/bitnami/redis/secrets/redis-password}"; ' +
-                      'PASSWORD="${REDIS_PASSWORD:-$(cat "$PASSWORD_FILE" 2>/dev/null)}"; ' +
-                      'if [ -z "$PASSWORD" ]; then echo "REDIS password not found" >&2; exit 1; fi; ' +
+                      'export REDISCLI_AUTH="${REDIS_PASSWORD:-$(cat "$PASSWORD_FILE" 2>/dev/null)}"; ' +
+                      'if [ -z "$REDISCLI_AUTH" ]; then echo "REDIS password not found" >&2; exit 1; fi; ' +
                       'if command -v redis-cli >/dev/null 2>&1; then ' +
-                      '  redis-cli -a "$PASSWORD" --no-auth-warning FLUSHALL; ' +
+                      '  redis-cli FLUSHALL; ' +
                       'else ' +
-                      '  /opt/bitnami/redis/bin/redis-cli -a "$PASSWORD" --no-auth-warning FLUSHALL; ' +
+                      '  /opt/bitnami/redis/bin/redis-cli FLUSHALL; ' +
                       'fi',
                   ]);
               }

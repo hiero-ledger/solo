@@ -1817,18 +1817,23 @@ export class NodeCommandTasks {
               const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
               await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
 
-              const startCommand: string = constants.ENABLE_S6_IMAGE
-                ? `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
-                  'rm -f /run/service/network-node/down /run/s6/legacy-services/network-node/down && ' +
-                  '/command/s6-svc -d /run/service/network-node || true; ' +
-                  '/command/s6-svc -u /run/service/network-node || true; ' +
-                  'for attempt in $(seq 1 15); do ' +
-                  "  /command/s6-svstat /run/service/network-node | grep -q '^up' && " +
-                  "  ps -ef | grep -q '[j]ava' && exit 0; " +
-                  '  sleep 1; ' +
-                  'done; ' +
-                  'exit 1'
-                : 'systemctl stop network-node || true && systemctl enable --now network-node';
+              const startCommand: string = [
+                // Mark the service as intentionally enabled and clear the s6 "down" file
+                // so the supervisor will allow it to run.
+                `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+                'rm -f /run/service/network-node/down',
+                // Reset any lingering supervisor state, then signal s6 to bring the service up.
+                // Both commands use || true because the service may already be in the target state.
+                '/command/s6-svc -d /run/service/network-node || true',
+                '/command/s6-svc -u /run/service/network-node || true',
+                // s6-svc -u is fire-and-forget, so poll until the supervisor reports "up"
+                // and the JVM process is visible — equivalent to systemctl's synchronous start.
+                `for attempt in $(seq 1 ${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}); do`,
+                `  /command/s6-svstat /run/service/network-node | grep -q '^up' && ps -ef | grep -q '[j]ava' && exit 0`,
+                '  sleep 1',
+                'done',
+                'exit 1',
+              ].join('\n');
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -2126,20 +2131,19 @@ export class NodeCommandTasks {
               task: async () => {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                if (constants.ENABLE_S6_IMAGE) {
-                  await container.execContainer([
-                    'bash',
-                    '-c',
-                    `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
-                      '/command/s6-svc -D /run/service/network-node',
-                  ]);
+                await container.execContainer([
+                  'bash',
+                  '-c',
+                  [
+                    // Remove the enabled flag so s6 won't restart the service after it stops.
+                    `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+                    // -D sends SIGTERM and writes the down file, preventing s6 from auto-restarting.
+                    '/command/s6-svc -D /run/service/network-node',
+                  ].join('\n'),
+                ]);
 
-                  // Wait for graceful shutdown
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-                } else {
-                  // systemd stop (legacy)
-                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
-                }
+                // Wait for graceful shutdown
+                await sleep(Duration.ofMillis(3000));
               },
             });
           }
