@@ -104,6 +104,7 @@ interface MirrorNodeDeployConfigClass {
   isLegacyChartInstalled: boolean;
   id: number;
   soloChartVersion: string;
+  deployment: DeploymentName;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
   installSharedResources: boolean;
 }
@@ -539,9 +540,13 @@ export class MirrorNodeCommand extends BaseCommand {
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
     const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
-    const shouldReuseValues: boolean = currentVersion
+    let shouldReuseValues: boolean = currentVersion
       ? semver.gt(currentVersion, constants.MIRROR_NODE_VERSION_BOUNDARY)
       : false; // If no current version (first install), don't reuse values
+
+    if (commandType === MirrorNodeCommandType.ADD) {
+      shouldReuseValues = false;
+    }
 
     await this.chartManager.upgrade(
       config.namespace,
@@ -1149,17 +1154,10 @@ END $grant$;`;
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
 
-            const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+            config.deployment = this.configManager.getFlag(flags.deployment);
 
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              deploymentName,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-
-            const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-            const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+            const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+            const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
@@ -1172,7 +1170,7 @@ END $grant$;`;
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=${constants.MIRROR_NODE_PINGER_TPS}`;
 
               const operatorId: string =
-                config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+                config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
               if (config.operatorKey) {
@@ -1238,18 +1236,29 @@ END $grant$;`;
         },
         this.addMirrorNodeComponents(),
         this.enableSharedResourcesTask(),
+        {
+          title: 'load node client',
+          task: async ({config}): Promise<void> => {
+            await this.accountManager.loadNodeClient(
+              config.namespace,
+              this.remoteConfig.getClusterRefs(),
+              config.deployment,
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
+            );
+          },
+        },
         this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
         this.enablePortForwardingTask(),
-        // TODO only show this if we are not running in one-shot mode
-        // {
-        //   title: 'Show user messages',
-        //   task: (): void => {
-        //     this.logger.showAllMessageGroups();
-        //   },
-        // },
+        {
+          title: 'Show user messages',
+          skip: (): boolean => this.oneShotState.isActive(),
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1743,7 +1752,7 @@ END $grant$;`;
     return {
       title: 'Add mirror node to remote config',
       skip: (context_): boolean => {
-        return !this.remoteConfig.isLoaded() || context_.config.isChartInstalled;
+        return !this.remoteConfig.isLoaded() || context_.config.isChartInstalled || this.oneShotState.isActive();
       },
       task: async (context_): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(

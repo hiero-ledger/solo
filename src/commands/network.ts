@@ -14,7 +14,9 @@ import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
   addRootImageValues,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
+  prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
@@ -60,7 +62,6 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
-import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
@@ -76,8 +77,6 @@ import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node
 import {Version} from '../business/utils/version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
-import {SoloLogger} from '../core/logging/solo-logger.js';
-import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import semver from 'semver/preload.js';
 import {PackageDownloader} from '../core/package-downloader.js';
@@ -432,7 +431,7 @@ export class NetworkCommand extends BaseCommand {
       jfrFile,
     );
 
-    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+    const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
@@ -1564,11 +1563,7 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
-                await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
-                  consensusNode,
-                  this.logger,
-                  this.k8Factory,
-                );
+                await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
@@ -1635,102 +1630,6 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  /**
-   * @param consensusNode - the targeted consensus node
-   * @param logger
-   * @param k8Factory
-   */
-  public static async createAndCopyBlockNodeJsonFileForConsensusNode(
-    consensusNode: ConsensusNode,
-    logger: SoloLogger,
-    k8Factory: K8Factory,
-  ): Promise<void> {
-    const {
-      nodeId,
-      context,
-      name: nodeAlias,
-      blockNodeMap,
-      externalBlockNodeMap,
-      namespace: namespaceNameAsString,
-    } = consensusNode;
-
-    const namespace: NamespaceName = NamespaceName.of(namespaceNameAsString);
-
-    const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
-
-    const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
-    const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-
-    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
-
-    // Check if the file exists before copying
-    if (!fs.existsSync(blockNodesJsonPath)) {
-      logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
-      return;
-    }
-
-    const k8: K8 = k8Factory.getK8(context);
-
-    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-
-    await container.execContainer('pwd');
-    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
-
-    await container.execContainer(`mkdir -p ${targetDirectory}`);
-
-    // Copy the file and rename it to block-nodes.json in the destination
-    await container.copyTo(blockNodesJsonPath, targetDirectory);
-
-    // If using node-specific files, rename the copied file to the standard name
-    const sourceFilename: string = path.basename(blockNodesJsonPath);
-    await container.execContainer(
-      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-    );
-
-    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
-    const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
-
-    const lines: string[] = applicationPropertiesData.split('\n');
-
-    // Remove line to enable overriding below.
-    for (const line of lines) {
-      if (line === 'blockStream.streamMode=RECORDS') {
-        lines.splice(lines.indexOf(line), 1);
-      }
-    }
-
-    // Switch to block streaming.
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
-      lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
-    }
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
-      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
-    }
-
-    await k8.configMaps().update(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME, {
-      ['application.properties']: lines.join('\n'),
-    });
-
-    const configName: string = `network-${nodeAlias}-data-config-cm`;
-    const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
-
-    await (configMapExists
-      ? k8.configMaps().update(namespace, configName, {'block-nodes.json': blockNodesJsonData})
-      : k8.configMaps().create(namespace, configName, {}, {'block-nodes.json': blockNodesJsonData}));
-
-    logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
-
-    const updatedApplicationPropertiesFilePath: string = PathEx.join(
-      constants.SOLO_CACHE_DIR,
-      'application.properties',
-    );
-
-    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
