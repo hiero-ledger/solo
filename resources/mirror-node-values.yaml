@@ -34,15 +34,15 @@ importer:
       memory: 2000Mi
   readinessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   livenessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   startupProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   envFrom:
     - secretRef:
@@ -95,15 +95,15 @@ grpc:
       memory: 1000Mi
   readinessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   livenessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   startupProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
 postgresql:
   persistence:
@@ -148,15 +148,15 @@ rest:
       memory: 500Mi
   readinessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   livenessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   startupProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   monitor:
     enabled: false
@@ -184,15 +184,15 @@ restjava:
       memory: 500Mi
   readinessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   livenessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   startupProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
 web3:
   nodeSelector: {}
@@ -214,15 +214,15 @@ web3:
       memory: 1000Mi
   readinessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   livenessProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
   startupProbe:
     initialDelaySeconds: 0
-    periodSeconds: 5
+    periodSeconds: 1
     failureThreshold: 60
 
 # config for subchart hiero-mirror/monitor
@@ -285,4 +285,4 @@ monitor:
   readinessProbe:
     failureThreshold: 60
     initialDelaySeconds: 0
-    timeoutSeconds: 2
+    timeoutSeconds: 1

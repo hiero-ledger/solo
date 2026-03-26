@@ -302,7 +302,7 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private installCertManagerTask(): SoloListrTask<AnyListrContext> {
+  private installCertManagerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install cert manager',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableExplorerTls,
@@ -351,7 +351,9 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         // sleep for a few seconds to allow cert-manager to be ready
-        await sleep(Duration.ofSeconds(10));
+        if (commandType === ExplorerCommandType.UPGRADE) {
+          await sleep(Duration.ofSeconds(10));
+        }
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
@@ -713,7 +715,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         restoreConfig(this.loadRemoteConfigTask(argv)),
         restoreConfig(this.addExplorerComponents()),
-        restoreConfig(this.installCertManagerTask()),
+        restoreConfig(this.installCertManagerTask(ExplorerCommandType.ADD)),
         restoreConfig(this.installExplorerTask(ExplorerCommandType.ADD)),
         restoreConfig(this.installExplorerIngressControllerTask()),
         restoreConfig(this.checkExplorerPodIsReadyTask()),
@@ -819,7 +821,7 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
         this.loadRemoteConfigTask(argv),
-        this.installCertManagerTask(),
+        this.installCertManagerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
