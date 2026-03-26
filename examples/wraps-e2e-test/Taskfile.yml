@@ -21,8 +21,9 @@ vars:
   CLUSTER_REFERENCE: "kind-wraps-e2e-cluster"
 
   # WRAPs requires consensus node >= v0.72.0
-  # Override via CONSENSUS_NODE_VERSION env var
-  CN_VERSION: '{{default "latest" (env "CONSENSUS_NODE_VERSION")}}'
+  # WRAPS_CN_VERSION env var overrides; default pins to the minimum required version.
+  # Intentionally does NOT inherit CONSENSUS_NODE_VERSION (set to v0.70.0 in CI for other tests).
+  CN_VERSION: '{{default "v0.72.0" (env "WRAPS_CN_VERSION")}}'
   MIRROR_NODE_VERSION_FLAG: ""
 
   # Port-forward managed by solo CLI automatically during deployment
