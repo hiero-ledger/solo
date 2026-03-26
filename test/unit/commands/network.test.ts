@@ -355,4 +355,66 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
   });
+
+  describe('fetchWithRetry', (): void => {
+    let networkCommand: NetworkCommand;
+    let fetchStub: SinonStub;
+
+    beforeEach(async (): Promise<void> => {
+      resetForTest();
+      networkCommand = container.resolve(NetworkCommand);
+      fetchStub = sinon.stub(globalThis, 'fetch' as any);
+    });
+
+    afterEach((): void => {
+      sinon.restore();
+    });
+
+    it('returns the response immediately on success', async (): Promise<void> => {
+      const mockResponse: Partial<Response> = {status: 200, ok: true};
+      fetchStub.resolves(mockResponse as Response);
+
+      // @ts-expect-error - TS2341: private method
+      const result: Response = await networkCommand.fetchWithRetry('https://example.com/crd.yaml');
+
+      expect(result.status).to.equal(200);
+      expect(fetchStub.callCount).to.equal(1);
+    });
+
+    it('retries on 429 and succeeds on subsequent attempt', async (): Promise<void> => {
+      const tooManyRequests: Partial<Response> = {status: 429, statusText: 'Too Many Requests', ok: false};
+      const success: Partial<Response> = {status: 200, ok: true};
+      fetchStub.onFirstCall().resolves(tooManyRequests as Response);
+      fetchStub.onSecondCall().resolves(success as Response);
+
+      // @ts-expect-error - TS2341: private method
+      const result: Response = await networkCommand.fetchWithRetry('https://example.com/crd.yaml', 3, 1);
+
+      expect(result.status).to.equal(200);
+      expect(fetchStub.callCount).to.equal(2);
+    });
+
+    it('throws after exhausting all retries on persistent 429', async (): Promise<void> => {
+      const tooManyRequests: Partial<Response> = {status: 429, statusText: 'Too Many Requests', ok: false};
+      fetchStub.resolves(tooManyRequests as Response);
+
+      // @ts-expect-error - TS2341: private method
+      await expect(networkCommand.fetchWithRetry('https://example.com/crd.yaml', 2, 1)).to.be.rejectedWith(
+        'Failed to download CRD YAML: 429 Too Many Requests',
+      );
+
+      expect(fetchStub.callCount).to.equal(3); // initial + 2 retries
+    });
+
+    it('does not retry on non-429 error responses', async (): Promise<void> => {
+      const notFound: Partial<Response> = {status: 404, statusText: 'Not Found', ok: false};
+      fetchStub.resolves(notFound as Response);
+
+      // @ts-expect-error - TS2341: private method
+      const result: Response = await networkCommand.fetchWithRetry('https://example.com/crd.yaml', 3, 1);
+
+      expect(result.status).to.equal(404);
+      expect(fetchStub.callCount).to.equal(1);
+    });
+  });
 });

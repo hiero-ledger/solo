@@ -984,6 +984,27 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
+   * Fetch a URL with exponential-backoff retry on HTTP 429 (Too Many Requests).
+   * Retries up to maxRetries times; waits retryDelayMs * 2^attempt milliseconds between attempts.
+   */
+  private async fetchWithRetry(url: string, maxRetries: number = 5, retryDelayMs: number = 2000): Promise<Response> {
+    let lastError: Error | undefined;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const response: Response = await fetch(url);
+      if (response.status !== 429) {
+        return response;
+      }
+      lastError = new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
+      if (attempt < maxRetries) {
+        const delay: number = retryDelayMs * 2 ** attempt;
+        this.logger.warn(`Received 429 Too Many Requests from ${url}; retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise<void>(resolve => setTimeout(resolve, delay));
+      }
+    }
+    throw lastError;
+  }
+
+  /**
    * Ensure the PodLogs CRD from Grafana Alloy is installed
    */
   private async ensurePodLogsCrd({contexts}: NetworkDeployConfigClass): Promise<void> {
@@ -1003,7 +1024,7 @@ export class NetworkCommand extends BaseCommand {
 
       // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
-        const response: Response = await fetch(CRD_URL);
+        const response: Response = await this.fetchWithRetry(CRD_URL);
 
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
