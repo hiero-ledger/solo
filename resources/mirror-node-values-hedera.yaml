@@ -33,8 +33,16 @@ importer:
       cpu: 1000m
       memory: 2000Mi
   readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   envFrom:
     - secretRef:
@@ -83,8 +91,16 @@ grpc:
       cpu: 500m
       memory: 1000Mi
   readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
 postgresql:
   persistence:
@@ -128,8 +144,16 @@ rest:
       cpu: 500m
       memory: 500Mi
   readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   monitor:
     enabled: false
@@ -156,8 +180,16 @@ restjava:
       cpu: 500m
       memory: 500Mi
   readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
 web3:
   nodeSelector: {}
@@ -178,8 +210,16 @@ web3:
       cpu: 1000m
       memory: 1000Mi
   readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
   livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
     failureThreshold: 60
 
 # config for subchart hedera-mirror/monitor
@@ -239,3 +279,7 @@ monitor:
                 enabled: true
                 samplePercent: 1
           network: OTHER
+  readinessProbe:
+    failureThreshold: 60
+    initialDelaySeconds: 0
+    timeoutSeconds: 2
