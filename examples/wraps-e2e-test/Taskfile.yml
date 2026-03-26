@@ -131,7 +131,6 @@ tasks:
           $SOLO_COMMAND consensus node start \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} \
-            --release-tag {{ .CN_VERSION }} \
             --quiet-mode --dev
 
       # Add mirror node to verify blocks are being produced
