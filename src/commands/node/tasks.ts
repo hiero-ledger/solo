@@ -1829,7 +1829,7 @@ export class NodeCommandTasks {
                 // s6-svc -u is fire-and-forget, so poll until the supervisor reports "up"
                 // and the JVM process is visible — equivalent to systemctl's synchronous start.
                 `for attempt in $(seq 1 ${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}); do`,
-                `  /command/s6-svstat /run/service/network-node | grep -q '^up' && ps -ef | grep -q '[j]ava' && exit 0`,
+                "  /command/s6-svstat /run/service/network-node | grep -q '^up' && ps -ef | grep -q '[j]ava' && exit 0",
                 '  sleep 1',
                 'done',
                 'exit 1',
