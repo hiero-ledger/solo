@@ -438,8 +438,13 @@ jobs:
           $wslScript = "/mnt/$driveLetter/$relativePath"
           Write-Host "WSL script path: $wslScript"
           wsl -d Ubuntu -- bash $wslScript
-          $env:DOCKER_HOST = "tcp://localhost:2375"
-          echo "DOCKER_HOST=tcp://localhost:2375" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # WSL2 localhost port forwarding is unreliable on GitHub-hosted runners.
+          # Use the WSL2 VM's actual IP address instead of localhost.
+          $wslIp = (wsl -d Ubuntu -- hostname -I).Trim().Split()[0]
+          Write-Host "WSL2 IP: $wslIp"
+          $dockerHost = "tcp://${wslIp}:2375"
+          $env:DOCKER_HOST = $dockerHost
+          echo "DOCKER_HOST=$dockerHost" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           # Verify Windows-side docker CLI can reach the WSL2 daemon
           $maxWait = 30
           $waited = 0
