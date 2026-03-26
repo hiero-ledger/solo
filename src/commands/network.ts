@@ -22,7 +22,6 @@ import {
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
@@ -1014,7 +1013,9 @@ export class NetworkCommand extends BaseCommand {
       lastError = new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
       if (attempt < maxRetries) {
         const delay: number = retryDelayMs * 2 ** attempt;
-        this.logger.warn(`Received 429 Too Many Requests from ${url}; retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+        this.logger.warn(
+          `Received 429 Too Many Requests from ${url}; retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`,
+        );
         await new Promise<void>(resolve => setTimeout(resolve, delay));
       }
     }
@@ -1026,8 +1027,7 @@ export class NetworkCommand extends BaseCommand {
    */
   private async ensurePodLogsCrd({contexts}: NetworkDeployConfigClass): Promise<void> {
     const PODLOGS_CRD: string = 'podlogs.monitoring.grafana.com';
-    const CRD_FILE_PATH: string =
-      'operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml';
+    const CRD_FILE_PATH: string = 'operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml';
 
     // Use the GitHub Contents API (api.github.com) instead of raw.githubusercontent.com.
     //
@@ -1078,7 +1078,7 @@ export class NetworkCommand extends BaseCommand {
         // inserted every 60 characters by GitHub.  Strip all whitespace before decoding
         // so Buffer.from() receives a clean base64 string.
         const json: {content: string} = (await response.json()) as {content: string};
-        const yamlContent: string = Buffer.from(json.content.replace(/\s/g, ''), 'base64').toString('utf8');
+        const yamlContent: string = Buffer.from(json.content.replaceAll(/\s/g, ''), 'base64').toString('utf8');
         fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
       }
 

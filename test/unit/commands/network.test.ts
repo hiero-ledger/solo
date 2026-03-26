@@ -375,7 +375,9 @@ describe('NetworkCommand unit tests', (): void => {
       fetchStub.resolves(mockResponse as Response);
 
       // @ts-expect-error - TS2341: private method
-      const result: Response = await networkCommand.fetchWithRetry('https://api.github.com/repos/grafana/alloy/contents/foo.yaml');
+      const result: Response = await networkCommand.fetchWithRetry(
+        'https://api.github.com/repos/grafana/alloy/contents/foo.yaml',
+      );
 
       expect(result.status).to.equal(200);
       expect(fetchStub.callCount).to.equal(1);
@@ -403,7 +405,11 @@ describe('NetworkCommand unit tests', (): void => {
       fetchStub.onSecondCall().resolves(success as Response);
 
       // @ts-expect-error - TS2341: private method
-      const result: Response = await networkCommand.fetchWithRetry('https://api.github.com/repos/grafana/alloy/contents/foo.yaml', 3, 1);
+      const result: Response = await networkCommand.fetchWithRetry(
+        'https://api.github.com/repos/grafana/alloy/contents/foo.yaml',
+        3,
+        1,
+      );
 
       expect(result.status).to.equal(200);
       expect(fetchStub.callCount).to.equal(2);
@@ -414,9 +420,12 @@ describe('NetworkCommand unit tests', (): void => {
       fetchStub.resolves(tooManyRequests as Response);
 
       // @ts-expect-error - TS2341: private method
-      await expect(networkCommand.fetchWithRetry('https://api.github.com/repos/grafana/alloy/contents/foo.yaml', 2, 1)).to.be.rejectedWith(
-        'Failed to download CRD YAML: 429 Too Many Requests',
+      const retryPromise: Promise<Response> = networkCommand.fetchWithRetry(
+        'https://api.github.com/repos/grafana/alloy/contents/foo.yaml',
+        2,
+        1,
       );
+      await expect(retryPromise).to.be.rejectedWith('Failed to download CRD YAML: 429 Too Many Requests');
 
       expect(fetchStub.callCount).to.equal(3); // 1 initial attempt + 2 retries = maxRetries + 1
     });
@@ -429,7 +438,11 @@ describe('NetworkCommand unit tests', (): void => {
       fetchStub.resolves(notFound as Response);
 
       // @ts-expect-error - TS2341: private method
-      const result: Response = await networkCommand.fetchWithRetry('https://api.github.com/repos/grafana/alloy/contents/foo.yaml', 3, 1);
+      const result: Response = await networkCommand.fetchWithRetry(
+        'https://api.github.com/repos/grafana/alloy/contents/foo.yaml',
+        3,
+        1,
+      );
 
       expect(result.status).to.equal(404);
       expect(fetchStub.callCount).to.equal(1);

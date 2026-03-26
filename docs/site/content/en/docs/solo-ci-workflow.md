@@ -14,8 +14,9 @@ You’ll verify that your runner meets Docker resource requirements, install the
 You can use GitHub runners or self-hosted runners to deploy Solo.
 
 ### Minimum Requirements
-- 6 CPU cores
-- 12 GB of memory
+
+* 6 CPU cores
+* 12 GB of memory
 
 If these requirements aren’t met, some Solo components may hang or fail to install during deployment.
 
@@ -33,6 +34,7 @@ Add the following step to your workflow to verify your Docker environment:
       echo "CPU cores: $cpus"
       echo "Memory: ${mem_gb} GB"
 ```
+
 Expected Output:
 CPU cores: 6
 Memory: 12 GB
@@ -63,6 +65,7 @@ Next, install Kind to create and manage a local Kubernetes cluster in your workf
 ```
 
 ## Step 4: Install Solo CLI
+
 Install the Solo CLI globally using npm.
 Always pin the version to avoid unexpected workflow failures caused by breaking changes in newer CLI releases.
 
@@ -76,6 +79,7 @@ Always pin the version to avoid unexpected workflow failures caused by breaking 
 ```
 
 ## Step 5: Deploy Solo
+
 Deploy a Solo network to your Kind cluster.
 This creates and configures a fully functional local Hedera network including consensus node, mirror node, mirror node explorer and JSON RPC Relay.
 
@@ -138,5 +142,3 @@ Here’s the full workflow combining all the steps above:
       kind create cluster -n "${SOLO_CLUSTER_NAME}"
       solo one-shot single deploy | tee solo-deploy.log
 ```
-
-

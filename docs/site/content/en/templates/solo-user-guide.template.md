@@ -30,45 +30,61 @@ Choose your platform below:
 {{< tabpane >}}
 
 {{< tab header="macOS" lang="bash" >}}
+
 # 1. Install Homebrew (if not already installed)
+
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # 2. Install Docker Desktop
+
 # Download from: https://www.docker.com/products/docker-desktop
+
 # Start Docker Desktop and allocate at least 12 GB of memory:
+
 # Docker Desktop > Settings > Resources > Memory
 
 # 3. Remove existing npm based installs
+
 <!--lint ignore no-undefined-references-->
-[[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 ]] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
+
+\[\[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 ]] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
 
 # 4. Install Solo (this installs all other dependencies automatically)
+
 brew tap hiero-ledger/tools
 brew update
 brew install solo
 
 # Verify the installation
+
 solo --version
 {{< /tab >}}
 
 {{< tab header="Linux" lang="bash" >}}
+
 # 1. Install Homebrew for Linux
+
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Add Homebrew to your PATH
+
 echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
 # 2. Install Docker Engine
+
 # For Ubuntu/Debian:
+
 sudo apt-get update
 sudo apt-get install -y docker.io
 sudo systemctl enable docker
 sudo systemctl start docker
 sudo usermod -aG docker ${USER}
+
 # Log out and back in for group changes to take effect
 
 # 3. Install kubectl
+
 sudo apt update && sudo apt install -y ca-certificates curl
 ARCH="$(dpkg --print-architecture)"
 curl -fsSLo kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
@@ -76,40 +92,55 @@ chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
 # 4. Remove existing npm based installs
+
 <!--lint ignore no-undefined-references-->
-[[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 ]] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
+
+\[\[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 ]] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
 
 # 5. Install Solo (this installs all other dependencies automatically)
+
 brew tap hiero-ledger/tools
 brew update
 brew install solo
 
 # 6. Install Solo (this installs remaining dependencies automatically)
+
 brew install hiero-ledger/tools/solo
 
 # Verify the installation
+
 solo --version
 {{< /tab >}}
 
 {{< tab header="Windows (WSL2)" lang="bash" >}}
+
 # First, in Windows PowerShell (as Administrator):
+
 # wsl --install Ubuntu
+
 # Then reboot and open the Ubuntu terminal.
+
 # All commands below run in your Ubuntu (WSL2) terminal.
 
 # 1. Install Homebrew for Linux
+
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Add Homebrew to your PATH
+
 echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
 # 2. Install Docker Desktop for Windows
+
 # Download from: https://www.docker.com/products/docker-desktop
+
 # Enable WSL2 integration: Docker Desktop > Settings > Resources > WSL Integration
+
 # Allocate at least 12 GB of memory: Docker Desktop > Settings > Resources
 
 # 3. Install kubectl
+
 sudo apt update && sudo apt install -y ca-certificates curl
 ARCH="$(dpkg --print-architecture)"
 curl -fsSLo kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
@@ -117,21 +148,27 @@ chmod +x kubectl
 sudo mv kubectl /usr/local/bin/kubectl
 
 # 4. Remove existing npm based installs
+
 <!--lint ignore no-undefined-references-->
-[[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 ]] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
+
+\[\[ "$(command -v npm >/dev/null 2>&1 && echo 0 || echo 1)" -eq 0 ]] && { npm uninstall -g @hashgraph/solo >/dev/null 2>&1 || /bin/true }
 
 # 5. Install Solo (this installs all other dependencies automatically)
+
 brew tap hiero-ledger/tools
 brew update
 brew install solo
 
 # 6. Install Solo (this installs remaining dependencies automatically)
+
 brew install hiero-ledger/tools/solo
 
 # Verify the installation
+
 solo --version
 
 # IMPORTANT: Always run Solo commands from this WSL2 terminal.
+
 {{< /tab >}}
 
 {{< /tabpane >}}
@@ -180,6 +217,7 @@ solo one-shot single deploy
 ```
 
 That's it! This single command automatically:
+
 * Creates a local Kubernetes cluster
 * Sets up all required configurations
 * Deploys a consensus node
@@ -372,6 +410,7 @@ solo one-shot single destroy
 ```
 
 This command:
+
 * Removes all deployed pods and services
 * Cleans up the Kubernetes namespace
 * Deletes the Kind cluster

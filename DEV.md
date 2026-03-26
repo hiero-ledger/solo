@@ -2,39 +2,40 @@
 
 This document describes how to set up a local development environment and contribute to the Solo project.
 
----
+***
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
-- [Initial setup](#initial-setup)
-- [Logs and debugging](#logs-and-debugging)
-- [How to run the tests](#how-to-run-the-tests)
-- [Code formatting](#code-formatting)
-- [How to Update Component Versions](#how-to-update-component-versions)
-- [How to Inspect the Cluster](#how-to-inspect-the-cluster)
-  - [Kubectl](#kubectl)
-  - [K9s (Recommended)](#k9s-recommended)
-- [Pull Request Requirements](#pull-request-requirements)
-  - [DCO (Developer Certificate of Origin)](#dco-developer-certificate-of-origin)
-  - [Conventional Commit PR titles (required)](#conventional-commit-pr-titles-required)
-  - [Additional guidelines](#additional-guidelines)
+* [Prerequisites](#prerequisites)
+* [Initial setup](#initial-setup)
+* [Logs and debugging](#logs-and-debugging)
+* [How to run the tests](#how-to-run-the-tests)
+* [Code formatting](#code-formatting)
+* [How to Update Component Versions](#how-to-update-component-versions)
+* [How to Inspect the Cluster](#how-to-inspect-the-cluster)
+  * [Kubectl](#kubectl)
+  * [K9s (Recommended)](#k9s-recommended)
+* [Pull Request Requirements](#pull-request-requirements)
+  * [DCO (Developer Certificate of Origin)](#dco-developer-certificate-of-origin)
+  * [Conventional Commit PR titles (required)](#conventional-commit-pr-titles-required)
+  * [Additional guidelines](#additional-guidelines)
 
----
+***
 
 # Prerequisites
 
-- **Node.js** (use the version specified in the repository, if applicable)
-- **npm**
-- **Docker or Podman**
-- **Kubernetes** (local cluster such as kind, k3d, or equivalent)
-- **task** (Taskfile runner)
-- **Git**
-- **K9s** (optional)
+* **Node.js** (use the version specified in the repository, if applicable)
+* **npm**
+* **Docker or Podman**
+* **Kubernetes** (local cluster such as kind, k3d, or equivalent)
+* **task** (Taskfile runner)
+* **Git**
+* **K9s** (optional)
 
 # Initial setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/hiero-ledger/solo.git
 cd solo
@@ -47,64 +48,74 @@ $ npm install
 ```
 
 3. Install solo as a local CLI:
+
 ```bash
 $ npm link
 ```
+
 > *Notes*:
-> - This only needs to be done once.
-> - If solo already exists in your **PATH**, remove it first.
-> - Alternatively, you can run commands via: `npm run solo-test -- <COMMAND> <ARGS>`
+>
+> * This only needs to be done once.
+> * If solo already exists in your **PATH**, remove it first.
+> * Alternatively, you can run commands via: `npm run solo-test -- <COMMAND> <ARGS>`
 
 4. Run the CLI:
+
 ```bash
 $ solo
 ```
 
 ## Logs and debugging
-- Solo logs are written to:
+
+* Solo logs are written to:
+
 ```bash
 $HOME/.solo/logs/solo.log
 ```
 
-- A common debugging pattern is:
+* A common debugging pattern is:
+
 ```bash
 $ tail -f $HOME/.solo/logs/solo.log | jq
 ```
 
 # How to run the tests
 
-- Unit tests:
+* Unit tests:
   ```bash
   $ task test
   ```
 
-- All other Integration and E2E test tasks can be listed using
+* All other Integration and E2E test tasks can be listed using
   ```bash
   $ task --list-all
   ```
 
-
-
 # Code formatting
+
 Before committing any changes, always run:
+
 ```bash
 $ task format
 ```
 
 # How to Update Component Versions
-- Edit the component's version inside `/version.ts`
+
+* Edit the component's version inside `/version.ts`
 
 # How to Inspect the Cluster
+
 When debugging, it helps to inspect resources and logs in the Kubernetes cluster.
 
 ## *Kubectl*
 
 Common kubectl commands:
-- `kubectl get pods -A`
-- `kubectl get svc -A`
-- `kubectl get ingress -A`
-- `kubectl describe pod <pod-name> -n <namespace>`
-- `kubectl logs <pod-name> -n <namespace>`
+
+* `kubectl get pods -A`
+* `kubectl get svc -A`
+* `kubectl get ingress -A`
+* `kubectl describe pod <pod-name> -n <namespace>`
+* `kubectl logs <pod-name> -n <namespace>`
 
 *Official Documentation*: https://kubernetes.io/docs/reference/kubectl/
 
@@ -113,11 +124,13 @@ Common kubectl commands:
 > **K9s** is the primary tool used by the Solo team to inspect and debug Solo deployments.
 
 Why **K9s**:
-- Terminal UI that makes it faster to navigate Kubernetes resources
-- Quickly view logs, events, and descriptions
-- Simple and intuitive
+
+* Terminal UI that makes it faster to navigate Kubernetes resources
+* Quickly view logs, events, and descriptions
+* Simple and intuitive
 
 Start **K9s**:
+
 ```bash
 $ k9s -A
 ```
@@ -150,8 +163,8 @@ If your commits are not signed, they will be rejected even if the DCO check pass
 
 To enable commit signing, see GitHub documentation:
 
-- [GPG signing](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account)
-- [SSH signing](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
+* [GPG signing](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account)
+* [SSH signing](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
 
 After setup, verify signing is enabled:
 
@@ -160,22 +173,25 @@ $ git config --global commit.gpgsign true
 ```
 
 Both are required:
-- DCO sign-off line (`-s`)
-- Cryptographic signature (*Verified commit*)
+
+* DCO sign-off line (`-s`)
+* Cryptographic signature (*Verified commit*)
 
 ## Conventional Commit PR titles *(required)*
 
 Pull request titles must follow Conventional Commits.
 
 > *Examples*:
-> - `feat: add support for grpc-web fqdn endpoints`
-> - `fix: correct version resolution for platform components`
-> - `docs: update contributing guide`
-> - `chore: bump dependency versions`
+>
+> * `feat: add support for grpc-web fqdn endpoints`
+> * `fix: correct version resolution for platform components`
+> * `docs: update contributing guide`
+> * `chore: bump dependency versions`
 
 This is required for consistent release notes and changelog generation.
 
 ## Additional guidelines
-- Prefer small, focused PRs that are easy to review.
-- If you are unsure where to start, open a draft PR early to get feedback.
-- Add description and link all related issues to the PR.
+
+* Prefer small, focused PRs that are easy to review.
+* If you are unsure where to start, open a draft PR early to get feedback.
+* Add description and link all related issues to the PR.

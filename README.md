@@ -1,4 +1,3 @@
-
 # Solo
 
 [![NPM Version](https://img.shields.io/npm/v/%40hashgraph%2Fsolo?logo=npm)](https://www.npmjs.com/package/@hashgraph/solo)
@@ -56,6 +55,7 @@ npm install -g @hashgraph/solo@latest
 For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/main/docs/solo-user-guide/).
 
 ## Documentation
+
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
 [solo docs](https://solo.hiero.org/main/docs/solo-user-guide/#one-shot-deployment))
 
