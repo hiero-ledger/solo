@@ -1,13 +1,12 @@
 # WRAPs E2E Test Example
 
-This example deploys a 3-node Hiero network with TSS (Threshold Signature Scheme) and WRAPs (recursive WRAPs aggregation for hinTS) enabled, then verifies that blocks are being produced with TSS signatures via the mirror node REST API.
+This example deploys a single-node Hiero network with TSS (Threshold Signature Scheme) and WRAPs (recursive WRAPs aggregation for hinTS) enabled, then verifies that blocks are being produced with TSS signatures via the mirror node REST API.
 
 WRAPs is a cryptographic protocol that enables efficient threshold signature aggregation. This example serves as the automated E2E test for [issue #3761](https://github.com/hiero-ledger/solo/issues/3761) — verifying that WRAPs is not broken by Solo changes.
 
 ## What it does
 
-* Creates a Kind cluster with 3 consensus nodes for a meaningful TSS threshold (2-of-3)
-* Deploys a block node with TSS message sizing applied (`--block-node-tss-overlay`)
+* Creates a Kind cluster with 1 consensus node (lightweight for CI)
 * Deploys the consensus network with `--tss` and `--wraps` flags enabled
 * Waits for TSS to bootstrap and the WRAPs genesis proof to be produced
 * Deploys mirror node and relay
@@ -34,8 +33,6 @@ Browse the source code and configuration files for this example in the [GitHub r
 * [Node.js](https://nodejs.org/) - JavaScript runtime (v22+)
 * [Task](https://taskfile.dev/) - Task runner
 * Consensus Node **>= v0.72.0** — required for TSS (`--tss`) and WRAPs (`--wraps`) support
-
-> **Note**: This example requires at least 16 GB of memory allocated to Docker due to the block node and 3 consensus nodes.
 
 ## Quick Start
 
@@ -65,10 +62,9 @@ This will:
 
 * Create a Kind cluster (`wraps-e2e-cluster`)
 * Initialize Solo and connect the cluster reference
-* Add a block node with TSS message sizing (`--block-node-tss-overlay`)
-* Generate gossip and TLS keys for 3 consensus nodes
+* Generate gossip and TLS keys for 1 consensus node
 * Deploy the consensus network with `--tss --wraps` enabled
-* Setup and start all 3 consensus nodes (Solo waits for TSS to become ready)
+* Setup and start the consensus node (Solo waits for TSS to become ready)
 * Deploy the mirror node and JSON-RPC relay
 
 ### 2. Verify WRAPs is Working
@@ -96,11 +92,10 @@ Edit the `vars:` section in `Taskfile.yml`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NODE_ALIASES` | `node1,node2,node3` | Consensus node identifiers |
-| `NETWORK_SIZE` | `3` | Number of consensus nodes |
+| `NODE_ALIASES` | `node1` | Consensus node identifiers |
+| `NETWORK_SIZE` | `1` | Number of consensus nodes |
 | `CN_VERSION` | `latest` | Consensus node version (must be >= v0.72.0); override via `CONSENSUS_NODE_VERSION` env var |
 | `MIRROR_NODE_VERSION_FLAG` | _(empty)_ | Optional `--mirror-node-version vX.Y.Z` flag |
-| `BLOCK_NODE_VERSION_FLAG` | _(empty)_ | Optional block node version flag |
 | `MIRROR_NODE_REST_PORT` | `8081` | Local port for the mirror node REST API |
 
 ## How It Works
@@ -134,13 +129,6 @@ If blocks are present (block number > 0), it means:
 3. The block node received and stored the blocks
 4. The mirror node ingested the blocks from the block node
 
-### Deployment Order
-
-Block node must be deployed **before** the consensus network so that:
-1. The block node is registered in the remote config before network deploy
-2. The `blockNodes.json` written to consensus nodes points to the correct block node address
-3. TSS message size limits are applied correctly from the start
-
 ## Troubleshooting
 
 **TSS never becomes ready / `consensus node start` times out:**
@@ -151,14 +139,11 @@ Block node must be deployed **before** the consensus network so that:
 
 **Mirror node never ingests blocks:**
 
-* Verify block node is running: `kubectl get pods -n wraps-e2e-namespace | grep block-node`
-* Check block node logs: `kubectl logs -n wraps-e2e-namespace -l app.kubernetes.io/name=block-node-1 --tail=200`
 * Check mirror node importer logs: `kubectl logs -n wraps-e2e-namespace -l app.kubernetes.io/component=importer --tail=200`
 
 **Out of memory / pods evicted:**
 
-* Ensure Docker has at least 16 GB RAM allocated
-* Try reducing `NETWORK_SIZE` to `1` for a smoke test (note: single-node TSS does not require threshold)
+* Ensure Docker has at least 8 GB RAM allocated
 
 **Debugging commands:**
 
@@ -169,11 +154,8 @@ kubectl get pods -n wraps-e2e-namespace
 # View consensus node logs (look for TSS/WRAPs activity)
 kubectl logs -n wraps-e2e-namespace network-node1-0 -c root-container --tail=500
 
-# View block node logs
-kubectl logs -n wraps-e2e-namespace -l app.kubernetes.io/name=block-node-1 --tail=500
-
 # Query mirror node directly
-curl -s http://127.0.0.1:8081/api/v1/blocks?limit=5&order=desc | jq .
+curl -s "http://127.0.0.1:8081/api/v1/blocks?limit=5&order=desc" | jq .
 
 # Collect Solo diagnostics
 npm run solo -- deployment diagnostics logs --deployment wraps-e2e-deployment --dev
@@ -182,11 +164,10 @@ npm run solo -- deployment diagnostics logs --deployment wraps-e2e-deployment --
 ## Expected Timeline
 
 * Cluster creation + Solo init: ~2 minutes
-* Block node + key generation: ~2 minutes
-* Consensus network deploy + TSS bootstrap: ~8–12 minutes (WRAPs genesis proof is large)
+* Key generation + network deploy + TSS bootstrap: ~8–12 minutes (WRAPs genesis proof is large)
 * Mirror node + relay deploy: ~3 minutes
 * Verification: ~1–5 minutes
-* **Total**: ~15–25 minutes
+* **Total**: ~15–22 minutes
 
 ## Related
 

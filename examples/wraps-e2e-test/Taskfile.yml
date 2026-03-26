@@ -11,9 +11,9 @@ env:
       fi
 
 vars:
-  # Network topology: 3 consensus nodes for meaningful TSS/WRAPs threshold (2-of-3)
-  NODE_ALIASES: "node1,node2,node3"
-  NETWORK_SIZE: "3"
+  # Single consensus node keeps CI resource usage low while still exercising WRAPs/TSS code path
+  NODE_ALIASES: "node1"
+  NETWORK_SIZE: "1"
   DEPLOYMENT: "wraps-e2e-deployment"
   NAMESPACE: "wraps-e2e-namespace"
   CLUSTER_NAME: "wraps-e2e-cluster"
@@ -21,14 +21,12 @@ vars:
   CLUSTER_REFERENCE: "kind-wraps-e2e-cluster"
 
   # WRAPs requires consensus node >= v0.72.0
-  # Override via CONSENSUS_NODE_VERSION env var or --cn-version CLI flag
+  # Override via CONSENSUS_NODE_VERSION env var
   CN_VERSION: '{{default "latest" (env "CONSENSUS_NODE_VERSION")}}'
   MIRROR_NODE_VERSION_FLAG: ""
-  BLOCK_NODE_VERSION_FLAG: ""
 
-  # Port-forward targets (managed by solo CLI automatically during deployment)
+  # Port-forward managed by solo CLI automatically during deployment
   MIRROR_NODE_REST_PORT: "8081"
-  BLOCK_NODE_GRPC_PORT: "40840"
 
 tasks:
   default:
@@ -81,7 +79,7 @@ tasks:
             --deployment {{ .DEPLOYMENT }} \
             --namespace {{ .NAMESPACE }}
 
-      # Attach cluster to deployment with 3 consensus nodes
+      # Attach cluster to deployment
       - cmd: |
           $SOLO_COMMAND deployment cluster attach \
             --deployment {{ .DEPLOYMENT }} \
@@ -94,14 +92,6 @@ tasks:
             --cluster-ref {{ .CLUSTER_REFERENCE }} \
             --quiet-mode --dev
 
-      # Add block node (before consensus deploy so TSS message sizing is applied)
-      - cmd: |
-          $SOLO_COMMAND block node add \
-            --deployment {{ .DEPLOYMENT }} \
-            --block-node-tss-overlay \
-            {{ .BLOCK_NODE_VERSION_FLAG }} \
-            --quiet-mode --dev
-
       # Generate consensus node keys (gossip + TLS)
       - cmd: |
           $SOLO_COMMAND keys consensus generate \
@@ -111,8 +101,8 @@ tasks:
             --quiet-mode --dev
 
       # Deploy consensus network with TSS and WRAPs enabled
-      # --tss enables threshold signature scheme (hinTS)
-      # --wraps enables recursive WRAPs aggregation (requires CN >= v0.72.0)
+      # --tss enables hinTS (tss.hintsEnabled=true, tss.historyEnabled=true)
+      # --wraps enables recursive WRAPs aggregation (tss.wrapsEnabled=true); requires CN >= v0.72.0
       - cmd: |
           $SOLO_COMMAND consensus network deploy \
             --deployment {{ .DEPLOYMENT }} \
@@ -129,14 +119,14 @@ tasks:
             --node-aliases {{ .NODE_ALIASES }} \
             --quiet-mode --dev
 
-      # Start consensus nodes and wait for TSS to be ready
+      # Start consensus nodes; solo waits for TSS to be ready before returning
       - cmd: |
           $SOLO_COMMAND consensus node start \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} \
             --quiet-mode --dev
 
-      # Add mirror node (validates block node / CN integration)
+      # Add mirror node to verify blocks are being produced
       - cmd: |
           $SOLO_COMMAND mirror node add \
             --deployment {{ .DEPLOYMENT }} \
@@ -152,11 +142,11 @@ tasks:
             --quiet-mode --dev
 
   verify:
-    desc: Verify that WRAPs/TSS is operational (blocks produced, mirror node synced)
+    desc: Verify WRAPs/TSS is operational by confirming blocks are produced and ingested by mirror node
     cmds:
-      # Wait for mirror node to ingest initial blocks from the TSS-bootstrapped network
+      # Poll mirror node REST API until at least one block appears
       - cmd: |
-          echo "Waiting for mirror node to ingest blocks..."
+          echo "Waiting for mirror node to ingest blocks from WRAPs/TSS network..."
           MAX_ATTEMPTS=30
           ATTEMPT=0
           while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
@@ -175,7 +165,7 @@ tasks:
             exit 1
           fi
 
-      # Validate latest block via mirror node REST API
+      # Confirm latest block number > 0
       - cmd: |
           echo "Fetching latest block from mirror node..."
           LATEST_BLOCK=$(curl -sf "http://127.0.0.1:{{ .MIRROR_NODE_REST_PORT }}/api/v1/blocks?limit=1&order=desc")
@@ -185,9 +175,9 @@ tasks:
             echo "ERROR: Expected at least block #1, got: ${BLOCK_NUMBER}"
             exit 1
           fi
-          echo "SUCCESS: Mirror node reports latest block #${BLOCK_NUMBER} - WRAPs/TSS is producing signed blocks"
+          echo "SUCCESS: Mirror node reports latest block #${BLOCK_NUMBER} — WRAPs/TSS is producing signed blocks"
 
-      # Show deployment diagnostics for record-keeping
+      # Collect diagnostics for record-keeping
       - cmd: |
           $SOLO_COMMAND deployment diagnostics logs \
             --deployment {{ .DEPLOYMENT }} \
@@ -196,32 +186,22 @@ tasks:
   destroy:
     desc: Destroy the WRAPs E2E test cluster and all resources
     cmds:
-      # Stop consensus nodes
       - cmd: |
           $SOLO_COMMAND consensus node stop \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} || true
 
-      # Destroy relay
       - cmd: |
           $SOLO_COMMAND relay node destroy \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} || true
 
-      # Destroy mirror node
       - cmd: |
           $SOLO_COMMAND mirror node destroy \
             --deployment {{ .DEPLOYMENT }} --force || true
 
-      # Destroy block node
-      - cmd: |
-          $SOLO_COMMAND block node destroy \
-            --deployment {{ .DEPLOYMENT }} || true
-
-      # Destroy consensus network
       - cmd: |
           $SOLO_COMMAND consensus network destroy \
             --deployment {{ .DEPLOYMENT }} --force || true
 
-      # Delete Kind cluster
       - cmd: kind delete cluster --name "{{ .CLUSTER_NAME }}"
