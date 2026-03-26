@@ -145,6 +145,7 @@ jobs:
           }
 
           cleanup() {
+            trap - SIGTERM SIGINT  # Prevent re-entry if a second signal arrives
             if [[ -n "${TASK_PID}" ]]; then
               echo "=== CANCELLATION SIGNAL RECEIVED ==="
               echo "Stopping task tree (PID ${TASK_PID}, PGID ${TASK_PGID:-?})..."
@@ -152,22 +153,32 @@ jobs:
               ps -eo pid,ppid,pgid,sid,comm --sort=ppid 2>/dev/null \
                 | awk -v root="${TASK_PID}" 'NR==1 || $2==root || $1==root' || true
 
-              # Layer 1: kill task's own process group (matches working flows)
+              # Layer 1: kill task's own process group
               if [[ -n "${TASK_PGID}" ]]; then
                 kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
               fi
               # Layer 2: kill task PID directly
               kill -TERM "${TASK_PID}" 2>/dev/null || true
-              # Layer 3: recursively kill all descendants (reaches mocha across PG boundaries)
+              # Layer 3: recursively kill all descendants across PG boundaries
               kill_tree "${TASK_PID}" TERM
+
               sleep 2
-              # Repeat with SIGKILL for any survivors
+
+              # SIGKILL anything that survived SIGTERM
               if [[ -n "${TASK_PGID}" ]]; then
                 kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
               fi
               kill -KILL "${TASK_PID}" 2>/dev/null || true
               kill_tree "${TASK_PID}" KILL
-              wait "${TASK_PID}" 2>/dev/null || true
+
+              # Pattern-kill as final fallback: catches any mocha/node process
+              # that escaped the tree walk (e.g. re-parented under init after task died)
+              pkill -KILL -f "performance.test" 2>/dev/null || true
+              pkill -KILL -f "test-e2e-performance" 2>/dev/null || true
+
+              # Do NOT wait "${TASK_PID}" here — if task is stuck in an
+              # uninterruptible sleep (D state), wait blocks forever and keeps
+              # the GitHub Actions step alive until the 90-minute job timeout.
             fi
             exit 130
           }
