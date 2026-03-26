@@ -735,7 +735,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       const cleanupPromises: Promise<void>[] = [];
       if (oneShotLease) {
         cleanupPromises.push(
-          oneShotLease.release().catch((error): void => {
+          oneShotLease.release(true).catch((error): void => {
             this.logger.error('Error releasing one-shot lease:', error);
           }),
         );

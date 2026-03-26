@@ -51,9 +51,10 @@ export interface Lock {
    * Releases the lock. If the lock is expired or held by the same process, it deletes the lock.
    * If the lock is held by another process, then an exception is thrown.
    *
+   * @param immediate - If true, the safe sleep period is skipped and the lock is released immediately
    * @throws LeaseRelinquishmentError - If the lock is already acquired by another process or an error occurs during relinquishment.
    */
-  release(): Promise<void>;
+  release(immediate?: boolean): Promise<void>;
 
   /**
    * Attempts to relock the lock, by calling the relock method. If an exception is thrown, it is caught and false is returned.

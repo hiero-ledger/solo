@@ -262,9 +262,10 @@ export class IntervalLock implements Lock {
    * Releases the lock. If the lock is expired or held by the same process, it deletes the lock.
    * If the lock is held by another process, then an exception is thrown.
    *
+   * @param immediate - If true, the safe sleep period is skipped
    * @throws LockRelinquishmentError - If the lock is already acquired by another process or an error occurs during relinquishment.
    */
-  async release(): Promise<void> {
+  async release(immediate: boolean = false): Promise<void> {
     let lease: Lease;
     try {
       lease = await this.retrieveLease();
@@ -278,9 +279,11 @@ export class IntervalLock implements Lock {
 
     if (this.scheduleId) {
       await this.renewalService.cancel(this.scheduleId);
-      // Needed to ensure any pending renewals are truly cancelled before proceeding to delete the LeaseService.
-      // This is required because clearInterval() is not guaranteed to abort any pending interval.
-      await sleep(this.renewalService.calculateRenewalDelay(this));
+      if (!immediate) {
+        // Needed to ensure any pending renewals are truly cancelled before proceeding to delete the LeaseService.
+        // This is required because clearInterval() is not guaranteed to abort any pending interval.
+        await sleep(this.renewalService.calculateRenewalDelay(this));
+      }
     }
 
     this.scheduleId = null;
