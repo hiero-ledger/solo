@@ -9,6 +9,10 @@ env:
       else
         echo "npm run solo --"
       fi
+  # Override CI-injected CONSENSUS_NODE_VERSION (set to v0.70.0 in the examples workflow)
+  # so all solo subcommands (setup, start, etc.) agree on the deployed version.
+  CONSENSUS_NODE_VERSION:
+    sh: echo "${WRAPS_CN_VERSION:-v0.72.0}"
 
 vars:
   # Single consensus node keeps CI resource usage low while still exercising WRAPs/TSS code path
