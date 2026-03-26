@@ -79,5 +79,3 @@ platformSchedulers.consensusEngine, SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE UN
 platformSchedulers.stateSignatureCollector, SEQUENTIAL CAPACITY(100) FLUSHABLE UNHANDLED_TASK_METRIC
 platformSchedulers.futureEventBuffer, SEQUENTIAL CAPACITY(100) FLUSHABLE UNHANDLED_TASK_METRIC
 platformSchedulers.stateGarbageCollector, SEQUENTIAL CAPACITY(10) FLUSHABLE UNHANDLED_TASK_METRIC
-
-# Change to trigger CI
