@@ -50,6 +50,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.componentIds[type] += 1;
   }
 
+  // TODO: Remove once unified method is fully utilized
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
     if (!this.state.consensusNodes.some((component): boolean => +component.metadata.id === +componentId)) {
       throw new SoloError(`Consensus node ${componentId} doesn't exist`);
@@ -60,6 +61,24 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     );
 
     component.metadata.phase = phase;
+  }
+
+  public changeComponentPhase(componentId: ComponentId, type: ComponentTypes, phase: DeploymentPhase): void {
+    if (typeof componentId !== 'number') {
+      throw new SoloError(`Component id is required ${componentId}`);
+    }
+
+    const updateComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
+      const component: BaseStateSchema = components.find((component): boolean => component.metadata.id === componentId);
+
+      if (!component) {
+        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to update`);
+      }
+
+      component.metadata.phase = phase;
+    };
+
+    this.applyCallbackToComponentGroup(type, updateComponentCallback, componentId);
   }
 
   /** Used to remove specific component from their respective group. */
@@ -271,9 +290,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     );
 
     if (component !== undefined) {
-      if (component.metadata.portForwardConfigs === undefined) {
-        component.metadata.portForwardConfigs = [];
-      }
+      component.metadata.portForwardConfigs ||= [];
 
       // Check if this exact podPort and localPort pair already exists
       const existingConfig: PortForwardConfig | undefined = component.metadata.portForwardConfigs.find(

@@ -43,6 +43,11 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {
+  ComponentUpgradeMigrationRules,
+  type ComponentUpgradeMigrationStep,
+} from './migrations/component-upgrade-rules.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -103,9 +108,13 @@ interface BlockNodeUpgradeConfigClass {
   context: string;
   releaseName: string;
   upgradeVersion: string;
+  currentVersion: string;
+  migrationPlan: ComponentUpgradeMigrationStep[];
   valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
+  /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
+  recreateInstallTime?: Date;
 }
 
 interface BlockNodeUpgradeContext {
@@ -142,6 +151,13 @@ interface BlockNodeDeleteExternalContext {
   config: BlockNodeDeleteExternalConfigClass;
 }
 
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
+}
+
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
   public constructor() {
@@ -157,6 +173,7 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addExternalConfigs';
 
   private static readonly DELETE_CONFIGS_NAME: string = 'deleteExternalConfigs';
+  private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -268,6 +285,13 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return valuesArgument;
+  }
+
+  private static appendExtraCommandArgs(baseArgument: string, extraCommandArguments: string[]): string {
+    if (extraCommandArguments.length === 0) {
+      return baseArgument;
+    }
+    return `${baseArgument} ${extraCommandArguments.join(' ')}`.trim();
   }
 
   private getReleaseName(): string {
@@ -485,8 +509,11 @@ export class BlockNodeCommand extends BaseCommand {
               config.clusterRef,
               config.namespace,
             );
+
+            config.newBlockNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
           },
         },
+        this.addBlockNodeComponent(),
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
@@ -505,6 +532,7 @@ export class BlockNodeCommand extends BaseCommand {
               clusterRef,
               imageTag,
               blockNodeChartDirectory,
+              newBlockNodeComponent,
             } = config;
 
             await this.chartManager.install(
@@ -516,6 +544,14 @@ export class BlockNodeCommand extends BaseCommand {
               valuesArg,
               context,
             );
+
+            this.remoteConfig.configuration.components.changeComponentPhase(
+              newBlockNodeComponent.metadata.id,
+              ComponentTypes.BlockNode,
+              DeploymentPhase.DEPLOYED,
+            );
+
+            await this.remoteConfig.persist();
 
             if (imageTag) {
               // update config map with new VERSION info since
@@ -533,6 +569,7 @@ export class BlockNodeCommand extends BaseCommand {
 
               task.title += ` with local built image (${imageTag})`;
             }
+
             showVersionBanner(this.logger, releaseName, chartVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
@@ -583,7 +620,6 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         this.checkBlockNodeReadiness(),
-        this.addBlockNodeComponent(),
         this.handleConsensusNodeUpdating(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -764,6 +800,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
+            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.version ?? '0.0.0';
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -791,30 +828,94 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
+          title: 'Plan block node upgrade migration',
+          task: async ({config}, task): Promise<void> => {
+            config.migrationPlan = this.buildBlockNodeUpgradeMigrationPlan(
+              config.currentVersion,
+              config.upgradeVersion,
+            );
+
+            const renderedPlan: string = config.migrationPlan
+              .map((step): string => `${step.fromVersion} -> ${step.toVersion} [${step.strategy}] (${step.reason})`)
+              .join(' | ');
+            task.title = `${task.title}: ${renderedPlan}`;
+          },
+        },
+        {
           title: 'Update block node chart',
           task: async ({config}): Promise<void> => {
-            const {namespace, releaseName, context, upgradeVersion} = config;
+            const {namespace, releaseName, context} = config;
 
-            const validatedUpgradeVersion: string = Version.getValidSemanticVersion(
-              upgradeVersion,
-              false,
-              'Block node chart version',
-            );
+            for (const step of config.migrationPlan) {
+              const stepTargetVersion: string = Version.getValidSemanticVersion(
+                step.toVersion,
+                false,
+                'Block node chart version',
+              );
+              const stepValuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(
+                config.valuesArg,
+                step.extraCommandArgs,
+              );
 
-            await this.chartManager.upgrade(
-              namespace,
-              releaseName,
-              constants.BLOCK_NODE_CHART,
-              config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
-              validatedUpgradeVersion,
-              config.valuesArg,
-              context,
-              false,
-            );
+              if (step.strategy === 'recreate') {
+                this.logger.showUser(
+                  `Applying block node recreate migration for ${releaseName} (${step.fromVersion} -> ${stepTargetVersion}): ${step.reason}`,
+                );
+                await this.recreateBlockNodeChart(config, stepTargetVersion, step);
+              } else {
+                try {
+                  await this.chartManager.upgrade(
+                    namespace,
+                    releaseName,
+                    constants.BLOCK_NODE_CHART,
+                    config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
+                    stepTargetVersion,
+                    stepValuesArgument,
+                    context,
+                  );
+                } catch (error) {
+                  if (this.isImmutableStatefulSetError(error)) {
+                    this.logger.showUser(
+                      `Detected immutable StatefulSet upgrade for ${releaseName}; retrying with recreate migration`,
+                    );
+                    await this.recreateBlockNodeChart(config, stepTargetVersion, step);
+                  } else {
+                    throw error;
+                  }
+                }
+              }
+
+              // Persist the applied step version so remote config reflects the last
+              // successfully applied step even if a later step fails.
+              this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, new SemVer(stepTargetVersion));
+              await this.remoteConfig.persist();
+            }
 
             showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
+          },
+        },
+        {
+          title: 'Check block node pod is ready',
+          task: async ({config}): Promise<void> => {
+            try {
+              await this.k8Factory
+                .getK8(config.context)
+                .pods()
+                .waitForReadyStatus(
+                  config.namespace,
+                  Templates.renderBlockNodeLabels(config.id),
+                  constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+                  constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                  config.recreateInstallTime,
+                );
+            } catch (error) {
+              throw new SoloError(
+                `Block node ${config.releaseName} is not ready after upgrade: ${error.message}`,
+                error,
+              );
+            }
           },
         },
       ],
@@ -1062,6 +1163,85 @@ export class BlockNodeCommand extends BaseCommand {
     await this.remoteConfig.persist();
   }
 
+  private buildBlockNodeUpgradeMigrationPlan(
+    currentVersion: string,
+    targetVersion: string,
+  ): ComponentUpgradeMigrationStep[] {
+    const normalizedCurrentVersion: string = Version.getValidSemanticVersion(
+      currentVersion || '0.0.0',
+      false,
+      'Current block node chart version',
+    );
+    const normalizedTargetVersion: string = Version.getValidSemanticVersion(
+      targetVersion || versions.BLOCK_NODE_VERSION,
+      false,
+      'Target block node chart version',
+    );
+
+    return ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+      BlockNodeCommand.MIGRATION_COMPONENT_KEY,
+      normalizedCurrentVersion,
+      normalizedTargetVersion,
+    );
+  }
+
+  private isImmutableStatefulSetError(error: unknown): boolean {
+    const message: string = error instanceof Error ? error.message : String(error);
+    return message.includes('StatefulSet.apps') && message.includes('spec: Forbidden');
+  }
+
+  private async recreateBlockNodeChart(
+    config: BlockNodeUpgradeConfigClass,
+    validatedUpgradeVersion: string,
+    step: ComponentUpgradeMigrationStep,
+  ): Promise<void> {
+    const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
+    await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+
+    // Wait for the old pod to be fully terminated before creating the new StatefulSet.
+    // helm uninstall returns immediately (no --wait), but the pod has a graceful shutdown period.
+    // The new StatefulSet will not create a replacement pod until the old pod with the same
+    // ordinal name is completely gone (StatefulSet at-most-one semantics), and the PVC cannot
+    // be reattached while the old pod still holds a ReadWriteOnce volume mount.
+    await this.waitForBlockNodePodsDeleted(config.namespace, config.id, config.context);
+
+    // Record the install time so the readiness check can ignore any stale pod references.
+    config.recreateInstallTime = new Date();
+
+    await this.chartManager.install(
+      config.namespace,
+      config.releaseName,
+      constants.BLOCK_NODE_CHART,
+      config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
+      validatedUpgradeVersion,
+      valuesArgument,
+      config.context,
+    );
+  }
+
+  /**
+   * Polls until no pods with the block-node label exist in the namespace.
+   * Used before re-installing the chart so the new StatefulSet pod is not blocked
+   * by a terminating predecessor.
+   */
+  private async waitForBlockNodePodsDeleted(namespace: NamespaceName, id: ComponentId, context: string): Promise<void> {
+    const labels: string[] = Templates.renderBlockNodeLabels(id);
+    const maxAttempts: number = constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS;
+    const delay: number = constants.BLOCK_NODE_PODS_RUNNING_DELAY;
+
+    for (let attempt: number = 0; attempt < maxAttempts; attempt++) {
+      const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
+      if (pods.length === 0) {
+        return;
+      }
+      await new Promise<void>((resolve): ReturnType<typeof setTimeout> => setTimeout(resolve, delay));
+    }
+
+    this.logger.warn(
+      `Block node pods with labels ${labels.join(',')} did not terminate within ${maxAttempts} attempts; proceeding with install`,
+    );
+  }
+
   /** Adds the block node component to remote config. */
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
@@ -1246,16 +1426,7 @@ export class BlockNodeCommand extends BaseCommand {
       : false;
   }
 
-  private async inferDestroyData(
-    id: ComponentId,
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferDestroyData(id: ComponentId, namespace: NamespaceName, context: Context): Promise<InferredData> {
     id = this.inferBlockNodeId(id);
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
 

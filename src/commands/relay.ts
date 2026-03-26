@@ -46,6 +46,7 @@ import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 import {Duration} from '../core/time/duration.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -133,6 +134,14 @@ interface RelayUpgradeConfigClass {
 
 interface RelayUpgradeContext {
   config: RelayUpgradeConfigClass;
+}
+
+interface InferredData {
+  id: ComponentId;
+  nodeAliases: NodeAliases;
+  releaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
 }
 
 enum RelayCommandType {
@@ -408,6 +417,17 @@ export class RelayCommand extends BaseCommand {
         if (commandType === RelayCommandType.UPGRADE) {
           await helpers.sleep(Duration.ofSeconds(40));
         }
+
+        // Add component to remote config
+        else if (commandType === RelayCommandType.ADD) {
+          this.remoteConfig.configuration.components.changeComponentPhase(
+            (config as RelayDeployConfigClass).newRelayComponent.metadata.id,
+            ComponentTypes.RelayNodes,
+            DeploymentPhase.DEPLOYED,
+          );
+
+          await this.remoteConfig.persist();
+        }
       },
     };
   }
@@ -587,20 +607,26 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.context,
-            );
+            if (this.oneShotState.isActive()) {
+              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
+            } else {
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.context,
+              );
 
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+            }
 
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,
               config.namespace,
               nodeIds,
             );
+
+            config.newRelayComponent.metadata.phase = DeploymentPhase.REQUESTED;
 
             config.id = config.newRelayComponent.metadata.id;
 
@@ -610,12 +636,12 @@ export class RelayCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
+        restoreConfig(this.addRelayComponent()),
         restoreConfig(this.checkChartIsInstalledTask()),
         restoreConfig(this.prepareChartValuesTask()),
         restoreConfig(this.deployJsonRpcRelayTask(RelayCommandType.ADD)),
         restoreConfig(this.checkRelayIsRunningTask()),
         restoreConfig(this.checkRelayIsReadyTask()),
-        restoreConfig(this.addRelayComponent()),
         restoreConfig(this.enablePortForwardingTask()),
         // TODO only show this if we are not running in one-shot mode
         // {
@@ -904,19 +930,11 @@ export class RelayCommand extends BaseCommand {
       title: 'Add relay component in remote config',
       skip: ({config}): boolean => !this.remoteConfig.isLoaded() || config.isChartInstalled,
       task: async ({config}): Promise<void> => {
-        const {namespace, nodeAliases, clusterRef} = config;
-
-        const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias): number =>
-          Templates.nodeIdFromNodeAlias(nodeAlias),
-        );
-
-        this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
-          ComponentTypes.RelayNodes,
-        );
+        this.remoteConfig.configuration.components.addNewComponent(config.newRelayComponent, ComponentTypes.RelayNodes);
 
         // save relay version in remote config
         this.remoteConfig.updateComponentVersion(ComponentTypes.RelayNodes, new SemVer(config.relayReleaseTag));
+
         await this.remoteConfig.persist();
       },
     };
@@ -961,16 +979,7 @@ export class RelayCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
   }
 
-  private async inferRelayData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    nodeAliases: NodeAliases;
-    releaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferRelayData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferRelayId();
 
     const nodeAliases: NodeAliases = helpers.parseNodeAliases(

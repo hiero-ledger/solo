@@ -31,9 +31,7 @@ import {
   CreatedPredefinedAccount,
   PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
-  predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
 import {
@@ -212,6 +210,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | undefined = undefined;
     let oneShotLease: Lock | undefined;
+    const mirrorNodeId: number = 1;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newOneShotSingleDeployTaskList(
@@ -548,7 +547,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       optionFromFlag(Flags.explorerVersion),
                                       version.EXPLORER_VERSION,
                                     );
-                                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+                                    this.appendConfigToArgv(argv, {
+                                      [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                      [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                      ...config.explorerNodeConfiguration,
+                                    });
                                     return argvPushGlobalFlags(argv, config.cacheDir);
                                   },
                                   this.taskList,
@@ -568,7 +571,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       optionFromFlag(Flags.nodeAliasesUnparsed),
                                       'node1',
                                     );
-                                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
+                                    this.appendConfigToArgv(argv, {
+                                      [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                      [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                      ...config.relayNodeConfiguration,
+                                    });
                                     return argvPushGlobalFlags(argv);
                                   },
                                   this.taskList,
@@ -643,11 +650,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         }
                       }
 
-                      const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccounts,
-                        ...predefinedEcdsaAccountsWithAlias,
-                        ...predefinedEd25519Accounts,
-                      ];
+                      const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
 
                       for (const [index, account] of accountsToCreate.entries()) {
                         // inject index to avoid closure issues

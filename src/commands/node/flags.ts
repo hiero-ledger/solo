@@ -165,6 +165,7 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.releaseTag,
   flags.blockNodeMapping,
   flags.externalBlockNodeMapping,
+  flags.grpcWebEndpoint,
   flags.wrapsKeyPath,
 ];
 
@@ -272,6 +273,7 @@ export const START_FLAGS: CommandFlags = {
     flags.stakeAmounts,
     flags.forcePortForward,
     flags.wrapsKeyPath,
+    flags.grpcWebEndpoints,
   ],
 };
 

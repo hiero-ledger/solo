@@ -182,7 +182,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
       this.tasks.loadAdminKey(),
-      this.tasks.setGrpcWebEndpoint('newNodeAliases'),
+      this.tasks.setGrpcWebEndpoint('newNodeAliases', NodeSubcommandType.ADD),
       this.tasks.finalize(),
     ];
   }
@@ -902,7 +902,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.enablePortForwarding(true),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.waitForTss(),
-        this.tasks.setGrpcWebEndpoint('nodeAliases'),
+        this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
         // TODO only show this if we are not running in one-shot mode

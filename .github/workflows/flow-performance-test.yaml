@@ -115,13 +115,60 @@ jobs:
 
       - name: Run E2E Tests
         run: |
+          set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
-          task test-e2e-performance
+
+          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # test immediately rather than waiting 30-40 minutes for it to finish on
+          # its own.
+          TASK_PID=""
+          TASK_PGID=""
+          TASK_RC=0
+
+          cleanup() {
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID}, PGID ${TASK_PGID})..."
+              if [[ -n "${TASK_PGID}" ]]; then
+                # Terminate the whole process group so child processes spawned by task are not orphaned.
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
+              else
+                kill -TERM "${TASK_PID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL "${TASK_PID}" 2>/dev/null || true
+              fi
+              wait "${TASK_PID}" 2>/dev/null || true
+            fi
+            exit 130
+          }
+          trap cleanup SIGTERM SIGINT
+
+          # Start in a separate session so cancellation can terminate the full task process tree.
+          if command -v setsid >/dev/null 2>&1; then
+            setsid task test-e2e-performance &
+          else
+            task test-e2e-performance &
+          fi
+          TASK_PID=$!
+          TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
+          wait "${TASK_PID}"
+          TASK_RC=$?
+          TASK_PID=""
+          TASK_PGID=""
+          trap - SIGTERM SIGINT
+
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            exit "${TASK_RC}"
+          fi
 
       - name: Log Metrics
         id: log-metrics

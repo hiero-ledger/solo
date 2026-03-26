@@ -1315,9 +1315,7 @@ export class NetworkCommand extends BaseCommand {
                     svc = await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, [
-                        `solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`,
-                      ]);
+                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
 
                     if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
                       let shouldContinue: boolean = false;
@@ -1678,7 +1676,6 @@ export class NetworkCommand extends BaseCommand {
     const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
     await container.execContainer('pwd');
-
     const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
 
     await container.execContainer(`mkdir -p ${targetDirectory}`);
@@ -1693,7 +1690,6 @@ export class NetworkCommand extends BaseCommand {
     );
 
     const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
-
     const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
 
     const lines: string[] = applicationPropertiesData.split('\n');
@@ -1715,8 +1711,7 @@ export class NetworkCommand extends BaseCommand {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
-    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-      ['applicationProperties']: lines.join('\n'),
+    await k8.configMaps().update(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME, {
       ['application.properties']: lines.join('\n'),
     });
 
