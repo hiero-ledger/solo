@@ -394,14 +394,26 @@ jobs:
             cd ../solo
 
       - name: Configure Docker for Linux Containers via WSL2 (Windows)
-        # Docker Engine on windows-latest runs as a Windows service in Windows containers mode
-        # and cannot run Linux images. Docker Desktop cannot start in a non-interactive runner
-        # session. Instead, use WSL2 Ubuntu (pre-installed on windows-latest) with Docker CE,
-        # expose it over TCP, and point DOCKER_HOST at it so Kind uses the Linux daemon.
+        # Docker Engine on windows-latest runs in Windows containers mode by default.
+        # Install Ubuntu via WSL2, then install Docker CE inside it, expose via TCP,
+        # and point DOCKER_HOST at it so Kind uses the Linux daemon.
         if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
-        timeout-minutes: 10
+        timeout-minutes: 15
         shell: pwsh
         run: |
+          # Ensure WSL2 is enabled and install Ubuntu if not already present
+          $distros = wsl --list --quiet 2>&1
+          Write-Host "Available WSL distros: $distros"
+          $hasUbuntu = $distros | Where-Object { $_ -match 'Ubuntu' }
+          if (-not $hasUbuntu) {
+            Write-Host "Ubuntu not found in WSL2, installing..."
+            # wsl --install on Windows Server runners may require --no-launch and --web-download
+            wsl --install --distribution Ubuntu --no-launch --web-download 2>&1 | Write-Host
+            # Give WSL time to register
+            Start-Sleep 5
+            # Initialize Ubuntu (create default user noninteractively)
+            wsl -d Ubuntu -- bash -c "whoami" 2>&1 | Write-Host
+          }
           # Install Docker CE in WSL2 Ubuntu and expose via TCP
           wsl -d Ubuntu -- bash -c "
             set -e
