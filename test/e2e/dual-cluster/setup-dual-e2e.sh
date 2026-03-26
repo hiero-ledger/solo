@@ -50,8 +50,13 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   timeout 60 kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" 2>/dev/null || true
 done
 
-docker network rm -f kind || true
-docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+# On Windows (Docker Desktop), the bridge network plugin is not available via the v1
+# plugin registry. Kind manages its own Docker network automatically on Windows, so
+# manual network creation is not needed and will fail. Skip it on Windows (msys/Git Bash).
+if [[ "$OSTYPE" != msys* ]]; then
+  docker network rm -f kind || true
+  docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+fi
 docker info | grep -i cgroup || true
 
 # Setup Helm Repos
