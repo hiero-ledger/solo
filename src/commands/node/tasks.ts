@@ -589,10 +589,6 @@ export class NodeCommandTasks {
       );
     }
 
-    if (status !== NodeStatusCodes.FREEZE_COMPLETE) {
-      await this.waitForNodeGrpcReady(namespace, nodeAlias, context);
-    }
-
     if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
       await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
     }
