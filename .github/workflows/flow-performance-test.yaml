@@ -77,7 +77,6 @@ jobs:
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 'v3.17.1' # helm version
           max_attempts: 3
           timeout_minutes: 5
           command: |
@@ -223,15 +222,15 @@ jobs:
       - name: Build and Start Metrics Plotter tool
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          cd ./scripts/metrics-plotter
-          npm ci
-          npm run build
-          mkdir -p ~/.solo/metrics
-          mkdir src/data
-          nohup npm start &
-          echo $! > /tmp/metrics-plotter.pid
-          mkdir -p ./src/data       
-          cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
+            cd ./scripts/metrics-plotter
+            npm ci
+            npm run build
+            mkdir -p ~/.solo/metrics
+            mkdir src/data
+            nohup npm start &
+            echo $! > /tmp/metrics-plotter.pid
+            mkdir -p ./src/data       
+            cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
 
       - name: Install Puppeteer / Chrome dependencies
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
