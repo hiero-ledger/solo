@@ -235,6 +235,7 @@ export class RelayCommand extends BaseCommand {
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
+    valuesArgument += helpers.prepareValuesFiles(constants.RELAY_VALUES_FILE);
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 

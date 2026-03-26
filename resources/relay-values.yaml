@@ -1,0 +1,8 @@
+readinessProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 60
+livenessProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 60

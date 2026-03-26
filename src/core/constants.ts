@@ -252,6 +252,7 @@ export const POD_CONDITION_POD_SCHEDULED: string = 'PodScheduled';
 export const POD_CONDITION_STATUS_TRUE: string = 'True';
 
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
+export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
 export const MIRROR_NODE_VALUES_FILE_HEDERA: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
