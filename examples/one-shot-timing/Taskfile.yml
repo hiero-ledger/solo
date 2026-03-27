@@ -150,7 +150,7 @@ tasks:
           while IFS= read -r image || [ -n "$image" ]; do
             [ -z "$image" ] && continue
             echo "Pulling: $image"
-            docker pull "$image"
+            docker pull --platform linux/amd64 "$image"
           done < "${IMAGE_LIST}"
           echo "==== Done pulling images ===="
 
