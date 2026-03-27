@@ -11,8 +11,6 @@ import {SemanticVersion} from './src/business/utils/semantic-version.js';
 /**
  * This file should only contain versions for dependencies and the function to get the Solo version.
  */
-// TODO we should be consistent on the versioning format, let us drop the v prefix from the user, and manually add it
-//  right before it required, this adds better semver library compatibility
 export const HELM_VERSION: string = 'v3.14.2';
 export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';

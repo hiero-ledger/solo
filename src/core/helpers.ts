@@ -41,15 +41,14 @@ import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {type SemanticVersion} from '../business/utils/semantic-version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 
 export function getInternalAddress(
   releaseVersion: SemanticVersion<string> | string,
   namespaceName: NamespaceName,
   nodeAlias: NodeAlias,
 ): string {
-  // @ts-expect-error TS2353: Object literal may only specify known properties
-  return semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})
+  return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
     ? '127.0.0.1'
     : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
 }

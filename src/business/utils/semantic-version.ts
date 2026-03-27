@@ -84,7 +84,7 @@ export class SemanticVersion<T extends string | number> {
       this.minor === otherValue.minor &&
       this.patch === otherValue.patch &&
       this.preRelease === otherValue.preRelease &&
-      this.buildMetadata === otherValue.buildMetadata
+      (this.buildMetadata === otherValue.buildMetadata || !this.buildMetadata || !otherValue.buildMetadata)
     );
   }
 

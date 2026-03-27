@@ -117,6 +117,53 @@ describe('SemanticVersion', (): void => {
       expect(version1.lessThan(version2)).to.be.true;
       expect(version1.lessThanOrEqual(version2)).to.be.true;
     });
+
+    it('v0.0.1-alpha is less than v0.0.1', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('0.0.1-alpha');
+      const version2: SemanticVersion<string> = new SemanticVersion('0.0.1');
+      expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
+    });
+
+    it('v1.0.0-beta.1 is less than v1.0.0-beta.2', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('1.0.0-beta.1');
+      const version2: SemanticVersion<string> = new SemanticVersion('1.0.0-beta.2');
+      expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
+    });
+
+    it('v1.0.0-beta.2 is less than v1.0.0', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('1.0.0-beta.2');
+      const version2: SemanticVersion<string> = new SemanticVersion('1.0.0');
+      expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
+    });
+
+    it('3.14.2+gc309b6f is less than 3.15.0', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('3.14.2+gc309b6f');
+      const version2: SemanticVersion<string> = new SemanticVersion('3.15.0');
+      expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
+    });
+
+    it('3.14.2+gc309b6f is equal to 3.14.2', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('3.14.2+gc309b6f');
+      const version2: SemanticVersion<string> = new SemanticVersion('3.14.2');
+      expect(version1.compare(version2)).to.equal(0);
+      expect(version1.equals(version2)).to.be.true;
+    });
+
+    it('0.28.1-rc.1 < 0.28.1', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('0.28.1-rc.1');
+      const version2: SemanticVersion<string> = new SemanticVersion('0.28.1');
+      expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
+    });
   });
 
   describe('toString', (): void => {

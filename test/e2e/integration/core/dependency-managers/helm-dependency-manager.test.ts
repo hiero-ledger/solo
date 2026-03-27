@@ -161,7 +161,7 @@ describe('HelmDependencyManager', (): void => {
       fs.writeFileSync(globalHelmPath, '');
 
       runStub.withArgs('which helm').resolves([globalHelmPath]);
-      runStub.withArgs(`"${globalHelmPath}" version --short`).resolves([`${version.HELM_VERSION}+gabcdef`]);
+      runStub.withArgs(`"${globalHelmPath}" version --short`).resolves(['v4.1.3+gc94d381']);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
