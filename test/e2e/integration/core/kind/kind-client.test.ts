@@ -24,6 +24,7 @@ import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../src/core/constants.js';
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import path from 'node:path';
+import {type SemanticVersion} from '../../../../../src/business/utils/semantic-version.js';
 
 const execAsync: (command: string, options?: Parameters<typeof exec>[1]) => Promise<{stdout: string; stderr: string}> =
   promisify(exec);

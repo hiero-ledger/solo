@@ -17,6 +17,7 @@ import {type LoadDockerImageOptions} from './model/load-docker-image/load-docker
 import {type LoadDockerImageResponse} from './model/load-docker-image/load-docker-image-response.js';
 import {type LoadImageArchiveOptions} from './model/load-image-archive/load-image-archive-options.js';
 import {type LoadImageArchiveResponse} from './model/load-image-archive/load-image-archive-response.js';
+import {type SemanticVersion} from '../../business/utils/semantic-version.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.

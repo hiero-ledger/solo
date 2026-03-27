@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SemanticVersion} from '../../../business/utils/semantic-version.js';
+
 export class KindVersion {
   private readonly _version: SemanticVersion<string>;
 

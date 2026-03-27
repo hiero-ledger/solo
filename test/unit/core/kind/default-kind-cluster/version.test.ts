@@ -6,6 +6,7 @@ import {DefaultKindClient} from '../../../../../src/integration/kind/impl/defaul
 import {KindVersion} from '../../../../../src/integration/kind/model/kind-version.js';
 import {VersionRequest} from '../../../../../src/integration/kind/request/version-request.js';
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
+import {SemanticVersion} from '../../../../../src/business/utils/semantic-version.js';
 
 describe('DefaultKindClient - version', () => {
   let client: DefaultKindClient;
@@ -20,9 +21,9 @@ describe('DefaultKindClient - version', () => {
 
   it('should return SemanticVersion<string> from KindVersion', async () => {
     // Arrange
-    const fakeSemanticVersion<string>sion = new SemanticVersion<string>('0.20.0');
+    const fakeSemanticVersion: SemanticVersion<string> = new SemanticVersion<string>('0.20.0');
     const fakeKindVersion = sinon.createStubInstance(KindVersion);
-    fakeKindVersion.getVersion.returns(fakeSemanticVersion<string>sion);
+    fakeKindVersion.getVersion.returns(fakeSemanticVersion);
 
     // Stub VersionRequest.prototype.apply to do nothing
     sinon.stub(VersionRequest.prototype, 'apply').callsFake(() => {});
