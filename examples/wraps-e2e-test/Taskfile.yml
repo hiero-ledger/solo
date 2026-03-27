@@ -141,13 +141,6 @@ tasks:
             {{ .MIRROR_NODE_VERSION_FLAG }} \
             --quiet-mode --dev
 
-      # Add JSON-RPC relay
-      - cmd: |
-          $SOLO_COMMAND relay node add \
-            --deployment {{ .DEPLOYMENT }} \
-            --node-aliases {{ .NODE_ALIASES }} \
-            --quiet-mode --dev
-
   verify:
     desc: Verify WRAPs/TSS is operational by confirming blocks are produced and ingested by mirror node
     cmds:
@@ -195,11 +188,6 @@ tasks:
     cmds:
       - cmd: |
           $SOLO_COMMAND consensus node stop \
-            --deployment {{ .DEPLOYMENT }} \
-            --node-aliases {{ .NODE_ALIASES }} || true
-
-      - cmd: |
-          $SOLO_COMMAND relay node destroy \
             --deployment {{ .DEPLOYMENT }} \
             --node-aliases {{ .NODE_ALIASES }} || true
 
