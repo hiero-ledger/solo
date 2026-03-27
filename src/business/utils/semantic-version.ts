@@ -4,9 +4,12 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
 import {Numbers} from './numbers.js';
 
-export class SemanticVersion {
-  public constructor(private readonly originalValue: string | number | SemanticVersion) {
-    if (!Numbers.isNumeric(originalValue as string) && (!originalValue || !SemanticVersion.isSemVer(originalValue))) {
+export class SemanticVersion<T extends SemanticVersion<string | number> | string | number> {
+  public constructor(private readonly originalValue: T) {
+    if (
+      !Numbers.isNumeric(originalValue as string) &&
+      (!originalValue || !SemanticVersion.isSemanticVersion(originalValue))
+    ) {
       throw new RangeError('Invalid version');
     }
 
@@ -19,7 +22,7 @@ export class SemanticVersion {
   }
 
   public equals(other: SemanticVersion<T>): boolean {
-    if (SemanticVersion.isSemVer(this.value) && SemanticVersion.isSemVer(other.value)) {
+    if (SemanticVersion.isSemanticVersion(this.value) && SemanticVersion.isSemanticVersion(other.value)) {
       return (this.value as SemVer).compare(other.value as SemVer) === 0;
     }
 
@@ -31,7 +34,7 @@ export class SemanticVersion {
   }
 
   public compare(other: SemanticVersion<T>): number {
-    if (SemanticVersion.isSemVer(this.value) && SemanticVersion.isSemVer(other.value)) {
+    if (SemanticVersion.isSemanticVersion(this.value) && SemanticVersion.isSemanticVersion(other.value)) {
       return (this.value as SemVer).compare(other.value as SemVer);
     }
 
@@ -51,7 +54,7 @@ export class SemanticVersion {
     return this.value.toString();
   }
 
-  private static isSemVer<R extends SemVer | number>(v: R): boolean {
+  private static isSemanticVersion<R extends SemVer | number>(v: R): boolean {
     return v instanceof SemVer;
   }
 
