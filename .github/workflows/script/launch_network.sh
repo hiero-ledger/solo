@@ -21,6 +21,10 @@ collect_failure_diagnostics() {
 on_exit() {
   local rc=$?
 
+  if [[ -n "${RENDERED_KIND_CLUSTER_CONFIG_FILE:-}" && -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}" ]]; then
+    rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+  fi
+
   if [[ ${rc} -ne 0 ]]; then
     collect_failure_diagnostics "${rc}"
   fi
@@ -57,11 +61,21 @@ export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
 
 KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
+KIND_CONFIG_RENDERER=".github/workflows/script/render_kind_config.sh"
+RENDERED_KIND_CLUSTER_CONFIG_FILE=""
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 if [[ -f "${KIND_CLUSTER_CONFIG_FILE}" ]]; then
-  echo "Using kind config file: ${KIND_CLUSTER_CONFIG_FILE}"
-  kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+  if [[ -x "${KIND_CONFIG_RENDERER}" && -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" ]]; then
+    RENDERED_KIND_CLUSTER_CONFIG_FILE="$(mktemp -t kind-config-XXXX.yaml)"
+    "${KIND_CONFIG_RENDERER}" "${KIND_CLUSTER_CONFIG_FILE}" "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+    echo "Using rendered kind config file: ${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+    kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+    rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+  else
+    echo "Using kind config file: ${KIND_CLUSTER_CONFIG_FILE}"
+    kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+  fi
 else
   echo "kind config file not found: ${KIND_CLUSTER_CONFIG_FILE}; creating cluster without custom registry mirror config."
   kind create cluster -n "${SOLO_CLUSTER_NAME}"
