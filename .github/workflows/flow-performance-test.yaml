@@ -126,54 +126,40 @@ jobs:
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
 
-          # Run the task in the background.  Two mechanisms work together to
-          # cancel it if the workflow is cancelled mid-run:
-          #
-          # 1. SIGTERM trap  — fires when the runner sends a signal to bash
-          #    (works if the runner delivers it; bash 4.x needs the sleep-poll
-          #    loop instead of `wait PID` so the signal is processed promptly).
-          #
-          # 2. API poller    — polls the run's `updated_at` field every 30 s.
-          #    GitHub updates `updated_at` immediately when a cancel is submitted,
-          #    while during normal execution only step transitions change it.
-          #    This works even when the runner never delivers a signal.
+          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # test immediately rather than waiting 30-40 minutes for it to finish on
+          # its own.
           TASK_PID=""
           TASK_PGID=""
           TASK_RC=0
           CANCEL_POLLER_PID=""
 
-          kill_tree() {
-            local pid=$1 sig=$2
-            for child in $(pgrep -P "$pid" 2>/dev/null || true); do
-              kill_tree "$child" "$sig"
-            done
-            kill "-${sig}" "$pid" 2>/dev/null || true
-          }
-
           cleanup() {
-            trap - SIGTERM SIGINT
-            echo "=== CANCELLATION DETECTED ==="
-            echo "Stopping task tree (PID ${TASK_PID:-?}, PGID ${TASK_PGID:-?})..."
-            [[ -n "${TASK_PGID}" ]] && kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
-            [[ -n "${TASK_PID}"  ]] && kill -TERM "${TASK_PID}" 2>/dev/null || true
-            [[ -n "${TASK_PID}"  ]] && kill_tree "${TASK_PID}" TERM
-            sleep 2
-            [[ -n "${TASK_PGID}" ]] && kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
-            [[ -n "${TASK_PID}"  ]] && kill -KILL "${TASK_PID}" 2>/dev/null || true
-            [[ -n "${TASK_PID}"  ]] && kill_tree "${TASK_PID}" KILL
-            pkill -KILL -f "performance.test" 2>/dev/null || true
-            pkill -KILL -f "test-e2e-performance" 2>/dev/null || true
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID}, PGID ${TASK_PGID})..."
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
+              else
+                kill -TERM "${TASK_PID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL "${TASK_PID}" 2>/dev/null || true
+              fi
+              wait "${TASK_PID}" 2>/dev/null || true
+            fi
             [[ -n "${CANCEL_POLLER_PID}" ]] && kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
 
-          # Snapshot updated_at before starting the task.  GitHub updates this
-          # field immediately when a cancel is submitted; during normal test
-          # execution only step transitions change it.
-          # GITHUB_TOKEN is explicitly passed via step env (self-hosted runners
-          # do not auto-expose it). curl + jq are used instead of gh CLI because
-          # gh is not pre-authenticated on self-hosted runners.
+          # API poller: polls the run's updated_at field every 30 s and sends
+          # SIGTERM to the main shell when GitHub marks the run as cancelled.
+          # Self-hosted runners do not deliver SIGTERM to step scripts directly,
+          # so this is the only reliable way to detect workflow cancellation.
+          # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
+          # do not auto-expose it as a shell variable).
           _run_updated_at() {
             local _api="${GITHUB_API_URL:-https://api.github.com}"
             curl -sf \
@@ -185,6 +171,7 @@ jobs:
           RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
           echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
 
+          # Start in a separate session so cancellation can terminate the full task process tree.
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
           else
@@ -193,17 +180,15 @@ jobs:
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
 
-          # Background API poller — started AFTER TASK_PID is known.
-          # It sends SIGTERM to the main bash (via $$, which always refers to
-          # the parent shell's PID even from subshells) so the cleanup trap
-          # fires in the right context with all variables available.
+          # Start poller AFTER TASK_PID is set. Uses $$ (always the parent shell's
+          # PID even from subshells) so the cleanup trap fires in the right context.
           api_cancel_poller() {
             while true; do
               sleep 30
               current="$(_run_updated_at)"
               if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
                     && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
-                echo "=== API poller: updated_at changed ${RUN_UPDATED_AT_INITIAL} -> ${current}, signalling main shell ==="
+                echo "=== API poller: updated_at changed, signalling main shell ==="
                 kill -TERM $$ 2>/dev/null || true
                 return
               fi
@@ -212,7 +197,8 @@ jobs:
           api_cancel_poller &
           CANCEL_POLLER_PID=$!
 
-          # Sleep-poll so SIGTERM fires within ≤5 s even on bash 4.x
+          # Sleep-poll instead of blocking wait so SIGTERM from the poller is
+          # processed within ≤5 s (bash 4.x queues signals during wait).
           while kill -0 "${TASK_PID}" 2>/dev/null; do
             sleep 5
           done
