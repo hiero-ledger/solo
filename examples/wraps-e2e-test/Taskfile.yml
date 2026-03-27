@@ -144,6 +144,12 @@ tasks:
   verify:
     desc: Verify WRAPs/TSS is operational by confirming blocks are produced and ingested by mirror node
     cmds:
+      # Re-establish port-forward for mirror node REST API; solo tears it down after mirror node add
+      - cmd: |
+          nohup kubectl port-forward svc/mirror-1-rest -n {{ .NAMESPACE }} {{ .MIRROR_NODE_REST_PORT }}:80 \
+            > /dev/null 2>&1 &
+          sleep 5
+
       # Poll mirror node REST API until at least one block appears
       - cmd: |
           echo "Waiting for mirror node to ingest blocks from WRAPs/TSS network..."
