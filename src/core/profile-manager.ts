@@ -234,11 +234,13 @@ export class ProfileManager {
       yamlRoot,
     );
 
-    this._setFileContentsAsValue(
-      'hedera.configMaps.applicationEnv',
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
-      yamlRoot,
-    );
+    const applicationEnvPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+    this._setFileContentsAsValue('hedera.configMaps.applicationEnv', PathEx.resolve(applicationEnvPath), yamlRoot);
+
+    // The container reads JVM settings from pod-level environment variables (defaults.root.extraEnv),
+    // not from the hedera.configMaps.applicationEnv configmap. Parse the application.env and sync
+    // the extraEnv so both stay consistent.
+    this.applyApplicationEnvToExtraEnv(applicationEnvPath, yamlRoot);
 
     try {
       if (
@@ -272,6 +274,32 @@ export class ProfileManager {
 
       fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
       this._setFileContentsAsValue(`hedera.nodes.${nodeIndex}.blockNodesJson`, blockNodesJsonPath, yamlRoot);
+    }
+  }
+
+  /**
+   * Parse a KEY=VALUE env file and override defaults.root.extraEnv in the Helm values
+   * so that pod-level environment variables match the application.env content.
+   */
+  private applyApplicationEnvToExtraEnv(applicationEnvPath: string, yamlRoot: AnyObject): void {
+    if (!fs.existsSync(applicationEnvPath)) {
+      return;
+    }
+
+    const extraEnv: AnyObject[] = [];
+    for (const line of fs.readFileSync(applicationEnvPath, 'utf8').split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        extraEnv.push({name: trimmed.substring(0, equalsIndex), value: trimmed.substring(equalsIndex + 1)});
+      }
+    }
+
+    if (extraEnv.length > 0) {
+      this._setChartItems('defaults.root', {extraEnv}, yamlRoot);
     }
   }
 

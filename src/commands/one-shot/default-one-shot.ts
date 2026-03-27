@@ -327,7 +327,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   PathEx.join(mergedDirectory, 'application.properties'),
                 );
                 config.networkConfiguration['--application-env'] = PathEx.join(overridesDirectory, 'application.env');
-                config.networkConfiguration['--values-file'] = PathEx.join(overridesDirectory, 'helm-overrides.yaml');
 
                 const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
                 if (fs.existsSync(throttlesFile)) {
