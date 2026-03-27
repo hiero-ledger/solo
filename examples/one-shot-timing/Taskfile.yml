@@ -174,9 +174,13 @@ tasks:
     cmds:
       - cmd: |
           IMAGE_LIST="{{ .TASKFILE_DIR }}/image_list.txt"
+          CONTROL_PLANE="{{ .SOLO_CLUSTER_NAME }}-control-plane"
           echo "==== Loading images into cluster {{ .SOLO_CLUSTER_NAME }} ===="
           IMAGES=$(grep -v '^$' "${IMAGE_LIST}" | tr '\n' ' ')
-          kind load docker-image $IMAGES --name {{ .SOLO_CLUSTER_NAME }}
+          # Pipe docker save directly to ctr import (without --all-platforms) to avoid failures
+          # when pulling single-platform images whose manifest list references other architectures.
+          docker save $IMAGES | docker exec --privileged -i "$CONTROL_PLANE" \
+            ctr --namespace=k8s.io images import --digests --snapshotter=overlayfs -
           echo "==== Done loading images ===="
 
   cold-start:
