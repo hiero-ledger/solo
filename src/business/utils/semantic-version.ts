@@ -5,12 +5,12 @@ import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js'
 import {Numbers} from './numbers.js';
 
 export class SemanticVersion<T extends string | number> {
-  private readonly major: number = 0;
-  private readonly minor: number = 0;
-  private readonly patch: number = 0;
-  private readonly preRelease: string | null = undefined;
-  private readonly buildMetadata: string | null = undefined;
-  private readonly tType: 'string' | 'number' = 'string';
+  public readonly major: number = 0;
+  public readonly minor: number = 0;
+  public readonly patch: number = 0;
+  public readonly preRelease: string | null = undefined;
+  public readonly buildMetadata: string | null = undefined;
+  public readonly tType: 'string' | 'number' = 'string';
 
   public constructor(private readonly originalValue: T | SemanticVersion<T>) {
     if (!SemanticVersion.isSemanticVersion(this.originalValue)) {
@@ -242,5 +242,15 @@ export class SemanticVersion<T extends string | number> {
     const value: SemanticVersion<string> = new SemanticVersion<string>(versionString);
 
     return isNeedPrefix ? value.toPrefixedString() : value.toString();
+  }
+
+  public bumpMinor(): SemanticVersion<string> {
+    return new SemanticVersion<string>(`${this.major}.${this.minor + 1}.${0}`);
+  }
+
+  public bumpMajor(): SemanticVersion<string | number> {
+    return this.tType === 'number'
+      ? new SemanticVersion<number>(this.major + 1)
+      : new SemanticVersion<string>(`${this.major + 1}.0.0`);
   }
 }

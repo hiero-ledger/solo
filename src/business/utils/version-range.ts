@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SemVer} from 'semver';
 import {SemanticVersion} from './semantic-version.js';
 
 /**
  * A range of versions which includes the beginning version and excludes the end version.
  */
-export class VersionRange<T extends SemVer | number> {
+export class VersionRange<T extends string | number> {
   public constructor(
     /**
      * The beginning of the version range (inclusive).
@@ -53,7 +52,10 @@ export class VersionRange<T extends SemVer | number> {
    * @returns the version range.
    * @throws RangeError if the bounds are invalid.
    */
-  public static fromSemVerBounds(begin: SemVer, end: SemVer): VersionRange<SemVer> {
+  public static fromSemVerBounds(
+    begin: SemanticVersion<string | number>,
+    end: SemanticVersion<string | number>,
+  ): VersionRange<string | number> {
     return new VersionRange(new SemanticVersion(begin), new SemanticVersion(end));
   }
 
@@ -63,10 +65,10 @@ export class VersionRange<T extends SemVer | number> {
    * @param version - the semantic version.
    * @returns the version range.
    */
-  public static patchVersionBounds(version: SemVer): VersionRange<SemVer> {
+  public static patchVersionBounds(version: SemanticVersion<string | number>): VersionRange<string | number> {
     // clone the version to avoid modifying the original
-    const rangeEnd: SemVer = new SemVer(version.toString());
-    return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.inc('minor')));
+    const rangeEnd: SemanticVersion<string | number> = new SemanticVersion(version.toString());
+    return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.bumpMinor()));
   }
 
   /**
@@ -75,10 +77,10 @@ export class VersionRange<T extends SemVer | number> {
    * @param version - the semantic version.
    * @returns the version range.
    */
-  public static minorVersionBounds(version: SemVer): VersionRange<SemVer> {
+  public static minorVersionBounds(version: SemanticVersion<string | number>): VersionRange<string | number> {
     // clone the version to avoid modifying the original
-    const rangeEnd: SemVer = new SemVer(version.toString());
-    return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.inc('major')));
+    const rangeEnd: SemanticVersion<string | number> = new SemanticVersion(version.toString());
+    return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.bumpMajor()));
   }
 
   public equals(other: VersionRange<T>): boolean {
