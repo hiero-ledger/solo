@@ -114,7 +114,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   // EVM profile flags extend the standard DEPLOY_FLAGS_LIST with three additional options:
   //   --evm          activates EVM mode (20 pre-funded ECDSA alias accounts, explorer on)
-  //   --no-explorer  disables the explorer even when --evm is set
+  //   --skip-explorer  disables the explorer even when --evm is set
   //   --explorer     selects the explorer type (mirror-node | blockscout)
   public static readonly EVM_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
@@ -160,7 +160,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
   }
 
-  // EVM profile entry-point: `solo one-shot single deploy --evm [--no-explorer] [--explorer <type>]`
+  // EVM profile entry-point: `solo one-shot single deploy --evm [--skip-explorer] [--explorer <type>]`
   // Delegates to the shared deployInternal with the EVM flag list so that all EVM-specific
   // options are registered and parsed correctly before the deploy tasks run.
   public async deployEvm(argv: ArgvStruct): Promise<boolean> {
@@ -328,7 +328,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 config.deployRelay = true;
 
                 // Explorer defaults to ON in EVM mode (mirror-node explorer).
-                // --no-explorer overrides this, letting users skip it for minimal setups.
+                // --skip-explorer overrides this, letting users skip it for minimal setups.
                 if (config.noExplorer) {
                   config.deployExplorer = false;
                 } else {

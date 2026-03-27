@@ -16,7 +16,7 @@ version: 3
 #   task          → CI entry-point: cycles through all four deploy variants,
 #                   checking expectations after each deploy then destroying
 #   task deploy                      → --evm (default mirror-node explorer)
-#   task deploy-no-explorer          → --evm --no-explorer
+#   task deploy-no-explorer          → --evm --skip-explorer
 #   task deploy-explorer-mirror-node → --evm --explorer mirror-node (explicit)
 #   task deploy-explorer-blockscout  → --evm --explorer blockscout (falls back to mirror-node)
 #   task destroy  → tear down and delete Kind cluster
@@ -69,9 +69,9 @@ tasks:
       Deploy the EVM profile without any explorer.
       Useful for resource-constrained environments or headless CI setups.
     cmds:
-      # solo one-shot single deploy --evm --no-explorer
+      # solo one-shot single deploy --evm --skip-explorer
       - cmd: |
-          $SOLO_COMMAND one-shot single deploy --evm --no-explorer \
+          $SOLO_COMMAND one-shot single deploy --evm --skip-explorer \
             --deployment {{ .DEPLOYMENT }} \
             --cluster-ref {{ .CLUSTER_NAME }}
 
@@ -185,7 +185,7 @@ tasks:
           OLD=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hedera-explorer --no-headers 2>/dev/null | grep -c Running || true)
           [ $((NEW + OLD)) -eq 0 ] \
             || { echo "ERROR: explorer pod is Running but --no-explorer was set"; exit 1; }
-          echo "✓ no explorer pod (as expected with --no-explorer)"
+          echo "✓ no explorer pod (as expected with --skip-explorer)"
 
   # ── Destroy ───────────────────────────────────────────────────────────────
 

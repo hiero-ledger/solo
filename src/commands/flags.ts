@@ -2905,11 +2905,13 @@ export class Flags {
     prompt: undefined,
   };
 
-  // --no-explorer is the user-facing shorthand to skip the explorer entirely in EVM
+  // --skip-explorer is the user-facing shorthand to skip the explorer entirely in EVM
   // mode.  It overrides the EVM profile default of deploying the mirror-node explorer.
+  // NOTE: We cannot use --no-explorer because yargs auto-generates --no-<flag> as the
+  // boolean negation of --explorer, which would set explorer=false and fail choices validation.
   public static readonly noExplorer: CommandFlag = {
     constName: 'noExplorer',
-    name: 'no-explorer',
+    name: 'skip-explorer',
     definition: {
       describe: 'Disable the explorer when using the EVM profile (overrides the mirror-node explorer default).',
       defaultValue: false,

@@ -36,7 +36,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
     'EVM developer profile: deploys a single consensus node with mirror node, JSON-RPC relay, ' +
     'and mirror-node explorer (default). Automatically creates 20 pre-funded ECDSA accounts ' +
     'with public-key (0x…) aliases so smart-contract tools work out of the box. ' +
-    'Use --no-explorer to skip the explorer or --explorer to choose a different explorer type.';
+    'Use --skip-explorer to skip the explorer or --explorer to choose a different explorer type.';
 
   public static readonly MULTI_SUBCOMMAND_NAME: string = 'multi';
   private static readonly MULTI_SUBCOMMAND_DESCRIPTION: string =
@@ -65,7 +65,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               OneShotCommandDefinition.SINGLE_DEPLOY,
               'Deploys all required components for the selected one shot configuration. ' +
                 'Pass --evm to activate the EVM developer profile (20 pre-funded ECDSA alias accounts, ' +
-                'mirror-node explorer on by default). Combine with --no-explorer or --explorer.',
+                'mirror-node explorer on by default). Combine with --skip-explorer or --explorer.',
               this.oneShotCommand,
               this.oneShotCommand.deployEvm,
               DefaultOneShotCommand.EVM_DEPLOY_FLAGS_LIST,
@@ -141,7 +141,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
       .addCommandGroup(
         // `solo one-shot evm deploy` is a convenience alias for
         // `solo one-shot single deploy --evm`.  It pre-wires the --evm flag
-        // into the registered flags list so users can also pass --no-explorer
+        // into the registered flags list so users can also pass --skip-explorer
         // or --explorer without typing --evm every time.
         new CommandGroup(OneShotCommandDefinition.EVM_SUBCOMMAND_NAME, OneShotCommandDefinition.EVM_SUBCOMMAND_DESCRIPTION)
           .addSubcommand(
@@ -149,7 +149,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               OneShotCommandDefinition.SINGLE_DEPLOY,
               'Deploy the EVM developer profile: consensus node, mirror node, JSON-RPC relay, ' +
                 '20 pre-funded ECDSA alias accounts, and mirror-node explorer (default). ' +
-                'Pass --no-explorer to skip the explorer or --explorer to choose its type.',
+                'Pass --skip-explorer to skip the explorer or --explorer to choose its type.',
               this.oneShotCommand,
               this.oneShotCommand.deployEvm,
               DefaultOneShotCommand.EVM_DEPLOY_FLAGS_LIST,
