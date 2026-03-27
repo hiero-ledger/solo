@@ -8,7 +8,7 @@ import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 export class MirrorNodeConfigSchema {
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: MirrorNodeConfigSchema = new MirrorNodeConfigSchema(
-    MirrorNodeConfigSchema.SCHEMA_VERSION.value,
+    MirrorNodeConfigSchema.SCHEMA_VERSION.major,
   );
 
   @Expose()

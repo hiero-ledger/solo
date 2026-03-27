@@ -11,7 +11,7 @@ import {type ClusterReferences} from '../../../../types/index.js';
 export class LocalConfigSchema {
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: LocalConfigSchema = new LocalConfigSchema(
-    LocalConfigSchema.SCHEMA_VERSION.value,
+    LocalConfigSchema.SCHEMA_VERSION.major,
     new ApplicationVersionsSchema(),
     [],
     new Map<string, string>(),

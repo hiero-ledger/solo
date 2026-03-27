@@ -8,7 +8,7 @@ import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 export class ExplorerConfigSchema {
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: ExplorerConfigSchema = new ExplorerConfigSchema(
-    ExplorerConfigSchema.SCHEMA_VERSION.value,
+    ExplorerConfigSchema.SCHEMA_VERSION.major,
   );
 
   @Expose()

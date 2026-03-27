@@ -30,7 +30,7 @@ export class RemoteConfigV6Migration implements SchemaMigration {
     state.wrapsEnabled = false;
 
     // Set the schema version to the new version
-    clone.schemaVersion = this.version.value;
+    clone.schemaVersion = this.version.major;
 
     return clone;
   }

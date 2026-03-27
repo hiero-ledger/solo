@@ -68,7 +68,7 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     }
 
     // Set the schema version to the new version
-    clone.schemaVersion = this.version.value;
+    clone.schemaVersion = this.version.major;
 
     return Promise.resolve(clone);
   }

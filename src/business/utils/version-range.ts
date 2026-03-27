@@ -52,10 +52,10 @@ export class VersionRange<T extends string | number> {
    * @returns the version range.
    * @throws RangeError if the bounds are invalid.
    */
-  public static fromSemVerBounds(
-    begin: SemanticVersion<string | number>,
-    end: SemanticVersion<string | number>,
-  ): VersionRange<string | number> {
+  public static fromSemVerBounds<R extends string | number>(
+    begin: SemanticVersion<R>,
+    end: SemanticVersion<R>,
+  ): VersionRange<R> {
     return new VersionRange(new SemanticVersion(begin), new SemanticVersion(end));
   }
 
@@ -65,7 +65,7 @@ export class VersionRange<T extends string | number> {
    * @param version - the semantic version.
    * @returns the version range.
    */
-  public static patchVersionBounds(version: SemanticVersion<string | number>): VersionRange<string | number> {
+  public static patchVersionBounds(version: SemanticVersion<string>): VersionRange<string> {
     // clone the version to avoid modifying the original
     const rangeEnd: SemanticVersion<string | number> = new SemanticVersion(version.toString());
     return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.bumpMinor()));
@@ -77,10 +77,8 @@ export class VersionRange<T extends string | number> {
    * @param version - the semantic version.
    * @returns the version range.
    */
-  public static minorVersionBounds(version: SemanticVersion<string | number>): VersionRange<string | number> {
-    // clone the version to avoid modifying the original
-    const rangeEnd: SemanticVersion<string | number> = new SemanticVersion(version.toString());
-    return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.bumpMajor()));
+  public static minorVersionBounds<R extends string | number>(version: SemanticVersion<R>): VersionRange<R> {
+    return new VersionRange<R>(new SemanticVersion(version), version.bumpMajor());
   }
 
   public equals(other: VersionRange<T>): boolean {

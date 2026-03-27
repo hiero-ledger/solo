@@ -248,9 +248,11 @@ export class SemanticVersion<T extends string | number> {
     return new SemanticVersion<string>(`${this.major}.${this.minor + 1}.${0}`);
   }
 
-  public bumpMajor(): SemanticVersion<string | number> {
+  public bumpMajor(): SemanticVersion<T> {
     return this.tType === 'number'
-      ? new SemanticVersion<number>(this.major + 1)
-      : new SemanticVersion<string>(`${this.major + 1}.0.0`);
+      ? // @ts-expect-error - This is safe because the constructor will throw if the type is not correct
+        new SemanticVersion<number>(this.major + 1)
+      : // @ts-expect-error - This is safe because the constructor will throw if the type is not correct
+        new SemanticVersion<string>(`${this.major + 1}.0.0`);
   }
 }

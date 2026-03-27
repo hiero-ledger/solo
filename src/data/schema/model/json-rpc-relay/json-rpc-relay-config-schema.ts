@@ -8,7 +8,7 @@ import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 export class JsonRpcRelayConfigSchema {
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: JsonRpcRelayConfigSchema = new JsonRpcRelayConfigSchema(
-    JsonRpcRelayConfigSchema.SCHEMA_VERSION.value,
+    JsonRpcRelayConfigSchema.SCHEMA_VERSION.major,
   );
 
   @Expose()

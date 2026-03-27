@@ -23,7 +23,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     const clone: any = structuredClone(data);
     let dataVersion: number = clone.schemaVersion;
     if (!dataVersion) {
-      dataVersion = sourceVersion ? sourceVersion.value : 0;
+      dataVersion = sourceVersion ? sourceVersion.major : 0;
     }
 
     const migrated: object = await this.applyMigrations(clone, new SemanticVersion(dataVersion));
@@ -35,7 +35,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       return;
     }
     // eslint-disable-next-line unicorn/no-array-sort
-    const versionJumps: number[] = this.migrations.map((value): number => value.version.value).sort();
+    const versionJumps: number[] = this.migrations.map((value): number => value.version.major).sort();
 
     for (let index: number = 1; index < versionJumps.length; index++) {
       if (versionJumps[index] === versionJumps[index - 1]) {
@@ -49,7 +49,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       const v: SemanticVersion<number> = new SemanticVersion(versionJump);
       if (!v.equals(currentVersion)) {
         throw new SchemaValidationError(
-          `Invalid migration version sequence detected; expected version '${v.value}' but got '${currentVersion.value}'`,
+          `Invalid migration version sequence detected; expected version '${v.major}' but got '${currentVersion.major}'`,
         );
       }
 
@@ -64,7 +64,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     if (!targetMigrations || targetMigrations.length === 0) {
       // No migration found for the current version - fail with an error
       throw new SchemaValidationError(
-        `No migration found for version '${currentVersion.value}'; there is a gap in the migration sequence`,
+        `No migration found for version '${currentVersion.major}'; there is a gap in the migration sequence`,
       );
     }
 

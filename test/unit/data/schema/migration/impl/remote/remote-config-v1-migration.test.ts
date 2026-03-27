@@ -41,7 +41,7 @@ describe('RemoteConfigV1Migration', () => {
   describe('version', (): void => {
     it('should return version 1', (): void => {
       const version: SemanticVersion<number> = migration.version;
-      expect(version.value).to.equal(1);
+      expect(version.major).to.equal(1);
     });
   });
 

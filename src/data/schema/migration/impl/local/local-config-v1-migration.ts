@@ -70,7 +70,7 @@ export class LocalConfigV1Migration implements SchemaMigration {
     };
 
     // Set the schema version to the new version
-    clone.schemaVersion = this.version.value;
+    clone.schemaVersion = this.version.major;
 
     return clone;
   }

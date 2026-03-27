@@ -8,7 +8,7 @@ import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 export class BlockNodeConfigSchema {
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: BlockNodeConfigSchema = new BlockNodeConfigSchema(
-    BlockNodeConfigSchema.SCHEMA_VERSION.value,
+    BlockNodeConfigSchema.SCHEMA_VERSION.major,
   );
 
   @Expose()

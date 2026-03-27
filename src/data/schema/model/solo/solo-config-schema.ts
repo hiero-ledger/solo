@@ -7,7 +7,7 @@ import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 @Exclude()
 export class SoloConfigSchema {
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
-  public static readonly EMPTY: SoloConfigSchema = new SoloConfigSchema(SoloConfigSchema.SCHEMA_VERSION.value);
+  public static readonly EMPTY: SoloConfigSchema = new SoloConfigSchema(SoloConfigSchema.SCHEMA_VERSION.major);
 
   @Expose()
   public schemaVersion: number;

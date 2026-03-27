@@ -39,7 +39,7 @@ export class LocalConfigV2Migration implements SchemaMigration {
     clone.deployments = mdeps;
 
     // Set the schema version to the new version
-    clone.schemaVersion = this.version.value;
+    clone.schemaVersion = this.version.major;
 
     return clone;
   }
