@@ -14,7 +14,7 @@ version: 3
 #
 # Usage from this directory:
 #   task          → CI entry-point: cycles through all four deploy variants,
-#                   running destroy after each one to verify each flag combination
+#                   checking expectations after each deploy then destroying
 #   task deploy                      → --evm (default mirror-node explorer)
 #   task deploy-no-explorer          → --evm --no-explorer
 #   task deploy-explorer-mirror-node → --evm --explorer mirror-node (explicit)
@@ -34,6 +34,8 @@ vars:
   DEPLOYMENT: "evm-deployment"
   CLUSTER_NAME: "evm-cluster"
   CONTEXT: "kind-evm-cluster"
+  # Namespace solo one-shot uses by default (NamespaceName.of('one-shot') in code).
+  NAMESPACE: "one-shot"
 
 tasks:
   # ── Deploy variants ────────────────────────────────────────────────────────
@@ -98,6 +100,68 @@ tasks:
             --deployment {{ .DEPLOYMENT }} \
             --cluster-ref {{ .CLUSTER_NAME }}
 
+  # ── Post-deploy checks ─────────────────────────────────────────────────────
+  # These internal tasks verify that the deployed components match the
+  # expectations of the flags that were passed to the deploy command.
+
+  _check-common:
+    # Checks present after every EVM deploy regardless of flags:
+    #   • relay (JSON-RPC) pod is Running
+    #   • mirror-node REST pod is Running
+    #   • accounts.json exists with exactly 20 ECDSA alias accounts
+    internal: true
+    cmds:
+      - cmd: |
+          NS="{{ .NAMESPACE }}"
+          ACCOUNTS_FILE="$HOME/.solo/one-shot-{{ .DEPLOYMENT }}/accounts.json"
+
+          echo "── relay pod (ns: $NS) ──"
+          kubectl get pods -n "$NS" -l app.kubernetes.io/name=relay --no-headers \
+            | grep -q Running \
+            || { echo "ERROR: relay pod is not Running"; exit 1; }
+          echo "✓ relay pod Running"
+
+          echo "── mirror-node REST pod (ns: $NS) ──"
+          kubectl get pods -n "$NS" -l app.kubernetes.io/name=rest --no-headers \
+            | grep -q Running \
+            || { echo "ERROR: mirror-node REST pod is not Running"; exit 1; }
+          echo "✓ mirror-node REST pod Running"
+
+          echo "── accounts.json (20 ECDSA alias accounts) ──"
+          [ -f "$ACCOUNTS_FILE" ] \
+            || { echo "ERROR: $ACCOUNTS_FILE not found"; exit 1; }
+          COUNT=$(jq '.accounts["accounts-created-ecdsa-alias"] | length' "$ACCOUNTS_FILE")
+          [ "$COUNT" = "20" ] \
+            || { echo "ERROR: expected 20 ECDSA alias accounts, got $COUNT"; exit 1; }
+          echo "✓ 20 ECDSA alias accounts in $ACCOUNTS_FILE"
+
+  _check-explorer-present:
+    # Verifies an explorer pod is Running (used after deploy / --explorer variants).
+    internal: true
+    cmds:
+      - cmd: |
+          NS="{{ .NAMESPACE }}"
+          echo "── explorer pod present (ns: $NS) ──"
+          kubectl get pods -n "$NS" -l app.kubernetes.io/component=hiero-explorer --no-headers 2>/dev/null \
+            | grep -q Running \
+            || kubectl get pods -n "$NS" -l app.kubernetes.io/component=hedera-explorer --no-headers 2>/dev/null \
+            | grep -q Running \
+            || { echo "ERROR: no running explorer pod found in namespace $NS"; exit 1; }
+          echo "✓ explorer pod Running"
+
+  _check-explorer-absent:
+    # Verifies no explorer pod is Running (used after --no-explorer deploy).
+    internal: true
+    cmds:
+      - cmd: |
+          NS="{{ .NAMESPACE }}"
+          echo "── explorer pod absent (ns: $NS) ──"
+          NEW=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hiero-explorer --no-headers 2>/dev/null | grep -c Running || true)
+          OLD=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hedera-explorer --no-headers 2>/dev/null | grep -c Running || true)
+          [ $((NEW + OLD)) -eq 0 ] \
+            || { echo "ERROR: explorer pod is Running but --no-explorer was set"; exit 1; }
+          echo "✓ no explorer pod (as expected with --no-explorer)"
+
   # ── Destroy ───────────────────────────────────────────────────────────────
 
   destroy:
@@ -108,20 +172,34 @@ tasks:
 
   # ── Default (CI entry-point) ───────────────────────────────────────────────
   # The "Test Examples" workflow runs `task` with no arguments, which invokes this
-  # target.  It exercises all four deploy flag combinations, running destroy after
-  # each one to verify the full lifecycle of every variant.
+  # target.  It cycles through all four deploy flag variants, running the
+  # appropriate post-deploy checks after each one, then destroys the cluster.
 
   default:
     desc: >
-      CI entry-point: cycle through all four EVM deploy variants
-      (default, --no-explorer, --explorer mirror-node, --explorer blockscout),
-      running destroy after each one.
+      CI entry-point: cycle through all four EVM deploy variants, verifying
+      component expectations after each deploy, then destroying the cluster.
     cmds:
+      # ── Variant 1: default (--evm) ── explorer ON by default
       - task: deploy
+      - task: _check-common
+      - task: _check-explorer-present
       - task: destroy
+
+      # ── Variant 2: --no-explorer ── relay + mirror node only
       - task: deploy-no-explorer
+      - task: _check-common
+      - task: _check-explorer-absent
       - task: destroy
+
+      # ── Variant 3: --explorer mirror-node ── explicit mirror-node explorer
       - task: deploy-explorer-mirror-node
+      - task: _check-common
+      - task: _check-explorer-present
       - task: destroy
+
+      # ── Variant 4: --explorer blockscout ── falls back to mirror-node explorer
       - task: deploy-explorer-blockscout
+      - task: _check-common
+      - task: _check-explorer-present
       - task: destroy
