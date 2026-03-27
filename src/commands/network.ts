@@ -66,7 +66,6 @@ import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -78,7 +77,6 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import semver from 'semver/preload.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 
@@ -783,9 +781,12 @@ export class NetworkCommand extends BaseCommand {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-    const networkNodeVersion: SemVer = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms: SemVer = new SemVer('0.60.0');
-    if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
+    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.releaseTag);
+    const minimumVersionForNonZeroRealms: SemanticVersion<string> = new SemanticVersion<string>('0.60.0');
+    if (
+      (realm !== 0 || shard !== 0) &&
+      new SemanticVersion<string>(networkNodeVersion).lessThan(minimumVersionForNonZeroRealms)
+    ) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
       );
@@ -1132,33 +1133,37 @@ export class NetworkCommand extends BaseCommand {
               lease = await this.leaseManager.create();
             }
 
-            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(
+              this.configManager.getFlag(flags.releaseTag),
+            );
 
             if (
               this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
-              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+              !new SemanticVersion<string>(this.remoteConfig.configuration.versions.consensusNode).equals(releaseTag)
             ) {
               // if is possible block node deployed before consensus node, then use release tag as fallback
               this.remoteConfig.configuration.versions.consensusNode = releaseTag;
               await this.remoteConfig.persist();
             }
 
-            const currentVersion: SemVer = new SemVer(
+            const currentVersion: SemanticVersion<string> = new SemanticVersion<string>(
               this.remoteConfig.configuration.versions.consensusNode.toString(),
             );
 
             let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
-            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+            const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(
+              versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+            );
 
             // if platform version is insufficient for tss, disable it
-            if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
+            if (tssEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
               tssEnabled = false;
             }
 
             const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
             this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
 
-            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+            if (wrapsEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
               throw new SoloError(
                 `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
               );
@@ -1771,7 +1776,10 @@ export class NetworkCommand extends BaseCommand {
         }
         if (releaseTag) {
           // update the solo chart version to match the deployed version
-          this.remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer(releaseTag));
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemanticVersion<string>(releaseTag),
+          );
         }
 
         await this.remoteConfig.persist();

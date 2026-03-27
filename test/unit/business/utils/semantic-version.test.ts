@@ -5,7 +5,7 @@ import {SemanticVersion} from '../../../../src/business/utils/semantic-version.j
 
 describe('SemanticVersion', () => {
   describe('constructor', () => {
-    it('should create a SemanticVersion instance with a valid SemVer', () => {
+    it('should create a SemanticVersion instance with a valid SemanticVersion<string>', () => {
       const semVersion: string = '1.0.0';
       const version: SemanticVersion<string> = new SemanticVersion(semVersion);
       expect(version.major).to.equal(semVersion);
@@ -16,7 +16,7 @@ describe('SemanticVersion', () => {
       expect(version.major).to.equal(42);
     });
 
-    it('should throw a RangeError for an invalid SemVer', () => {
+    it('should throw a RangeError for an invalid SemanticVersion<string>', () => {
       expect(() => new SemanticVersion(null as any)).to.throw(RangeError, 'Invalid version');
       expect(() => new SemanticVersion('invalid' as any)).to.throw(RangeError, 'Invalid version');
     });
@@ -27,13 +27,13 @@ describe('SemanticVersion', () => {
   });
 
   describe('equals', () => {
-    it('should return true for equal SemVer versions', () => {
+    it('should return true for equal SemanticVersion<string> versions', () => {
       const version1: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const version2: SemanticVersion<string> = new SemanticVersion('1.0.0');
       expect(version1.equals(version2)).to.be.true;
     });
 
-    it('should return false for different SemVer versions', () => {
+    it('should return false for different SemanticVersion<string> versions', () => {
       const version1: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const version2: SemanticVersion<string> = new SemanticVersion('2.0.0');
       expect(version1.equals(version2)).to.be.false;
@@ -53,19 +53,19 @@ describe('SemanticVersion', () => {
   });
 
   describe('compare', () => {
-    it('should return 0 for equal SemVer versions', () => {
+    it('should return 0 for equal SemanticVersion<string> versions', () => {
       const version1: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const version2: SemanticVersion<string> = new SemanticVersion('1.0.0');
       expect(version1.compare(version2)).to.equal(0);
     });
 
-    it('should return -1 when the first SemVer is less than the second', () => {
+    it('should return -1 when the first SemanticVersion<string> is less than the second', () => {
       const version1: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const version2: SemanticVersion<string> = new SemanticVersion('2.0.0');
       expect(version1.compare(version2)).to.equal(-1);
     });
 
-    it('should return 1 when the first SemVer is greater than the second', () => {
+    it('should return 1 when the first SemanticVersion<string> is greater than the second', () => {
       const version1: SemanticVersion<string> = new SemanticVersion('2.0.0');
       const version2: SemanticVersion<string> = new SemanticVersion('1.0.0');
       expect(version1.compare(version2)).to.equal(1);
@@ -91,7 +91,7 @@ describe('SemanticVersion', () => {
   });
 
   describe('toString', () => {
-    it('should return the string representation of a SemVer version', () => {
+    it('should return the string representation of a SemanticVersion<string> version', () => {
       const version: SemanticVersion<string> = new SemanticVersion('1.0.0');
       expect(version.toString()).to.equal('1.0.0');
     });

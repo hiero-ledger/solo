@@ -7,7 +7,6 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -440,7 +439,7 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    let releaseTag: SemVer = new SemVer(versions.HEDERA_PLATFORM_VERSION);
+    let releaseTag: SemanticVersion<string> = new SemanticVersion<string>(versions.HEDERA_PLATFORM_VERSION);
     try {
       releaseTag = this.remoteConfig.configuration.versions.consensusNode;
     } catch {
@@ -554,7 +553,9 @@ export class ProfileManager {
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
     // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion: SemVer = parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const releaseVersion: SemanticVersion<string> = parse(releaseTag, {
+      includePrerelease: true,
+    }) as SemanticVersion<string>;
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];

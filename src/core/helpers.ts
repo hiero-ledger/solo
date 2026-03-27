@@ -44,7 +44,7 @@ import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 
 export function getInternalAddress(
-  releaseVersion: semver.SemVer | string,
+  releaseVersion: semver.SemanticVersion<string> | string,
   namespaceName: NamespaceName,
   nodeAlias: NodeAlias,
 ): string {

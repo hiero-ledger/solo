@@ -2,22 +2,22 @@
 
 import {TransformationType, type TransformFnParams} from 'class-transformer';
 import {type DeploymentPhase} from '../remote/deployment-phase.js';
-import {SemVer} from 'semver';
 import {type LedgerPhase} from '../remote/ledger-phase.js';
 import {UnsupportedOperationError} from '../../../../business/errors/unsupported-operation-error.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 export class Transformations {
   private constructor() {
     throw new UnsupportedOperationError('This class cannot be instantiated');
   }
 
-  public static readonly SemVer: ({value, type}: TransformFnParams) => string | SemVer = ({
+  public static readonly SemanticVersion: ({value, type}: TransformFnParams) => string | SemanticVersion<string> = ({
     value,
     type,
-  }: TransformFnParams): string | SemVer => {
+  }: TransformFnParams): string | SemanticVersion<string> => {
     switch (type) {
       case TransformationType.PLAIN_TO_CLASS: {
-        return new SemVer(value);
+        return new SemanticVersion<string>(value);
       }
       case TransformationType.CLASS_TO_PLAIN: {
         return value.toString();

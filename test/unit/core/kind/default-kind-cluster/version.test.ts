@@ -3,7 +3,6 @@
 import {expect} from 'chai';
 import sinon from 'sinon';
 import {DefaultKindClient} from '../../../../../src/integration/kind/impl/default-kind-client.js';
-import {SemVer} from 'semver';
 import {KindVersion} from '../../../../../src/integration/kind/model/kind-version.js';
 import {VersionRequest} from '../../../../../src/integration/kind/request/version-request.js';
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
@@ -19,11 +18,11 @@ describe('DefaultKindClient - version', () => {
     sinon.restore();
   });
 
-  it('should return SemVer from KindVersion', async () => {
+  it('should return SemanticVersion<string> from KindVersion', async () => {
     // Arrange
-    const fakeSemVersion = new SemVer('0.20.0');
+    const fakeSemanticVersion<string>sion = new SemanticVersion<string>('0.20.0');
     const fakeKindVersion = sinon.createStubInstance(KindVersion);
-    fakeKindVersion.getVersion.returns(fakeSemVersion);
+    fakeKindVersion.getVersion.returns(fakeSemanticVersion<string>sion);
 
     // Stub VersionRequest.prototype.apply to do nothing
     sinon.stub(VersionRequest.prototype, 'apply').callsFake(() => {});
@@ -39,7 +38,7 @@ describe('DefaultKindClient - version', () => {
     const result = await client.version();
 
     // Assert
-    expect(result).to.be.instanceOf(SemVer);
+    expect(result).to.be.instanceOf(SemanticVersion<string>);
     expect(result.version).to.equal('0.20.0');
     expect(fakeExecution.responseAs.calledOnce).to.be.true;
   });

@@ -39,7 +39,6 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
-import {SemVer} from 'semver';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
@@ -973,7 +972,10 @@ export class ExplorerCommand extends BaseCommand {
         );
 
         // update explorer version in remote config
-        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorer, new SemVer(config.explorerVersion));
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.Explorer,
+          new SemanticVersion<string>(config.explorerVersion),
+        );
 
         await this.remoteConfig.persist();
       },

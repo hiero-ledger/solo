@@ -12,7 +12,7 @@ describe('VersionRange', (): void => {
       expect(range.end.major).to.equal(5);
     });
 
-    it('should create a valid VersionRange with SemVer bounds', (): void => {
+    it('should create a valid VersionRange with SemanticVersion<string> bounds', (): void => {
       const begin: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const end: SemanticVersion<string> = new SemanticVersion('2.0.0');
       const range: VersionRange<string> = new VersionRange(begin, end);
@@ -55,24 +55,27 @@ describe('VersionRange', (): void => {
     });
   });
 
-  describe('fromSemVerBounds', (): void => {
-    it('should create a VersionRange from SemVer bounds', (): void => {
+  describe('fromSemanticVersion<string>Bounds', (): void => {
+    it('should create a VersionRange from SemanticVersion<string> bounds', (): void => {
       const begin: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const end: SemanticVersion<string> = new SemanticVersion('2.0.0');
-      const range: VersionRange<string> = VersionRange.fromSemVerBounds(begin, end);
+      const range: VersionRange<string> = VersionRange.fromSemanticVersion < string > Bounds(begin, end);
       expect(range.begin.major).to.equal(begin);
       expect(range.end.major).to.equal(end);
     });
 
-    it('should throw a RangeError for invalid SemVer bounds', (): void => {
+    it('should throw a RangeError for invalid SemanticVersion<string> bounds', (): void => {
       const begin: SemanticVersion<string> = new SemanticVersion('2.0.0');
       const end: SemanticVersion<string> = new SemanticVersion('1.0.0');
-      expect(() => VersionRange.fromSemVerBounds(begin, end)).to.throw(RangeError, 'Invalid version range');
+      expect(() => VersionRange.fromSemanticVersion < string > Bounds(begin, end)).to.throw(
+        RangeError,
+        'Invalid version range',
+      );
     });
   });
 
   describe('patchVersionBounds', (): void => {
-    it('should create a VersionRange for all patch releases of a SemVer', (): void => {
+    it('should create a VersionRange for all patch releases of a SemanticVersion<string>', (): void => {
       const version: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const range: VersionRange<string> = VersionRange.patchVersionBounds(version);
       expect(range.begin.major).to.equal(version);
@@ -81,7 +84,7 @@ describe('VersionRange', (): void => {
   });
 
   describe('minorVersionBounds', (): void => {
-    it('should create a VersionRange for all minor and patch releases of a SemVer', (): void => {
+    it('should create a VersionRange for all minor and patch releases of a SemanticVersion<string>', (): void => {
       const version: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const range: VersionRange<string> = VersionRange.minorVersionBounds(version);
       expect(range.begin.major).to.equal(version);

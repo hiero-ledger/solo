@@ -1,54 +1,54 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose, Transform} from 'class-transformer';
-import {SemVer} from 'semver';
 import {Transformations} from '../utils/transformations.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 @Exclude()
 export class ApplicationVersionsSchema {
   @Expose()
-  @Transform(Transformations.SemVer)
-  public cli: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public cli: SemanticVersion<string>;
 
   @Expose()
-  @Transform(Transformations.SemVer)
-  public chart: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public chart: SemanticVersion<string>;
 
   @Expose()
-  @Transform(Transformations.SemVer)
-  public consensusNode: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public consensusNode: SemanticVersion<string>;
 
   @Expose()
-  @Transform(Transformations.SemVer)
-  public mirrorNodeChart: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public mirrorNodeChart: SemanticVersion<string>;
 
   @Expose()
-  @Transform(Transformations.SemVer)
-  public explorerChart: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public explorerChart: SemanticVersion<string>;
 
   @Expose()
-  @Transform(Transformations.SemVer)
-  public jsonRpcRelayChart: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public jsonRpcRelayChart: SemanticVersion<string>;
 
   @Expose()
-  @Transform(Transformations.SemVer)
-  public blockNodeChart: SemVer;
+  @Transform(Transformations.SemanticVersion)
+  public blockNodeChart: SemanticVersion<string>;
 
   public constructor(
-    cli?: SemVer,
-    chart?: SemVer,
-    consensusNode?: SemVer,
-    mirrorNodeChart?: SemVer,
-    explorerChart?: SemVer,
-    jsonRpcRelayChart?: SemVer,
-    blockNodeChart?: SemVer,
+    cli?: SemanticVersion<string>,
+    chart?: SemanticVersion<string>,
+    consensusNode?: SemanticVersion<string>,
+    mirrorNodeChart?: SemanticVersion<string>,
+    explorerChart?: SemanticVersion<string>,
+    jsonRpcRelayChart?: SemanticVersion<string>,
+    blockNodeChart?: SemanticVersion<string>,
   ) {
-    this.cli = cli ?? new SemVer('0.0.0');
-    this.chart = chart ?? new SemVer('0.0.0');
-    this.consensusNode = consensusNode ?? new SemVer('0.0.0');
-    this.mirrorNodeChart = mirrorNodeChart ?? new SemVer('0.0.0');
-    this.explorerChart = explorerChart ?? new SemVer('0.0.0');
-    this.jsonRpcRelayChart = jsonRpcRelayChart ?? new SemVer('0.0.0');
-    this.blockNodeChart = blockNodeChart ?? new SemVer('0.0.0');
+    this.cli = cli ?? new SemanticVersion<string>('0.0.0');
+    this.chart = chart ?? new SemanticVersion<string>('0.0.0');
+    this.consensusNode = consensusNode ?? new SemanticVersion<string>('0.0.0');
+    this.mirrorNodeChart = mirrorNodeChart ?? new SemanticVersion<string>('0.0.0');
+    this.explorerChart = explorerChart ?? new SemanticVersion<string>('0.0.0');
+    this.jsonRpcRelayChart = jsonRpcRelayChart ?? new SemanticVersion<string>('0.0.0');
+    this.blockNodeChart = blockNodeChart ?? new SemanticVersion<string>('0.0.0');
   }
 }

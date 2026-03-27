@@ -5,7 +5,6 @@ import {type PriorityMapping, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
-import {lt} from 'semver';
 import * as versions from '../../version.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
@@ -63,8 +62,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
   private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
     // Figure out field name for port
-    const useLegacyPortName: boolean = lt(
-      this.remoteConfig.configuration.versions.consensusNode,
+    const useLegacyPortName: boolean = this.remoteConfig.configuration.versions.consensusNode.lessThan(
       versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
     );
 
@@ -86,8 +84,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
       );
 
       // Figure out the block node port
-      const useLegacyPort: boolean = lt(
-        this.remoteConfig.configuration.versions.blockNodeChart,
+      const useLegacyPort: boolean = this.remoteConfig.configuration.versions.blockNodeChart.lessThan(
         versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
       );
 

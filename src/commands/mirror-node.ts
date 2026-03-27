@@ -49,8 +49,6 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
-import * as semver from 'semver';
-import {SemVer} from 'semver';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
@@ -313,20 +311,19 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
       shouldConfigureMirrorNodeToPullFromBlockNode = true;
     } else {
-      const isConsensusNodeVersionSupported: boolean = semver.gte(
-        this.remoteConfig.configuration.versions.consensusNode,
-        versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
-      );
+      const isConsensusNodeVersionSupported: boolean =
+        this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
+          versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+        );
 
-      const isBlockNodeChartVersionSupported: boolean = semver.gte(
-        this.remoteConfig.configuration.versions.blockNodeChart,
-        versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
-      );
+      const isBlockNodeChartVersionSupported: boolean =
+        this.remoteConfig.configuration.versions.blockNodeChart.greaterThanOrEqual(
+          versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+        );
 
-      const isMirrorNodeVersionSupported: boolean = semver.gte(
-        new SemVer(config.mirrorNodeVersion),
-        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
-      );
+      const isMirrorNodeVersionSupported: boolean = new SemanticVersion<string>(
+        config.mirrorNodeVersion,
+      ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION);
 
       shouldConfigureMirrorNodeToPullFromBlockNode =
         isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
@@ -517,7 +514,9 @@ export class MirrorNodeCommand extends BaseCommand {
   ): Promise<void> {
     if (
       config.isChartInstalled &&
-      semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+        versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
+      )
     ) {
       // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
       const existingSecrets: Secret = await this.k8Factory
@@ -543,9 +542,11 @@ export class MirrorNodeCommand extends BaseCommand {
     // Determine if we should reuse values based on the currently deployed version from remote config
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
-    const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
+    const currentVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+      ComponentTypes.MirrorNode,
+    );
     let shouldReuseValues: boolean = currentVersion
-      ? semver.gt(currentVersion, constants.MIRROR_NODE_VERSION_BOUNDARY)
+      ? currentVersion.greaterThan(constants.MIRROR_NODE_VERSION_BOUNDARY)
       : false; // If no current version (first install), don't reuse values
 
     if (commandType === MirrorNodeCommandType.ADD) {
@@ -1150,7 +1151,9 @@ END $grant$;`;
 
             // predefined values first
             config.valuesArg = helpers.prepareValuesFiles(
-              semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+              new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
+                versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
+              )
                 ? constants.MIRROR_NODE_VALUES_FILE_HEDERA
                 : constants.MIRROR_NODE_VALUES_FILE,
             );
@@ -1767,7 +1770,7 @@ END $grant$;`;
         // update mirror node version in remote config
         this.remoteConfig.updateComponentVersion(
           ComponentTypes.MirrorNode,
-          new SemVer(context_.config.mirrorNodeVersion),
+          new SemanticVersion<string>(context_.config.mirrorNodeVersion),
         );
 
         await this.remoteConfig.persist();

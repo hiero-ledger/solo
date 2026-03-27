@@ -4,7 +4,6 @@ import {readFileSync} from 'node:fs';
 import {parse, stringify} from 'yaml';
 import {expect} from 'chai';
 import {instanceToPlain} from 'class-transformer';
-import {SemVer} from 'semver';
 import {beforeEach} from 'mocha';
 import os from 'node:os';
 import {LocalConfigSchema} from '../../../../../../src/data/schema/model/local/local-config-schema.js';
@@ -21,6 +20,7 @@ import {
 } from '../../../../../../version.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
 import {type ClusterReferences} from '../../../../../../src/types/index.js';
+import {SemanticVersion} from '../../../../../../src/business/utils/semantic-version.js';
 
 describe('LocalConfig', () => {
   const schema: LocalConfigSchemaDefinition = new LocalConfigSchemaDefinition(
@@ -45,8 +45,8 @@ describe('LocalConfig', () => {
       const lc = await schema.transform(plainObject);
       expect(lc).to.not.be.undefined.and.to.not.be.null;
       expect(lc).to.be.instanceOf(LocalConfigSchema);
-      expect(lc.versions.cli).to.be.instanceOf(SemVer);
-      expect(lc.versions.cli).to.deep.equal(new SemVer('0.35.1'));
+      expect(lc.versions.cli).to.be.instanceOf(SemanticVersion<string>);
+      expect(lc.versions.cli).to.deep.equal(new SemanticVersion<string>('0.35.1'));
       expect(lc.deployments).to.have.lengthOf(2);
       expect(lc.deployments[0].name).to.equal('dual-cluster-full-deployment');
       expect(lc.deployments[0].realm).to.equal(0);
@@ -80,12 +80,12 @@ describe('LocalConfig', () => {
       ]);
 
       const versions = new ApplicationVersionsSchema(
-        new SemVer(soloVersion),
-        new SemVer(SOLO_CHART_VERSION),
-        new SemVer(HEDERA_PLATFORM_VERSION),
-        new SemVer(MIRROR_NODE_VERSION),
-        new SemVer(EXPLORER_VERSION),
-        new SemVer(HEDERA_JSON_RPC_RELAY_VERSION),
+        new SemanticVersion<string>(soloVersion),
+        new SemanticVersion<string>(SOLO_CHART_VERSION),
+        new SemanticVersion<string>(HEDERA_PLATFORM_VERSION),
+        new SemanticVersion<string>(MIRROR_NODE_VERSION),
+        new SemanticVersion<string>(EXPLORER_VERSION),
+        new SemanticVersion<string>(HEDERA_JSON_RPC_RELAY_VERSION),
       );
       const lc = new LocalConfigSchema(2, versions, deployments, clusterReferences);
       const newPlainObject: object = instanceToPlain(lc);

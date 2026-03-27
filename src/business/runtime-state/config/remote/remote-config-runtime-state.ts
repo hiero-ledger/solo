@@ -8,7 +8,6 @@ import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-con
 import {YamlConfigMapStorageBackend} from '../../../../data/backend/impl/yaml-config-map-storage-backend.js';
 import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import {LedgerPhase} from '../../../../data/schema/model/remote/ledger-phase.js';
-import {eq, SemVer} from 'semver';
 import {ComponentsDataWrapperApi} from '../../../../core/config/remote/api/components-data-wrapper-api.js';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
@@ -60,6 +59,7 @@ import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/com
 import * as helpers from '../../../../core/helpers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
+import {SemanticVersion} from '../../../utils/semantic-version.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -67,7 +67,7 @@ enum RuntimeStatePhase {
 }
 
 interface VersionField {
-  value: SemVer;
+  value: SemanticVersion<string>;
 }
 
 @injectable()
@@ -213,7 +213,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     const userIdentity: Readonly<UserIdentitySchema> = this.localConfig.configuration.userIdentity;
-    const cliVersion: SemVer = new SemVer(getSoloVersion());
+    const cliVersion: SemanticVersion<string> = new SemanticVersion<string>(getSoloVersion());
     const command: string = argv._.join(' ');
 
     const cluster: ClusterSchema = new ClusterSchema(
@@ -402,8 +402,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private initializeComponentVersions(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
     remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
-      ? new SemVer(argv[flags.soloChartVersion.name])
-      : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
+      ? new SemanticVersion(argv[flags.soloChartVersion.name])
+      : new SemanticVersion(flags.soloChartVersion.definition.defaultValue as string);
 
     // set default versions if not set
     const componentTypes: ComponentTypes[] = [
@@ -415,39 +415,42 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     ];
 
     for (const componentType of componentTypes) {
-      const version: SemVer = this.getComponentVersion(componentType);
-      if (eq(version, new SemVer('0.0.0'))) {
+      const version: SemanticVersion<string> = this.getComponentVersion(componentType);
+      if (version.equals(new SemanticVersion<string>('0.0.0'))) {
         switch (componentType) {
           case ComponentTypes.BlockNode: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.blockNodeChartVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.blockNodeChartVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.RelayNodes: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.relayReleaseTag.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.relayReleaseTag.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.MirrorNode: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.mirrorNodeVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.Explorer: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.explorerVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.explorerVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.ConsensusNode: {
-            this.updateComponentVersion(componentType, new SemVer(flags.releaseTag.definition.defaultValue as string));
+            this.updateComponentVersion(
+              componentType,
+              new SemanticVersion<string>(flags.releaseTag.definition.defaultValue as string),
+            );
             break;
           }
           default: {
@@ -624,7 +627,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 
-  public updateComponentVersion(type: ComponentTypes, version: SemVer): void {
+  public updateComponentVersion(type: ComponentTypes, version: SemanticVersion<string>): void {
     const updateVersionCallback: (versionField: VersionField) => void = (versionField: VersionField): void => {
       versionField.value = version;
     };
@@ -689,8 +692,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
   }
 
-  public getComponentVersion(type: ComponentTypes): SemVer {
-    let version: SemVer;
+  public getComponentVersion(type: ComponentTypes): SemanticVersion<string> {
+    let version: SemanticVersion<string>;
 
     const getVersionCallback: (versionField: VersionField) => void = (versionField: VersionField): void => {
       version = versionField.value;

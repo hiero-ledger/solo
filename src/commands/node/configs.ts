@@ -50,7 +50,6 @@ import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-u
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
-import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
@@ -167,7 +166,7 @@ export class NodeCommandConfigs {
 
     // check if the intended package version exists
     if (context_.config.upgradeVersion) {
-      const semVersion: SemVer = new SemVer(context_.config.upgradeVersion);
+      const semVersion: SemanticVersion<string> = new SemanticVersion<string>(context_.config.upgradeVersion);
       const HEDERA_BUILDS_URL: string = 'https://builds.hedera.com';
       const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/v${semVersion.major}.${semVersion.minor}/build-${context_.config.upgradeVersion}.zip`;
       try {
@@ -642,9 +641,9 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeSetupConfigClass;
 
-    const savedVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+    const savedVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
     if (
-      !eq(savedVersion, new SemVer(context_.config.releaseTag)) && // allow different versions only for local builds
+      !eq(savedVersion, new SemanticVersion<string>(context_.config.releaseTag)) && // allow different versions only for local builds
       !context_.config.localBuildPath
     ) {
       throw new SoloError(

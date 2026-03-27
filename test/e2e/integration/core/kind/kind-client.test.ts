@@ -13,7 +13,6 @@ import * as os from 'node:os';
 import {type GetKubeConfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
 import {type GetNodesResponse} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-response.js';
 import {type ExportKubeConfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
-import {type SemVer} from 'semver';
 import {type ClusterCreateOptions} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-options.js';
 import {type ClusterCreateResponse} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-response.js';
 import {type ClusterDeleteResponse} from '../../../../../src/integration/kind/model/delete-cluster/cluster-delete-response.js';
@@ -114,7 +113,7 @@ describe('KindClient Integration Tests', function (): void {
   }).timeout(Duration.ofMinutes(2).toMillis());
 
   it('should get Kind version', async (): Promise<void> => {
-    const version: SemVer = await kindClient.version();
+    const version: SemanticVersion<string> = await kindClient.version();
     expect(version).to.not.be.undefined;
     expect(version.major).to.be.a('number');
     expect(version.minor).to.be.a('number');

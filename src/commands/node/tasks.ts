@@ -147,7 +147,6 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {lt, SemVer} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
@@ -1023,7 +1022,8 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        const consensusVersion: SemVer | undefined = this.remoteConfig.configuration?.versions?.consensusNode;
+        const consensusVersion: SemanticVersion<string> | undefined =
+          this.remoteConfig.configuration?.versions?.consensusNode;
         const releaseTag: string = consensusVersion?.version || consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
         const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
         const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
@@ -1468,8 +1468,8 @@ export class NodeCommandTasks {
     return {
       title: 'setup network node folders',
       skip: (): boolean => {
-        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer('0.63.0');
+        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>('0.63.0');
         return lt(currentVersion, versionRequirement);
       },
       task: async (context_): Promise<void> => {
@@ -1499,7 +1499,7 @@ export class NodeCommandTasks {
           // save consensus node version in remote config
           this.remoteConfig.updateComponentVersion(
             ComponentTypes.ConsensusNode,
-            new SemVer(context_.config.releaseTag),
+            new SemanticVersion<string>(context_.config.releaseTag),
           );
           await this.remoteConfig.persist();
         }
@@ -1577,8 +1577,10 @@ export class NodeCommandTasks {
           return true;
         }
 
-        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
+        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>(
+          MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
+        );
         return lt(currentVersion, versionRequirement);
       },
       task: async ({config}): Promise<void> => {

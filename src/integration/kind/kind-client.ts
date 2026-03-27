@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type SemVer} from 'semver';
 import {type KindCluster} from './model/kind-cluster.js';
 import {type ClusterCreateResponse} from './model/create-cluster/cluster-create-response.js';
 import {type ClusterDeleteResponse} from './model/delete-cluster/cluster-delete-response.js';
@@ -28,7 +27,7 @@ export interface KindClient {
    *
    * @returns the version of the Kind CLI that is being used by this client.
    */
-  version(): Promise<SemVer>;
+  version(): Promise<SemanticVersion<string>>;
 
   /**
    * Executes the Kind CLI cluster create sub-command.

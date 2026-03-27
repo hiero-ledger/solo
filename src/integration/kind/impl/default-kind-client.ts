@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type KindClient} from '../kind-client.js';
-import {lt, SemVer} from 'semver';
 import {GetClustersRequest} from '../request/get/get-clusters-request.js';
 import {KindCluster} from '../model/kind-cluster.js';
 import {type KindRequest} from '../request/kind-request.js';
@@ -55,7 +54,7 @@ import path from 'node:path';
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
 export class DefaultKindClient implements KindClient {
-  private static minimumVersion: SemVer = new SemVer(KIND_VERSION);
+  private static minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(KIND_VERSION);
 
   public constructor(
     private readonly executable: string,
@@ -75,7 +74,7 @@ export class DefaultKindClient implements KindClient {
   }
 
   public async checkVersion(): Promise<void> {
-    const version: SemVer = await this.version();
+    const version: SemanticVersion<string> = await this.version();
     if (lt(version, DefaultKindClient.minimumVersion)) {
       throw new KindVersionRequirementException(
         `The Kind CLI version ${version} is lower than the minimum required version ${DefaultKindClient.minimumVersion}.`,
@@ -83,7 +82,7 @@ export class DefaultKindClient implements KindClient {
     }
   }
 
-  public async version(): Promise<SemVer> {
+  public async version(): Promise<SemanticVersion<string>> {
     const request: VersionRequest = new VersionRequest();
     const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
@@ -98,7 +97,7 @@ export class DefaultKindClient implements KindClient {
       throw new TypeError('Unexpected response type');
     }
 
-    const semver: SemVer = result.getVersion();
+    const semver: SemanticVersion<string> = result.getVersion();
 
     this.logger?.info?.(`kind version: ${semver.version ?? semver.toString()}`);
 

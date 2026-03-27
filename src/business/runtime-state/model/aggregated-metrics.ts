@@ -6,7 +6,7 @@ import {type RemoteConfigRuntimeState} from '../config/remote/remote-config-runt
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
 import {ComponentTypes} from '../../../core/config/remote/enumerations/component-types.js';
-import {type SemVer} from 'semver';
+import {type SemanticVersion} from '../../utils/semantic-version.js';
 
 export class AggregatedMetrics extends Metrics {
   public constructor(
@@ -19,13 +19,13 @@ export class AggregatedMetrics extends Metrics {
     public readonly events?: string[],
     public readonly date?: Date,
     public readonly gitHubSha?: string,
-    public readonly soloVersion?: SemVer,
-    public readonly soloChartVersion?: SemVer,
-    public readonly consensusNodeVersion?: SemVer,
-    public readonly mirrorNodeVersion?: SemVer,
-    public readonly blockNodeVersion?: SemVer,
-    public readonly relayVersion?: SemVer,
-    public readonly explorerVersion?: SemVer,
+    public readonly soloVersion?: SemanticVersion<string>,
+    public readonly soloChartVersion?: SemanticVersion<string>,
+    public readonly consensusNodeVersion?: SemanticVersion<string>,
+    public readonly mirrorNodeVersion?: SemanticVersion<string>,
+    public readonly blockNodeVersion?: SemanticVersion<string>,
+    public readonly relayVersion?: SemanticVersion<string>,
+    public readonly explorerVersion?: SemanticVersion<string>,
   ) {
     super(cpuInMillicores, memoryInMebibytes);
     this.date = new Date();
