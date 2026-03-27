@@ -17,10 +17,12 @@ import {InstallChartOptionsBuilder} from '../integration/helm/model/install/inst
 import {type HelmClient} from '../integration/helm/helm-client.js';
 import {UnInstallChartOptionsBuilder} from '../integration/helm/model/install/un-install-chart-options-builder.js';
 import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-options-builder.js';
+import {AddRepoOptions} from '../integration/helm/model/add/add-repo-options.js';
+import {UnInstallChartOptions} from '../integration/helm/model/install/un-install-chart-options.js';
 
 @injectable()
 export class ChartManager {
-  constructor(
+  public constructor(
     @inject(InjectTokens.Helm) private readonly helm?: HelmClient,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
@@ -80,10 +82,10 @@ export class ChartManager {
     }
   }
 
-  async addRepo(name: string, url: string, force: boolean) {
+  public async addRepo(name: string, url: string, force: boolean): Promise<string> {
     // detect if repo already exists for name provided and the url matches, if so, exit, otherwise force update
     const repositories: Repository[] = await this.helm.listRepositories();
-    const existingRepo: Repository | undefined = repositories.find((repo: Repository) => repo.name === name);
+    const existingRepo: Repository | undefined = repositories.find((repo): boolean => repo.name === name);
     if (existingRepo) {
       if (existingRepo.url === url) {
         this.logger.debug(`Repo already exists: ${name} -> ${url}`);
@@ -92,7 +94,7 @@ export class ChartManager {
       this.logger.debug(`Repo URL mismatch for ${name}: existing URL is ${existingRepo.url}, new URL is ${url}`);
     }
     this.logger.debug(`Adding repo ${name} -> ${url}`, {repoName: name, repoURL: url});
-    const options = new AddRepoOptionsBuilder().forceUpdate(force).build();
+    const options: AddRepoOptions = new AddRepoOptionsBuilder().forceUpdate(force).build();
     await this.helm.addRepository(new Repository(name, url), options);
     return url;
   }
@@ -106,8 +108,8 @@ export class ChartManager {
     try {
       const result: ReleaseItem[] = await this.helm.listReleases(!namespaceName, namespaceName?.name, kubeContext);
       // convert to string[]
-      return result.map(release => `${release.name} [${release.chart}]`);
-    } catch (error: Error | any) {
+      return result.map((release): string => `${release.name} [${release.chart}]`);
+    } catch (error) {
       this.logger.showUserError(error);
       throw new SoloError(`failed to list installed charts: ${error.message}`, error);
     }
@@ -144,7 +146,7 @@ export class ChartManager {
         await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
       }
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloError(`failed to install chart ${chartReleaseName}: ${error.message}`, error);
     }
 
@@ -172,12 +174,16 @@ export class ChartManager {
     return match;
   }
 
-  async uninstall(namespaceName: NamespaceName, chartReleaseName: string, kubeContext?: string) {
+  public async uninstall(
+    namespaceName: NamespaceName,
+    chartReleaseName: string,
+    kubeContext?: string,
+  ): Promise<boolean> {
     try {
-      const isInstalled = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
+      const isInstalled: boolean = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
       if (isInstalled) {
         this.logger.debug(`uninstalling chart release: ${chartReleaseName}`);
-        const options = UnInstallChartOptionsBuilder.builder()
+        const options: UnInstallChartOptions = UnInstallChartOptionsBuilder.builder()
           .namespace(namespaceName.name)
           .kubeContext(kubeContext)
           .build();
@@ -186,23 +192,23 @@ export class ChartManager {
       } else {
         this.logger.debug(`OK: chart release is already uninstalled: ${chartReleaseName}`);
       }
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloError(`failed to uninstall chart ${chartReleaseName}: ${error.message}`, error);
     }
 
     return true;
   }
 
-  async upgrade(
+  public async upgrade(
     namespaceName: NamespaceName,
     chartReleaseName: string,
     chartName: string,
     repoName: string,
-    version = '',
-    valuesArgument = '',
+    version: string = '',
+    valuesArgument: string = '',
     kubeContext?: string,
     reuseValues?: boolean,
-  ) {
+  ): Promise<boolean> {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
       const options: UpgradeChartOptions = new UpgradeChartOptions(
@@ -215,7 +221,7 @@ export class ChartManager {
       const chart: Chart = new Chart(chartName, repoName);
       await this.helm.upgradeChart(chartReleaseName, chart, options);
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloError(`failed to upgrade chart ${chartReleaseName}: ${error.message}`, error);
     }
 

@@ -22,7 +22,6 @@ import * as helpers from '../core/helpers.js';
 import {Duration} from '../core/time/duration.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {NodeCommandTasks} from './node/tasks.js';
 import {plainToInstance} from 'class-transformer';
 import {RemoteConfigSchema} from '../data/schema/model/remote/remote-config-schema.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
@@ -54,8 +53,6 @@ import {InstallChartOptionsBuilder} from '../integration/helm/model/install/inst
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
-  private readonly nodeCommandTasks: NodeCommandTasks;
-
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
@@ -67,7 +64,6 @@ export class BackupRestoreCommand extends BaseCommand {
       InjectTokens.KubectlInstallationDirectory,
       BackupRestoreCommand.name,
     );
-    this.nodeCommandTasks = container.resolve(NodeCommandTasks);
   }
 
   public async close(): Promise<void> {

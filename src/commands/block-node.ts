@@ -3,7 +3,12 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
-import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.js';
+import {
+  checkDockerImageExists,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
+  showVersionBanner,
+  sleep,
+} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -40,7 +45,6 @@ import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
-import {NetworkCommand} from './network.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -338,7 +342,7 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
@@ -355,7 +359,7 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
@@ -1112,7 +1116,7 @@ export class BlockNodeCommand extends BaseCommand {
       skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
@@ -1246,7 +1250,7 @@ export class BlockNodeCommand extends BaseCommand {
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Add block node component in remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded() || this.oneShotState.isActive(),
       task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
           config.newBlockNodeComponent,
