@@ -2,7 +2,6 @@
 
 import {expect} from 'chai';
 import {before, describe, it} from 'mocha';
-import {SemanticVersion} from '../../../../../src/integration/helm/base/api/version/semantic-version.js';
 import {type HelmClient} from '../../../../../src/integration/helm/helm-client.js';
 import {HelmExecutionException} from '../../../../../src/integration/helm/helm-execution-exception.js';
 import {Chart} from '../../../../../src/integration/helm/model/chart.js';
@@ -33,6 +32,7 @@ import {
 } from '../../../../../src/core/dependency-managers/index.js';
 import {resetForTest} from '../../../../test-container.js';
 import {getTemporaryDirectory} from '../../../../test-utility.js';
+import {SemanticVersion} from '../../../../../src/business/utils/semantic-version.js';
 
 const exec: (command: string, options: unknown) => Promise<{stdout: string; stderr: string} | ExecException> =
   promisify(execCallback);
@@ -114,7 +114,7 @@ describe('HelmClient Tests', (): void => {
   };
 
   it('Version Command Executes Successfully', async (): Promise<void> => {
-    const helmVersion: SemanticVersion = await helmClient.version();
+    const helmVersion: SemanticVersion<string> = await helmClient.version();
     expect(helmVersion).to.not.be.null;
     expect(helmVersion).to.not.equal(SemanticVersion.ZERO);
 

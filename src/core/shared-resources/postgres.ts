@@ -17,7 +17,6 @@ import * as constants from '../../core/constants.js';
 import fs, {createWriteStream, WriteStream} from 'node:fs';
 import {SOLO_CACHE_DIR} from '../constants.js';
 import {MIRROR_NODE_VERSION} from '../../../version.js';
-import {SemanticVersion} from '../../integration/helm/base/api/version/semantic-version.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {PassThrough, pipeline} from 'node:stream';
 import {promisify} from 'node:util';
@@ -27,6 +26,7 @@ import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../../integration/kube/resources/pod/pods.js';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 
 @injectable()
 export class PostgresSharedResource {
@@ -83,7 +83,7 @@ export class PostgresSharedResource {
   ): Promise<void> {
     const containerReference: ContainerReference = await this.resolveContainerReference(namespace, context);
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-    const version: SemanticVersion = SemanticVersion.parse(MIRROR_NODE_VERSION.replaceAll('v', ''));
+    const version: SemanticVersion<string> = new SemanticVersion<string>(MIRROR_NODE_VERSION.replaceAll('v', ''));
     const tag: string = `v${version.major}.${version.minor}.${version.patch}`;
 
     // check if path exists recursive PathEx.join(constants.SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-script.sh')

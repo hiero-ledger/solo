@@ -5,6 +5,11 @@ import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js'
 import {Numbers} from './numbers.js';
 
 export class SemanticVersion<T extends string | number> {
+  /**
+   * Constant value representing a zero version number.
+   */
+  public static readonly ZERO: SemanticVersion<string> = new SemanticVersion<string>('0');
+
   public readonly major: number = 0;
   public readonly minor: number = 0;
   public readonly patch: number = 0;
@@ -32,6 +37,8 @@ export class SemanticVersion<T extends string | number> {
       this.major = this.originalValue as number;
       this.tType = 'number';
     } else if (SemanticVersion.isSemanticVersion(this.originalValue) && typeof this.originalValue === 'string') {
+      // @ts-expect-error - This is safe because the constructor will throw if the type is not correct
+      this.originalValue = (originalValue as string).trim();
       this.major = Number.parseInt(this.originalValue.split('.')[0].replace(/^v/, ''), 10);
       this.minor = Number.parseInt(this.originalValue.split('.')[1], 10);
       this.patch = Number.parseInt(this.originalValue.split('.')[2].split('-')[0].split('+')[0], 10);

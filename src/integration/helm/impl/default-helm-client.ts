@@ -24,7 +24,6 @@ import {ReleaseListRequest} from '../request/release/release-list-request.js';
 import {RepositoryAddRequest} from '../request/repository/repository-add-request.js';
 import {RepositoryListRequest} from '../request/repository/repository-list-request.js';
 import {RepositoryRemoveRequest} from '../request/repository/repository-remove-request.js';
-import {type SemanticVersion} from '../base/api/version/semantic-version.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
@@ -33,6 +32,7 @@ import {AddRepoOptions} from '../model/add/add-repo-options.js';
 import {SoloError} from '../../../core/errors/solo-error.js';
 import {RepositoryUpdateRequest} from '../request/repository/repository-update-request.js';
 import path from 'node:path';
+import {SemanticVersion} from '../../../business/utils/semantic-version.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -61,7 +61,7 @@ export class DefaultHelmClient implements HelmClient {
   private readonly ERROR_401_REGEX: RegExp = /\b401\b.*\bunauthorized\b/i;
   private readonly ERROR_403_REGEX: RegExp = /\b401\b.*\bunauthorized\b/i;
 
-  public async version(): Promise<SemanticVersion> {
+  public async version(): Promise<SemanticVersion<string>> {
     const request: VersionRequest = new VersionRequest();
     const builder: HelmExecutionBuilder = new HelmExecutionBuilder();
     this.applyBuilderDefaults(builder);
@@ -76,7 +76,7 @@ export class DefaultHelmClient implements HelmClient {
       throw new TypeError('Unexpected response type');
     }
 
-    const semanticVersion: SemanticVersion = result.asSemanticVersion();
+    const semanticVersion: SemanticVersion<string> = result.asSemanticVersion();
 
     this.logger.showUser(`helm version: ${semanticVersion.toString()}`);
 
