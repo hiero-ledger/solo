@@ -52,7 +52,7 @@ export class VersionRange<T extends string | number> {
    * @returns the version range.
    * @throws RangeError if the bounds are invalid.
    */
-  public static fromSemVerBounds<R extends string | number>(
+  public static fromSemanticVersionBounds<R extends string | number>(
     begin: SemanticVersion<R>,
     end: SemanticVersion<R>,
   ): VersionRange<R> {

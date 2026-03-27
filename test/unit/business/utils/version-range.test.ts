@@ -59,7 +59,7 @@ describe('VersionRange', (): void => {
     it('should create a VersionRange from SemanticVersion<string> bounds', (): void => {
       const begin: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const end: SemanticVersion<string> = new SemanticVersion('2.0.0');
-      const range: VersionRange<string> = VersionRange.fromSemVerBounds(begin, end);
+      const range: VersionRange<string> = VersionRange.fromSemanticVersionBounds(begin, end);
       expect(range.begin.major).to.equal(begin);
       expect(range.end.major).to.equal(end);
     });
@@ -67,7 +67,7 @@ describe('VersionRange', (): void => {
     it('should throw a RangeError for invalid SemanticVersion<string> bounds', (): void => {
       const begin: SemanticVersion<string> = new SemanticVersion('2.0.0');
       const end: SemanticVersion<string> = new SemanticVersion('1.0.0');
-      expect(() => VersionRange.fromSemVerBounds(begin, end)).to.throw(RangeError, 'Invalid version range');
+      expect(() => VersionRange.fromSemanticVersionBounds(begin, end)).to.throw(RangeError, 'Invalid version range');
     });
   });
 
