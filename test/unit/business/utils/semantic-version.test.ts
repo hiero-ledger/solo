@@ -2,13 +2,14 @@
 
 import {expect} from 'chai';
 import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
+import {IllegalArgumentError} from '../../../../src/core/errors/illegal-argument-error.js';
 
 describe('SemanticVersion', () => {
   describe('constructor', () => {
     it('should create a SemanticVersion instance with a valid SemanticVersion<string>', () => {
       const semVersion: string = '1.0.0';
       const version: SemanticVersion<string> = new SemanticVersion(semVersion);
-      expect(version.major).to.equal(semVersion);
+      expect(version.toString()).to.equal(semVersion);
     });
 
     it('should create a SemanticVersion instance with a valid numeric version', () => {
@@ -17,12 +18,15 @@ describe('SemanticVersion', () => {
     });
 
     it('should throw a RangeError for an invalid SemanticVersion<string>', () => {
-      expect(() => new SemanticVersion(null as any)).to.throw(RangeError, 'Invalid version');
-      expect(() => new SemanticVersion('invalid' as any)).to.throw(RangeError, 'Invalid version');
+      expect(() => new SemanticVersion(null as any)).to.throw(IllegalArgumentError, 'Invalid semantic version: null');
+      expect(() => new SemanticVersion('invalid' as any)).to.throw(
+        IllegalArgumentError,
+        'Invalid semantic version: invalid',
+      );
     });
 
     it('should throw a RangeError for an invalid numeric version', () => {
-      expect(() => new SemanticVersion(-1)).to.throw(RangeError, 'Invalid version');
+      expect(() => new SemanticVersion(-1)).to.throw(IllegalArgumentError, 'Invalid semantic version: -1');
     });
   });
 

@@ -30,18 +30,24 @@ export class SemanticVersion<T extends string | number> {
       this.buildMetadata = this.originalValue.buildMetadata;
       this.tType = this.originalValue.tType;
     } else if (
-      Numbers.isNumeric(this.originalValue as string) &&
+      Numbers.isNumeric(`${this.originalValue}`) &&
       Number.isSafeInteger(this.originalValue) &&
       (this.originalValue as number) >= 0
     ) {
       this.major = this.originalValue as number;
       this.tType = 'number';
     } else if (SemanticVersion.isSemanticVersion(this.originalValue) && typeof this.originalValue === 'string') {
+      this.tType = 'string';
       // @ts-expect-error - This is safe because the constructor will throw if the type is not correct
       this.originalValue = (originalValue as string).trim();
-      this.major = Number.parseInt(this.originalValue.split('.')[0].replace(/^v/, ''), 10);
-      this.minor = Number.parseInt(this.originalValue.split('.')[1], 10);
-      this.patch = Number.parseInt(this.originalValue.split('.')[2].split('-')[0].split('+')[0], 10);
+      const versionParts: string[] = this.originalValue.split('.');
+      this.major = Number.parseInt(versionParts[0].replace(/^v/, ''), 10);
+      if (versionParts.length > 1) {
+        this.minor = Number.parseInt(versionParts[1], 10);
+        if (versionParts.length > 2) {
+          this.patch = Number.parseInt(versionParts[2].split('-')[0].split('+')[0], 10);
+        }
+      }
 
       const preReleaseMatch: RegExpMatchArray = this.originalValue.match(/-(.+?)(?:\+|$)/);
       if (preReleaseMatch) {
@@ -52,8 +58,6 @@ export class SemanticVersion<T extends string | number> {
       if (buildMetadataMatch) {
         this.buildMetadata = buildMetadataMatch[1];
       }
-
-      this.tType = 'string';
     }
   }
 
@@ -74,7 +78,7 @@ export class SemanticVersion<T extends string | number> {
     }
 
     const otherValue: SemanticVersion<T> = new SemanticVersion<T>(other);
-    return !(
+    return (
       this.tType === otherValue.tType &&
       this.major === otherValue.major &&
       this.minor === otherValue.minor &&
@@ -195,6 +199,9 @@ export class SemanticVersion<T extends string | number> {
   }
 
   public toString(): string {
+    if (this.tType === 'number') {
+      return `${this.major}`;
+    }
     return `${this.major}.${this.minor}.${this.patch}${this.preRelease ? `-${this.preRelease}` : ''}${this.buildMetadata ? `+${this.buildMetadata}` : ''}`;
   }
 
@@ -208,15 +215,25 @@ export class SemanticVersion<T extends string | number> {
       return true;
     }
 
+    if (typeof value === 'string') {
+      value = value.trim().replace(/^v/, '') as R; // Remove 'v' prefix if present for validation
+    }
+
     // if it's numeric, a safe integer, and non-negative, it's valid
-    if (Numbers.isNumeric(value as string) && Number.isSafeInteger(value) && (value as number) >= 0) {
+    if (Numbers.isNumeric(`${value}`) && Number.isSafeInteger(value) && (value as number) >= 0) {
       return true;
     }
 
-    // if it's a string and matches a semantic version regex pattern, it's valid
+    // if it's a string and matches a semantic version regex pattern,
+    //  it's valid,
+    //  allows for an optional 'v' prefix,
+    //  '0',
+    //  '0.1',
+    //  '0.0.1',
+    //  as well as acceptable pre-release and build metadata formats
     if (typeof value === 'string') {
-      return /^(0|[v1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/.test(
-        value,
+      return /^v?(0|[1-9]\d*)(\.(0|[1-9]\d*)(\.(0|[1-9]\d*)(?:-[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?(?:\+[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?)?)?$/.test(
+        value.trim(),
       );
     }
 
