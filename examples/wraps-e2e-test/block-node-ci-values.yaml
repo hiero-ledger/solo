@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# CI-optimized block node values for the WRAPs E2E test.
+# Overrides the TSS overlay's 1 Gi JVM heap with a smaller 512m heap
+# that is still sufficient to receive the ~30 MiB WRAPs genesis proof.
+# The 36 MiB gRPC message size limit (from --block-node-tss-overlay) is preserved.
+resources:
+  requests:
+    cpu: "500m"
+    memory: "768Mi"
+  limits:
+    cpu: "2"
+    memory: "768Mi"
+
+blockNode:
+  config:
+    JAVA_OPTS: '-Xms512m -Xmx512m -XX:MaxDirectMemorySize=64m -XX:MaxMetaspaceSize=128m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
