@@ -34,8 +34,6 @@ vars:
   DEPLOYMENT: "evm-deployment"
   CLUSTER_NAME: "evm-cluster"
   CONTEXT: "kind-evm-cluster"
-  # Namespace solo one-shot uses by default (NamespaceName.of('one-shot') in code).
-  NAMESPACE: "one-shot"
 
 tasks:
   # ── Deploy variants ────────────────────────────────────────────────────────
@@ -103,6 +101,21 @@ tasks:
   # ── Post-deploy checks ─────────────────────────────────────────────────────
   # These internal tasks verify that the deployed components match the
   # expectations of the flags that were passed to the deploy command.
+  #
+  # The namespace is NOT hardcoded: solo may use a runner-specific namespace
+  # (e.g. the CI runner label).  We discover it at runtime via kubectl by
+  # looking for relay pods across all namespaces.
+
+  _resolve-ns:
+    # Prints the namespace that contains the active relay deployment.
+    # Used inline in other tasks via command substitution.
+    internal: true
+    cmds:
+      - cmd: |
+          NS=$(kubectl get pods --all-namespaces -l app.kubernetes.io/name=relay \
+            --no-headers 2>/dev/null | awk '{print $1}' | head -1)
+          [ -n "$NS" ] || { echo "ERROR: could not find relay pod in any namespace" >&2; exit 1; }
+          echo "$NS"
 
   _check-common:
     # Checks present after every EVM deploy regardless of flags:
@@ -112,8 +125,11 @@ tasks:
     internal: true
     cmds:
       - cmd: |
-          NS="{{ .NAMESPACE }}"
-          ACCOUNTS_FILE="$HOME/.solo/one-shot-{{ .DEPLOYMENT }}/accounts.json"
+          # Discover namespace from the live cluster (runner may use a non-default namespace).
+          NS=$(kubectl get pods --all-namespaces -l app.kubernetes.io/name=relay \
+            --no-headers 2>/dev/null | awk '{print $1}' | head -1)
+          [ -n "$NS" ] || { echo "ERROR: could not find relay pod in any namespace"; exit 1; }
+          echo "Resolved namespace: $NS"
 
           echo "── relay pod (ns: $NS) ──"
           kubectl get pods -n "$NS" -l app.kubernetes.io/name=relay --no-headers \
@@ -128,6 +144,7 @@ tasks:
           echo "✓ mirror-node REST pod Running"
 
           echo "── accounts.json (20 ECDSA alias accounts) ──"
+          ACCOUNTS_FILE="$HOME/.solo/one-shot-{{ .DEPLOYMENT }}/accounts.json"
           [ -f "$ACCOUNTS_FILE" ] \
             || { echo "ERROR: $ACCOUNTS_FILE not found"; exit 1; }
           COUNT=$(jq '.accounts["accounts-created-ecdsa-alias"] | length' "$ACCOUNTS_FILE")
@@ -140,7 +157,11 @@ tasks:
     internal: true
     cmds:
       - cmd: |
-          NS="{{ .NAMESPACE }}"
+          NS=$(kubectl get pods --all-namespaces -l app.kubernetes.io/name=relay \
+            --no-headers 2>/dev/null | awk '{print $1}' | head -1)
+          [ -n "$NS" ] || { echo "ERROR: could not determine namespace"; exit 1; }
+          echo "Resolved namespace: $NS"
+
           echo "── explorer pod present (ns: $NS) ──"
           kubectl get pods -n "$NS" -l app.kubernetes.io/component=hiero-explorer --no-headers 2>/dev/null \
             | grep -q Running \
@@ -154,7 +175,11 @@ tasks:
     internal: true
     cmds:
       - cmd: |
-          NS="{{ .NAMESPACE }}"
+          NS=$(kubectl get pods --all-namespaces -l app.kubernetes.io/name=relay \
+            --no-headers 2>/dev/null | awk '{print $1}' | head -1)
+          [ -n "$NS" ] || { echo "ERROR: could not determine namespace"; exit 1; }
+          echo "Resolved namespace: $NS"
+
           echo "── explorer pod absent (ns: $NS) ──"
           NEW=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hiero-explorer --no-headers 2>/dev/null | grep -c Running || true)
           OLD=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hedera-explorer --no-headers 2>/dev/null | grep -c Running || true)
