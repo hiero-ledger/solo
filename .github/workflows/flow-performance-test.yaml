@@ -115,10 +115,7 @@ jobs:
             ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
@@ -132,8 +129,7 @@ jobs:
           # its own.
           TASK_PID=""
           TASK_PGID=""
-          TASK_RC=0
-          CANCEL_POLLER_PID=""
+          TEST_EXIT_CODE=0
 
           cleanup() {
             if [[ -n "${TASK_PID}" ]]; then
@@ -149,70 +145,30 @@ jobs:
               fi
               wait "${TASK_PID}" 2>/dev/null || true
             fi
-            [[ -n "${CANCEL_POLLER_PID}" ]] && kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
 
-          # API poller: polls the run's updated_at field every 30 s and sends
-          # SIGTERM to the main shell when GitHub marks the run as cancelled.
-          # Self-hosted runners do not deliver SIGTERM to step scripts directly,
-          # so this is the only reliable way to detect workflow cancellation.
-          # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
-          # do not auto-expose it as a shell variable).
-          _run_updated_at() {
-            local _api="${GITHUB_API_URL:-https://api.github.com}"
-            curl -sf \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              | jq -r '.updated_at // empty' 2>/dev/null || echo ""
-          }
-          RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
-          echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
-
-          # Start in a separate session so cancellation can terminate the full task process tree.
+          # Wrap task in bash so that task runs inside bash's process group.
+          # When cleanup sends kill -TERM -- "-PGID", both bash and task (in the
+          # same PG) receive SIGTERM; task then forwards it to mocha's process group.
           if command -v setsid >/dev/null 2>&1; then
-            setsid task test-e2e-performance &
+            setsid bash -c "task test-e2e-performance" &
           else
-            task test-e2e-performance &
+            bash -c "task test-e2e-performance" &
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-
-          # Start poller AFTER TASK_PID is set. Uses $$ (always the parent shell's
-          # PID even from subshells) so the cleanup trap fires in the right context.
-          api_cancel_poller() {
-            while true; do
-              sleep 30
-              current="$(_run_updated_at)"
-              if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
-                    && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
-                echo "=== API poller: updated_at changed, signalling main shell ==="
-                kill -TERM $$ 2>/dev/null || true
-                return
-              fi
-            done
-          }
-          api_cancel_poller &
-          CANCEL_POLLER_PID=$!
-
-          # Sleep-poll instead of blocking wait so SIGTERM from the poller is
-          # processed within ≤5 s (bash 4.x queues signals during wait).
-          while kill -0 "${TASK_PID}" 2>/dev/null; do
-            sleep 5
-          done
-          kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
-          wait "${TASK_PID}" 2>/dev/null
-          TASK_RC=$?
+          wait "${TASK_PID}"
+          TEST_EXIT_CODE=$?
           TASK_PID=""
           TASK_PGID=""
           trap - SIGTERM SIGINT
 
-          if [ "${TASK_RC}" -ne 0 ]; then
-            echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+          if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
+            echo "task test-e2e-performance failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
             npm run solo-test -- deployment diagnostics logs -q --dev || true
-            exit "${TASK_RC}"
+            exit "${TEST_EXIT_CODE}"
           fi
 
       - name: Log Metrics
