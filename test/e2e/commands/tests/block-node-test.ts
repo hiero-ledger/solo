@@ -12,6 +12,7 @@ import * as constants from '../../../../src/core/constants.js';
 import {expect} from 'chai';
 import {exec, type ExecException, type ExecOptions} from 'node:child_process';
 import {promisify} from 'node:util';
+import {platform} from 'node:os';
 import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
@@ -216,11 +217,14 @@ export class BlockNodeTest extends BaseCommandTest {
 
       const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
 
-      // Make script executable
-      await execAsync('chmod +x ./get-block.sh', commandOptions);
+      // Make script executable (no-op on Windows; chmod is not available)
+      if (platform() !== 'win32') {
+        await execAsync('chmod +x ./get-block.sh', commandOptions);
+      }
 
-      // Execute script
-      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
+      // Execute script (use bash explicitly on Windows since .sh files have no default handler)
+      const scriptCommand: string = platform() === 'win32' ? 'bash ./get-block.sh 1' : './get-block.sh 1';
+      const scriptStd: {stdout: string; stderr: string} = await execAsync(scriptCommand, commandOptions);
 
       expect(scriptStd.stderr).to.equal('');
       expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
