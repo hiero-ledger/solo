@@ -37,6 +37,12 @@ export type DiagnosticsFinding = {
   evidence: string[];
 };
 
+type ConsensusLogDefinition = {
+  entrySuffix: 'output/swirlds.log' | 'output/hgcaa.log';
+  displayName: 'swirlds.log' | 'hgcaa.log';
+  checkConsensusActive: boolean;
+};
+
 /**
  * DiagnosticsAnalyzer scans a previously-collected diagnostics output directory
  * (produced by `deployment diagnostics logs`) and identifies common failure
@@ -85,6 +91,11 @@ export type DiagnosticsFinding = {
  * order.  Duplicate findings (same category + title + source) are suppressed.
  */
 export class DiagnosticsAnalyzer {
+  private static readonly CONSENSUS_LOG_DEFINITIONS: readonly ConsensusLogDefinition[] = [
+    {entrySuffix: 'output/swirlds.log', displayName: 'swirlds.log', checkConsensusActive: true},
+    {entrySuffix: 'output/hgcaa.log', displayName: 'hgcaa.log', checkConsensusActive: false},
+  ];
+
   public constructor(private readonly logger: SoloLogger) {}
 
   /**
@@ -137,6 +148,17 @@ export class DiagnosticsAnalyzer {
       );
       for (const [index, finding] of findings.slice(0, 10).entries()) {
         this.logger.showUser(`${index + 1}. ${finding.title} [${finding.source}]`);
+        if (finding.evidence.length > 0) {
+          const maxEvidenceLines: number = finding.category === 'log-exception' ? 8 : 4;
+          for (const evidenceLine of finding.evidence.slice(0, maxEvidenceLines)) {
+            this.logger.showUser(`   - ${evidenceLine}`);
+          }
+          if (finding.evidence.length > maxEvidenceLines) {
+            this.logger.showUser(
+              `   ... and ${finding.evidence.length - maxEvidenceLines} more evidence line(s) in diagnostics-analysis.txt`,
+            );
+          }
+        }
       }
       if (findings.length > 10) {
         this.logger.showUser(`... and ${findings.length - 10} more. See diagnostics-analysis.txt for details.`);
@@ -280,50 +302,84 @@ export class DiagnosticsAnalyzer {
       }
 
       for (const entry of archive.getEntries()) {
-        const entryName: string = entry.entryName;
-        if (!entryName.endsWith('output/swirlds.log') && !entryName.endsWith('output/hgcaa.log')) {
+        const logDefinition: ConsensusLogDefinition | undefined = this.findConsensusLogDefinition(entry.entryName);
+        if (!logDefinition) {
           continue;
         }
-        this.logger.showUser(`    Reading entry: ${entryName}`);
-
-        const source: string = `${archiveName}:${entryName}`;
-        const content: string = entry.getData().toString('utf8');
-
-        // A healthy consensus node transitions through STARTING_UP → OBSERVING →
-        // REPLAYING_EVENTS → ACTIVE.  If `ACTIVE` never appears in swirlds.log
-        // the node stalled before becoming ready to handle transactions.
-        if (entryName.endsWith('output/swirlds.log') && !/\bACTIVE\b/.test(content)) {
-          const evidence: string[] = this.extractMatchSnippets(
-            content,
-            /PlatformStatus|status|STARTING_UP|OBSERVING|REPLAYING_EVENTS|FREEZING|ACTIVE/i,
-            8,
-          );
-          if (evidence.length === 0) {
-            evidence.push('No ACTIVE status marker found in swirlds.log');
-          }
-
-          this.addDiagnosticsFinding(findings, {
-            category: 'consensus-active',
-            title: 'Consensus node may not have reached ACTIVE status',
-            source,
-            evidence,
-          });
-        }
-
-        // Capture the first exception/stack-trace block from either log file.
-        // Stack frames beginning with "at ", "Caused by:", or "... N more" are
-        // included as continuation lines of the same block.
-        const exceptionBlocks: string[] = this.extractExceptionBlocks(content, 1, 14);
-        if (exceptionBlocks.length > 0) {
-          this.addDiagnosticsFinding(findings, {
-            category: 'log-exception',
-            title: `Exception detected in ${entryName.endsWith('swirlds.log') ? 'swirlds.log' : 'hgcaa.log'}`,
-            source,
-            evidence: exceptionBlocks[0].split('\n').filter((line: string): boolean => line.trim().length > 0),
-          });
-        }
+        this.analyzeConsensusLogEntry(archiveName, entry, logDefinition, findings);
       }
     }
+  }
+
+  private findConsensusLogDefinition(entryName: string): ConsensusLogDefinition | undefined {
+    return DiagnosticsAnalyzer.CONSENSUS_LOG_DEFINITIONS.find((logDefinition: ConsensusLogDefinition): boolean =>
+      entryName.endsWith(logDefinition.entrySuffix),
+    );
+  }
+
+  private analyzeConsensusLogEntry(
+    archiveName: string,
+    entry: AdmZip.IZipEntry,
+    logDefinition: ConsensusLogDefinition,
+    findings: DiagnosticsFinding[],
+  ): void {
+    this.logger.showUser(`    Reading entry: ${entry.entryName}`);
+    const source: string = `${archiveName}:${entry.entryName}`;
+    const content: string = entry.getData().toString('utf8');
+
+    if (logDefinition.checkConsensusActive) {
+      this.analyzeConsensusActiveStatus(content, source, findings);
+    }
+    this.analyzeExceptionBlocks(logDefinition.displayName, content, source, findings);
+  }
+
+  /**
+   * A healthy consensus node transitions through STARTING_UP → OBSERVING →
+   * REPLAYING_EVENTS → ACTIVE. If `ACTIVE` never appears in swirlds.log,
+   * the node likely stalled before becoming ready for transactions.
+   */
+  private analyzeConsensusActiveStatus(content: string, source: string, findings: DiagnosticsFinding[]): void {
+    if (/\bACTIVE\b/.test(content)) {
+      return;
+    }
+
+    const evidence: string[] = this.extractMatchSnippets(
+      content,
+      /PlatformStatus|status|STARTING_UP|OBSERVING|REPLAYING_EVENTS|FREEZING|ACTIVE/i,
+      8,
+    );
+    if (evidence.length === 0) {
+      evidence.push('No ACTIVE status marker found in swirlds.log');
+    }
+
+    this.addDiagnosticsFinding(findings, {
+      category: 'consensus-active',
+      title: 'Consensus node may not have reached ACTIVE status',
+      source,
+      evidence,
+    });
+  }
+
+  /**
+   * Captures the first exception/stack-trace block from a consensus log file.
+   */
+  private analyzeExceptionBlocks(
+    logDisplayName: ConsensusLogDefinition['displayName'],
+    content: string,
+    source: string,
+    findings: DiagnosticsFinding[],
+  ): void {
+    const exceptionBlocks: string[] = this.extractExceptionBlocks(content, 1, 14);
+    if (exceptionBlocks.length === 0) {
+      return;
+    }
+
+    this.addDiagnosticsFinding(findings, {
+      category: 'log-exception',
+      title: `Exception detected in ${logDisplayName}`,
+      source,
+      evidence: exceptionBlocks[0].split('\n').filter((line: string): boolean => line.trim().length > 0),
+    });
   }
 
   /**
@@ -406,7 +462,13 @@ export class DiagnosticsAnalyzer {
   private extractExceptionBlocks(content: string, maxBlocks: number, maxLinesPerBlock: number): string[] {
     const lines: string[] = content.split(/\r?\n/);
     const blocks: string[] = [];
-    const startPattern: RegExp = /\b(?:Exception|Error)\b|^\s*Caused by:/;
+    const timestampPattern: RegExp = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/;
+    const levelContextPattern: RegExp = /\b(?:ERROR|WARN|FATAL|SEVERE|EXCEPTION)\b/i;
+    const exceptionTypeLinePattern: RegExp =
+      /^\s*(?:[a-z_][A-Za-z0-9_$]*\.)*[A-Z][A-Za-z0-9_$]*(?:Exception|Error|Throwable)(?::|\b)/;
+    const startPattern: RegExp = new RegExp(
+      `${exceptionTypeLinePattern.source}|\\b(?:Exception|Error)\\b|^\\s*Caused by:`,
+    );
 
     for (let index: number = 0; index < lines.length && blocks.length < maxBlocks; index++) {
       if (!startPattern.test(lines[index])) {
@@ -414,10 +476,32 @@ export class DiagnosticsAnalyzer {
       }
 
       const blockLines: string[] = [lines[index]];
+      // In swirlds/hgcaa logs, the actual throwable class line can follow a
+      // timestamped ERROR/WARN marker line. If parsing starts from the
+      // throwable line, include that marker line as context for the report.
+      if (
+        index > 0 &&
+        blockLines.length < maxLinesPerBlock &&
+        (/\bERROR\s+EXCEPTION\b/i.test(lines[index - 1]) ||
+          (timestampPattern.test(lines[index - 1]) && levelContextPattern.test(lines[index - 1]))) &&
+        !blockLines.includes(lines[index - 1])
+      ) {
+        blockLines.unshift(lines[index - 1]);
+      }
+
       let next: number = index + 1;
       while (next < lines.length && blockLines.length < maxLinesPerBlock) {
         const line: string = lines[next];
-        if (/^\s+at\s+/.test(line) || /^\s*Caused by:/.test(line) || /^\s*\.\.\.\s+\d+\s+more/.test(line)) {
+        if (line.trim().length === 0 || timestampPattern.test(line)) {
+          break;
+        }
+        if (
+          /^\s+at\s+/.test(line) ||
+          /^\s*Caused by:/.test(line) ||
+          /^\s*Suppressed:/.test(line) ||
+          /^\s*\.\.\.\s+\d+\s+more/.test(line) ||
+          exceptionTypeLinePattern.test(line)
+        ) {
           blockLines.push(line);
           next++;
           continue;
