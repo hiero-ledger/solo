@@ -18,7 +18,7 @@ network:
   --log4j2-xml: ""
   --pvcs: false
   --quiet-mode: false
-  --release-tag: "v0.65.0"
+  --release-tag: ""
   --settings-txt: ""
   --values-file: ""
   --grpc-tls-certificate-path: ""
@@ -52,7 +52,7 @@ network:
 # Setup configuration for consensus nodes
 setup:
   --cache-dir: ""
-  --release-tag: "v0.65.0"
+  --release-tag: ""
   --app: ""
   --app-config: ""
   --quiet-mode: false
@@ -113,8 +113,6 @@ relayNode:
   --operator-key: ""
   --force-port-forward: true
   --quiet-mode: false
-  --mirror-node-id: null
-  --mirror-namespace: ""
 
 # Block node deployment configuration
 blockNode:
@@ -145,5 +143,3 @@ explorerNode:
   --cluster-setup-namespace: ""
   --force-port-forward: true
   --quiet-mode: false
-  --mirror-node-id: null
-  --mirror-namespace: ""

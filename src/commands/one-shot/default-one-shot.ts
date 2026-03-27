@@ -668,9 +668,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                                 version.EXPLORER_VERSION,
                                               );
                                               this.appendConfigToArgv(argv, {
+                                                ...config.explorerNodeConfiguration,
                                                 [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                                                 [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                                ...config.explorerNodeConfiguration,
                                               });
                                               return argvPushGlobalFlags(argv, config.cacheDir);
                                             },
@@ -692,9 +692,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                                 'node1',
                                               );
                                               this.appendConfigToArgv(argv, {
+                                                ...config.relayNodeConfiguration,
                                                 [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                                                 [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                                ...config.relayNodeConfiguration,
                                               });
                                               return argvPushGlobalFlags(argv);
                                             },
