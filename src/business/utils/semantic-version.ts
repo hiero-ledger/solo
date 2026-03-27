@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SemVer} from 'semver';
-import * as semver from 'semver';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
+import {Numbers} from './numbers.js';
 
-export class SemanticVersion<T extends SemVer | number> {
-  public constructor(public readonly value: T) {
-    if (!SemanticVersion.isNumeric(value) && (!value || !SemanticVersion.isSemVer(value))) {
+export class SemanticVersion {
+  public constructor(private readonly originalValue: string | number | SemanticVersion) {
+    if (!Numbers.isNumeric(originalValue as string) && (!originalValue || !SemanticVersion.isSemVer(originalValue))) {
       throw new RangeError('Invalid version');
     }
 
-    if (SemanticVersion.isNumeric(value) && (!Number.isSafeInteger(value) || (value as number) < 0)) {
+    if (
+      Numbers.isNumeric(originalValue as string) &&
+      (!Number.isSafeInteger(originalValue) || (originalValue as number) < 0)
+    ) {
       throw new RangeError('Invalid version');
     }
   }
@@ -21,7 +23,7 @@ export class SemanticVersion<T extends SemVer | number> {
       return (this.value as SemVer).compare(other.value as SemVer) === 0;
     }
 
-    if (SemanticVersion.isNumeric(this.value) && SemanticVersion.isNumeric(other.value)) {
+    if (Numbers.isNumeric(this.value) && Numbers.isNumeric(other.value)) {
       return this.value === other.value;
     }
 
@@ -33,7 +35,7 @@ export class SemanticVersion<T extends SemVer | number> {
       return (this.value as SemVer).compare(other.value as SemVer);
     }
 
-    if (SemanticVersion.isNumeric(this.value) && SemanticVersion.isNumeric(other.value)) {
+    if (Numbers.isNumeric(this.value) && Numbers.isNumeric(other.value)) {
       if (this.value < other.value) {
         return -1;
       } else if (this.value > other.value) {
