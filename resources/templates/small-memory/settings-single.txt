@@ -37,7 +37,7 @@ merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
 merkleDb.iteratorInputBufferBytes,             1048576
 merkleDb.longListReservedBufferSize,           65536
-merkleDb.useDiskIndices,                       true
+merkleDb.useDiskIndices,                       false
 merkleDb.dataFileWriterBufferBytes,            2097152
 virtualMap.copyFlushCandidateThreshold,        10240
 merkleDb.longListReservedBufferSize,             65536
