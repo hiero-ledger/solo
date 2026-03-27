@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # CI values for the WRAPs E2E test block node.
-# Combines the 36 MiB gRPC message size limit needed for the WRAPs genesis proof
-# with memory settings modelled after local-build-with-custom-config (1Gi/1.5Gi),
-# which is known to work on the CI runner.
+# JAVA_OPTS matches local-build-with-custom-config (known to work in CI).
+# Adds SERVER_MAX_MESSAGE_SIZE_BYTES=36 MiB to receive the ~30 MiB WRAPs genesis proof.
 resources:
   requests:
     cpu: "500m"
@@ -13,16 +12,22 @@ resources:
 
 blockNode:
   config:
-    JAVA_OPTS: '-Xms256m -Xmx1G -XX:MaxDirectMemorySize=128m -XX:MaxMetaspaceSize=128m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    # Same JAVA_OPTS as local-build-with-custom-config (no MaxDirectMemorySize/MaxMetaspaceSize
+    # caps which can cause JVM OOM on Metaspace or direct memory during plugin loading in CI)
+    JAVA_OPTS: '-Xms1G -Xmx1G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
     # 36 MiB: accommodates the ~30 MiB WRAPs genesis proof with ~20% headroom
     SERVER_MAX_MESSAGE_SIZE_BYTES: "37748736"
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
-  health:
-    liveness:
-      # Extend initial delay so the JVM has time to start before the liveness probe
-      # kills the container (default 10s is too short on resource-constrained CI runners).
-      initialDelaySeconds: 120
+    BACKFILL_FETCH_BATCH_SIZE: "5"
+  persistence:
+    # Reduce from 800Gi/20Gi defaults to avoid slow PVC provisioning in CI
+    archive:
+      size: 1Gi
+    live:
+      size: 1Gi
+    logging:
+      size: 1Gi
 
 kubepromstack:
   enabled: false
