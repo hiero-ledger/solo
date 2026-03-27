@@ -67,18 +67,27 @@ describe('SemanticVersion', (): void => {
       const version1: SemanticVersion<string> = new SemanticVersion('1.0.0');
       const version2: SemanticVersion<string> = new SemanticVersion('1.0.0');
       expect(version1.compare(version2)).to.equal(0);
+      expect(version1.lessThan(version2)).to.be.false;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
+      expect(version1.greaterThan(version2)).to.be.false;
+      expect(version1.greaterThanOrEqual(version2)).to.be.true;
+      expect(version1.equals(version2)).to.be.true;
     });
 
     it('should return -1 when the first SemanticVersion<string> is less than the second', (): void => {
-      const version1: SemanticVersion<string> = new SemanticVersion('1.0.0');
-      const version2: SemanticVersion<string> = new SemanticVersion('2.0.0');
+      const version1: SemanticVersion<string> = new SemanticVersion('3.14.1');
+      const version2: SemanticVersion<string> = new SemanticVersion('4.3.0');
       expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
     });
 
     it('should return 1 when the first SemanticVersion<string> is greater than the second', (): void => {
       const version1: SemanticVersion<string> = new SemanticVersion('2.0.0');
-      const version2: SemanticVersion<string> = new SemanticVersion('1.0.0');
+      const version2: SemanticVersion<string> = new SemanticVersion('1.2.3');
       expect(version1.compare(version2)).to.equal(1);
+      expect(version1.greaterThan(version2)).to.be.true;
+      expect(version1.greaterThanOrEqual(version2)).to.be.true;
     });
 
     it('should return 0 for equal numeric versions', (): void => {
@@ -97,6 +106,16 @@ describe('SemanticVersion', (): void => {
       const version1: SemanticVersion<number> = new SemanticVersion(43);
       const version2: SemanticVersion<number> = new SemanticVersion(42);
       expect(version1.compare(version2)).to.equal(1);
+      expect(version1.greaterThan(version2)).to.be.true;
+      expect(version1.greaterThanOrEqual(version2)).to.be.true;
+    });
+
+    it('v3.14.2+gc309b6f is less than v4.1.3+gc94d381', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('3.14.2+gc309b6f');
+      const version2: SemanticVersion<string> = new SemanticVersion('4.1.3+gc94d381');
+      expect(version1.compare(version2)).to.equal(-1);
+      expect(version1.lessThan(version2)).to.be.true;
+      expect(version1.lessThanOrEqual(version2)).to.be.true;
     });
   });
 
@@ -109,6 +128,16 @@ describe('SemanticVersion', (): void => {
     it('should return the string representation of a numeric version', (): void => {
       const version: SemanticVersion<number> = new SemanticVersion(42);
       expect(version.toString()).to.equal('42');
+    });
+
+    it('should return the string representation of a single number string', (): void => {
+      const version: SemanticVersion<string> = new SemanticVersion('42');
+      expect(version.toString()).to.equal('42.0.0');
+    });
+
+    it('should return the string representation as v3.14.2+gc309b6f for a version with build metadata', (): void => {
+      const version: SemanticVersion<string> = new SemanticVersion('3.14.2+gc309b6f');
+      expect(version.toString()).to.equal('3.14.2+gc309b6f');
     });
   });
 });
