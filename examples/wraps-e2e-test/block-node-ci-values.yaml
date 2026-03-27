@@ -18,8 +18,11 @@ blockNode:
     SERVER_MAX_MESSAGE_SIZE_BYTES: "37748736"
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
-    BACKFILL_FETCH_BATCH_SIZE: "5"
-    BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+  health:
+    liveness:
+      # Extend initial delay so the JVM has time to start before the liveness probe
+      # kills the container (default 10s is too short on resource-constrained CI runners).
+      initialDelaySeconds: 120
 
 kubepromstack:
   enabled: false
