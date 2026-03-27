@@ -5,8 +5,8 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
-import {SemVer, lte} from 'semver';
 import * as constants from './src/core/constants.js';
+import {SemanticVersion} from './src/business/utils/semantic-version.js';
 
 /**
  * This file should only contain versions for dependencies and the function to get the Solo version.
@@ -45,7 +45,8 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
-export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
+export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemanticVersion<string> =
+  new SemanticVersion('v0.15.0');
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS: string = 'v0.62.0';
@@ -60,8 +61,8 @@ export const MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: strin
 export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.150.0-0';
 
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
-  const versionTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
-  return lte(versionTag, LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
+  const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
+  return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
 }
 
 export function getSoloVersion(): Version {
