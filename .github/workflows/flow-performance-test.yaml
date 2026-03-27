@@ -171,15 +171,21 @@ jobs:
           # execution only step transitions change it.
           # gh CLI is not pre-authenticated on self-hosted runners; use curl
           # with GITHUB_TOKEN (always set by Actions) and jq (installed earlier).
+          echo "--- Cancellation poller diagnostics ---"
+          echo "GITHUB_TOKEN: ${GITHUB_TOKEN:+[SET, length ${#GITHUB_TOKEN}]}"
+          echo "GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-[NOT SET]}"
+          echo "GITHUB_RUN_ID: ${GITHUB_RUN_ID:-[NOT SET]}"
+          echo "GITHUB_API_URL: ${GITHUB_API_URL:-[NOT SET - defaulting to https://api.github.com]}"
           _run_updated_at() {
+            local _api="${GITHUB_API_URL:-https://api.github.com}"
             curl -sf \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               | jq -r '.updated_at // empty' 2>/dev/null || echo ""
           }
           RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
-          echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
+          echo "Run updated_at baseline: '${RUN_UPDATED_AT_INITIAL}'"
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -194,9 +200,12 @@ jobs:
           # the parent shell's PID even from subshells) so the cleanup trap
           # fires in the right context with all variables available.
           api_cancel_poller() {
+            local _poll_count=0
             while true; do
               sleep 30
+              _poll_count=$(( _poll_count + 1 ))
               current="$(_run_updated_at)"
+              echo "$(date -u +%H:%M:%SZ) [poller #${_poll_count}] updated_at=${current:-EMPTY} (baseline=${RUN_UPDATED_AT_INITIAL:-EMPTY})"
               if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
                     && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
                 echo "=== API poller: updated_at changed ${RUN_UPDATED_AT_INITIAL} -> ${current}, signalling main shell ==="
