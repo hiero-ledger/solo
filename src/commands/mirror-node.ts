@@ -1355,7 +1355,9 @@ END $grant$;`;
             }
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+            config.valuesArg = new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
+              versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
+            )
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
               : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
@@ -1538,11 +1540,15 @@ END $grant$;`;
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
-    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'HEDERA' : 'HIERO';
+    return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+      ? 'HEDERA'
+      : 'HIERO';
   }
 
   private getChartNamespace(version: string): string {
-    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
+    return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+      ? 'hedera'
+      : 'hiero';
   }
 
   /**

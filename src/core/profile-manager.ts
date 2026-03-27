@@ -32,8 +32,8 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
-import semver from 'semver/preload.js';
 import {Numbers} from '../business/utils/numbers.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 
 @injectable()
 export class ProfileManager {
@@ -453,7 +453,7 @@ export class ProfileManager {
       // Guard
     }
 
-    if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
       lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {

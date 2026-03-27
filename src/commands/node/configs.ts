@@ -643,7 +643,7 @@ export class NodeCommandConfigs {
 
     const savedVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
     if (
-      !eq(savedVersion, new SemanticVersion<string>(context_.config.releaseTag)) && // allow different versions only for local builds
+      !savedVersion.equals(context_.config.releaseTag) && // allow different versions only for local builds
       !context_.config.localBuildPath
     ) {
       throw new SoloError(

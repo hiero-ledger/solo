@@ -50,6 +50,7 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import path from 'node:path';
+import {SemanticVersion} from '../../../business/utils/semantic-version.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -75,7 +76,7 @@ export class DefaultKindClient implements KindClient {
 
   public async checkVersion(): Promise<void> {
     const version: SemanticVersion<string> = await this.version();
-    if (lt(version, DefaultKindClient.minimumVersion)) {
+    if (version.lessThan(DefaultKindClient.minimumVersion)) {
       throw new KindVersionRequirementException(
         `The Kind CLI version ${version} is lower than the minimum required version ${DefaultKindClient.minimumVersion}.`,
       );
@@ -99,7 +100,7 @@ export class DefaultKindClient implements KindClient {
 
     const semver: SemanticVersion<string> = result.getVersion();
 
-    this.logger?.info?.(`kind version: ${semver.version ?? semver.toString()}`);
+    this.logger?.info?.(`kind version: ${semver.toString()}`);
 
     return semver;
   }

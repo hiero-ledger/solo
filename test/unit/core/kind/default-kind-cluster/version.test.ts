@@ -40,7 +40,7 @@ describe('DefaultKindClient - version', () => {
 
     // Assert
     expect(result).to.be.instanceOf(SemanticVersion<string>);
-    expect(result.version).to.equal('0.20.0');
+    expect(result.toString()).to.equal('0.20.0');
     expect(fakeExecution.responseAs.calledOnce).to.be.true;
   });
 

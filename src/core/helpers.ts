@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {format} from 'node:util';
 import {SoloError} from './errors/solo-error.js';
-import * as semver from 'semver';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
@@ -42,9 +41,10 @@ import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {type SemanticVersion} from '../business/utils/semantic-version.js';
 
 export function getInternalAddress(
-  releaseVersion: semver.SemanticVersion<string> | string,
+  releaseVersion: SemanticVersion<string> | string,
   namespaceName: NamespaceName,
   nodeAlias: NodeAlias,
 ): string {

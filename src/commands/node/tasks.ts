@@ -1024,7 +1024,7 @@ export class NodeCommandTasks {
 
         const consensusVersion: SemanticVersion<string> | undefined =
           this.remoteConfig.configuration?.versions?.consensusNode;
-        const releaseTag: string = consensusVersion?.version || consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
+        const releaseTag: string = consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
         const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
         const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
         if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
@@ -1470,7 +1470,7 @@ export class NodeCommandTasks {
       skip: (): boolean => {
         const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
         const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>('0.63.0');
-        return lt(currentVersion, versionRequirement);
+        return currentVersion.lessThan(versionRequirement);
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
@@ -1581,7 +1581,7 @@ export class NodeCommandTasks {
         const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>(
           MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
         );
-        return lt(currentVersion, versionRequirement);
+        return currentVersion.lessThan(versionRequirement);
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
