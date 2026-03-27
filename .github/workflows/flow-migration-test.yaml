@@ -37,6 +37,7 @@ permissions:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
   test-migration-process:
