@@ -1,16 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
-# CI-optimized block node values for the WRAPs E2E test.
-# Overrides the TSS overlay's 1 Gi JVM heap with a smaller 512m heap
-# that is still sufficient to receive the ~30 MiB WRAPs genesis proof.
-# The 36 MiB gRPC message size limit (from --block-node-tss-overlay) is preserved.
+# CI values for the WRAPs E2E test block node.
+# Combines the 36 MiB gRPC message size limit needed for the WRAPs genesis proof
+# with memory settings modelled after local-build-with-custom-config (1Gi/1.5Gi),
+# which is known to work on the CI runner.
 resources:
   requests:
     cpu: "500m"
-    memory: "768Mi"
+    memory: "1Gi"
   limits:
     cpu: "2"
-    memory: "768Mi"
+    memory: "1.5Gi"
 
 blockNode:
   config:
-    JAVA_OPTS: '-Xms512m -Xmx512m -XX:MaxDirectMemorySize=64m -XX:MaxMetaspaceSize=128m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    JAVA_OPTS: '-Xms256m -Xmx1G -XX:MaxDirectMemorySize=128m -XX:MaxMetaspaceSize=128m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    # 36 MiB: accommodates the ~30 MiB WRAPs genesis proof with ~20% headroom
+    SERVER_MAX_MESSAGE_SIZE_BYTES: "37748736"
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
+    MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
+    BACKFILL_FETCH_BATCH_SIZE: "5"
+    BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+
+kubepromstack:
+  enabled: false
+
+loki:
+  enabled: false
+
+promtail:
+  enabled: false

@@ -105,13 +105,12 @@ tasks:
             --deployment {{ .DEPLOYMENT }} \
             --quiet-mode --dev
 
-      # Deploy block node BEFORE consensus network so blockNodes.json is written with TSS message limits
-      # --block-node-tss-overlay sets soft=4 MiB / hard=36 MiB to accommodate the ~30 MiB WRAPs genesis proof
-      # --values-file reduces JVM heap to 512m (sufficient for CI; TSS overlay defaults to 1 Gi)
+      # Deploy block node BEFORE consensus network so blockNodes.json is written with TSS message limits.
+      # block-node-ci-values.yaml sets SERVER_MAX_MESSAGE_SIZE_BYTES=37748736 (36 MiB) to accommodate
+      # the ~30 MiB WRAPs genesis proof, with 1Gi/1.5Gi memory (same profile as local-build-with-custom-config).
       - cmd: |
           $SOLO_COMMAND block node add \
             --deployment {{ .DEPLOYMENT }} \
-            --block-node-tss-overlay \
             --values-file {{ .TASKFILE_DIR }}/block-node-ci-values.yaml \
             --quiet-mode --dev
 
