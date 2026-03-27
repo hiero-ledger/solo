@@ -2665,7 +2665,7 @@ export class NodeCommandTasks {
         try {
           let textData: string = '\n';
 
-          // Get Client SemanticVersion
+          // Get Client Version
           const version: string = await rpc('web3_clientVersion');
           textData += gray('Relay responded with version: ') + yellow(version) + '\n';
 
