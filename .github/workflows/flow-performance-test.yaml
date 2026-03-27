@@ -115,6 +115,8 @@ jobs:
             ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
