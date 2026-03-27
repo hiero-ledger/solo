@@ -416,7 +416,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     for (const componentType of componentTypes) {
       const version: SemanticVersion<string> = this.getComponentVersion(componentType);
-      if (version.equals(new SemanticVersion<string>('0.0.0'))) {
+      if (version.equals('0.0.0')) {
         switch (componentType) {
           case ComponentTypes.BlockNode: {
             this.updateComponentVersion(
