@@ -626,12 +626,6 @@ jobs:
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
 
       - name: Cleanup Kind Clusters
-        # Self-hosted runners (hiero-solo-linux-large) are persistent machines — they are NOT
-        # destroyed between workflow runs. If a job crashes after creating a Kind cluster,
-        # a re-run of the same workflow (which reuses the same run ID and therefore the same
-        # cluster names) will find leftover clusters in a potentially broken state. Cleaning up
-        # here ensures the host is tidy for future runs and re-runs. The `timeout` guards
-        # against `kind delete` hanging when Docker is in a degraded state.
         if: ${{ always() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
