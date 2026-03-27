@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type SchemaDefinition} from '../../api/schema-definition.js';
-import {type Version} from '../../../../../business/utils/version.js';
+import {type SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 import {type ClassConstructor} from '../../../../../business/utils/class-constructor.type.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -24,7 +24,7 @@ export class SoloConfigSchemaDefinition
     return SoloConfigSchema.name;
   }
 
-  public get version(): Version<number> {
+  public get version(): SemanticVersion<number> {
     return SoloConfigSchema.SCHEMA_VERSION;
   }
 

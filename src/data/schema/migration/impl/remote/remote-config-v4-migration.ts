@@ -2,7 +2,7 @@
 
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {VersionRange} from '../../../../../business/utils/version-range.js';
-import {Version} from '../../../../../business/utils/version.js';
+import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
@@ -14,8 +14,8 @@ export class RemoteConfigV4Migration implements SchemaMigration {
     return VersionRange.fromIntegerVersion(3);
   }
 
-  public get version(): Version<number> {
-    return new Version(4);
+  public get version(): SemanticVersion<number> {
+    return new SemanticVersion(4);
   }
 
   public async migrate(source: object): Promise<object> {

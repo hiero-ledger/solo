@@ -52,7 +52,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
 import {SemVer} from 'semver';
 import {Base64} from 'js-base64';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -407,7 +407,11 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
 
-    config.mirrorNodeVersion = Version.getValidSemanticVersion(config.mirrorNodeVersion, true, 'Mirror node version');
+    config.mirrorNodeVersion = SemanticVersion.getValidSemanticVersion(
+      config.mirrorNodeVersion,
+      true,
+      'Mirror node version',
+    );
 
     const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
@@ -1138,7 +1142,7 @@ END $grant$;`;
               config.clusterContext,
             );
 
-            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+            context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
@@ -1335,7 +1339,7 @@ END $grant$;`;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
 
-            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+            context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
               false,
               'Solo chart version',

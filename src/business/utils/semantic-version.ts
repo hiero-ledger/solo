@@ -5,35 +5,35 @@ import * as semver from 'semver';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
 
-export class Version<T extends SemVer | number> {
+export class SemanticVersion<T extends SemVer | number> {
   public constructor(public readonly value: T) {
-    if (!Version.isNumeric(value) && (!value || !Version.isSemVer(value))) {
+    if (!SemanticVersion.isNumeric(value) && (!value || !SemanticVersion.isSemVer(value))) {
       throw new RangeError('Invalid version');
     }
 
-    if (Version.isNumeric(value) && (!Number.isSafeInteger(value) || (value as number) < 0)) {
+    if (SemanticVersion.isNumeric(value) && (!Number.isSafeInteger(value) || (value as number) < 0)) {
       throw new RangeError('Invalid version');
     }
   }
 
-  public equals(other: Version<T>): boolean {
-    if (Version.isSemVer(this.value) && Version.isSemVer(other.value)) {
+  public equals(other: SemanticVersion<T>): boolean {
+    if (SemanticVersion.isSemVer(this.value) && SemanticVersion.isSemVer(other.value)) {
       return (this.value as SemVer).compare(other.value as SemVer) === 0;
     }
 
-    if (Version.isNumeric(this.value) && Version.isNumeric(other.value)) {
+    if (SemanticVersion.isNumeric(this.value) && SemanticVersion.isNumeric(other.value)) {
       return this.value === other.value;
     }
 
     return false;
   }
 
-  public compare(other: Version<T>): number {
-    if (Version.isSemVer(this.value) && Version.isSemVer(other.value)) {
+  public compare(other: SemanticVersion<T>): number {
+    if (SemanticVersion.isSemVer(this.value) && SemanticVersion.isSemVer(other.value)) {
       return (this.value as SemVer).compare(other.value as SemVer);
     }
 
-    if (Version.isNumeric(this.value) && Version.isNumeric(other.value)) {
+    if (SemanticVersion.isNumeric(this.value) && SemanticVersion.isNumeric(other.value)) {
       if (this.value < other.value) {
         return -1;
       } else if (this.value > other.value) {
@@ -61,14 +61,14 @@ export class Version<T extends SemVer | number> {
    *
    * @param versionString - The version string to validate
    * @param isNeedPrefix - If true, adds 'v' prefix if missing; if false, removes 'v' prefix if present
-   * @param label - Label to use in error messages (e.g., 'Release tag', 'Version')
+   * @param label - Label to use in error messages (e.g., 'Release tag', 'SemanticVersion')
    * @returns The processed version string with proper prefix handling
    * @throws SoloError or IllegalArgumentError if the version string is invalid
    */
   public static getValidSemanticVersion(
     versionString: string,
     isNeedPrefix: boolean = false,
-    label: string = 'Version',
+    label: string = 'SemanticVersion',
   ): string {
     if (!versionString) {
       throw new SoloError(`${label} cannot be empty`);

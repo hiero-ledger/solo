@@ -7,7 +7,7 @@ import {type SchemaDefinition} from '../../api/schema-definition.js';
 import {RemoteConfigSchema} from '../../../model/remote/remote-config-schema.js';
 import {type ClassConstructor} from '../../../../../business/utils/class-constructor.type.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
-import {type Version} from '../../../../../business/utils/version.js';
+import {type SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 import {type ObjectMapper} from '../../../../mapper/api/object-mapper.js';
 import {RemoteConfigV1Migration} from './remote-config-v1-migration.js';
 import {RemoteConfigV2Migration} from './remote-config-v2-migration.js';
@@ -29,7 +29,7 @@ export class RemoteConfigSchemaDefinition
     return RemoteConfigSchema.name;
   }
 
-  public get version(): Version<number> {
+  public get version(): SemanticVersion<number> {
     return RemoteConfigSchema.SCHEMA_VERSION;
   }
 

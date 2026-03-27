@@ -35,7 +35,7 @@ import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
@@ -307,7 +307,11 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Install cert manager',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableExplorerTls,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.soloChartVersion = Version.getValidSemanticVersion(config.soloChartVersion, false, 'Solo chart version');
+        config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+          config.soloChartVersion,
+          false,
+          'Solo chart version',
+        );
 
         const {soloChartVersion} = config;
 
@@ -372,7 +376,11 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+        config.explorerVersion = SemanticVersion.getValidSemanticVersion(
+          config.explorerVersion,
+          false,
+          'Explorer version',
+        );
 
         let exploreValuesArgument: string = ' --install ';
         exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);

@@ -2,28 +2,34 @@
 
 import {expect} from 'chai';
 import {VersionRange} from '../../../../src/business/utils/version-range.js';
-import {Version} from '../../../../src/business/utils/version.js';
+import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
 import {SemVer} from 'semver';
 
 describe('VersionRange', (): void => {
   describe('constructor', (): void => {
     it('should create a valid VersionRange with numeric bounds', (): void => {
-      const range: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
+      const range: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
       expect(range.begin.value).to.equal(1);
       expect(range.end.value).to.equal(5);
     });
 
     it('should create a valid VersionRange with SemVer bounds', (): void => {
-      const begin: Version<SemVer> = new Version(new SemVer('1.0.0'));
-      const end: Version<SemVer> = new Version(new SemVer('2.0.0'));
+      const begin: SemanticVersion<SemVer> = new SemanticVersion(new SemVer('1.0.0'));
+      const end: SemanticVersion<SemVer> = new SemanticVersion(new SemVer('2.0.0'));
       const range: VersionRange<SemVer> = new VersionRange(begin, end);
       expect(range.begin.value).to.equal(begin.value);
       expect(range.end.value).to.equal(end.value);
     });
 
     it('should throw a RangeError if begin is greater than or equal to end', () => {
-      expect(() => new VersionRange(new Version(5), new Version(1))).to.throw(RangeError, 'Invalid version range');
-      expect(() => new VersionRange(new Version(5), new Version(5))).to.throw(RangeError, 'Invalid version range');
+      expect(() => new VersionRange(new SemanticVersion(5), new SemanticVersion(1))).to.throw(
+        RangeError,
+        'Invalid version range',
+      );
+      expect(() => new VersionRange(new SemanticVersion(5), new SemanticVersion(5))).to.throw(
+        RangeError,
+        'Invalid version range',
+      );
     });
   });
 
@@ -86,55 +92,55 @@ describe('VersionRange', (): void => {
 
   describe('equals', (): void => {
     it('should return true for equal VersionRanges', (): void => {
-      const range1: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
-      const range2: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
+      const range1: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
+      const range2: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
       expect(range1.equals(range2)).to.be.true;
     });
 
     it('should return false for different VersionRanges', (): void => {
-      const range1: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
-      const range2: VersionRange<number> = new VersionRange(new Version(2), new Version(6));
+      const range1: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
+      const range2: VersionRange<number> = new VersionRange(new SemanticVersion(2), new SemanticVersion(6));
       expect(range1.equals(range2)).to.be.false;
     });
   });
 
   describe('compare', (): void => {
     it('should return 0 for equal VersionRanges', (): void => {
-      const range1: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
-      const range2: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
+      const range1: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
+      const range2: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
       expect(range1.compare(range2)).to.equal(0);
     });
 
     it('should return -1 when the first range is less than the second', (): void => {
-      const range1: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
-      const range2: VersionRange<number> = new VersionRange(new Version(2), new Version(6));
+      const range1: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
+      const range2: VersionRange<number> = new VersionRange(new SemanticVersion(2), new SemanticVersion(6));
       expect(range1.compare(range2)).to.equal(-1);
     });
 
     it('should return 1 when the first range is greater than the second', (): void => {
-      const range1: VersionRange<number> = new VersionRange(new Version(2), new Version(6));
-      const range2: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
+      const range1: VersionRange<number> = new VersionRange(new SemanticVersion(2), new SemanticVersion(6));
+      const range2: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
       expect(range1.compare(range2)).to.equal(1);
     });
   });
 
   describe('contains', (): void => {
     it('should return true if a version is within the range', (): void => {
-      const range: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
-      const version: Version<number> = new Version(3);
+      const range: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
+      const version: SemanticVersion<number> = new SemanticVersion(3);
       expect(range.contains(version)).to.be.true;
     });
 
     it('should return false if a version is outside the range', (): void => {
-      const range: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
-      const version: Version<number> = new Version(6);
+      const range: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
+      const version: SemanticVersion<number> = new SemanticVersion(6);
       expect(range.contains(version)).to.be.false;
     });
   });
 
   describe('toString', (): void => {
     it('should return the string representation of the range', (): void => {
-      const range: VersionRange<number> = new VersionRange(new Version(1), new Version(5));
+      const range: VersionRange<number> = new VersionRange(new SemanticVersion(1), new SemanticVersion(5));
       expect(range.toString()).to.equal('[1, 5)');
     });
   });

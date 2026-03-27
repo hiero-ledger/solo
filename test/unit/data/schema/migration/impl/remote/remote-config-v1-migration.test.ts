@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import * as fs from 'node:fs';
 import {getSoloVersion} from '../../../../../../../version.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
-import {type Version} from '../../../../../../../src/business/utils/version.js';
+import {type SemanticVersion} from '../../../../../../../src/business/utils/semantic-version.js';
 import yaml from 'yaml';
 
 // Define a type for test objects
@@ -40,7 +40,7 @@ describe('RemoteConfigV1Migration', () => {
 
   describe('version', (): void => {
     it('should return version 1', (): void => {
-      const version: Version<number> = migration.version;
+      const version: SemanticVersion<number> = migration.version;
       expect(version.value).to.equal(1);
     });
   });

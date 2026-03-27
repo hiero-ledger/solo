@@ -150,7 +150,7 @@ import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping
 import {lt, SemVer} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
-import {Version} from '../../business/utils/version.js';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
@@ -1362,7 +1362,7 @@ export class NodeCommandTasks {
         let {releaseTag} = context_.config;
 
         if (releaseTag) {
-          releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
+          releaseTag = SemanticVersion.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
         }
 
         if ('upgradeVersion' in context_.config) {
@@ -2347,7 +2347,7 @@ export class NodeCommandTasks {
           clusterReferences.map(async (clusterReference: string): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = Version.getValidSemanticVersion(
+            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',
@@ -2663,7 +2663,7 @@ export class NodeCommandTasks {
         try {
           let textData: string = '\n';
 
-          // Get Client Version
+          // Get Client SemanticVersion
           const version: string = await rpc('web3_clientVersion');
           textData += gray('Relay responded with version: ') + yellow(version) + '\n';
 
@@ -3277,7 +3277,7 @@ export class NodeCommandTasks {
           clusterReferencesList.map(async (clusterReference: string): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = Version.getValidSemanticVersion(
+            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',

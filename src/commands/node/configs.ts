@@ -49,7 +49,7 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
-import {Version} from '../../business/utils/version.js';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
@@ -242,7 +242,7 @@ export class NodeCommandConfigs {
     }
 
     // check consensus releaseTag to make sure it is a valid semantic version string starting with 'v'
-    context_.config.releaseTag = Version.getValidSemanticVersion(
+    context_.config.releaseTag = SemanticVersion.getValidSemanticVersion(
       context_.config.releaseTag,
       true,
       'Consensus release tag',

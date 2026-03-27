@@ -39,7 +39,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {gte, lt, SemVer} from 'semver';
 import {injectable} from 'tsyringe-neo';
 import {Templates} from '../core/templates.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
@@ -258,7 +258,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if ('imageTag' in config && config.imageTag) {
-      config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
+      config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
@@ -490,7 +490,7 @@ export class BlockNodeCommand extends BaseCommand {
               );
             }
 
-            config.chartVersion = Version.getValidSemanticVersion(
+            config.chartVersion = SemanticVersion.getValidSemanticVersion(
               config.chartVersion,
               false,
               'Block node chart version',
@@ -851,7 +851,7 @@ export class BlockNodeCommand extends BaseCommand {
             const {namespace, releaseName, context} = config;
 
             for (const step of config.migrationPlan) {
-              const stepTargetVersion: string = Version.getValidSemanticVersion(
+              const stepTargetVersion: string = SemanticVersion.getValidSemanticVersion(
                 step.toVersion,
                 false,
                 'Block node chart version',
@@ -1171,12 +1171,12 @@ export class BlockNodeCommand extends BaseCommand {
     currentVersion: string,
     targetVersion: string,
   ): ComponentUpgradeMigrationStep[] {
-    const normalizedCurrentVersion: string = Version.getValidSemanticVersion(
+    const normalizedCurrentVersion: string = SemanticVersion.getValidSemanticVersion(
       currentVersion || '0.0.0',
       false,
       'Current block node chart version',
     );
-    const normalizedTargetVersion: string = Version.getValidSemanticVersion(
+    const normalizedTargetVersion: string = SemanticVersion.getValidSemanticVersion(
       targetVersion || versions.BLOCK_NODE_VERSION,
       false,
       'Target block node chart version',

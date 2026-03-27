@@ -2,11 +2,11 @@
 
 import {type HelmChartSchema} from '../common/helm-chart-schema.js';
 import {Exclude, Expose} from 'class-transformer';
-import {Version} from '../../../../business/utils/version.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 @Exclude()
 export class SoloConfigSchema {
-  public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
+  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: SoloConfigSchema = new SoloConfigSchema(SoloConfigSchema.SCHEMA_VERSION.value);
 
   @Expose()

@@ -40,7 +40,7 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
@@ -250,7 +250,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (relayReleaseTag) {
-      relayReleaseTag = Version.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
+      relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
       valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
       valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }

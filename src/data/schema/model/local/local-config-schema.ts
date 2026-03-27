@@ -3,13 +3,13 @@
 import {Exclude, Expose, Type} from 'class-transformer';
 import {DeploymentSchema} from './deployment-schema.js';
 import {UserIdentitySchema} from '../common/user-identity-schema.js';
-import {Version} from '../../../../business/utils/version.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 import {ApplicationVersionsSchema} from '../common/application-versions-schema.js';
 import {type ClusterReferences} from '../../../../types/index.js';
 
 @Exclude()
 export class LocalConfigSchema {
-  public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
+  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: LocalConfigSchema = new LocalConfigSchema(
     LocalConfigSchema.SCHEMA_VERSION.value,
     new ApplicationVersionsSchema(),
