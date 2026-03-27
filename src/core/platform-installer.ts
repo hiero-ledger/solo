@@ -25,6 +25,9 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {PackageDownloader} from './package-downloader.js';
+import {Containers} from '../integration/kube/resources/container/containers.js';
+import {Container} from '../integration/kube/resources/container/container.js';
 
 /** PlatformInstaller install platform code in the root-container of a network pod */
 @injectable()
@@ -33,10 +36,12 @@ export class PlatformInstaller {
     @inject(InjectTokens.SoloLogger) private logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private k8Factory?: K8Factory,
     @inject(InjectTokens.ConfigManager) private configManager?: ConfigManager,
+    @inject(InjectTokens.PackageDownloader) private packageDownloader?: PackageDownloader,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.packageDownloader = patchInject(packageDownloader, InjectTokens.PackageDownloader, this.constructor.name);
   }
 
   private _getNamespace(): NamespaceName {
@@ -95,7 +100,7 @@ export class PlatformInstaller {
   }
 
   /** Fetch and extract platform code into the container */
-  async fetchPlatform(podReference: PodReference, tag: string, context?: string) {
+  async fetchPlatform(podReference: PodReference, tag: string, context?: string, stagingDirectory?: string) {
     if (!podReference) {
       throw new MissingArgumentError('podReference is required');
     }
@@ -104,16 +109,34 @@ export class PlatformInstaller {
     }
 
     try {
-      const scriptName = 'extract-platform.sh';
-      const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
+      // Download the platform zip client-side into {stagingDir}/build/
+      const buildDirectory: string = PathEx.join(stagingDirectory ?? constants.SOLO_CACHE_DIR, 'build');
+      if (!fs.existsSync(buildDirectory)) {
+        fs.mkdirSync(buildDirectory, {recursive: true});
+      }
+      const zipPath: string = await this.packageDownloader.fetchPlatform(tag, buildDirectory);
+
+      // Ensure the checksum file is also present (fetchPlatform returns early on cache hit without re-downloading it)
+      const checksumPath: string = PathEx.join(buildDirectory, `build-${tag}.sha384`);
+      if (!fs.existsSync(checksumPath)) {
+        const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
+        const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
+        await this.packageDownloader.fetchFile(checksumURL, checksumPath);
+      }
+
+      // Upload zip and checksum to the container — extract-platform.sh expects them in HEDERA_USER_HOME_DIR
+      await this.copyFiles(podReference, [zipPath, checksumPath], constants.HEDERA_USER_HOME_DIR, undefined, context);
+
+      const scriptName: string = 'extract-platform.sh';
+      const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName);
       await this.copyFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);
 
-      const extractScript = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
-      const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+      const extractScript: string = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
+      const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-      const k8Containers = this.k8Factory.getK8(context).containers();
+      const k8Containers: Containers = this.k8Factory.getK8(context).containers();
 
-      const container = k8Containers.readByRef(containerReference);
+      const container: Container = k8Containers.readByRef(containerReference);
 
       await container.execContainer('sync'); // ensure all writes are flushed before executing the script
       await container.execContainer(`chmod +x ${extractScript}`);
@@ -123,7 +146,7 @@ export class PlatformInstaller {
       return true;
     } catch (error) {
       const logFile: string = `${constants.HEDERA_HAPI_PATH}/output/extract-platform.log`;
-      const response = await this.k8Factory
+      const response: string = await this.k8Factory
         .getK8(context)
         .containers()
         .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))

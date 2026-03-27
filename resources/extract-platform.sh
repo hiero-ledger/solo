@@ -1,5 +1,7 @@
 #!/bin/bash
-# This script fetch the build.zip file and checksum file from builds.hedera.com and then extract it into HapiApp2 directory
+# This script extracts the platform build zip into the HapiApp2 directory.
+# The build zip and checksum file are expected to already exist in HEDERA_USER_HOME_DIR,
+# uploaded by the solo CLI before this script is invoked.
 # Usage extract-platform <release-version>
 # e.g. extract-platform v0.42.5
 set -o pipefail
@@ -24,40 +26,11 @@ if [[ -z "${tag}" ]]; then
   exit 1
 fi
 
-RELEASE_DIR="$(awk -F'.' '{print $1"."$2}' <<<"${tag}")"
-readonly RELEASE_DIR
 readonly HEDERA_USER_HOME_DIR=/home/hedera
-readonly HEDERA_BUILDS_URL='https://builds.hedera.com'
 readonly BUILD_ZIP_FILE="${HEDERA_USER_HOME_DIR}/build-${tag}.zip"
-readonly BUILD_ZIP_URL="${HEDERA_BUILDS_URL}/node/software/${RELEASE_DIR}/build-${tag}.zip"
 readonly CHECKSUM_FILE="${HEDERA_USER_HOME_DIR}/build-${tag}.sha384"
-readonly CHECKSUM_URL="${HEDERA_BUILDS_URL}/node/software/${RELEASE_DIR}/build-${tag}.sha384"
 
 log "extract-platform.sh: begin................................"
-
-# download
-log "Checking if ${BUILD_ZIP_FILE} exists..."
-if [[ ! -f "${BUILD_ZIP_FILE}" ]]; then
-  log "Downloading ${BUILD_ZIP_URL}..."
-  curl -sSf "${BUILD_ZIP_URL}" -o "${BUILD_ZIP_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
-  ec="${?}"
-  if [[ "${ec}" -ne 0 ]]; then
-    log "Failed to download ${BUILD_ZIP_URL}. Error code: ${ec}"
-    exit 1
-  fi
-fi
-
-log "Checking if ${CHECKSUM_FILE} exists..."
-
-if [[ ! -f "${CHECKSUM_FILE}" ]]; then
-  log "Downloading ${CHECKSUM_URL}..."
-  curl -sSf "${CHECKSUM_URL}" -o "${CHECKSUM_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
-  ec="${?}"
-  if [[ "${ec}" -ne 0 ]]; then
-    log "Failed to download ${CHECKSUM_URL}. Error code: ${ec}"
-    exit 1
-  fi
-fi
 
 # shellcheck disable=SC2164
 cd ${HEDERA_USER_HOME_DIR}

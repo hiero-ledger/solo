@@ -301,7 +301,7 @@ export class NodeCommandTasks {
     localDataLibraryBuildPath: string,
   ): Promise<void> {
     const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config'));
+      return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
     };
 
     await k8
@@ -418,6 +418,7 @@ export class NodeCommandTasks {
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
     consensusNodes: ConsensusNode[],
+    stagingDirectory: string,
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
     for (const nodeAlias of nodeAliases) {
@@ -426,7 +427,7 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, context);
+          await platformInstaller.fetchPlatform(podReference, releaseTag, context, stagingDirectory);
         },
       });
     }
@@ -1359,6 +1360,7 @@ export class NodeCommandTasks {
               task,
               this.platformInstaller,
               context_.config.consensusNodes,
+              context_.config.stagingDir,
             )
           : this._uploadPlatformSoftware(
               context_.config[aliasesField],

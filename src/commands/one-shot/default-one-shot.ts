@@ -1357,13 +1357,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         this.taskList,
         (): boolean => !config.deployment,
       ),
-      {
-        title: 'Delete cache folder',
-        task: async (): Promise<void> => {
-          fs.rmSync(config.cacheDir, {recursive: true, force: true});
-        },
-        skip: (): boolean => this._isRollback,
-      },
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
@@ -1381,7 +1374,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       const cleanupPromises: Promise<void>[] = [];
       if (oneShotLease) {
         cleanupPromises.push(
-          oneShotLease.release().catch((error): void => {
+          oneShotLease.release(true).catch((error): void => {
             this.logger.error('Error releasing one-shot lease:', error);
           }),
         );
