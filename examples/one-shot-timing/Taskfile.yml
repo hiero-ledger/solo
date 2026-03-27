@@ -175,11 +175,8 @@ tasks:
       - cmd: |
           IMAGE_LIST="{{ .TASKFILE_DIR }}/image_list.txt"
           echo "==== Loading images into cluster {{ .SOLO_CLUSTER_NAME }} ===="
-          while IFS= read -r image || [ -n "$image" ]; do
-            [ -z "$image" ] && continue
-            echo "Loading: $image"
-            kind load docker-image "$image" --name {{ .SOLO_CLUSTER_NAME }}
-          done < "${IMAGE_LIST}"
+          IMAGES=$(grep -v '^$' "${IMAGE_LIST}" | tr '\n' ' ')
+          kind load docker-image $IMAGES --name {{ .SOLO_CLUSTER_NAME }}
           echo "==== Done loading images ===="
 
   cold-start:
