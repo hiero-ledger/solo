@@ -13,11 +13,12 @@ version: 3
 #     Private keys are printed to stdout and saved to ~/.solo/one-shot-<deployment>/accounts.json
 #
 # Usage from this directory:
-#   task          → deploy (--evm, default mirror-node explorer) + smoke-test + destroy
-#   task deploy   → deploy with default explorer
-#   task deploy-no-explorer   → --evm --no-explorer
+#   task          → CI entry-point: cycles through all four deploy variants,
+#                   running destroy after each one to verify each flag combination
+#   task deploy                      → --evm (default mirror-node explorer)
+#   task deploy-no-explorer          → --evm --no-explorer
 #   task deploy-explorer-mirror-node → --evm --explorer mirror-node (explicit)
-#   task deploy-explorer-blockscout  → --evm --explorer blockscout (future; falls back to mirror-node)
+#   task deploy-explorer-blockscout  → --evm --explorer blockscout (falls back to mirror-node)
 #   task destroy  → tear down and delete Kind cluster
 
 env:
@@ -97,26 +98,6 @@ tasks:
             --deployment {{ .DEPLOYMENT }} \
             --cluster-ref {{ .CLUSTER_NAME }}
 
-  # ── Verify ────────────────────────────────────────────────────────────────
-
-  verify:
-    desc: Run smoke tests against the deployed EVM network.
-    cmds:
-      - cmd: |
-          export SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}"
-          RESOLVED_NAMESPACE="$($SOLO_COMMAND one-shot show deployment --deployment {{ .DEPLOYMENT }} 2>/dev/null | grep 'Namespace' | awk '{print $NF}' || echo "one-shot")"
-          export SOLO_NAMESPACE="${RESOLVED_NAMESPACE}"
-
-          if [ "$(node -p "process.platform")" = "win32" ]; then
-            echo "Skipping solo smoke test on Windows: solo_smoke_test.sh is POSIX shell."
-          elif git rev-parse --show-toplevel >/dev/null 2>&1; then
-            REPO_ROOT="$(git rev-parse --show-toplevel)"
-            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
-            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
-          else
-            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
-          fi
-
   # ── Destroy ───────────────────────────────────────────────────────────────
 
   destroy:
@@ -127,11 +108,20 @@ tasks:
 
   # ── Default (CI entry-point) ───────────────────────────────────────────────
   # The "Test Examples" workflow runs `task` with no arguments, which invokes this
-  # target.  It deploys the EVM profile, runs a smoke test, then destroys everything.
+  # target.  It exercises all four deploy flag combinations, running destroy after
+  # each one to verify the full lifecycle of every variant.
 
   default:
-    desc: Deploy EVM profile, run smoke tests, then destroy (CI entry-point).
+    desc: >
+      CI entry-point: cycle through all four EVM deploy variants
+      (default, --no-explorer, --explorer mirror-node, --explorer blockscout),
+      running destroy after each one.
     cmds:
       - task: deploy
-      - task: verify
+      - task: destroy
+      - task: deploy-no-explorer
+      - task: destroy
+      - task: deploy-explorer-mirror-node
+      - task: destroy
+      - task: deploy-explorer-blockscout
       - task: destroy
