@@ -28,6 +28,11 @@ on:
         type: boolean
         required: false
         default: true
+      windows-e2e-only:
+        description: "Windows E2E Only: run e2e-tests on windows-latest, skip all other jobs"
+        type: boolean
+        required: false
+        default: false
   pull_request:
     types:
       - opened
@@ -86,6 +91,7 @@ jobs:
 
   code-style:
     name: Code Style
+    if: ${{ !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.windows-e2e-only == 'true') }}
     uses: ./.github/workflows/zxc-code-style.yaml
     with:
       custom-job-label: Standard
@@ -95,7 +101,7 @@ jobs:
     uses: ./.github/workflows/zxc-unit-test.yaml
     needs:
       - code-style
-    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) && !cancelled() }}
+    if: ${{ !cancelled() && !(github.event_name == 'workflow_dispatch' && (inputs.skip-unit-and-coverage == 'true' || inputs.windows-e2e-only == 'true')) }}
     with:
       custom-job-label: Standard
 
@@ -121,7 +127,7 @@ jobs:
       local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
       install-dependencies: ${{ matrix.e2e-test-type.install-dependencies }}
-      runner: ${{ matrix.e2e-test-type.runner }}
+      runner: ${{ (github.event_name == 'workflow_dispatch' && inputs.windows-e2e-only == 'true') && 'windows-latest' || matrix.e2e-test-type.runner }}
       kind-install: ${{ matrix.e2e-test-type.kind-install }}
       kind-version: ${{ matrix.e2e-test-type.kind-version }}
       kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
@@ -140,8 +146,8 @@ jobs:
       - unit-tests
       - e2e-tests
     if: >-
-      ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) &&
-      !cancelled() && !failure() }}
+      ${{ !cancelled() && !failure() &&
+      !(github.event_name == 'workflow_dispatch' && (inputs.skip-unit-and-coverage == 'true' || inputs.windows-e2e-only == 'true')) }}
     with:
       custom-job-label: Standard
       enable-codecov-analysis: true
@@ -156,8 +162,8 @@ jobs:
       - unit-tests
       - e2e-tests
     if: >-
-      ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) &&
-      !cancelled() && !failure() }}
+      ${{ !cancelled() && !failure() &&
+      !(github.event_name == 'workflow_dispatch' && (inputs.skip-unit-and-coverage == 'true' || inputs.windows-e2e-only == 'true')) }}
     with:
       custom-job-label: Coverage
       enable-codacy-coverage: true
@@ -172,8 +178,9 @@ jobs:
     # If it is a PR, check if it's a draft PR. If a draft PR, check if it starts with 'trunk-merge', if true then run Hugo Docs Build job
     # If it is regular PR, always run Hugo Docs Build job
     if: >
-      ${{ (!(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) ||
+      ${{ !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.windows-e2e-only == 'true') &&
+      (!(github.event_name == 'workflow_dispatch' && inputs.skip-unit-and-coverage == 'true') ||
       (github.event_name == 'pull_request' && (github.event.pull_request.draft == false ||
-      startsWith(github.event.pull_request.title, 'trunk-merge')))) && !cancelled() }}
+      startsWith(github.event.pull_request.title, 'trunk-merge')))) }}
     with:
       ref: ${{ github.ref }}
