@@ -7,6 +7,7 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {type DeploymentStateSchema} from '../../../model/remote/deployment-state-schema.js';
 
+// The v7 migration adds postgres and redis components to RemoteConfig
 export class RemoteConfigV7Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(6);

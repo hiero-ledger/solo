@@ -520,36 +520,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                           {
                             title: 'Configure HikariCP connection pool limits',
                             skip: (): boolean => !config.deployMirrorNode,
-                            task: async (): Promise<void> => {
+                            task: (): void => {
                               // Limit HikariCP idle connections. minimumIdle defaults to maximumPoolSize when unset,
                               // causing every component to hold maximumPoolSize idle connections even under no load.
-                              const hikariValuesFilePath: string = PathEx.join(
-                                config.cacheDir,
-                                'mirror-node-hikari-limits.yaml',
-                              );
-                              fs.writeFileSync(
-                                hikariValuesFilePath,
-                                yaml.stringify({
-                                  importer: {
-                                    config: {spring: {datasource: {hikari: {minimumIdle: 8, maximumPoolSize: 12}}}},
-                                  },
-                                  grpc: {
-                                    config: {spring: {datasource: {hikari: {minimumIdle: 1, maximumPoolSize: 2}}}},
-                                  },
-                                  restjava: {
-                                    config: {spring: {datasource: {hikari: {minimumIdle: 1, maximumPoolSize: 2}}}},
-                                  },
-                                  web3: {
-                                    config: {spring: {datasource: {hikari: {minimumIdle: 1, maximumPoolSize: 2}}}},
-                                  },
-                                }),
-                                'utf8',
-                              );
                               config.mirrorNodeConfiguration ??= {};
                               const existingValuesFile: string = config.mirrorNodeConfiguration['--values-file'];
                               config.mirrorNodeConfiguration['--values-file'] = existingValuesFile
-                                ? `${existingValuesFile},${hikariValuesFilePath}`
-                                : hikariValuesFilePath;
+                                ? `${existingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
+                                : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
                             },
                           },
                           invokeSoloCommand(
