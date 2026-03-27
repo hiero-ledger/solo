@@ -147,7 +147,7 @@ tasks:
           ACCOUNTS_FILE="$HOME/.solo/one-shot-{{ .DEPLOYMENT }}/accounts.json"
           [ -f "$ACCOUNTS_FILE" ] \
             || { echo "ERROR: $ACCOUNTS_FILE not found"; exit 1; }
-          COUNT=$(jq '.accounts["accounts-created-ecdsa-alias"] | length' "$ACCOUNTS_FILE")
+          COUNT=$(jq '[.createdAccounts[] | select(.group == "ecdsa-alias")] | length' "$ACCOUNTS_FILE")
           [ "$COUNT" = "20" ] \
             || { echo "ERROR: expected 20 ECDSA alias accounts, got $COUNT"; exit 1; }
           echo "✓ 20 ECDSA alias accounts in $ACCOUNTS_FILE"
