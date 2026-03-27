@@ -204,10 +204,10 @@ The deployment takes a few minutes. When complete, your network is ready to use.
 
 {{< details summary="For testing consensus scenarios (click to expand)" >}}
 
-For testing consensus scenarios or multi-node behavior, you can deploy multiple consensus nodes by specifying the `--num-consensus-nodes` flag:
+For testing consensus scenarios or multi-node behavior, use the `multi` subcommand with the `--num-consensus-nodes` flag:
 
 ```bash
-solo one-shot single deploy --num-consensus-nodes 3
+solo one-shot multi deploy --num-consensus-nodes 3
 ```
 
 This deploys 3 consensus nodes along with the same components as the single-node setup (mirror node, explorer, relay).
@@ -217,7 +217,7 @@ This deploys 3 consensus nodes along with the same components as the single-node
 When finished:
 
 ```bash
-solo one-shot single destroy
+solo one-shot multi destroy
 ```
 
 {{< /details >}}
