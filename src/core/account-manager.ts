@@ -39,7 +39,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, isNumeric, sleep} from './helpers.js';
+import {entityId, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -59,6 +59,7 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {Address} from '../business/address/address.js';
+import {Numbers} from '../business/utils/numbers.js';
 
 const REASON_FAILED_TO_GET_KEYS: string = 'failed to get keys for accountId';
 const REASON_SKIPPED: string = 'skipped since it does not have a genesis key';
@@ -541,7 +542,7 @@ export class AccountManager {
           case 'network-node-svc': {
             if (
               service.metadata!.labels!['solo.hedera.com/node-id'] !== '' &&
-              isNumeric(service.metadata!.labels!['solo.hedera.com/node-id'])
+              Numbers.isNumeric(service.metadata!.labels!['solo.hedera.com/node-id'])
             ) {
               nodeId = +service.metadata!.labels!['solo.hedera.com/node-id'];
             } else {

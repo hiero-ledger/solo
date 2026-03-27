@@ -34,6 +34,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import semver from 'semver/preload.js';
+import {Numbers} from '../business/utils/numbers.js';
 
 @injectable()
 export class ProfileManager {
@@ -77,7 +78,7 @@ export class ProfileManager {
     let current: AnyObject = parent;
     let previousItemPath: string | number = '';
     for (const itemPathPart of itemPathParts) {
-      if (helpers.isNumeric(itemPathPart)) {
+      if (Numbers.isNumeric(itemPathPart)) {
         const itemPathIndex: number = Number.parseInt(itemPathPart, 10); // numeric path part can only be array index
         if (!Array.isArray(parent[previousItemPath])) {
           parent[previousItemPath] = [];
