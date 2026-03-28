@@ -114,13 +114,16 @@ jobs:
             ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
+        timeout-minutes: 60
         run: |
           set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
+          export E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG:-true}"
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
+          echo E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG}" >> .env
           cat .env
 
           # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
@@ -129,9 +132,26 @@ jobs:
           # its own.
           TASK_PID=""
           TASK_PGID=""
-          TASK_RC=0
+          TEST_EXIT_CODE=0
+
+          signal_debug_log() {
+            local stage="${1}"
+            if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
+              return
+            fi
+            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID"
+            ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "[signal-debug][workflow] child task pid=${TASK_PID} pgid=${TASK_PGID}"
+              ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TASK_PID}" || true
+              ps -eo pid=,ppid=,pgid=,sid=,stat=,command= \
+                | grep -E "(${TASK_PID}|task test-e2e-performance|performance\\.test\\.ts|npx mocha)" \
+                | grep -v grep || true
+            fi
+          }
 
           cleanup() {
+            signal_debug_log "trap-entry"
             if [[ -n "${TASK_PID}" ]]; then
               echo "Received cancellation signal, stopping task (PID ${TASK_PID}, PGID ${TASK_PGID})..."
               if [[ -n "${TASK_PGID}" ]]; then
@@ -146,27 +166,32 @@ jobs:
               fi
               wait "${TASK_PID}" 2>/dev/null || true
             fi
+            signal_debug_log "trap-exit"
             exit 130
           }
           trap cleanup SIGTERM SIGINT
 
-          # Start in a separate session so cancellation can terminate the full task process tree.
+          # Match zxc-e2e-test signal path: run task through a bash wrapper in its
+          # own session so TERM/KILL against the process group is deterministic.
+          TASK_COMMAND="task test-e2e-performance"
           if command -v setsid >/dev/null 2>&1; then
-            setsid task test-e2e-performance &
+            setsid bash -lc "${TASK_COMMAND}" &
           else
-            task test-e2e-performance &
+            bash -lc "${TASK_COMMAND}" &
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          wait "${TASK_PID}" || TASK_RC=$?
+          signal_debug_log "after-launch"
+          wait "${TASK_PID}" || TEST_EXIT_CODE=$?
           TASK_PID=""
           TASK_PGID=""
           trap - SIGTERM SIGINT
+          signal_debug_log "after-wait"
 
-          if [ "${TASK_RC}" -ne 0 ]; then
-            echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
+          if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
+            echo "task test-e2e-performance failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
             npm run solo-test -- deployment diagnostics logs -q --dev || true
-            exit "${TASK_RC}"
+            exit "${TEST_EXIT_CODE}"
           fi
 
       - name: Log Metrics
