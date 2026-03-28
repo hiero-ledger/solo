@@ -173,13 +173,13 @@ tasks:
         TEST_RC=0
 
         signal_debug_log() {
-          local stage="${1}"
-          if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
+          stage="${1}"
+          if [ "${E2E_SIGNAL_DEBUG}" != "true" ]; then
             return
           fi
           echo "[signal-debug][taskfile] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID"
           ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
-          if [[ -n "${TEST_PID}" ]]; then
+          if [ -n "${TEST_PID}" ]; then
             echo "[signal-debug][taskfile] child test pid=${TEST_PID} pgid=${TEST_PGID}"
             ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TEST_PID}" || true
             ps -eo pid=,ppid=,pgid=,sid=,stat=,command= \
@@ -190,8 +190,8 @@ tasks:
 
         cleanup() {
           signal_debug_log "trap-entry"
-          if [[ -n "${TEST_PID}" ]]; then
-            if [[ -n "${TEST_PGID}" ]]; then
+          if [ -n "${TEST_PID}" ]; then
+            if [ -n "${TEST_PGID}" ]; then
               kill -TERM -- "-${TEST_PGID}" 2>/dev/null || true
               sleep 3
               kill -KILL -- "-${TEST_PGID}" 2>/dev/null || true
@@ -205,7 +205,7 @@ tasks:
           signal_debug_log "trap-exit"
           exit 130
         }
-        trap cleanup SIGTERM SIGINT
+        trap cleanup TERM INT
 
         {{ .test_prefix }}="Mocha E2E Performance Test" \
         {{ .reporter_prefix }}='coverage/e2e-performance' \
@@ -218,7 +218,7 @@ tasks:
         wait "${TEST_PID}" || TEST_RC=$?
         TEST_PID=""
         TEST_PGID=""
-        trap - SIGTERM SIGINT
+        trap - TERM INT
         signal_debug_log "after-wait"
         exit "${TEST_RC}"
 
