@@ -116,37 +116,28 @@ jobs:
       - name: Run E2E Tests
         timeout-minutes: 60
         run: |
+          set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
-          export E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG:-true}"
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          echo E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG}" >> .env
           cat .env
 
-          signal_debug_log() {
-            local stage="${1}"
-            if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
-              return
-            fi
-            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID"
-            ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
-          }
-
-          signal_debug_log "before-test"
-          # Keep the test task in its own process group and kill that full group on
-          # cancellation. This mirrors the zxc-e2e workflow path that already exits
-          # promptly when a run is cancelled.
+          # We launch the whole test task in its own process group so cancellation can
+          # terminate all descendants (task -> node/c8/mocha -> child tools) with one
+          # signal. This prevents long hangs where a parent shell exits but the test
+          # subtree keeps running.
           TASK_PID=""
           TASK_PGID=""
           TEST_EXIT_CODE=0
 
           cleanup() {
-            signal_debug_log "cleanup-signal"
             if [[ -n "${TASK_PID}" ]]; then
-              echo "[signal-debug][workflow] forwarding cancellation to PID=${TASK_PID} PGID=${TASK_PGID}"
               if [[ -n "${TASK_PGID}" ]]; then
+                # Send TERM first for graceful shutdown, then KILL as a hard stop.
+                # This is essential for fast cancellation when test children ignore
+                # or delay TERM while in long-running async operations.
                 kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
                 sleep 5
                 kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
@@ -172,7 +163,6 @@ jobs:
 
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          signal_debug_log "test-spawned pid=${TASK_PID} pgid=${TASK_PGID}"
 
           wait "${TASK_PID}" || TEST_EXIT_CODE=$?
           TASK_PID=""

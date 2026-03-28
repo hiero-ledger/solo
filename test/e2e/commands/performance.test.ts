@@ -11,7 +11,6 @@ import {type K8} from '../../../src/integration/kube/k8.js';
 import {DEFAULT_LOCAL_CONFIG_FILE, SOLO_CACHE_DIR} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {execSync} from 'node:child_process';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
@@ -29,7 +28,6 @@ import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/
 const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
-const signalDebugEnabled: boolean = process.env.E2E_SIGNAL_DEBUG === 'true';
 
 const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
@@ -46,27 +44,6 @@ let metricsInterval: NodeJS.Timeout | undefined;
 let events: string[] = [];
 const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
-function readProcessSnapshot(): string {
-  try {
-    return execSync(`ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p ${process.pid}`, {
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    return `pid=${process.pid} ppid=${process.ppid}`;
-  }
-}
-
-function logSignalDebug(stage: string, detail: string = ''): void {
-  if (!signalDebugEnabled) {
-    return;
-  }
-  const detailSegment: string = detail ? ` ${detail}` : '';
-  console.log(
-    `[signal-debug][performance.test.ts] stage=${stage} time=${new Date().toISOString()} pid=${process.pid} ppid=${process.ppid}${detailSegment}`,
-  );
-  console.log(`[signal-debug][performance.test.ts] proc=${readProcessSnapshot()}`);
-}
-
 function clearMetricsInterval(): void {
   if (!metricsInterval) {
     return;
@@ -76,39 +53,22 @@ function clearMetricsInterval(): void {
 }
 
 function registerCancellationHooks(): void {
-  // Workflow cancellation sends SIGTERM before SIGKILL. Exit quickly so this test
-  // does not wait for pending sleep/interval work during teardown.
+  // This suite can be in long-running operations (sleep, load tests, metrics loops).
+  // During workflow cancellation, the runner sends SIGTERM first. Without this,
+  // mocha/node teardown can linger until the current async work naturally unwinds.
+  // We intentionally terminate fast so CI cancellation is responsive.
   process.on('SIGTERM', (): void => {
-    logSignalDebug('signal-received', 'signal=SIGTERM');
     clearMetricsInterval();
     process.exit(143); // 128 + SIGTERM(15)
   });
 
   process.on('SIGINT', (): void => {
-    logSignalDebug('signal-received', 'signal=SIGINT');
     clearMetricsInterval();
     process.exit(130); // 128 + SIGINT(2)
   });
 }
 
-function registerSignalDebugHooks(): void {
-  if (!signalDebugEnabled) {
-    return;
-  }
-
-  logSignalDebug('startup', `suite=${testName}`);
-
-  process.on('beforeExit', (code: number): void => {
-    logSignalDebug('before-exit', `code=${code}`);
-  });
-
-  process.on('exit', (code: number): void => {
-    logSignalDebug('exit', `code=${code}`);
-  });
-}
-
 registerCancellationHooks();
-registerSignalDebugHooks();
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -124,7 +84,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
         before(async (): Promise<void> => {
-          logSignalDebug('mocha-before-start');
           fs.rmSync(testCacheDirectory, {recursive: true, force: true});
           try {
             fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
@@ -153,11 +112,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           metricsInterval = setInterval(async (): Promise<void> => {
             logMetrics(startTime);
           }, Duration.ofSeconds(5).toMillis());
-          logSignalDebug('mocha-before-complete');
         }).timeout(Duration.ofMinutes(25).toMillis());
 
         after(async (): Promise<void> => {
-          logSignalDebug('mocha-after-start');
           clearMetricsInterval();
 
           // restore environment variable for other tests
@@ -216,7 +173,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));
           testLogger.info(`${testName}: finished ${testName}: destroy`);
-          logSignalDebug('mocha-after-complete');
         }).timeout(Duration.ofMinutes(5).toMillis());
 
         it('NftTransferLoadTest', async (): Promise<void> => {
