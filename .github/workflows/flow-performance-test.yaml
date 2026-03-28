@@ -126,7 +126,7 @@ jobs:
           echo E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG}" >> .env
           cat .env
 
-          TASK_PID=""
+          TEST_PID=""
           TEST_EXIT_CODE=0
 
           signal_debug_log() {
@@ -134,49 +134,51 @@ jobs:
             if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
               return
             fi
-            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID task_pid=${TASK_PID:-}"
+            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID test_pid=${TEST_PID:-}"
             ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
-            if [[ -n "${TASK_PID}" ]]; then
-              ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TASK_PID}" || true
+            if [[ -n "${TEST_PID}" ]]; then
+              ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TEST_PID}" || true
               ps -eo pid=,ppid=,pgid=,sid=,stat=,command= \
-                | grep -E "(${TASK_PID}|task test-e2e-performance|performance\\.test\\.ts|npx mocha|tsx)" \
+                | grep -E "(${TEST_PID}|performance\\.test\\.ts|npx mocha|tsx|npx c8)" \
                 | grep -v grep || true
             fi
           }
 
-          stop_task_tree() {
+          stop_test_tree() {
             local sig="${1}"
-            if [[ -z "${TASK_PID}" ]]; then
+            if [[ -z "${TEST_PID}" ]]; then
               return
             fi
-            # Kill direct children first, then the parent task process.
-            pkill -"${sig}" -P "${TASK_PID}" 2>/dev/null || true
-            kill -"${sig}" "${TASK_PID}" 2>/dev/null || true
-            # Fallback pattern-based kill for grandchildren spawned by npm/npx/task wrappers.
-            pkill -"${sig}" -f 'task test-e2e-performance|performance\.test\.ts|npx mocha|tsx --no-deprecation --no-warnings' 2>/dev/null || true
+            # Kill direct children, then the parent mocha/c8 shell process.
+            pkill -"${sig}" -P "${TEST_PID}" 2>/dev/null || true
+            kill -"${sig}" "${TEST_PID}" 2>/dev/null || true
+            # Fallback kill for deeper descendants started by npx/npm wrappers.
+            pkill -"${sig}" -f 'test/e2e/commands/performance\.test\.ts|npx mocha|tsx --no-deprecation --no-warnings|npx c8 --report-dir=coverage/e2e-performance' 2>/dev/null || true
           }
 
           cleanup() {
             signal_debug_log "trap-entry"
-            stop_task_tree TERM
-            sleep 3
-            stop_task_tree KILL
-            wait "${TASK_PID}" 2>/dev/null || true
+            stop_test_tree TERM
+            sleep 2
+            stop_test_tree KILL
             signal_debug_log "trap-exit"
             exit 130
           }
           trap cleanup INT TERM
 
-          task test-e2e-performance &
-          TASK_PID=$!
+          npx cross-env MOCHA_SUITE_NAME="Mocha E2E Performance Test" \
+          npx c8 --report-dir='coverage/e2e-performance' \
+          npx mocha 'test/e2e/commands/performance.test.ts' \
+          --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml &
+          TEST_PID=$!
           signal_debug_log "after-launch"
-          wait "${TASK_PID}" || TEST_EXIT_CODE=$?
-          TASK_PID=""
+          wait "${TEST_PID}" || TEST_EXIT_CODE=$?
+          TEST_PID=""
           trap - INT TERM
           signal_debug_log "after-wait"
 
           if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
-            echo "task test-e2e-performance failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
+            echo "Performance E2E tests failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
             npm run solo-test -- deployment diagnostics logs -q --dev || true
             exit "${TEST_EXIT_CODE}"
           fi
