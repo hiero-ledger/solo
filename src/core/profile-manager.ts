@@ -552,10 +552,7 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion: SemanticVersion<string> = parse(releaseTag, {
-      includePrerelease: true,
-    }) as SemanticVersion<string>;
+    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
