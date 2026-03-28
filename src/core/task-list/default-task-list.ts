@@ -71,7 +71,9 @@ export class DefaultTaskList<
     return new Listr<OneShotSingleDestroyContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
-  public parentTaskListMap: Map<string, TaskNodeType> = new Map();
+  // Queue of pending parent task wrappers keyed by command name. A queue is
+  // required because the same command can be invoked concurrently.
+  public parentTaskListMap: Map<string, TaskNodeType[]> = new Map();
 
   public newTaskList<T = AnyListrContext>(
     task:
@@ -85,10 +87,19 @@ export class DefaultTaskList<
     >,
     commandName?: string,
   ): Listr<T, Renderer, FallbackRenderer> {
-    if (this.parentTaskListMap.has(commandName)) {
-      const parentTaskList: TaskNodeType = this.parentTaskListMap.get(commandName);
-      parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
-      return parentTaskList.children as Listr<T, Renderer, FallbackRenderer>;
+    if (commandName && this.parentTaskListMap.has(commandName)) {
+      // Consume exactly one queued parent node for this invocation. Using
+      // `shift()` keeps FIFO pairing with the enqueue point in
+      // `subTaskSoloCommand()`, avoiding cross-assignment of child tasks.
+      const pendingParentTaskLists: TaskNodeType[] = this.parentTaskListMap.get(commandName) ?? [];
+      const parentTaskList: TaskNodeType | undefined = pendingParentTaskLists.shift();
+      if (pendingParentTaskLists.length === 0) {
+        this.parentTaskListMap.delete(commandName);
+      }
+      if (parentTaskList) {
+        parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
+        return parentTaskList.children as Listr<T, Renderer, FallbackRenderer>;
+      }
     }
     return new Listr<T, Renderer, FallbackRenderer>(task, options, parentTask);
   }

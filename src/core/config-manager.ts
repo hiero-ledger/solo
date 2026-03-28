@@ -16,6 +16,7 @@ import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {getSoloVersion} from '../../version.js';
 import {isValidEnum} from './util/validation-helpers.js';
+import {AsyncLocalStorage} from 'node:async_hooks';
 
 /**
  * ConfigManager cache command flag values so that user doesn't need to enter the same values repeatedly.
@@ -29,6 +30,10 @@ export class ConfigManager {
   public config!: Record<string, any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected readonly _configMaps = new Map<string, any>();
+  // Parallel subcommands used to mutate `this.config` directly, which made
+  // argv/flag resolution nondeterministic. Each command flow now runs against
+  // its own scoped config snapshot to keep reads/writes isolated.
+  private readonly configScope: AsyncLocalStorage<Record<string, any>> = new AsyncLocalStorage<Record<string, any>>();
 
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -45,6 +50,23 @@ export class ConfigManager {
     };
   }
 
+  private getActiveConfig(): Record<string, any> {
+    // If no scope exists (normal single-command path), fallback to legacy
+    // process-wide config behavior.
+    return this.configScope.getStore() ?? this.config;
+  }
+
+  public cloneActiveConfig(): Record<string, any> {
+    // Snapshot current effective config so child command flows can mutate it
+    // without affecting siblings.
+    return structuredClone(this.getActiveConfig());
+  }
+
+  public runWithScopedConfig<T>(scopedConfig: Record<string, any>, callback: () => T): T {
+    // Bind the scoped config to the entire async call chain.
+    return this.configScope.run(scopedConfig, callback);
+  }
+
   /**
    * Apply the command flags precedence
    *
@@ -53,6 +75,7 @@ export class ConfigManager {
    *  2. Default value of the command flag if the command is not 'init'.
    */
   public applyPrecedence(argv: yargs.Argv<AnyYargs>, aliases: AnyObject): yargs.Argv<AnyYargs> {
+    const activeConfig: Record<string, any> = this.getActiveConfig();
     for (const key of Object.keys(aliases)) {
       const flag: CommandFlag = flags.allFlagsMap.get(key);
       if (flag) {
@@ -66,11 +89,13 @@ export class ConfigManager {
       }
     }
 
+    activeConfig.updatedAt = new Date().toISOString();
     return argv;
   }
 
   /** Update the config using the argv */
   public update(argv: ArgvStruct): void {
+    const activeConfig: Record<string, any> = this.getActiveConfig();
     if (!argv || Object.keys(argv).length === 0) {
       return;
     }
@@ -91,16 +116,16 @@ export class ConfigManager {
           }
           // if it is a namespace flag then convert it to NamespaceName
           else if (value && (flag.name === flags.namespace.name || flag.name === flags.clusterSetupNamespace.name)) {
-            this.config.flags[flag.name] = value instanceof NamespaceName ? value : NamespaceName.of(value);
+            activeConfig.flags[flag.name] = value instanceof NamespaceName ? value : NamespaceName.of(value);
             break;
           }
-          this.config.flags[flag.name] = `${value}`; // force convert to string
+          activeConfig.flags[flag.name] = `${value}`; // force convert to string
           break;
         }
 
         case 'number': {
           try {
-            this.config.flags[flag.name] = flags.integerFlags.has(flag.name)
+            activeConfig.flags[flag.name] = flags.integerFlags.has(flag.name)
               ? Number.parseInt(value)
               : Number.parseFloat(value);
           } catch (error) {
@@ -110,14 +135,14 @@ export class ConfigManager {
         }
 
         case 'boolean': {
-          this.config.flags[flag.name] = value === true || value === 'true'; // use comparison to enforce boolean value
+          activeConfig.flags[flag.name] = value === true || value === 'true'; // use comparison to enforce boolean value
           break;
         }
 
         case 'StorageType': {
           // @ts-expect-error: TS2475: const enums can only be used in property or index access expressions
           if (isValidEnum(`${value}`, StorageType)) {
-            this.config.flags[flag.name] = value;
+            activeConfig.flags[flag.name] = value;
           } else {
             throw new SoloError(`Invalid storage type value '${value}'`);
           }
@@ -131,12 +156,12 @@ export class ConfigManager {
 
     // store last command that was run
     if (argv._) {
-      this.config.lastCommand = argv._;
+      activeConfig.lastCommand = argv._;
     }
 
-    this.config.updatedAt = new Date().toISOString();
+    activeConfig.updatedAt = new Date().toISOString();
 
-    const flagMessage: string = Object.entries(this.config.flags)
+    const flagMessage: string = Object.entries(activeConfig.flags)
       .filter((entries): boolean => entries[1] !== undefined && entries[1] !== null)
       .map(([key, value]): `${string}=${string}` => {
         const flag: CommandFlag = flags.allFlagsMap.get(key);
@@ -153,7 +178,7 @@ export class ConfigManager {
 
   /** Check if a flag value is set */
   public hasFlag(flag: CommandFlag): boolean {
-    return this.config.flags[flag.name] !== undefined;
+    return this.getActiveConfig().flags[flag.name] !== undefined;
   }
 
   /**
@@ -161,30 +186,32 @@ export class ConfigManager {
    * @returns value of the flag or undefined if flag value is not available
    */
   public getFlag<T = string>(flag: CommandFlag): T {
-    return this.config.flags[flag.name] === undefined ? undefined : this.config.flags[flag.name];
+    const activeConfig: Record<string, any> = this.getActiveConfig();
+    return activeConfig.flags[flag.name] === undefined ? undefined : activeConfig.flags[flag.name];
   }
 
   /** Set value for the flag */
   public setFlag<T>(flag: CommandFlag, value: T): void {
+    const activeConfig: Record<string, any> = this.getActiveConfig();
     if (!flag || !flag.name) {
       throw new MissingArgumentError('flag must have a name');
     }
     // if it is a namespace then convert it to NamespaceName
     if (flag.name === flags.namespace.name || flag.name === flags.clusterSetupNamespace.name) {
       if (value instanceof NamespaceName) {
-        this.config.flags[flag.name] = value;
+        activeConfig.flags[flag.name] = value;
         return;
       }
 
-      this.config.flags[flag.name] = NamespaceName.of(value as string);
+      activeConfig.flags[flag.name] = NamespaceName.of(value as string);
       return;
     }
-    this.config.flags[flag.name] = value;
+    activeConfig.flags[flag.name] = value;
   }
 
   /** Get package version */
   public getVersion(): string {
-    return this.config.version;
+    return this.getActiveConfig().version;
   }
 
   /**

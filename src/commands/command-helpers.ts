@@ -5,6 +5,7 @@ import {type CommandFlag} from '../types/flag-types.js';
 import {type TaskListWrapper} from '../core/task-list/task-list-wrapper.js';
 import {type Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import {type TaskList} from '../core/task-list/task-list.js';
+import {type TaskNodeType} from '../core/task-list/task-list.js';
 import {ArgumentProcessor} from '../argument-processor.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -117,8 +118,26 @@ export async function subTaskSoloCommand(
   | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
   | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
 > {
-  taskList.parentTaskListMap.set(commandName, {taskListWrapper});
+  // one-shot can launch the same subcommand name in parallel (for example in
+  // nested/parallel Listr branches). A single map slot per command name caused
+  // last-writer-wins behavior, where one invocation overwrote another and task
+  // output got attached to the wrong parent. Queueing preserves 1:1 pairing.
+  const taskNode: TaskNodeType = {taskListWrapper};
+  const pendingTaskNodes = taskList.parentTaskListMap.get(commandName) ?? [];
+  pendingTaskNodes.push(taskNode);
+  taskList.parentTaskListMap.set(commandName, pendingTaskNodes);
+
   const newArgv: string[] = callback();
-  await ArgumentProcessor.process(newArgv);
-  return taskList.parentTaskListMap.get(commandName).children;
+  const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
+  const scopedConfig = configManager.cloneActiveConfig();
+
+  // ArgumentProcessor/command handlers read and write config flags deeply via
+  // ConfigManager and Flags helpers. Running under a scoped copy keeps each
+  // subcommand immutable from the perspective of siblings and removes shared
+  // global-state races while still preserving existing call signatures.
+  await configManager.runWithScopedConfig(scopedConfig, async (): Promise<void> => {
+    await ArgumentProcessor.process(newArgv);
+  });
+
+  return taskNode.children;
 }

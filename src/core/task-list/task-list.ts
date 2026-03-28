@@ -65,7 +65,9 @@ export interface TaskList<
     >,
   ): Listr<OneShotSingleDestroyContext, Renderer, FallbackRenderer>;
 
-  parentTaskListMap: Map<string, TaskNodeType>;
+  // Pending parent task wrappers for subcommand invocations keyed by command
+  // name; stored as an array to support concurrent invocations of same command.
+  parentTaskListMap: Map<string, TaskNodeType[]>;
 
   newTaskList<T = AnyListrContext>(
     task:
