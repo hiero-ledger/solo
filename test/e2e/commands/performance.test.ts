@@ -42,7 +42,7 @@ const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 100;
 let startTime: Date;
-let metricsInterval: NodeJS.Timeout;
+let metricsInterval: NodeJS.Timeout | undefined;
 let events: string[] = [];
 const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
@@ -67,26 +67,36 @@ function logSignalDebug(stage: string, detail: string = ''): void {
   console.log(`[signal-debug][performance.test.ts] proc=${readProcessSnapshot()}`);
 }
 
+function clearMetricsInterval(): void {
+  if (!metricsInterval) {
+    return;
+  }
+  clearInterval(metricsInterval);
+  metricsInterval = undefined;
+}
+
+function registerCancellationHooks(): void {
+  // Workflow cancellation sends SIGTERM before SIGKILL. Exit quickly so this test
+  // does not wait for pending sleep/interval work during teardown.
+  process.on('SIGTERM', (): void => {
+    logSignalDebug('signal-received', 'signal=SIGTERM');
+    clearMetricsInterval();
+    process.exit(143); // 128 + SIGTERM(15)
+  });
+
+  process.on('SIGINT', (): void => {
+    logSignalDebug('signal-received', 'signal=SIGINT');
+    clearMetricsInterval();
+    process.exit(130); // 128 + SIGINT(2)
+  });
+}
+
 function registerSignalDebugHooks(): void {
   if (!signalDebugEnabled) {
     return;
   }
 
   logSignalDebug('startup', `suite=${testName}`);
-
-  const handleSigterm: () => void = (): void => {
-    logSignalDebug('signal-received', 'signal=SIGTERM');
-    process.off('SIGTERM', handleSigterm);
-    process.kill(process.pid, 'SIGTERM');
-  };
-  process.on('SIGTERM', handleSigterm);
-
-  const handleSigint: () => void = (): void => {
-    logSignalDebug('signal-received', 'signal=SIGINT');
-    process.off('SIGINT', handleSigint);
-    process.kill(process.pid, 'SIGINT');
-  };
-  process.on('SIGINT', handleSigint);
 
   process.on('beforeExit', (code: number): void => {
     logSignalDebug('before-exit', `code=${code}`);
@@ -97,6 +107,7 @@ function registerSignalDebugHooks(): void {
   });
 }
 
+registerCancellationHooks();
 registerSignalDebugHooks();
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
@@ -147,7 +158,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         after(async (): Promise<void> => {
           logSignalDebug('mocha-after-start');
-          clearInterval(metricsInterval);
+          clearMetricsInterval();
 
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
