@@ -116,7 +116,6 @@ jobs:
       - name: Run E2E Tests
         timeout-minutes: 60
         run: |
-          set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
           export E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG:-true}"
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
@@ -136,47 +135,48 @@ jobs:
           }
 
           signal_debug_log "before-test"
-          # Keep the test runner in its own process group so a cancel signal can
-          # terminate the whole tree (shell -> c8 -> mocha) immediately.
-          TEST_PID=""
-          TEST_PGID=""
+          # Keep the test task in its own process group and kill that full group on
+          # cancellation. This mirrors the zxc-e2e workflow path that already exits
+          # promptly when a run is cancelled.
+          TASK_PID=""
+          TASK_PGID=""
           TEST_EXIT_CODE=0
 
           cleanup() {
             signal_debug_log "cleanup-signal"
-            if [[ -n "${TEST_PID}" ]]; then
-              echo "[signal-debug][workflow] forwarding cancellation to PID=${TEST_PID} PGID=${TEST_PGID}"
-              if [[ -n "${TEST_PGID}" ]]; then
-                kill -TERM -- "-${TEST_PGID}" 2>/dev/null || true
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "[signal-debug][workflow] forwarding cancellation to PID=${TASK_PID} PGID=${TASK_PGID}"
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
                 sleep 5
-                kill -KILL -- "-${TEST_PGID}" 2>/dev/null || true
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
               else
-                kill -TERM "${TEST_PID}" 2>/dev/null || true
+                kill -TERM "${TASK_PID}" 2>/dev/null || true
                 sleep 5
-                kill -KILL "${TEST_PID}" 2>/dev/null || true
+                kill -KILL "${TASK_PID}" 2>/dev/null || true
               fi
-              wait "${TEST_PID}" 2>/dev/null || true
+              wait "${TASK_PID}" 2>/dev/null || true
             fi
             exit 130
           }
 
           trap cleanup SIGTERM SIGINT
 
-          TEST_COMMAND="MOCHA_SUITE_NAME='Mocha E2E Performance Test' npx c8 --report-dir='coverage/e2e-performance' npx mocha 'test/e2e/commands/performance.test.ts' --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml"
+          TASK_COMMAND="${CG_EXEC:-} task test-e2e-performance"
 
           if command -v setsid >/dev/null 2>&1; then
-            setsid bash -lc "${TEST_COMMAND}" &
+            setsid bash -lc "${TASK_COMMAND}" &
           else
-            bash -lc "${TEST_COMMAND}" &
+            bash -lc "${TASK_COMMAND}" &
           fi
 
-          TEST_PID=$!
-          TEST_PGID="$(ps -o pgid= -p "${TEST_PID}" | tr -d '[:space:]' || true)"
-          signal_debug_log "test-spawned pid=${TEST_PID} pgid=${TEST_PGID}"
+          TASK_PID=$!
+          TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
+          signal_debug_log "test-spawned pid=${TASK_PID} pgid=${TASK_PGID}"
 
-          wait "${TEST_PID}" || TEST_EXIT_CODE=$?
-          TEST_PID=""
-          TEST_PGID=""
+          wait "${TASK_PID}" || TEST_EXIT_CODE=$?
+          TASK_PID=""
+          TASK_PGID=""
           trap - SIGTERM SIGINT
 
           exit "${TEST_EXIT_CODE}"
