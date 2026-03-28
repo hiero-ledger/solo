@@ -21,7 +21,6 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
-import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -36,6 +35,7 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {Templates} from '../core/templates.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {NodeCommandTasks} from './node/tasks.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -51,6 +51,7 @@ export abstract class BaseCommand extends ShellRunner {
     protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
     @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
+    @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
   ) {
     super();
 
@@ -65,6 +66,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
+    this.nodeCommandTasks = patchInject(nodeCommandTasks, InjectTokens.NodeCommandTasks, this.constructor.name);
   }
 
   protected async loadRemoteConfigOrWarn(
@@ -81,170 +83,6 @@ export abstract class BaseCommand extends ShellRunner {
       );
       return false;
     }
-  }
-
-  /**
-   * Prepare the values files map for each cluster
-   *
-   * Order of precedence:
-   * 1. Chart's default values file (if chartDirectory is set)
-   * 2. Base values files (applied after chart defaults, before the generated profile values file)
-   * 3. Profile values file
-   * 4. User's values file
-   * @param clusterReferences
-   * @param chartDirectory - the chart directory
-   * @param profileValuesFile - mapping of clusterRef to the profile values file full path
-   * @param valuesFileInput - the values file input string
-   * @param baseValuesFiles - optional list of values file paths inserted between chart defaults and profile values
-   */
-  public static prepareValuesFilesMapMultipleCluster(
-    clusterReferences: ClusterReferences,
-    chartDirectory?: string,
-    profileValuesFile?: Record<ClusterReferenceName, string>,
-    valuesFileInput?: string,
-    baseValuesFiles?: string[],
-  ): Record<ClusterReferenceName, string> {
-    // initialize the map with an empty array for each cluster-ref
-    const valuesFiles: Record<ClusterReferenceName, string> = {[Flags.KEY_COMMON]: ''};
-    for (const [clusterReference] of clusterReferences) {
-      valuesFiles[clusterReference] = '';
-    }
-
-    // add the chart's default values file for each cluster-ref if chartDirectory is set
-    // this should be the first in the list of values files as it will be overridden by user's input
-    if (chartDirectory) {
-      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
-      for (const clusterReference in valuesFiles) {
-        valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
-      }
-    }
-
-    // add base values files (e.g. component defaults) after chart defaults but before profile values
-    if (baseValuesFiles) {
-      for (const file of baseValuesFiles) {
-        for (const clusterReference in valuesFiles) {
-          valuesFiles[clusterReference] += ` --values ${file}`;
-        }
-      }
-    }
-
-    if (profileValuesFile) {
-      for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
-        const valuesArgument: string = ` --values ${file}`;
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const clusterReference_ of Object.keys(valuesFiles)) {
-            valuesFiles[clusterReference_] += valuesArgument;
-          }
-        } else {
-          valuesFiles[clusterReference] += valuesArgument;
-        }
-      }
-    }
-
-    if (valuesFileInput) {
-      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
-      for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf: string = '';
-        for (const file of files) {
-          vf += ` --values ${file}`;
-        }
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const [clusterReference_] of Object.entries(valuesFiles)) {
-            valuesFiles[clusterReference_] += vf;
-          }
-        } else {
-          valuesFiles[clusterReference] += vf;
-        }
-      }
-    }
-
-    if (Object.keys(valuesFiles).length > 1) {
-      // delete the common key if there is another cluster to use
-      delete valuesFiles[Flags.KEY_COMMON];
-    }
-
-    return valuesFiles;
-  }
-
-  /**
-   * Prepare the values files map for each cluster
-   *
-   * Order of precedence:
-   * 1. Chart's default values file (if chartDirectory is set)
-   * 2. Profile values file
-   * 3. User's values file
-   * @param clusterReferences
-   * @param valuesFileInput - the values file input string
-   * @param chartDirectory - the chart directory
-   * @param profileValuesFile - the profile values file full path
-   */
-  public static prepareValuesFilesMap(
-    clusterReferences: ClusterReferences,
-    chartDirectory?: string,
-    profileValuesFile?: string,
-    valuesFileInput?: string,
-  ): Record<ClusterReferenceName, string> {
-    // initialize the map with an empty array for each cluster-ref
-    const valuesFiles: Record<ClusterReferenceName, string> = {
-      [Flags.KEY_COMMON]: '',
-    };
-    for (const [clusterReference] of clusterReferences) {
-      valuesFiles[clusterReference] = '';
-    }
-
-    // add the chart's default values file for each cluster-ref if chartDirectory is set
-    // this should be the first in the list of values files as it will be overridden by user's input
-    if (chartDirectory) {
-      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
-      for (const clusterReference in valuesFiles) {
-        valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
-      }
-    }
-
-    if (profileValuesFile) {
-      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(profileValuesFile);
-      for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf: string = '';
-        for (const file of files) {
-          vf += ` --values ${file}`;
-        }
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const [cf] of Object.entries(valuesFiles)) {
-            valuesFiles[cf] += vf;
-          }
-        } else {
-          valuesFiles[clusterReference] += vf;
-        }
-      }
-    }
-
-    if (valuesFileInput) {
-      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
-      for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf: string = '';
-        for (const file of files) {
-          vf += ` --values ${file}`;
-        }
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const [clusterReference_] of Object.entries(valuesFiles)) {
-            valuesFiles[clusterReference_] += vf;
-          }
-        } else {
-          valuesFiles[clusterReference] += vf;
-        }
-      }
-    }
-
-    if (Object.keys(valuesFiles).length > 1) {
-      // delete the common key if there is another cluster to use
-      delete valuesFiles[Flags.KEY_COMMON];
-    }
-
-    return valuesFiles;
   }
 
   public abstract close(): Promise<void>;

@@ -47,9 +47,12 @@ import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
   addRootImageValues,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
   prepareEndpoints,
+  prepareValuesFilesMap,
+  prepareValuesFilesMapMultipleCluster,
   renameAndCopyFile,
   showVersionBanner,
   sleep,
@@ -99,9 +102,10 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
-  PrivateKeyAndCertificateObject,
+  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -114,7 +118,6 @@ import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {BaseCommand} from '../base.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
@@ -158,7 +161,6 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
-import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
@@ -480,7 +482,7 @@ export class NodeCommandTasks {
               });
             }
 
-            context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
+            context_.config.podRefs[nodeAlias] = await this.checkNetworkNodeActiveness(
               namespace,
               nodeAlias,
               task,
@@ -504,7 +506,30 @@ export class NodeCommandTasks {
     });
   }
 
-  private async _checkNetworkNodeActiveness(
+  public waitForNodesTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for nodes to be active',
+      skip: (): boolean => !this.oneShotState.isActive(),
+      task: (_, task): SoloListr<AnyListrContext> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+
+        for (const node of this.remoteConfig.getConsensusNodes()) {
+          const title: string = `Check network pod: ${chalk.yellow(node.name)}`;
+
+          subTasks.push({
+            title,
+            task: async (_, task): Promise<void> => {
+              await this.checkNetworkNodeActiveness(NamespaceName.of(node.namespace), node.name, task, title);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public async checkNetworkNodeActiveness(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
     task: SoloListrTaskWrapper<AnyListrContext>,
@@ -1540,7 +1565,10 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(
+    nodeAliasesProperty: string,
+    subcommandType: NodeSubcommandType,
+  ): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
@@ -1554,12 +1582,17 @@ export class NodeCommandTasks {
         return lt(currentVersion, versionRequirement);
       },
       task: async ({config}): Promise<void> => {
-        const {namespace, deployment, adminKey}: any = config;
+        const {namespace, deployment, adminKey} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
           namespace,
           this.remoteConfig.getClusterRefs(),
           deployment,
+        );
+
+        const grpcWebEndpoints: NodeAliasToAddressMapping = Templates.parseNodeAliasToAddressAndPortMapping(
+          config.grpcWebEndpoints,
+          this.remoteConfig.getConsensusNodes(),
         );
 
         for (const nodeAlias of config[nodeAliasesProperty]) {
@@ -1577,27 +1610,49 @@ export class NodeCommandTasks {
             deployment,
           );
 
-          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint().setPort(grpcProxyPort);
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint();
 
-          if (networkNodeService.envoyProxyLoadBalancerIp) {
+          let endpoint: {address: string; port: number};
+
+          if (subcommandType === NodeSubcommandType.ADD && (config as any).grpcWebEndpoint) {
+            const grpcWebEndpoint: string = (config as any).grpcWebEndpoint;
+
+            const [address, port] = grpcWebEndpoint.includes(':')
+              ? grpcWebEndpoint.split(':')
+              : [grpcWebEndpoint, constants.GRPC_WEB_PORT];
+
+            endpoint = {address, port: +port};
+          } else if (subcommandType === NodeSubcommandType.START) {
+            endpoint = grpcWebEndpoints[nodeAlias];
+          }
+
+          if (endpoint) {
+            grpcWebProxyEndpoint.setDomainName(endpoint.address).setPort(endpoint.port);
+          } else if (networkNodeService.envoyProxyLoadBalancerIp) {
             const svc: Service[] = await this.k8Factory
               .getK8(networkNodeService.context)
               .services()
-              .list(config.namespace, [
-                `solo.hedera.com/node-id=${networkNodeService.nodeId},solo.hedera.com/type=network-node-svc`,
-              ]);
+              .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(networkNodeService.nodeId));
 
-            grpcWebProxyEndpoint.setDomainName(
-              Templates.renderSvcFullyQualifiedDomainName(svc[0].metadata.name, namespace.name, cluster.dnsBaseDomain),
-            );
+            grpcWebProxyEndpoint
+              .setDomainName(
+                Templates.renderSvcFullyQualifiedDomainName(
+                  svc[0].metadata.name,
+                  namespace.name,
+                  cluster.dnsBaseDomain,
+                ),
+              )
+              .setPort(grpcProxyPort);
           } else {
-            grpcWebProxyEndpoint.setDomainName(
-              Templates.renderSvcFullyQualifiedDomainName(
-                networkNodeService.envoyProxyName,
-                namespace.name,
-                cluster.dnsBaseDomain,
-              ),
-            );
+            grpcWebProxyEndpoint
+              .setDomainName(
+                Templates.renderSvcFullyQualifiedDomainName(
+                  networkNodeService.envoyProxyName,
+                  namespace.name,
+                  cluster.dnsBaseDomain,
+                ),
+              )
+              .setPort(grpcProxyPort);
           }
 
           let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
@@ -2280,7 +2335,7 @@ export class NodeCommandTasks {
           profileValuesFile[clusterReference] = await this.profileManager.writeToYaml(cachedValuesFile, yamlRoot);
         }
 
-        const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+        const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
           this.remoteConfig.getClusterRefs(),
           config.chartDirectory,
           profileValuesFile,
@@ -2925,21 +2980,19 @@ export class NodeCommandTasks {
 
             const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
             const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
+            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
           }
 
           if (config.gossipPublicKey && config.gossipPrivateKey) {
             this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(
-              config.gossipPublicKey,
-            );
+            const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
             nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
 
             const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
             const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
+            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
           }
 
           if (config.newAccountNumber) {
@@ -3184,7 +3237,7 @@ export class NodeCommandTasks {
         );
 
         if (profileValuesFile) {
-          const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
+          const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMap(
             clusterReferences,
             undefined, // do not trigger of adding default value file for chart upgrade due to consensus node add or destroy
             profileValuesFile,
@@ -3924,7 +3977,7 @@ export class NodeCommandTasks {
         this.remoteConfig.configuration.state.externalBlockNodes.length === 0,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
