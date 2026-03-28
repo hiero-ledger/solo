@@ -126,8 +126,6 @@ jobs:
           echo E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG}" >> .env
           cat .env
 
-          TEST_EXIT_CODE=0
-
           signal_debug_log() {
             local stage="${1}"
             if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
@@ -138,23 +136,18 @@ jobs:
           }
 
           signal_debug_log "before-test"
-          set +e
-          # Keep test execution in the foreground so GitHub cancellation signals hit
-          # the active mocha/c8 process directly instead of being mediated by a
-          # background wait loop in this shell.
-          npx cross-env MOCHA_SUITE_NAME="Mocha E2E Performance Test" \
+          # Use exec so the test process replaces this shell. This allows GitHub
+          # cancellation signals to target the active mocha/c8 process directly.
+          exec npx cross-env MOCHA_SUITE_NAME="Mocha E2E Performance Test" \
           npx c8 --report-dir='coverage/e2e-performance' \
           npx mocha 'test/e2e/commands/performance.test.ts' \
           --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml
-          TEST_EXIT_CODE=$?
-          set -e
-          signal_debug_log "after-test"
 
-          if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
-            echo "Performance E2E tests failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
-            npm run solo-test -- deployment diagnostics logs -q --dev || true
-            exit "${TEST_EXIT_CODE}"
-          fi
+      - name: Collect Diagnostics Logs On E2E Failure
+        if: ${{ failure() && !cancelled() }}
+        run: |
+          echo "Performance E2E tests failed. Collecting deployment diagnostics logs..."
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
 
       - name: Log Metrics
         id: log-metrics
