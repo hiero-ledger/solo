@@ -205,7 +205,9 @@ tasks:
           signal_debug_log "trap-exit"
           exit 130
         }
-        trap cleanup TERM INT
+        # Use numeric signal IDs for maximum shell portability under task runners
+        # that may not consistently accept named signals (TERM/INT).
+        trap cleanup 15 2
 
         {{ .test_prefix }}="Mocha E2E Performance Test" \
         {{ .reporter_prefix }}='coverage/e2e-performance' \
@@ -218,7 +220,7 @@ tasks:
         wait "${TEST_PID}" || TEST_RC=$?
         TEST_PID=""
         TEST_PGID=""
-        trap - TERM INT
+        trap - 15 2
         signal_debug_log "after-wait"
         exit "${TEST_RC}"
 
