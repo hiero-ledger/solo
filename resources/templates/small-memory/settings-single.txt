@@ -25,7 +25,7 @@ prometheus.endpointEnabled,                    true                        # dif
                                           #          MerkleDb         #
                                           #############################
 merkleDb.initialCapacity,                        5000
-merkleDb.maxNumOfKeys,                           5000
+merkleDb.maxNumOfKeys,                          60000
 merkleDb.hashesRamToDiskThreshold,                  0
 merkleDb.hashStoreRamBufferSize,                10000
 merkleDb.longListChunkSize,                     65536
