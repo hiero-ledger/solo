@@ -58,8 +58,16 @@ export class ConfigManager {
 
   public cloneActiveConfig(): Record<string, any> {
     // Snapshot current effective config so child command flows can mutate it
-    // without affecting siblings.
-    return structuredClone(this.getActiveConfig());
+    // without affecting siblings. Use a shallow spread of the flags map rather
+    // than structuredClone: structuredClone strips class prototypes (e.g.
+    // NamespaceName becomes a plain {name} object that stringifies to
+    // "[object Object]"). NamespaceName instances are immutable so sharing
+    // them by reference across scopes is safe.
+    const active = this.getActiveConfig();
+    return {
+      ...active,
+      flags: {...active.flags},
+    };
   }
 
   public runWithScopedConfig<T>(scopedConfig: Record<string, any>, callback: () => T): T {
