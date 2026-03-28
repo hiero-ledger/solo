@@ -168,8 +168,6 @@ tasks:
       - |
         set -euo pipefail
         export E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG:-false}"
-        TEST_PID=""
-        TEST_PGID=""
         TEST_RC=0
 
         signal_debug_log() {
@@ -179,49 +177,17 @@ tasks:
           fi
           echo "[signal-debug][taskfile] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID"
           ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
-          if [ -n "${TEST_PID}" ]; then
-            echo "[signal-debug][taskfile] child test pid=${TEST_PID} pgid=${TEST_PGID}"
-            ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TEST_PID}" || true
-            ps -eo pid=,ppid=,pgid=,sid=,stat=,command= \
-              | grep -E "(${TEST_PID}|performance\\.test\\.ts|npx mocha|tsx)" \
-              | grep -v grep || true
-          fi
         }
 
-        cleanup() {
-          signal_debug_log "trap-entry"
-          if [ -n "${TEST_PID}" ]; then
-            if [ -n "${TEST_PGID}" ]; then
-              kill -TERM -- "-${TEST_PGID}" 2>/dev/null || true
-              sleep 3
-              kill -KILL -- "-${TEST_PGID}" 2>/dev/null || true
-            else
-              kill -TERM "${TEST_PID}" 2>/dev/null || true
-              sleep 3
-              kill -KILL "${TEST_PID}" 2>/dev/null || true
-            fi
-            wait "${TEST_PID}" 2>/dev/null || true
-          fi
-          signal_debug_log "trap-exit"
-          exit 130
-        }
-        # Use numeric signal IDs for maximum shell portability under task runners
-        # that may not consistently accept named signals (TERM/INT).
-        trap cleanup 15 2
-
+        signal_debug_log "before-run"
+        set +e
         {{ .test_prefix }}="Mocha E2E Performance Test" \
         {{ .reporter_prefix }}='coverage/e2e-performance' \
         {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' \
-        {{ .reporter_options_prefix }}-e2e-performance.xml &
-
-        TEST_PID=$!
-        TEST_PGID="$(ps -o pgid= -p "${TEST_PID}" | tr -d '[:space:]' || true)"
-        signal_debug_log "after-launch"
-        wait "${TEST_PID}" || TEST_RC=$?
-        TEST_PID=""
-        TEST_PGID=""
-        trap - 15 2
-        signal_debug_log "after-wait"
+        {{ .reporter_options_prefix }}-e2e-performance.xml
+        TEST_RC=$?
+        set -e
+        signal_debug_log "after-run"
         exit "${TEST_RC}"
 
   test-example-node-create-transaction:
