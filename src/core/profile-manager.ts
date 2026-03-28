@@ -35,6 +35,15 @@ import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import semver from 'semver/preload.js';
 
+export interface ProfileManagerStagingOptions {
+  // These values are intentionally passed from the command's resolved config so profile generation
+  // does not depend on mutable global flags that can be changed by concurrently running subcommands.
+  cacheDir: DirectoryPath;
+  releaseTag: string;
+  appName: string;
+  chainId: string;
+}
+
 @injectable()
 export class ProfileManager {
   private readonly logger: SoloLogger;
@@ -142,6 +151,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    stagingOptions?: Partial<ProfileManagerStagingOptions>,
   ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
       consensusNodes.map((node): NodeAlias => node.name),
@@ -155,27 +165,29 @@ export class ProfileManager {
       this._setValue(`hedera.nodes.${nodeIndex}.accountId`, accountMap.get(nodeAlias), yamlRoot);
     }
 
+    // Resolve once and keep immutable for this invocation to prevent races from global flag mutation
+    // while a parallel command is generating staging/config artifacts.
+    const resolvedStagingOptions: ProfileManagerStagingOptions = this.resolveStagingOptions(stagingOptions);
     const stagingDirectory: string = Templates.renderStagingDir(
-      this.configManager.getFlag(flags.cacheDir),
-      this.configManager.getFlag(flags.releaseTag),
+      resolvedStagingOptions.cacheDir,
+      resolvedStagingOptions.releaseTag,
     );
 
     if (!fs.existsSync(stagingDirectory)) {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
-    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(releaseTag);
+    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
     let configTxtPath: Optional<string>;
     if (needsConfigTxt) {
       configTxtPath = await this.prepareConfigTxt(
         accountMap,
         consensusNodes,
         stagingDirectory,
-        releaseTag,
+        resolvedStagingOptions.releaseTag,
         domainNamesMapping,
-        this.configManager.getFlag(flags.app),
-        this.configManager.getFlag(flags.chainId),
+        resolvedStagingOptions.appName,
+        resolvedStagingOptions.chainId,
       );
     }
 
@@ -305,6 +317,7 @@ export class ProfileManager {
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
     jfrFile: string = '',
+    stagingOptions?: Partial<ProfileManagerStagingOptions>,
   ): Promise<Record<ClusterReferenceName, string>> {
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
@@ -323,6 +336,7 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
+        stagingOptions,
       );
 
       // If a JFR settings file is provided, read the defaults from solo-values.yaml,
@@ -355,6 +369,17 @@ export class ProfileManager {
     }
 
     return filesMapping;
+  }
+
+  private resolveStagingOptions(options?: Partial<ProfileManagerStagingOptions>): ProfileManagerStagingOptions {
+    // Fallbacks preserve compatibility for call sites that do not pass explicit options yet.
+    // Newer call sites should pass command-scoped values to avoid cross-command interference.
+    return {
+      cacheDir: options?.cacheDir ?? this.configManager.getFlag(flags.cacheDir),
+      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.releaseTag),
+      appName: options?.appName ?? this.configManager.getFlag(flags.app),
+      chainId: options?.chainId ?? this.configManager.getFlag(flags.chainId),
+    };
   }
 
   private async bumpHederaConfigVersion(applicationPropertiesPath: string): Promise<void> {

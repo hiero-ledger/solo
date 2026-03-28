@@ -85,6 +85,7 @@ import {Zippy} from '../core/zippy.js';
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
   applicationEnv: string;
+  chainId: string;
   cacheDir: string;
   chartDirectory: string;
   loadBalancerEnabled: boolean;
@@ -429,6 +430,14 @@ export class NetworkCommand extends BaseCommand {
       deploymentName,
       applicationPropertiesPath,
       jfrFile,
+      {
+        // Pass command-scoped values explicitly so profile/staging generation is isolated
+        // from mutable global flags when one-shot runs parallel subcommands.
+        cacheDir: config.cacheDir,
+        releaseTag: config.releaseTag,
+        appName: config.app,
+        chainId: config.chainId,
+      },
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
