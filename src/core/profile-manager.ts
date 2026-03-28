@@ -241,11 +241,6 @@ export class ProfileManager {
       yamlRoot,
     );
 
-    // The container reads JVM settings from pod-level environment variables (defaults.root.extraEnv),
-    // not from the hedera.configMaps.applicationEnv configmap. Parse the application.env and sync
-    // the extraEnv so both stay consistent.
-    this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
-
     try {
       if (
         this.remoteConfig.configuration.state.blockNodes.length === 0 &&
@@ -381,6 +376,15 @@ export class ProfileManager {
         }
         this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
       }
+
+      // Override defaults.root.extraEnv with values from the staged application.env file.
+      // This must run AFTER the JFR block above, which overwrites defaults.root from solo-values.yaml.
+      const stagingDirectory: string = Templates.renderStagingDir(
+        this.configManager.getFlag(flags.cacheDir),
+        this.configManager.getFlag(flags.releaseTag),
+      );
+      const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+      this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
 
       const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
