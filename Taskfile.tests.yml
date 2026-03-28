@@ -165,17 +165,10 @@ tasks:
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
     cmds:
-      - |
-        set -euo pipefail
-        TEST_RC=0
-        set +e
-        {{ .test_prefix }}="Mocha E2E Performance Test" \
-        {{ .reporter_prefix }}='coverage/e2e-performance' \
-        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' \
-        {{ .reporter_options_prefix }}-e2e-performance.xml
-        TEST_RC=$?
-        set -e
-        exit "${TEST_RC}"
+      - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
+        {{ .reporter_prefix }}='coverage/e2e-performance'
+        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-performance.xml"
 
   test-example-node-create-transaction:
     desc: "Runs the node create transaction example test without coverage (used for local development)"
