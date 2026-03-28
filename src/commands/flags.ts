@@ -1879,7 +1879,7 @@ export class Flags {
     definition: {
       describe:
         'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
-      defaultValue: true,
+      defaultValue: false,
       type: 'boolean',
       disablePrompt: true,
     },
