@@ -127,6 +127,7 @@ jobs:
           cat .env
 
           TEST_PID=""
+          TEST_PGID=""
           TEST_EXIT_CODE=0
 
           signal_debug_log() {
@@ -134,7 +135,7 @@ jobs:
             if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
               return
             fi
-            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID test_pid=${TEST_PID:-}"
+            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID test_pid=${TEST_PID:-} test_pgid=${TEST_PGID:-}"
             ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
             if [[ -n "${TEST_PID}" ]]; then
               ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TEST_PID}" || true
@@ -149,10 +150,14 @@ jobs:
             if [[ -z "${TEST_PID}" ]]; then
               return
             fi
-            # Kill direct children, then the parent mocha/c8 shell process.
-            pkill -"${sig}" -P "${TEST_PID}" 2>/dev/null || true
-            kill -"${sig}" "${TEST_PID}" 2>/dev/null || true
-            # Fallback kill for deeper descendants started by npx/npm wrappers.
+            # Primary stop path: signal the whole process group started by setsid.
+            # This avoids leaving nested npm/npx/node descendants running after workflow cancellation.
+            if [[ -n "${TEST_PGID}" ]]; then
+              kill -"${sig}" -- "-${TEST_PGID}" 2>/dev/null || true
+            else
+              kill -"${sig}" "${TEST_PID}" 2>/dev/null || true
+            fi
+            # Fallback for detached descendants that escaped the group.
             pkill -"${sig}" -f 'test/e2e/commands/performance\.test\.ts|npx mocha|tsx --no-deprecation --no-warnings|npx c8 --report-dir=coverage/e2e-performance' 2>/dev/null || true
           }
 
@@ -166,14 +171,18 @@ jobs:
           }
           trap cleanup INT TERM
 
-          npx cross-env MOCHA_SUITE_NAME="Mocha E2E Performance Test" \
-          npx c8 --report-dir='coverage/e2e-performance' \
-          npx mocha 'test/e2e/commands/performance.test.ts' \
-          --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml &
+          TEST_COMMAND="npx cross-env MOCHA_SUITE_NAME='Mocha E2E Performance Test' npx c8 --report-dir='coverage/e2e-performance' npx mocha 'test/e2e/commands/performance.test.ts' --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml"
+          if command -v setsid >/dev/null 2>&1; then
+            setsid bash -lc "${TEST_COMMAND}" &
+          else
+            bash -lc "${TEST_COMMAND}" &
+          fi
           TEST_PID=$!
+          TEST_PGID="$(ps -o pgid= -p "${TEST_PID}" | tr -d '[:space:]' || true)"
           signal_debug_log "after-launch"
           wait "${TEST_PID}" || TEST_EXIT_CODE=$?
           TEST_PID=""
+          TEST_PGID=""
           trap - INT TERM
           signal_debug_log "after-wait"
 
