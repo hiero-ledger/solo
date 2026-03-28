@@ -126,8 +126,6 @@ jobs:
           echo E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG}" >> .env
           cat .env
 
-          TEST_PID=""
-          TEST_PGID=""
           TEST_EXIT_CODE=0
 
           signal_debug_log() {
@@ -135,56 +133,22 @@ jobs:
             if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
               return
             fi
-            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID test_pid=${TEST_PID:-} test_pgid=${TEST_PGID:-}"
+            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID"
             ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
-            if [[ -n "${TEST_PID}" ]]; then
-              ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TEST_PID}" || true
-              ps -eo pid=,ppid=,pgid=,sid=,stat=,command= \
-                | grep -E "(${TEST_PID}|performance\\.test\\.ts|npx mocha|tsx|npx c8)" \
-                | grep -v grep || true
-            fi
           }
 
-          stop_test_tree() {
-            local sig="${1}"
-            if [[ -z "${TEST_PID}" ]]; then
-              return
-            fi
-            # Primary stop path: signal the whole process group started by setsid.
-            # This avoids leaving nested npm/npx/node descendants running after workflow cancellation.
-            if [[ -n "${TEST_PGID}" ]]; then
-              kill -"${sig}" -- "-${TEST_PGID}" 2>/dev/null || true
-            else
-              kill -"${sig}" "${TEST_PID}" 2>/dev/null || true
-            fi
-            # Fallback for detached descendants that escaped the group.
-            pkill -"${sig}" -f 'test/e2e/commands/performance\.test\.ts|npx mocha|tsx --no-deprecation --no-warnings|npx c8 --report-dir=coverage/e2e-performance' 2>/dev/null || true
-          }
-
-          cleanup() {
-            signal_debug_log "trap-entry"
-            stop_test_tree TERM
-            sleep 2
-            stop_test_tree KILL
-            signal_debug_log "trap-exit"
-            exit 130
-          }
-          trap cleanup INT TERM
-
-          TEST_COMMAND="npx cross-env MOCHA_SUITE_NAME='Mocha E2E Performance Test' npx c8 --report-dir='coverage/e2e-performance' npx mocha 'test/e2e/commands/performance.test.ts' --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml"
-          if command -v setsid >/dev/null 2>&1; then
-            setsid bash -lc "${TEST_COMMAND}" &
-          else
-            bash -lc "${TEST_COMMAND}" &
-          fi
-          TEST_PID=$!
-          TEST_PGID="$(ps -o pgid= -p "${TEST_PID}" | tr -d '[:space:]' || true)"
-          signal_debug_log "after-launch"
-          wait "${TEST_PID}" || TEST_EXIT_CODE=$?
-          TEST_PID=""
-          TEST_PGID=""
-          trap - INT TERM
-          signal_debug_log "after-wait"
+          signal_debug_log "before-test"
+          set +e
+          # Keep test execution in the foreground so GitHub cancellation signals hit
+          # the active mocha/c8 process directly instead of being mediated by a
+          # background wait loop in this shell.
+          npx cross-env MOCHA_SUITE_NAME="Mocha E2E Performance Test" \
+          npx c8 --report-dir='coverage/e2e-performance' \
+          npx mocha 'test/e2e/commands/performance.test.ts' \
+          --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml
+          TEST_EXIT_CODE=$?
+          set -e
+          signal_debug_log "after-test"
 
           if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
             echo "Performance E2E tests failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
