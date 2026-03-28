@@ -136,12 +136,50 @@ jobs:
           }
 
           signal_debug_log "before-test"
-          # Use exec so the test process replaces this shell. This allows GitHub
-          # cancellation signals to target the active mocha/c8 process directly.
-          exec npx cross-env MOCHA_SUITE_NAME="Mocha E2E Performance Test" \
-          npx c8 --report-dir='coverage/e2e-performance' \
-          npx mocha 'test/e2e/commands/performance.test.ts' \
-          --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml
+          # Keep the test runner in its own process group so a cancel signal can
+          # terminate the whole tree (shell -> c8 -> mocha) immediately.
+          TEST_PID=""
+          TEST_PGID=""
+          TEST_EXIT_CODE=0
+
+          cleanup() {
+            signal_debug_log "cleanup-signal"
+            if [[ -n "${TEST_PID}" ]]; then
+              echo "[signal-debug][workflow] forwarding cancellation to PID=${TEST_PID} PGID=${TEST_PGID}"
+              if [[ -n "${TEST_PGID}" ]]; then
+                kill -TERM -- "-${TEST_PGID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL -- "-${TEST_PGID}" 2>/dev/null || true
+              else
+                kill -TERM "${TEST_PID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL "${TEST_PID}" 2>/dev/null || true
+              fi
+              wait "${TEST_PID}" 2>/dev/null || true
+            fi
+            exit 130
+          }
+
+          trap cleanup SIGTERM SIGINT
+
+          TEST_COMMAND="MOCHA_SUITE_NAME='Mocha E2E Performance Test' npx c8 --report-dir='coverage/e2e-performance' npx mocha 'test/e2e/commands/performance.test.ts' --reporter-options configFile=mocha-multi-reporter.json,cmrOutput=mocha-junit-reporter+mochaFile+junit-e2e-performance.xml"
+
+          if command -v setsid >/dev/null 2>&1; then
+            setsid bash -lc "${TEST_COMMAND}" &
+          else
+            bash -lc "${TEST_COMMAND}" &
+          fi
+
+          TEST_PID=$!
+          TEST_PGID="$(ps -o pgid= -p "${TEST_PID}" | tr -d '[:space:]' || true)"
+          signal_debug_log "test-spawned pid=${TEST_PID} pgid=${TEST_PGID}"
+
+          wait "${TEST_PID}" || TEST_EXIT_CODE=$?
+          TEST_PID=""
+          TEST_PGID=""
+          trap - SIGTERM SIGINT
+
+          exit "${TEST_EXIT_CODE}"
 
       - name: Collect Diagnostics Logs On E2E Failure
         if: ${{ failure() && !cancelled() }}
