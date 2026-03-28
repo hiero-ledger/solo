@@ -507,8 +507,7 @@ jobs:
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          wait "${TASK_PID}"
-          TEST_EXIT_CODE=$?
+          wait "${TASK_PID}" || TEST_EXIT_CODE=$?
           TASK_PID=""
           TASK_PGID=""
           trap - SIGTERM SIGINT

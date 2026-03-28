@@ -158,8 +158,7 @@ jobs:
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          wait "${TASK_PID}"
-          TASK_RC=$?
+          wait "${TASK_PID}" || TASK_RC=$?
           TASK_PID=""
           TASK_PGID=""
           trap - SIGTERM SIGINT
