@@ -126,11 +126,56 @@ jobs:
           echo E2E_SIGNAL_DEBUG="${E2E_SIGNAL_DEBUG}" >> .env
           cat .env
 
-          # Keep the test in the foreground so GitHub cancellation signals are
-          # delivered to the active process tree directly, avoiding detached
-          # background/session edge-cases that can delay cancellation.
-          if ! task test-e2e-performance; then
-            TEST_EXIT_CODE=$?
+          TASK_PID=""
+          TEST_EXIT_CODE=0
+
+          signal_debug_log() {
+            local stage="${1}"
+            if [[ "${E2E_SIGNAL_DEBUG}" != "true" ]]; then
+              return
+            fi
+            echo "[signal-debug][workflow] stage=${stage} time=$(date -u +%Y-%m-%dT%H:%M:%SZ) shell_pid=$$ shell_ppid=$PPID task_pid=${TASK_PID:-}"
+            ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "$$" || true
+            if [[ -n "${TASK_PID}" ]]; then
+              ps -o pid=,ppid=,pgid=,sid=,stat=,command= -p "${TASK_PID}" || true
+              ps -eo pid=,ppid=,pgid=,sid=,stat=,command= \
+                | grep -E "(${TASK_PID}|task test-e2e-performance|performance\\.test\\.ts|npx mocha|tsx)" \
+                | grep -v grep || true
+            fi
+          }
+
+          stop_task_tree() {
+            local sig="${1}"
+            if [[ -z "${TASK_PID}" ]]; then
+              return
+            fi
+            # Kill direct children first, then the parent task process.
+            pkill -"${sig}" -P "${TASK_PID}" 2>/dev/null || true
+            kill -"${sig}" "${TASK_PID}" 2>/dev/null || true
+            # Fallback pattern-based kill for grandchildren spawned by npm/npx/task wrappers.
+            pkill -"${sig}" -f 'task test-e2e-performance|performance\.test\.ts|npx mocha|tsx --no-deprecation --no-warnings' 2>/dev/null || true
+          }
+
+          cleanup() {
+            signal_debug_log "trap-entry"
+            stop_task_tree TERM
+            sleep 3
+            stop_task_tree KILL
+            wait "${TASK_PID}" 2>/dev/null || true
+            signal_debug_log "trap-exit"
+            exit 130
+          }
+          trap cleanup INT TERM
+
+          task test-e2e-performance &
+          TASK_PID=$!
+          signal_debug_log "after-launch"
+          wait "${TASK_PID}" || TEST_EXIT_CODE=$?
+          TASK_PID=""
+          trap - INT TERM
+          signal_debug_log "after-wait"
+
+          if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TEST_EXIT_CODE}. Collecting deployment diagnostics logs..."
             npm run solo-test -- deployment diagnostics logs -q --dev || true
             exit "${TEST_EXIT_CODE}"
