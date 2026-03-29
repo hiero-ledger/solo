@@ -40,35 +40,19 @@ const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 100;
 let startTime: Date;
-let metricsInterval: NodeJS.Timeout | undefined;
+let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
-const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
-function clearMetricsInterval(): void {
-  if (!metricsInterval) {
-    return;
-  }
+// When the workflow cancels this step (e.g. due to a new commit superseding the PR),
+// go-task forwards SIGTERM to this process' process group before SIGKILL reaches task.
+// Without this handler, mocha's graceful shutdown waits for the currently-running
+// `await sleep(...)` to resolve AND for the setInterval to drain — which can take
+// minutes. Force-exit immediately so the runner can move on without waiting.
+process.on('SIGTERM', (): void => {
   clearInterval(metricsInterval);
-  metricsInterval = undefined;
-}
-
-function registerCancellationHooks(): void {
-  // This suite can be in long-running operations (sleep, load tests, metrics loops).
-  // During workflow cancellation, the runner sends SIGTERM first. Without this,
-  // mocha/node teardown can linger until the current async work naturally unwinds.
-  // We intentionally terminate fast so CI cancellation is responsive.
-  process.on('SIGTERM', (): void => {
-    clearMetricsInterval();
-    process.exit(143); // 128 + SIGTERM(15)
-  });
-
-  process.on('SIGINT', (): void => {
-    clearMetricsInterval();
-    process.exit(130); // 128 + SIGINT(2)
-  });
-}
-
-registerCancellationHooks();
+  process.exit(143); // 128 + SIGTERM(15)
+});
+const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -115,7 +99,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }).timeout(Duration.ofMinutes(25).toMillis());
 
         after(async (): Promise<void> => {
-          clearMetricsInterval();
+          clearInterval(metricsInterval);
 
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
