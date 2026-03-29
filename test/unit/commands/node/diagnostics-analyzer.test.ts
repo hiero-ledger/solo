@@ -74,7 +74,7 @@ com.swirlds.platform.system.SystemExitUtils.exitSystem(SystemExitUtils.java:37)
     archive.addFile('output/swirlds.log', Buffer.from(swirldsLogSample, 'utf8'));
     archive.writeZip(archivePath);
 
-    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, undefined);
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
 
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     expect(fs.existsSync(reportPath)).to.equal(true);
@@ -109,13 +109,11 @@ com.swirlds.platform.crypto.KeyLoadingException: No certificate found for nodeId
     archive.addFile('output/swirlds.log', Buffer.from(logWithUppercaseExceptionMarker, 'utf8'));
     archive.writeZip(archivePath);
 
-    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, undefined);
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
 
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
-    expect(reportText).to.include(
-      'ERROR EXCEPTION        <main> CryptoStatic: key loading failed',
-    );
+    expect(reportText).to.include('ERROR EXCEPTION        <main> CryptoStatic: key loading failed');
     expect(reportText).to.include(
       'com.swirlds.platform.crypto.KeyLoadingException: No certificate found for nodeId 2 [purpose = AGREEMENT ]',
     );
@@ -135,7 +133,7 @@ java.lang.NullPointerException
     archive.addFile('output/hgcaa.log', Buffer.from(hgcaaSample, 'utf8'));
     archive.writeZip(archivePath);
 
-    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, undefined);
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
 
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
@@ -172,7 +170,7 @@ events:
     fs.mkdirSync(describeDirectory, {recursive: true});
     fs.writeFileSync(path.join(describeDirectory, 'network-node1-0.describe.txt'), describeSample, 'utf8');
 
-    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, undefined);
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
 
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');

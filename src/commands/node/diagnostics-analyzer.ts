@@ -20,12 +20,7 @@ const {green, yellow} = chalk;
  *   4. consensus-active — consensus node did not reach ACTIVE platform status.
  *   5. log-exception    — an exception/stack-trace was found in an application log.
  */
-export type DiagnosticsFindingCategory =
-  | 'image-pull'
-  | 'oom'
-  | 'pod-readiness'
-  | 'consensus-active'
-  | 'log-exception';
+export type DiagnosticsFindingCategory = 'image-pull' | 'oom' | 'pod-readiness' | 'consensus-active' | 'log-exception';
 
 /** A single detected problem with its supporting evidence lines. */
 export type DiagnosticsFinding = {
@@ -120,11 +115,12 @@ export class DiagnosticsAnalyzer {
       this.logger.showUser(yellow(`  Pod describe directory not found, skipping: ${hieroOutputDirectory}`));
     }
 
-    const consensusArchiveDirectory: string = customOutputDirectory
-      ? path.resolve(customOutputDirectory)
-      : namespaceName
-        ? PathEx.join(constants.SOLO_LOGS_DIR, namespaceName)
-        : constants.SOLO_LOGS_DIR;
+    let consensusArchiveDirectory: string = constants.SOLO_LOGS_DIR;
+    if (customOutputDirectory) {
+      consensusArchiveDirectory = path.resolve(customOutputDirectory);
+    } else if (namespaceName) {
+      consensusArchiveDirectory = PathEx.join(constants.SOLO_LOGS_DIR, namespaceName);
+    }
     if (fs.existsSync(consensusArchiveDirectory)) {
       this.analyzeConsensusNodeArchives(consensusArchiveDirectory, findings);
     } else {
@@ -202,13 +198,13 @@ export class DiagnosticsAnalyzer {
     this.logger.showUser(`  Found ${describeFiles.length} pod describe file(s)`);
 
     for (const describeFile of describeFiles) {
-      const relPath: string = path.relative(rootDirectory, describeFile);
-      this.logger.showUser(`  Reading: ${relPath}`);
+      const relatedPath: string = path.relative(rootDirectory, describeFile);
+      this.logger.showUser(`  Reading: ${relatedPath}`);
       let content: string;
       try {
         content = fs.readFileSync(describeFile, 'utf8');
       } catch (error) {
-        this.logger.showUser(yellow(`  Unable to read describe file ${relPath}: ${(error as Error).message}`));
+        this.logger.showUser(yellow(`  Unable to read describe file ${relatedPath}: ${(error as Error).message}`));
         continue;
       }
 
@@ -247,7 +243,7 @@ export class DiagnosticsAnalyzer {
       // Reason: / Message: / reason: / message: lines (case-insensitive) are
       // captured for additional context.
       const statusMatch: RegExpMatchArray = content.match(/^\s*(?:Status|phase):\s+([^\n]+)/m);
-      const status: string = statusMatch?.[1]?.trim().replace(/^"|"$/g, '') ?? '';
+      const status: string = statusMatch?.[1]?.trim().replaceAll(/^"|"$/g, '') ?? '';
       const readyFalse: boolean = /^\s*[Rr]eady:\s+[Ff]alse\b/m.test(content);
       if ((status && status !== constants.POD_PHASE_RUNNING) || readyFalse) {
         const evidence: string[] = [];
@@ -467,7 +463,7 @@ export class DiagnosticsAnalyzer {
     const exceptionTypeLinePattern: RegExp =
       /^\s*(?:[a-z_][A-Za-z0-9_$]*\.)*[A-Z][A-Za-z0-9_$]*(?:Exception|Error|Throwable)(?::|\b)/;
     const startPattern: RegExp = new RegExp(
-      `${exceptionTypeLinePattern.source}|\\b(?:Exception|Error)\\b|^\\s*Caused by:`,
+      String.raw`${exceptionTypeLinePattern.source}|\b(?:Exception|Error)\b|^\s*Caused by:`,
     );
 
     for (let index: number = 0; index < lines.length && blocks.length < maxBlocks; index++) {
