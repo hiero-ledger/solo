@@ -13,6 +13,8 @@ import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
 import {ComponentIdsSchema} from './state/component-ids-schema.js';
 import {DeploymentStateStructure} from './interfaces/deployment-state-structure.js';
 import {ExternalBlockNodeStateSchema} from './state/external-block-node-state-schema.js';
+import {PostgresStateSchema} from './state/postgres-state-schema.js';
+import {RedisStateSchema} from './state/redis-state-schema.js';
 
 @Exclude()
 export class DeploymentStateSchema implements DeploymentStateStructure {
@@ -62,6 +64,14 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   @Type((): typeof ExternalBlockNodeStateSchema => ExternalBlockNodeStateSchema)
   public externalBlockNodes: ExternalBlockNodeStateSchema[];
 
+  @Expose()
+  @Type((): typeof PostgresStateSchema => PostgresStateSchema)
+  public postgres: PostgresStateSchema[];
+
+  @Expose()
+  @Type((): typeof RedisStateSchema => RedisStateSchema)
+  public redis: RedisStateSchema[];
+
   public constructor(
     ledgerPhase?: LedgerPhase,
     componentIds?: ComponentIdsSchema,
@@ -75,6 +85,8 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     externalBlockNodes?: ExternalBlockNodeStateSchema[],
     tssEnabled?: boolean,
     wrapsEnabled?: boolean,
+    postgres?: PostgresStateSchema[],
+    redis?: RedisStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
     this.componentIds = componentIds || new ComponentIdsSchema();
@@ -88,5 +100,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     this.externalBlockNodes = externalBlockNodes || [];
     this.tssEnabled = tssEnabled;
     this.wrapsEnabled = wrapsEnabled;
+    this.postgres = postgres || [];
+    this.redis = redis || [];
   }
 }

@@ -54,6 +54,8 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {PostgresStateSchema} from '../data/schema/model/remote/state/postgres-state-schema.js';
+import {RedisStateSchema} from '../data/schema/model/remote/state/redis-state-schema.js';
 import {Templates} from '../core/templates.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
@@ -739,6 +741,25 @@ export class MirrorNodeCommand extends BaseCommand {
               });
             },
             skip: (context_): boolean => context_.config.useExternalDatabase,
+          },
+          {
+            title: 'Add shared resource components to remote config',
+            skip: (context_): boolean => !context_.config.installSharedResources || !this.remoteConfig.isLoaded(),
+            task: async (context_): Promise<void> => {
+              if (!context_.config.useExternalDatabase) {
+                const postgresComponent: PostgresStateSchema = this.componentFactory.createNewPostgresComponent(
+                  context_.config.clusterReference,
+                  context_.config.namespace,
+                );
+                this.remoteConfig.configuration.components.addNewComponent(postgresComponent, ComponentTypes.Postgres);
+              }
+              const redisComponent: RedisStateSchema = this.componentFactory.createNewRedisComponent(
+                context_.config.clusterReference,
+                context_.config.namespace,
+              );
+              this.remoteConfig.configuration.components.addNewComponent(redisComponent, ComponentTypes.Redis);
+              await this.remoteConfig.persist();
+            },
           },
         ];
 
@@ -1676,6 +1697,7 @@ END $grant$;`;
             }
           },
         },
+        this.disableSharedResourceComponents(),
         {
           title: 'Uninstall mirror ingress controller',
           skip: (context_): boolean => !context_.config.isIngressControllerChartInstalled,
@@ -1754,6 +1776,29 @@ END $grant$;`;
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.MirrorNode);
+
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
+  /** Removes the Postgres and Redis components from remote config when shared resources are destroyed. */
+  public disableSharedResourceComponents(): SoloListrTask<MirrorNodeDestroyContext> {
+    return {
+      title: 'Remove shared resource components from remote config',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async (): Promise<void> => {
+        const postgresComponents: PostgresStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentByType<PostgresStateSchema>(ComponentTypes.Postgres);
+        for (const component of postgresComponents) {
+          this.remoteConfig.configuration.components.removeComponent(component.metadata.id, ComponentTypes.Postgres);
+        }
+
+        const redisComponents: RedisStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentByType<RedisStateSchema>(ComponentTypes.Redis);
+        for (const component of redisComponents) {
+          this.remoteConfig.configuration.components.removeComponent(component.metadata.id, ComponentTypes.Redis);
+        }
 
         await this.remoteConfig.persist();
       },
