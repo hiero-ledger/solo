@@ -670,10 +670,10 @@ export class MirrorNodeCommand extends BaseCommand {
                 {
                   'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
                   'redis.image.repository': constants.REDIS_IMAGE_REPOSITORY,
-                  'redis.image.tag': versions.REDIS_IMAGE_VERSION,
+                  'redis.image.tag': '8.2.2',
                   'redis.sentinel.image.registry': constants.REDIS_SENTINEL_IMAGE_REGISTRY,
                   'redis.sentinel.image.repository': constants.REDIS_SENTINEL_IMAGE_REPOSITORY,
-                  'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
+                  'redis.sentinel.image.tag': '8.2.2',
                   'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
                 },
               );
