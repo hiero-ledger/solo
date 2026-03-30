@@ -7,7 +7,6 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -33,7 +32,8 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
-import semver from 'semver/preload.js';
+import {Numbers} from '../business/utils/numbers.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 
 @injectable()
 export class ProfileManager {
@@ -77,7 +77,7 @@ export class ProfileManager {
     let current: AnyObject = parent;
     let previousItemPath: string | number = '';
     for (const itemPathPart of itemPathParts) {
-      if (helpers.isNumeric(itemPathPart)) {
+      if (Numbers.isNumeric(itemPathPart)) {
         const itemPathIndex: number = Number.parseInt(itemPathPart, 10); // numeric path part can only be array index
         if (!Array.isArray(parent[previousItemPath])) {
           parent[previousItemPath] = [];
@@ -475,7 +475,7 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    let releaseTag: SemVer = new SemVer(versions.HEDERA_PLATFORM_VERSION);
+    let releaseTag: SemanticVersion<string> = new SemanticVersion<string>(versions.HEDERA_PLATFORM_VERSION);
     try {
       releaseTag = this.remoteConfig.configuration.versions.consensusNode;
     } catch {
@@ -489,7 +489,7 @@ export class ProfileManager {
       // Guard
     }
 
-    if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
       lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
@@ -588,8 +588,7 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion: SemVer = parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
