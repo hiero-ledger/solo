@@ -1,0 +1,4 @@
+                                          #############################
+                                          #          MerkleDb         #
+                                          #############################
+merkleDb.useDiskIndices,                       true
