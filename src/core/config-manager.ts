@@ -18,6 +18,10 @@ import {getSoloVersion} from '../../version.js';
 import {isValidEnum} from './util/validation-helpers.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 
+type ConfigMapEntry = {
+  getUnusedConfigs: () => string[];
+};
+
 /**
  * ConfigManager cache command flag values so that user doesn't need to enter the same values repeatedly.
  *
@@ -26,14 +30,12 @@ import {AsyncLocalStorage} from 'node:async_hooks';
  */
 @injectable()
 export class ConfigManager {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public config!: Record<string, any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected readonly _configMaps = new Map<string, any>();
+  public config!: AnyObject;
+  protected readonly _configMaps: Map<string, ConfigMapEntry> = new Map<string, ConfigMapEntry>();
   // Parallel subcommands used to mutate `this.config` directly, which made
   // argv/flag resolution nondeterministic. Each command flow now runs against
   // its own scoped config snapshot to keep reads/writes isolated.
-  private readonly configScope: AsyncLocalStorage<Record<string, any>> = new AsyncLocalStorage<Record<string, any>>();
+  private readonly configScope: AsyncLocalStorage<AnyObject> = new AsyncLocalStorage<AnyObject>();
 
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -50,27 +52,27 @@ export class ConfigManager {
     };
   }
 
-  private getActiveConfig(): Record<string, any> {
+  private getActiveConfig(): AnyObject {
     // If no scope exists (normal single-command path), fallback to legacy
     // process-wide config behavior.
     return this.configScope.getStore() ?? this.config;
   }
 
-  public cloneActiveConfig(): Record<string, any> {
+  public cloneActiveConfig(): AnyObject {
     // Snapshot current effective config so child command flows can mutate it
     // without affecting siblings. Use a shallow spread of the flags map rather
     // than structuredClone: structuredClone strips class prototypes (e.g.
     // NamespaceName becomes a plain {name} object that stringifies to
     // "[object Object]"). NamespaceName instances are immutable so sharing
     // them by reference across scopes is safe.
-    const active = this.getActiveConfig();
+    const active: ReturnType<ConfigManager['getActiveConfig']> = this.getActiveConfig();
     return {
       ...active,
       flags: {...active.flags},
     };
   }
 
-  public runWithScopedConfig<T>(scopedConfig: Record<string, any>, callback: () => T): T {
+  public runWithScopedConfig<T>(scopedConfig: AnyObject, callback: () => T): T {
     // Bind the scoped config to the entire async call chain.
     return this.configScope.run(scopedConfig, callback);
   }
@@ -83,7 +85,7 @@ export class ConfigManager {
    *  2. Default value of the command flag if the command is not 'init'.
    */
   public applyPrecedence(argv: yargs.Argv<AnyYargs>, aliases: AnyObject): yargs.Argv<AnyYargs> {
-    const activeConfig: Record<string, any> = this.getActiveConfig();
+    const activeConfig: AnyObject = this.getActiveConfig();
     for (const key of Object.keys(aliases)) {
       const flag: CommandFlag = flags.allFlagsMap.get(key);
       if (flag) {
@@ -103,7 +105,7 @@ export class ConfigManager {
 
   /** Update the config using the argv */
   public update(argv: ArgvStruct): void {
-    const activeConfig: Record<string, any> = this.getActiveConfig();
+    const activeConfig: AnyObject = this.getActiveConfig();
     if (!argv || Object.keys(argv).length === 0) {
       return;
     }
@@ -113,7 +115,7 @@ export class ConfigManager {
         continue;
       }
 
-      let value = argv[flag.name];
+      let value: ArgvStruct[string] = argv[flag.name];
       switch (flag.definition.type) {
         case 'string': {
           if (value && (flag.name === flags.chartDirectory.name || flag.name === flags.cacheDir.name)) {
@@ -194,13 +196,13 @@ export class ConfigManager {
    * @returns value of the flag or undefined if flag value is not available
    */
   public getFlag<T = string>(flag: CommandFlag): T {
-    const activeConfig: Record<string, any> = this.getActiveConfig();
+    const activeConfig: AnyObject = this.getActiveConfig();
     return activeConfig.flags[flag.name] === undefined ? undefined : activeConfig.flags[flag.name];
   }
 
   /** Set value for the flag */
   public setFlag<T>(flag: CommandFlag, value: T): void {
-    const activeConfig: Record<string, any> = this.getActiveConfig();
+    const activeConfig: AnyObject = this.getActiveConfig();
     if (!flag || !flag.name) {
       throw new MissingArgumentError('flag must have a name');
     }
@@ -236,7 +238,7 @@ export class ConfigManager {
       if (this.getFlag(Flags.quiet)) {
         return;
       }
-      const input = await flag.prompt(task, this.getFlag(flag));
+      const input: unknown = await flag.prompt(task, this.getFlag(flag));
       this.setFlag(flag, input);
     }
   }
@@ -247,12 +249,12 @@ export class ConfigManager {
    * getUnusedConfigs() to get an array of unused properties.
    */
   public getConfig(configName: string, flags: CommandFlag[], extraProperties: string[] = []): object {
-    const getFlag = this.getFlag.bind(this);
+    const getFlag: <T = string>(flag: CommandFlag) => T = this.getFlag.bind(this);
 
     // build the dynamic class that will keep track of which properties are used
-    const NewConfigClass = class {
+    class NewConfigClass {
       private usedConfigs: Map<string, number>;
-      constructor() {
+      public constructor() {
         // the map to keep track of which properties are used
         this.usedConfigs = new Map();
 
@@ -261,11 +263,11 @@ export class ConfigManager {
           for (const flag of flags) {
             this[`_${flag.constName}`] = getFlag(flag);
             Object.defineProperty(this, flag.constName, {
-              get() {
+              get(): unknown {
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
                 return this[`_${flag.constName}`];
               },
-              set(value) {
+              set(value: unknown): void {
                 this[`_${flag.constName}`] = value;
               },
             });
@@ -277,11 +279,11 @@ export class ConfigManager {
           for (const name of extraProperties) {
             this[`_${name}`] = '';
             Object.defineProperty(this, name, {
-              get() {
+              get(): unknown {
                 this.usedConfigs.set(name, this.usedConfigs.get(name) + 1 || 1);
                 return this[`_${name}`];
               },
-              set(value) {
+              set(value: unknown): void {
                 this[`_${name}`] = value;
               },
             });
@@ -312,9 +314,9 @@ export class ConfigManager {
         }
         return unusedConfigs;
       }
-    };
+    }
 
-    const newConfigInstance = new NewConfigClass();
+    const newConfigInstance: ConfigMapEntry = new NewConfigClass();
 
     // add the new instance to the configMaps so that it can be used to get the
     // unused configurations using the configName from the BaseCommand
@@ -328,7 +330,8 @@ export class ConfigManager {
    * @returns an array of unused configurations
    */
   public getUnusedConfigs(configName: string): string[] {
-    return this._configMaps.get(configName).getUnusedConfigs();
+    const configMapEntry: ConfigMapEntry | undefined = this._configMaps.get(configName);
+    return configMapEntry ? configMapEntry.getUnusedConfigs() : [];
   }
 
   public getFlagFile(flag: CommandFlag): string {

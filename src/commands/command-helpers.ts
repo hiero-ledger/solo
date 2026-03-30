@@ -72,12 +72,18 @@ export function invokeSoloCommand(
 ): {
   title: string;
   skip: () => boolean;
-  task: (context: any, taskListWrapper: any) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
+  task: (
+    _context: ListrContext,
+    taskListWrapper: TaskListWrapper,
+  ) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
 } {
   return {
     title,
     skip: skipCallback || ((): boolean => false),
-    task: async (_, taskListWrapper): Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>> => {
+    task: async (
+      _context: ListrContext,
+      taskListWrapper: TaskListWrapper,
+    ): Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>> => {
       return taskListWrapper.newListr(
         [
           {
@@ -123,13 +129,13 @@ export async function subTaskSoloCommand(
   // last-writer-wins behavior, where one invocation overwrote another and task
   // output got attached to the wrong parent. Queueing preserves 1:1 pairing.
   const taskNode: TaskNodeType = {taskListWrapper};
-  const pendingTaskNodes = taskList.parentTaskListMap.get(commandName) ?? [];
+  const pendingTaskNodes: TaskNodeType[] = taskList.parentTaskListMap.get(commandName) ?? [];
   pendingTaskNodes.push(taskNode);
   taskList.parentTaskListMap.set(commandName, pendingTaskNodes);
 
   const newArgv: string[] = callback();
   const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
-  const scopedConfig = configManager.cloneActiveConfig();
+  const scopedConfig: ReturnType<ConfigManager['cloneActiveConfig']> = configManager.cloneActiveConfig();
 
   // ArgumentProcessor/command handlers read and write config flags deeply via
   // ConfigManager and Flags helpers. Running under a scoped copy keeps each

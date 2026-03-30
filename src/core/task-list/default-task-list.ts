@@ -17,6 +17,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {AnyListrContext} from '../../types/aliases.js';
 import {OneShotSingleDestroyContext} from '../../commands/one-shot/one-shot-single-destroy-context.js';
+import {type SoloLogger} from '../logging/solo-logger.js';
 
 @injectable()
 export class DefaultTaskList<
@@ -24,8 +25,8 @@ export class DefaultTaskList<
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
 > implements TaskList<ListrContext, Renderer, FallbackRenderer> {
-  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: any) {
-    this.logger = patchInject(InjectTokens.SoloLogger, this.logger, this.constructor.name);
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger) {
+    this.logger = patchInject(this.logger, InjectTokens.SoloLogger, this.constructor.name);
   }
   public newOneShotSingleDeployTaskList(
     task:
@@ -41,7 +42,7 @@ export class DefaultTaskList<
         >[],
     options?: ListrBaseClassOptions<OneShotSingleDeployContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      any,
+      OneShotSingleDeployContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
@@ -63,7 +64,7 @@ export class DefaultTaskList<
         >[],
     options?: ListrBaseClassOptions<OneShotSingleDestroyContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      any,
+      OneShotSingleDestroyContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,

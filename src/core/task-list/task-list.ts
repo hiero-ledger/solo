@@ -17,11 +17,13 @@ import {type AnyListrContext} from '../../types/aliases.js';
 
 export type TaskNodeType = {
   taskListWrapper: TaskListWrapper;
-  children?: Listr<AnyListrContext, any, any> | Listr<AnyListrContext, any, any>[];
+  children?:
+    | Listr<AnyListrContext, ListrRendererValue, ListrRendererValue>
+    | Listr<AnyListrContext, ListrRendererValue, ListrRendererValue>[];
 };
 
 export interface TaskList<
-  _ListrContext,
+  ListrContext,
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
 > {
@@ -39,7 +41,7 @@ export interface TaskList<
         >[],
     options?: ListrBaseClassOptions<OneShotSingleDeployContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      any,
+      OneShotSingleDeployContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
@@ -59,7 +61,7 @@ export interface TaskList<
         >[],
     options?: ListrBaseClassOptions<OneShotSingleDestroyContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      any,
+      OneShotSingleDestroyContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
@@ -69,7 +71,7 @@ export interface TaskList<
   // name; stored as an array to support concurrent invocations of same command.
   parentTaskListMap: Map<string, TaskNodeType[]>;
 
-  newTaskList<T = AnyListrContext>(
+  newTaskList<T = ListrContext>(
     task:
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],
