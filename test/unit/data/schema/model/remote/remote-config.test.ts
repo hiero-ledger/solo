@@ -167,12 +167,12 @@ describe('RemoteConfig', (): void => {
     function expectRemoteConfigClass(rc: RemoteConfigSchema) {
       expect(rc).to.not.be.undefined.and.to.not.be.null;
       expect(rc.history.commands.length).to.be.equal(9);
-      expect(rc.versions.cli.version).to.equal('0.34.0');
-      expect(rc.versions.chart.version).to.equal('0.44.0');
-      expect(rc.versions.consensusNode.version).to.equal('0.58.10');
-      expect(rc.versions.mirrorNodeChart.version).to.equal('0.122.0');
-      expect(rc.versions.explorerChart.version).to.equal('24.12.0');
-      expect(rc.versions.jsonRpcRelayChart.version).to.equal('0.63.2');
+      expect(rc.versions.cli.toString()).to.equal('0.34.0');
+      expect(rc.versions.chart.toString()).to.equal('0.44.0');
+      expect(rc.versions.consensusNode.toString()).to.equal('0.58.10');
+      expect(rc.versions.mirrorNodeChart.toString()).to.equal('0.122.0');
+      expect(rc.versions.explorerChart.toString()).to.equal('24.12.0');
+      expect(rc.versions.jsonRpcRelayChart.toString()).to.equal('0.63.2');
       expect(rc.clusters.length).to.be.equal(1);
       expect(rc.state.consensusNodes.length).to.be.equal(4);
       expect(rc.state.consensusNodes[0].metadata.id).to.be.equal(1);
