@@ -52,6 +52,7 @@ import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
+import {SharedResourceManager} from '../../core/shared-resources/shared-resource-manager.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
@@ -122,9 +123,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     optional: [flags.quiet, flags.deployment],
   };
 
-  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
+  public constructor(
+    @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
+  ) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.sharedResourceManager = patchInject(
+      sharedResourceManager,
+      InjectTokens.SharedResourceManager,
+      this.constructor.name,
+    );
   }
 
   /**
@@ -257,6 +266,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.relayNodeConfiguration = {};
               config.networkConfiguration = {};
               config.setupConfiguration = {};
+
+              config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
               // if valuesFile is set, read the yaml file and save flags to different config sections to be used
               // later for consensus node, mirror node, block node, explorer node, relay node
@@ -578,6 +589,19 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     ): Promise<SoloListr<OneShotSingleDeployContext>> => {
                       return task.newListr(
                         [
+                          {
+                            title: 'Configure HikariCP connection pool limits',
+                            skip: (): boolean => !config.deployMirrorNode,
+                            task: (): void => {
+                              // Limit HikariCP idle connections. minimumIdle defaults to maximumPoolSize when unset,
+                              // causing every component to hold maximumPoolSize idle connections even under no load.
+                              config.mirrorNodeConfiguration ??= {};
+                              const existingValuesFile: string = config.mirrorNodeConfiguration['--values-file'];
+                              config.mirrorNodeConfiguration['--values-file'] = existingValuesFile
+                                ? `${existingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
+                                : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
+                            },
+                          },
                           invokeSoloCommand(
                             `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
                             ConsensusCommandDefinition.SETUP_COMMAND,
@@ -1708,6 +1732,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                 if (components.explorers && components.explorers.length > 0) {
                   this.logger.showUser(`  ${chalk.green('✓')} Explorers: ${chalk.bold(components.explorers.length)}`);
+                }
+
+                if (components.postgres && components.postgres.length > 0) {
+                  this.logger.showUser(`  ${chalk.green('✓')} Postgres: ${chalk.bold(components.postgres.length)}`);
+                }
+
+                if (components.redis && components.redis.length > 0) {
+                  this.logger.showUser(`  ${chalk.green('✓')} Redis: ${chalk.bold(components.redis.length)}`);
                 }
               }
             } else {
