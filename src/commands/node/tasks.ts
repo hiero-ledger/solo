@@ -412,7 +412,7 @@ export class NodeCommandTasks {
     });
   }
 
-  private _fetchPlatformSoftware(
+  private async _fetchPlatformSoftware(
     nodeAliases: NodeAliases,
     podReferences: Record<NodeAlias, PodReference>,
     releaseTag: string,
@@ -420,15 +420,16 @@ export class NodeCommandTasks {
     platformInstaller: PlatformInstaller,
     consensusNodes: ConsensusNode[],
     stagingDirectory: string,
-  ): SoloListr<AnyListrContext> {
+  ): Promise<SoloListr<AnyListrContext>> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
+    const [zipPath, checksumPath] = await platformInstaller.getPlatformRelease(stagingDirectory, releaseTag);
     for (const nodeAlias of nodeAliases) {
       const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       const podReference: PodReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, context, stagingDirectory);
+          await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
         },
       });
     }

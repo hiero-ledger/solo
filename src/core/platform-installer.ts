@@ -99,31 +99,51 @@ export class PlatformInstaller {
     }
   }
 
+  public async getPlatformRelease(stagingDirectory: string, tag: string): Promise<string[]> {
+    if (!tag) {
+      throw new MissingArgumentError('tag is required');
+    }
+
+    // Download the platform zip client-side into {stagingDir}/build/
+    const buildDirectory: string = PathEx.join(stagingDirectory ?? constants.SOLO_CACHE_DIR, 'build');
+    if (!fs.existsSync(buildDirectory)) {
+      fs.mkdirSync(buildDirectory, {recursive: true});
+    }
+    const zipPath: string = await this.packageDownloader.fetchPlatform(tag, buildDirectory);
+
+    // Ensure the checksum file is also present (fetchPlatform returns early on cache hit without re-downloading it)
+    const checksumPath: string = PathEx.join(buildDirectory, `build-${tag}.sha384`);
+    if (!fs.existsSync(checksumPath)) {
+      const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
+      const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
+      await this.packageDownloader.fetchFile(checksumURL, checksumPath);
+    }
+
+    return [zipPath, checksumPath];
+  }
+
   /** Fetch and extract platform code into the container */
-  async fetchPlatform(podReference: PodReference, tag: string, context?: string, stagingDirectory?: string) {
+  async fetchPlatform(
+    podReference: PodReference,
+    tag: string,
+    zipPath: string,
+    checksumPath: string,
+    context?: string,
+  ) {
     if (!podReference) {
       throw new MissingArgumentError('podReference is required');
     }
     if (!tag) {
       throw new MissingArgumentError('tag is required');
     }
+    if (!zipPath) {
+      throw new IllegalArgumentError('zipPath is required');
+    }
+    if (!checksumPath) {
+      throw new IllegalArgumentError('checksumPath is required');
+    }
 
     try {
-      // Download the platform zip client-side into {stagingDir}/build/
-      const buildDirectory: string = PathEx.join(stagingDirectory ?? constants.SOLO_CACHE_DIR, 'build');
-      if (!fs.existsSync(buildDirectory)) {
-        fs.mkdirSync(buildDirectory, {recursive: true});
-      }
-      const zipPath: string = await this.packageDownloader.fetchPlatform(tag, buildDirectory);
-
-      // Ensure the checksum file is also present (fetchPlatform returns early on cache hit without re-downloading it)
-      const checksumPath: string = PathEx.join(buildDirectory, `build-${tag}.sha384`);
-      if (!fs.existsSync(checksumPath)) {
-        const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
-        const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
-        await this.packageDownloader.fetchFile(checksumURL, checksumPath);
-      }
-
       // Upload zip and checksum to the container — extract-platform.sh expects them in HEDERA_USER_HOME_DIR
       await this.copyFiles(podReference, [zipPath, checksumPath], constants.HEDERA_USER_HOME_DIR, undefined, context);
 
