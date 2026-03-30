@@ -161,18 +161,18 @@ export class PostgresSharedResource {
       .secrets()
       .read(namespace, 'mirror-passwords');
 
+    const superUserPassword: string = Base64.decode(postgresPasswordsSecret.data['password']);
+    const databaseName: string = Base64.decode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_NAME`]);
+    const ownerUsername: string = Base64.decode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNER`]);
+    const ownerPassword: string = Base64.decode(
+      mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
+    );
+
     const maxAttempts: number = 3;
     const backoff: number = 2;
     let attempt: number = 1;
     while (attempt < maxAttempts) {
       try {
-        const superUserPassword: string = Base64.decode(postgresPasswordsSecret.data['password']);
-        const databaseName: string = Base64.decode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_NAME`]);
-        const ownerUsername: string = Base64.decode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNER`]);
-        const ownerPassword: string = Base64.decode(
-          mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
-        );
-
         const wrapperScriptName: string = 'run-init.sh';
 
         const wrapperLines: string[] = [
