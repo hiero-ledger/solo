@@ -319,10 +319,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
               const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
-              if (
-                !config.valuesFile &&
-                gte(version.HEDERA_PLATFORM_VERSION, MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)
-              ) {
+              if (!config.valuesFile && gte(version.HEDERA_PLATFORM_VERSION, MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
                 const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
                 const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
                 const stateOnDiskDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-state-on-disk');
@@ -342,15 +339,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   settingsMergedPath,
                 );
                 // For CN >= 0.73.0, append state-on-disk settings
-                if (useStateOnDisk) {
-                  config.networkConfiguration['--settings-txt'] = this.concatConfigFiles(
-                    settingsMergedPath,
-                    PathEx.join(stateOnDiskDirectory, 'settings.txt'),
-                    settingsMergedPath,
-                  );
-                } else {
-                  config.networkConfiguration['--settings-txt'] = settingsMergedPath;
-                }
+                config.networkConfiguration['--settings-txt'] = useStateOnDisk
+                  ? this.concatConfigFiles(
+                      settingsMergedPath,
+                      PathEx.join(stateOnDiskDirectory, 'settings.txt'),
+                      settingsMergedPath,
+                    )
+                  : settingsMergedPath;
 
                 config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
                   PathEx.join(defaultsDirectory, 'application.properties'),
