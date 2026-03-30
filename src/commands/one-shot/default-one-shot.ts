@@ -59,7 +59,7 @@ import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.
 import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
-import {gte} from 'semver';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {type Lock} from '../../core/lock/lock.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
@@ -330,17 +330,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
               const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
-              if (!config.valuesFile && gte(version.HEDERA_PLATFORM_VERSION, MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
+              const cnVersion: SemanticVersion<string> = new SemanticVersion(version.HEDERA_PLATFORM_VERSION);
+              if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
                 const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
                 const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
                 const stateOnDiskDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-state-on-disk');
                 const mergedDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-merged');
                 const settingsOverrideFile: string =
                   config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
-                const useStateOnDisk: boolean = gte(
-                  version.HEDERA_PLATFORM_VERSION,
-                  MINIMUM_CN_VERSION_FOR_STATE_ON_DISK,
-                );
+                const useStateOnDisk: boolean = cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_STATE_ON_DISK);
 
                 const settingsMergedPath: string = PathEx.join(mergedDirectory, 'settings.txt');
                 // Merge default settings with small-memory overrides
