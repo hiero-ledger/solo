@@ -25,7 +25,7 @@ RUN set -eux; \
     chmod +x ./kind
 
 # Install Docker with multi-architecture support
-ARG DOCKER_VERSION=27.3.1
+ARG DOCKER_VERSION=29.1.3
 RUN set -eux; \
     ARCH="$(uname -m)"; \
     case "${ARCH}" in \
