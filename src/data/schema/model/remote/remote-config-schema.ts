@@ -6,12 +6,12 @@ import {ApplicationVersionsSchema} from '../common/application-versions-schema.j
 import {ClusterSchema} from '../common/cluster-schema.js';
 import {DeploymentStateSchema} from './deployment-state-schema.js';
 import {DeploymentHistorySchema} from './deployment-history-schema.js';
-import {Version} from '../../../../business/utils/version.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 import {RemoteConfigStructure} from './interfaces/remote-config-structure.js';
 
 @Exclude()
 export class RemoteConfigSchema implements RemoteConfigStructure {
-  public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
+  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
 
   @Expose()
   public schemaVersion: number;

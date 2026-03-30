@@ -8,6 +8,8 @@ import {type RelayNodeStateSchema} from '../state/relay-node-state-schema.js';
 import {type HaProxyStateSchema} from '../state/ha-proxy-state-schema.js';
 import {type EnvoyProxyStateSchema} from '../state/envoy-proxy-state-schema.js';
 import {type ExplorerStateSchema} from '../state/explorer-state-schema.js';
+import {type PostgresStateSchema} from '../state/postgres-state-schema.js';
+import {type RedisStateSchema} from '../state/redis-state-schema.js';
 import {type ComponentIdsStructure} from './components-ids-structure.js';
 
 export interface DeploymentStateStructure {
@@ -20,6 +22,8 @@ export interface DeploymentStateStructure {
   haProxies: HaProxyStateSchema[];
   envoyProxies: EnvoyProxyStateSchema[];
   explorers: ExplorerStateSchema[];
+  postgres: PostgresStateSchema[];
+  redis: RedisStateSchema[];
   tssEnabled: boolean;
   wrapsEnabled: boolean;
 }

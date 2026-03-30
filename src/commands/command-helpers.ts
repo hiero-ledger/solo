@@ -71,25 +71,31 @@ export function invokeSoloCommand(
 ): {
   title: string;
   skip: () => boolean;
-  task: (
-    context: any,
-    taskListWrapper: any,
-  ) => Promise<
-    | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
-    | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
-  >;
+  task: (context: any, taskListWrapper: any) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
 } {
   return {
     title,
     skip: skipCallback || ((): boolean => false),
-    task: async (
-      _,
-      taskListWrapper,
-    ): Promise<
-      | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
-      | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
-    > => {
-      return subTaskSoloCommand(commandName, taskListWrapper, callback, taskList);
+    task: async (_, taskListWrapper): Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>> => {
+      return taskListWrapper.newListr(
+        [
+          {
+            title,
+            task: async (
+              _isolatedContext,
+              isolatedTaskWrapper,
+            ): Promise<
+              | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
+              | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
+            > => {
+              return subTaskSoloCommand(commandName, isolatedTaskWrapper, callback, taskList);
+            },
+          },
+        ],
+        {
+          ctx: {},
+        },
+      );
     },
   };
 }
