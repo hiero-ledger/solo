@@ -60,7 +60,6 @@ import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
 import {HEDERA_PLATFORM_VERSION} from '../version.js';
-import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -73,6 +72,7 @@ import {DeploymentTest} from './e2e/commands/tests/deployment-test.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 import {InitTest} from './e2e/commands/tests/init-test.js';
 import {type BaseTestOptions} from './e2e/commands/tests/base-test-options.js';
+import {SemanticVersion} from '../src/business/utils/semantic-version.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -606,11 +606,11 @@ export const testLocalConfigData = {
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
 
 export function hederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+  return new SemanticVersion<string>(HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
 }
 
 export function localHederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+  return new SemanticVersion<string>(TEST_LOCAL_HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
 }
 
 export function destroyEnabled(): boolean {

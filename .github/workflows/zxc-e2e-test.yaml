@@ -664,3 +664,13 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
+
+      - name: Cleanup Kind Clusters
+        if: ${{ always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          for i in $(seq 1 ${{ env.SOLO_CLUSTER_DUALITY }}); do
+            timeout 60 kind delete cluster -n "${{ inputs.cluster-name }}-c${i}" 2>/dev/null || true
+          done
+          docker network rm -f kind 2>/dev/null || true
