@@ -357,7 +357,7 @@ jobs:
           cache-read-only: false
 
       - name: Create Diagnostic Script
-        if: ${{ !cancelled() && !failure() }}
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
