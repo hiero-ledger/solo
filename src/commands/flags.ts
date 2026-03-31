@@ -16,7 +16,6 @@ import {
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
 import {type ClusterReferenceName} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
-import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
 import validator from 'validator';
 
@@ -764,6 +763,37 @@ export class Flags {
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
       return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', undefined, Flags.id.name);
     },
+  };
+
+  public static readonly grpcWebEndpoints: CommandFlag = {
+    constName: 'grpcWebEndpoints',
+    name: 'grpc-web-endpoints',
+    definition: {
+      describe:
+        'Configure gRPC Web endpoints mapping, comma separated' +
+        `\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})` +
+        '\n(Aliases can be provided explicitly, or inferred by node id order)' +
+        '\n[Format: <alias>=<address>[:<port>][,<alias>=<address>[:<port>]]]' +
+        '\nExamples:' +
+        '\n\tnode1=127.0.0.1:8080,node2=127.0.0.1:8081' +
+        '\n\tnode1=localhost,node2=localhost:8081' +
+        '\n\tlocalhost,127.0.0.2:8081',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly grpcWebEndpoint: CommandFlag = {
+    constName: 'grpcWebEndpoint',
+    name: 'grpc-web-endpoint',
+    definition: {
+      describe:
+        'Configure gRPC Web endpoint' +
+        `\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})` +
+        '\n[Format: <address>[:<port>]]',
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly mirrorNodeId: CommandFlag = {
@@ -1843,6 +1873,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly rollback: CommandFlag = {
+    constName: 'rollback',
+    name: 'rollback',
+    definition: {
+      describe:
+        'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
+      defaultValue: false,
+      type: 'boolean',
+      disablePrompt: true,
+    },
+    prompt: undefined,
+  };
+
   public static readonly output: CommandFlag = {
     constName: 'output',
     name: 'output',
@@ -2651,7 +2694,7 @@ export class Flags {
           task,
           input,
           Flags.numberOfConsensusNodes.definition.defaultValue,
-          `Enter number of consensus nodes to add to the provided cluster ${chalk.grey('(must be a positive number)')}:`,
+          'Enter number of consensus nodes to add to the provided cluster (must be a positive number):',
           undefined,
           Flags.numberOfConsensusNodes.name,
         );
@@ -3006,11 +3049,14 @@ export class Flags {
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
+    Flags.grpcWebEndpoints,
+    Flags.grpcWebEndpoint,
     Flags.wrapsEnabled,
     Flags.wrapsKeyPath,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
+    Flags.rollback,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
@@ -3059,12 +3105,12 @@ export class Flags {
       }
 
       // remove flags that use the default value
-      const flag = Flags.allFlags.find(flag => flag.name === name);
+      const flag: CommandFlag = Flags.allFlags.find((flag: CommandFlag): boolean => flag.name === name);
       if (!flag || (flag.definition.defaultValue && flag.definition.defaultValue === value)) {
         continue;
       }
 
-      const flagName = flag.name;
+      const flagName: string = flag.name;
 
       // if the flag is boolean based, render it without value
       if (value === true) {

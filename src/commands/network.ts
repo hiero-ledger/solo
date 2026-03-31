@@ -14,7 +14,9 @@ import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
   addRootImageValues,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
+  prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
@@ -60,12 +62,10 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
-import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -73,19 +73,17 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
-import {SoloLogger} from '../core/logging/solo-logger.js';
-import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import semver from 'semver/preload.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
   applicationEnv: string;
+  chainId: string;
   cacheDir: string;
   chartDirectory: string;
   loadBalancerEnabled: boolean;
@@ -430,9 +428,17 @@ export class NetworkCommand extends BaseCommand {
       deploymentName,
       applicationPropertiesPath,
       jfrFile,
+      {
+        // Pass command-scoped values explicitly so profile/staging generation is isolated
+        // from mutable global flags when one-shot runs parallel subcommands.
+        cacheDir: config.cacheDir,
+        releaseTag: config.releaseTag,
+        appName: config.app,
+        chainId: config.chainId,
+      },
     );
 
-    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+    const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
@@ -784,9 +790,12 @@ export class NetworkCommand extends BaseCommand {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-    const networkNodeVersion: SemVer = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms: SemVer = new SemVer('0.60.0');
-    if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
+    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.releaseTag);
+    const minimumVersionForNonZeroRealms: SemanticVersion<string> = new SemanticVersion<string>('0.60.0');
+    if (
+      (realm !== 0 || shard !== 0) &&
+      new SemanticVersion<string>(networkNodeVersion).lessThan(minimumVersionForNonZeroRealms)
+    ) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
       );
@@ -1079,6 +1088,44 @@ export class NetworkCommand extends BaseCommand {
     }
   }
 
+  /**
+   * Patch the ServiceMonitor created by the solo-deployment helm chart so that it is discovered
+   * by the kube-prometheus-stack Prometheus operator and targets the correct consensus node services.
+   *
+   * Two fixes are applied via a merge patch:
+   * 1. Adds the `release: <PROMETHEUS_RELEASE_NAME>` label so the Prometheus instance from
+   *    kube-prometheus-stack (which selects ServiceMonitors by `release` label) can discover it.
+   * 2. Corrects `spec.selector.matchLabels` to `solo.hedera.com/type: network-node-svc` so the
+   *    ServiceMonitor targets the non-headless consensus-node services (which expose the prometheus
+   *    metrics port) rather than the hard-coded `network-node` value in the helm chart template.
+   */
+  private async patchServiceMonitorForPrometheus(namespace: NamespaceName, context: Context): Promise<void> {
+    const patch: object = {
+      apiVersion: 'monitoring.coreos.com/v1',
+      kind: 'ServiceMonitor',
+      metadata: {
+        name: constants.SOLO_SERVICE_MONITOR_NAME,
+        namespace: namespace.name,
+        labels: {
+          release: constants.PROMETHEUS_RELEASE_NAME,
+        },
+      },
+      spec: {
+        selector: {
+          matchLabels: {
+            'solo.hedera.com/type': 'network-node-svc',
+          },
+        },
+      },
+    };
+
+    await this.k8Factory.getK8(context).manifests().patchObject(patch);
+    this.logger.debug(
+      `Patched ServiceMonitor '${constants.SOLO_SERVICE_MONITOR_NAME}' in namespace '${namespace.name}': ` +
+        `added label release=${constants.PROMETHEUS_RELEASE_NAME} and fixed selector to network-node-svc`,
+    );
+  }
+
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
@@ -1095,33 +1142,37 @@ export class NetworkCommand extends BaseCommand {
               lease = await this.leaseManager.create();
             }
 
-            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(
+              this.configManager.getFlag(flags.releaseTag),
+            );
 
             if (
               this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
-              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+              !new SemanticVersion<string>(this.remoteConfig.configuration.versions.consensusNode).equals(releaseTag)
             ) {
               // if is possible block node deployed before consensus node, then use release tag as fallback
               this.remoteConfig.configuration.versions.consensusNode = releaseTag;
               await this.remoteConfig.persist();
             }
 
-            const currentVersion: SemVer = new SemVer(
+            const currentVersion: SemanticVersion<string> = new SemanticVersion<string>(
               this.remoteConfig.configuration.versions.consensusNode.toString(),
             );
 
             let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
-            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+            const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(
+              versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+            );
 
             // if platform version is insufficient for tss, disable it
-            if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
+            if (tssEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
               tssEnabled = false;
             }
 
             const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
             this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
 
-            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+            if (wrapsEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
               throw new SoloError(
                 `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
               );
@@ -1230,7 +1281,7 @@ export class NetworkCommand extends BaseCommand {
                 config.isUpgrade = true;
               }
 
-              config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
                 config.soloChartVersion,
                 false,
                 'Solo chart version',
@@ -1246,6 +1297,15 @@ export class NetworkCommand extends BaseCommand {
                 clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+            }
+          },
+        },
+        {
+          title: 'Patch ServiceMonitor for Prometheus discovery',
+          skip: ({config: {enableMonitoringSupport}}): boolean => !enableMonitoringSupport,
+          task: async ({config: {namespace, clusterRefs}}): Promise<void> => {
+            for (const [, context] of clusterRefs) {
+              await this.patchServiceMonitorForPrometheus(namespace, context);
             }
           },
         },
@@ -1268,9 +1328,7 @@ export class NetworkCommand extends BaseCommand {
                     svc = await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, [
-                        `solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`,
-                      ]);
+                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
 
                     if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
                       let shouldContinue: boolean = false;
@@ -1519,11 +1577,7 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
-                await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
-                  consensusNode,
-                  this.logger,
-                  this.k8Factory,
-                );
+                await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
@@ -1590,105 +1644,6 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  /**
-   * @param consensusNode - the targeted consensus node
-   * @param logger
-   * @param k8Factory
-   */
-  public static async createAndCopyBlockNodeJsonFileForConsensusNode(
-    consensusNode: ConsensusNode,
-    logger: SoloLogger,
-    k8Factory: K8Factory,
-  ): Promise<void> {
-    const {
-      nodeId,
-      context,
-      name: nodeAlias,
-      blockNodeMap,
-      externalBlockNodeMap,
-      namespace: namespaceNameAsString,
-    } = consensusNode;
-
-    const namespace: NamespaceName = NamespaceName.of(namespaceNameAsString);
-
-    const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
-
-    const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
-    const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-
-    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
-
-    // Check if the file exists before copying
-    if (!fs.existsSync(blockNodesJsonPath)) {
-      logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
-      return;
-    }
-
-    const k8: K8 = k8Factory.getK8(context);
-
-    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-
-    await container.execContainer('pwd');
-
-    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
-
-    await container.execContainer(`mkdir -p ${targetDirectory}`);
-
-    // Copy the file and rename it to block-nodes.json in the destination
-    await container.copyTo(blockNodesJsonPath, targetDirectory);
-
-    // If using node-specific files, rename the copied file to the standard name
-    const sourceFilename: string = path.basename(blockNodesJsonPath);
-    await container.execContainer(
-      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-    );
-
-    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
-
-    const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
-
-    const lines: string[] = applicationPropertiesData.split('\n');
-
-    // Remove line to enable overriding below.
-    for (const line of lines) {
-      if (line === 'blockStream.streamMode=RECORDS') {
-        lines.splice(lines.indexOf(line), 1);
-      }
-    }
-
-    // Switch to block streaming.
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
-      lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
-    }
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
-      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
-    }
-
-    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-      ['applicationProperties']: lines.join('\n'),
-      ['application.properties']: lines.join('\n'),
-    });
-
-    const configName: string = `network-${nodeAlias}-data-config-cm`;
-    const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
-
-    await (configMapExists
-      ? k8.configMaps().update(namespace, configName, {'block-nodes.json': blockNodesJsonData})
-      : k8.configMaps().create(namespace, configName, {}, {'block-nodes.json': blockNodesJsonData}));
-
-    logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
-
-    const updatedApplicationPropertiesFilePath: string = PathEx.join(
-      constants.SOLO_CACHE_DIR,
-      'application.properties',
-    );
-
-    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -1830,7 +1785,10 @@ export class NetworkCommand extends BaseCommand {
         }
         if (releaseTag) {
           // update the solo chart version to match the deployed version
-          this.remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer(releaseTag));
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemanticVersion<string>(releaseTag),
+          );
         }
 
         await this.remoteConfig.persist();

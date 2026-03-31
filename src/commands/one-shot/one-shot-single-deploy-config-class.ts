@@ -25,4 +25,5 @@ export interface OneShotSingleDeployConfigClass {
   deployRelay: boolean;
   force: boolean;
   quiet: boolean;
+  rollback: boolean;
 }

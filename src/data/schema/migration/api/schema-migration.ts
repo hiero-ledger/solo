@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type VersionRange} from '../../../../business/utils/version-range.js';
-import {type Version} from '../../../../business/utils/version.js';
+import {type SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 /**
  * Represents a schema migration which can be applied to a source object to bring it up to date with the schema version
@@ -11,7 +11,7 @@ export interface SchemaMigration {
   /**
    * The resulting schema version after the migration.
    */
-  readonly version: Version<number>;
+  readonly version: SemanticVersion<number>;
 
   /**
    * The range of schema versions which can be migrated by this SchemaMigration instance.

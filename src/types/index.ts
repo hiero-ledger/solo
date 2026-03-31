@@ -6,7 +6,7 @@ import type * as WebSocket from 'ws';
 import type crypto from 'node:crypto';
 import {type ListrTask, type ListrTaskWrapper} from 'listr2';
 import {type PublicKey} from '@hiero-ledger/sdk';
-import {type AnyYargs, type ArgvStruct, type JsonString} from './aliases.js';
+import {type AnyYargs, type ArgvStruct, type JsonString, type NodeAlias} from './aliases.js';
 import {type Listr} from 'listr2';
 import {type NamespaceName} from './namespace/namespace-name.js';
 
@@ -194,3 +194,4 @@ export type Shard = number | Long;
 export type ClusterReferenceName = string;
 export type ClusterReferences = Map<ClusterReferenceName, Context>;
 export type PriorityMapping = [blockNodeId: ComponentId, priority: number];
+export type NodeAliasToAddressMapping = Record<NodeAlias, {address: string; port: number}>;

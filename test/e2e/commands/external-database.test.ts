@@ -117,6 +117,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         MirrorNodeTest.runSql(options);
         ExplorerTest.add(options);
         RelayTest.add(options);
+        DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
 
         it('should run smoke tests', async (): Promise<void> => {
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \

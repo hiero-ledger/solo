@@ -163,6 +163,8 @@ flags may be specified at any level of the command hierarchy.
 ```bash
 solo cluster-ref config connect --cluster-ref <name> --context <context>
 solo deployment config create --deployment <name> --namespace <name> 
+solo deployment config list
+solo deployment config info [--deployment <name>]
 solo deployment cluster attach --deployment <name> --cluster-ref <name> --num-consensus-nodes 3 
 solo keys consensus generate --deployment <name> --gossip-tls-keys --grpc-tls-keys
 solo block node add --deployment <name> --cluster-ref <name> 
@@ -276,7 +278,7 @@ associated with each group.
 | Resource Name   | Command Syntax | Description                                                                                                                                       |
 |-----------------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Cluster**     | `cluster`      | View and manage Solo cluster references used by a deployment.                                                                                     |
-| **Config**      | `config`       | List, view, create, delete, and import deployments. These commands affect the local configuration only.                                           |
+| **Config**      | `config`       | List, inspect, create, delete, and import deployments. These commands affect the local configuration only.                                        |
 | **State**       | `state`        | View the actual state of the deployment on the Kubernetes clusters or teardown/destroy all remote and local configuration for a given deployment. |
 | **Diagnostics** | `diagnostics`  | Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.                                               |
 
@@ -462,13 +464,13 @@ operations associated with each resource.
 
 #### Config
 
-| Operation Name | Command Syntax | Description                                                 |
-|----------------|----------------|-------------------------------------------------------------|
-| **List**       | `list`         | Lists all local deployment configurations.                  |
-| **Info**       | `info`         | Displays metadata and state information about a deployment. |
-| **Create**     | `create`       | Creates a new local deployment configuration.               |
-| **Delete**     | `delete`       | Removes a local deployment configuration.                   |
-| **Import**     | `import`       | Imports deployment config from a file.                      |
+| Operation Name | Command Syntax | Description                                                                                                                                     |
+|----------------|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| **List**       | `list`         | Lists local deployments and reports per cluster-ref status: `connected`, `disconnected`, or `not-found`.                                     |
+| **Info**       | `info`         | Displays deployment metadata, component versions, and port-forward status. If `--deployment` is omitted, it iterates all local deployments.  |
+| **Create**     | `create`       | Creates a new local deployment configuration.                                                                                                   |
+| **Delete**     | `delete`       | Removes a local deployment configuration.                                                                                                       |
+| **Import**     | `import`       | Imports deployment config from a file.                                                                                                          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

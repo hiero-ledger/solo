@@ -17,6 +17,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {AnyListrContext} from '../../types/aliases.js';
 import {OneShotSingleDestroyContext} from '../../commands/one-shot/one-shot-single-destroy-context.js';
+import {type SoloLogger} from '../logging/solo-logger.js';
 
 @injectable()
 export class DefaultTaskList<
@@ -24,8 +25,8 @@ export class DefaultTaskList<
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
 > implements TaskList<ListrContext, Renderer, FallbackRenderer> {
-  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: any) {
-    this.logger = patchInject(InjectTokens.SoloLogger, this.logger, this.constructor.name);
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger) {
+    this.logger = patchInject(this.logger, InjectTokens.SoloLogger, this.constructor.name);
   }
   public newOneShotSingleDeployTaskList(
     task:
@@ -41,7 +42,7 @@ export class DefaultTaskList<
         >[],
     options?: ListrBaseClassOptions<OneShotSingleDeployContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      any,
+      OneShotSingleDeployContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
@@ -63,7 +64,7 @@ export class DefaultTaskList<
         >[],
     options?: ListrBaseClassOptions<OneShotSingleDestroyContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      any,
+      OneShotSingleDestroyContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
@@ -71,7 +72,9 @@ export class DefaultTaskList<
     return new Listr<OneShotSingleDestroyContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
-  public parentTaskListMap: Map<string, TaskNodeType> = new Map();
+  // Queue of pending parent task wrappers keyed by command name. A queue is
+  // required because the same command can be invoked concurrently.
+  public parentTaskListMap: Map<string, TaskNodeType[]> = new Map();
 
   public newTaskList<T = AnyListrContext>(
     task:
@@ -85,10 +88,19 @@ export class DefaultTaskList<
     >,
     commandName?: string,
   ): Listr<T, Renderer, FallbackRenderer> {
-    if (this.parentTaskListMap.has(commandName)) {
-      const parentTaskList: TaskNodeType = this.parentTaskListMap.get(commandName);
-      parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
-      return parentTaskList.children as Listr<T, Renderer, FallbackRenderer>;
+    if (commandName && this.parentTaskListMap.has(commandName)) {
+      // Consume exactly one queued parent node for this invocation. Using
+      // `shift()` keeps FIFO pairing with the enqueue point in
+      // `subTaskSoloCommand()`, avoiding cross-assignment of child tasks.
+      const pendingParentTaskLists: TaskNodeType[] = this.parentTaskListMap.get(commandName) ?? [];
+      const parentTaskList: TaskNodeType | undefined = pendingParentTaskLists.shift();
+      if (pendingParentTaskLists.length === 0) {
+        this.parentTaskListMap.delete(commandName);
+      }
+      if (parentTaskList) {
+        parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
+        return parentTaskList.children as Listr<T, Renderer, FallbackRenderer>;
+      }
     }
     return new Listr<T, Renderer, FallbackRenderer>(task, options, parentTask);
   }

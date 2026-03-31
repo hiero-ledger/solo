@@ -80,18 +80,21 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ClusterReferenceTest.connect(options);
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
+        DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
         BlockNodeTest.add(options);
 
         NetworkTest.deploy(options);
         ConsensusNodeTest.setup(options);
-        ConsensusNodeTest.start(options);
+        ConsensusNodeTest.start(options, true);
+
+        MirrorNodeTest.add(options);
+        MirrorNodeTest.pullAddressBook(options);
 
         ConsensusNodeTest.PemStop(options);
         ConsensusNodeTest.PemKill(options);
-
-        MirrorNodeTest.add(options);
 
         ConsensusNodeTest.add(options);
         ConsensusNodeTest.update(options);

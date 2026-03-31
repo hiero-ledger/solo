@@ -8,4 +8,6 @@ export interface ComponentIdsStructure {
   haProxies: number;
   envoyProxies: number;
   explorers: number;
+  postgres: number;
+  redis: number;
 }

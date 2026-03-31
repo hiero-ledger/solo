@@ -307,7 +307,28 @@ export class K8ClientContainer implements Container {
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-    return await this.execKubectl(arguments_, outputPassThroughStream, errorPassThroughStream);
+    // During rolling restarts, kubelet may report "container not found" for a few seconds
+    // even when the pod object is present. Retry that transient state.
+    const maxAttempts: number = 30;
+    const retryableContainerNotReady: RegExp = /(container not found|unable to upgrade connection)/i;
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await this.execKubectl(arguments_, outputPassThroughStream, errorPassThroughStream);
+      } catch (error) {
+        const message: string = error instanceof Error ? error.message : `${error}`;
+
+        if (!retryableContainerNotReady.test(message) || attempt === maxAttempts) {
+          throw error;
+        }
+
+        await sleep(Duration.ofMillis(1000));
+      }
+    }
+
+    throw new SoloError(
+      `container call failed after retries: ${podName} -n ${namespace.name} -c ${containerName} -- ${command.join(' ')}`,
+    );
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {

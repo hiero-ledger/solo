@@ -112,22 +112,35 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           EXAMPLE_DIR="${{ inputs.example-directory }}"
+          STANDARD_MATRIX_FILE=".github/workflows/support/examples-test-matrix.json"
+          TRUNK_MATRIX_FILE=".github/workflows/support/examples-trunkio-matrix.json"
+          EVENT_NAME="${{ github.event_name }}"
+          REF_NAME="${{ github.ref_name }}"
+
+          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == trunk-merge/* ]]; then
+            echo "Detected trunk.io merge queue context (push to ${REF_NAME})."
+            SOURCE_MATRIX_JSON=$(cat "${TRUNK_MATRIX_FILE}")
+          else
+            echo "Non-trunk merge queue context detected (${EVENT_NAME}:${REF_NAME})."
+            echo "Using concatenated matrix from standard + trunkio files."
+            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${STANDARD_MATRIX_FILE}" "${TRUNK_MATRIX_FILE}")
+          fi
           
           if [ -n "$EXAMPLE_DIR" ]; then
             # Filter to specific example
             echo "Filtering matrix for example directory: $EXAMPLE_DIR"
-            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
+            JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
             
             if [ "$JSON_CONTENT" = "[]" ]; then
               echo "Error: Example directory '$EXAMPLE_DIR' not found in matrix"
               echo "Available examples:"
-              cat .github/workflows/support/examples-test-matrix.json | jq -r '.[].directory'
+              echo "${SOURCE_MATRIX_JSON}" | jq -r '.[].directory'
               exit 1
             fi
           else
-            # Use all examples
-            echo "Using all examples from matrix"
-            JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+            # Use all examples from selected source matrix
+            echo "Using all examples from selected matrix source"
+            JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c .)
           fi
           
           echo "Generated matrix: $JSON_CONTENT"
@@ -185,7 +198,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           go-version: '1.22.3'
@@ -205,7 +218,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        uses: gradle/actions/setup-gradle@39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f # v6.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
@@ -326,13 +339,45 @@ jobs:
             exit 1
           fi
           
-          # Run the example
+          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # test immediately rather than waiting up to 45 minutes for it to finish
+          # on its own.
           echo "Starting task..."
           export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' ../../version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-          set +e
-          task
-          TASK_RC=$?
-          set -e
+          TASK_PID=""
+          TASK_PGID=""
+          TASK_RC=0
+
+          cleanup() {
+            if [[ -n "${TASK_PID}" ]]; then
+              echo "Received cancellation signal, stopping task (PID ${TASK_PID}, PGID ${TASK_PGID})..."
+              if [[ -n "${TASK_PGID}" ]]; then
+                kill -TERM -- "-${TASK_PGID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL -- "-${TASK_PGID}" 2>/dev/null || true
+              else
+                kill -TERM "${TASK_PID}" 2>/dev/null || true
+                sleep 5
+                kill -KILL "${TASK_PID}" 2>/dev/null || true
+              fi
+              wait "${TASK_PID}" 2>/dev/null || true
+            fi
+            exit 130
+          }
+          trap cleanup SIGTERM SIGINT
+
+          if command -v setsid >/dev/null 2>&1; then
+            setsid task &
+          else
+            task &
+          fi
+          TASK_PID=$!
+          TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
+          wait "${TASK_PID}" || TASK_RC=$?
+          TASK_PID=""
+          TASK_PGID=""
+          trap - SIGTERM SIGINT
 
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
@@ -342,7 +387,7 @@ jobs:
 
             exit "${TASK_RC}"
           fi
-          
+
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure

@@ -8,8 +8,9 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
 * **Provides configurable Helm chart versions** for Block Node, Mirror Node, Explorer, and Relay components
 * **Supports custom values files** for each component (Block Node, Mirror Node, Explorer, Relay)
 * **Includes custom application.properties** and other configuration files
-* **Automates the complete deployment workflow** with decision tree logic based on consensus node release tags
+* **Automates the complete deployment workflow** with configurable component versions and custom values files
 * **Defines a custom network topology** (number of nodes, namespaces, deployments, etc.)
+* **Verifies monitoring setup** by checking Prometheus and Grafana query paths after consensus nodes are started
 
 ## Getting This Example
 
@@ -47,7 +48,7 @@ Each component can use custom Helm values files:
 * **Block Node**: `block-node-values.yaml`
 * **Mirror Node**: `mirror-node-values.yaml`
 * **Relay**: `relay-node-values.yaml`
-* **Explorer**: `hiero-explorer-node-values.yaml`
+* **Explorer**: `hiero-explorer-values.yaml`
 
 ## How to Use
 
@@ -77,7 +78,29 @@ Each component can use custom Helm values files:
      * Generate consensus node keys
      * Deploy the network with local build and custom configuration
      * Set up and start consensus nodes using local builds
+     * Create test ledger accounts to produce network activity
+     * Verify consensus metrics endpoint is exposed on each node local port `9999`
+     * Verify Prometheus and Grafana can query the metric `platform_PlatformStatus`
      * Deploy mirror node, relay, and explorer with custom versions and values
+
+## Monitoring Validation in This Test
+
+The default `task` includes a post-start monitoring validation that tests both Prometheus and Grafana integration:
+
+1. Prometheus check:
+   * Finds the Prometheus service in `solo-setup`
+   * Port-forwards Prometheus locally
+   * Queries `platform_PlatformStatus`
+   * Fails after 30 attempts if the metric is still missing (with scrape diagnostics dump)
+
+2. Grafana check:
+   * Finds the Grafana service and reads the admin password from the `kube-prometheus-stack-grafana` secret
+   * Port-forwards Grafana locally and waits until `/api/health` reports database status `ok`
+   * Resolves the `Prometheus` datasource ID via Grafana API
+   * Queries `platform_PlatformStatus` through Grafana datasource proxy
+   * Fails after 30 attempts if the metric is still missing
+
+This validation is strict: the test continues only when `platform_PlatformStatus` is actually queryable through both Prometheus and Grafana.
 
 5. **Destroy the network:**
    * Run:

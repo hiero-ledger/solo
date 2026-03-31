@@ -18,6 +18,8 @@ import {type AnyObject} from '../types/aliases.js';
 import path from 'node:path';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
+import {type ClusterCreateOptions} from '../integration/kind/model/create-cluster/cluster-create-options.js';
+import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {type DependencyManager, KindDependencyManager, PodmanDependencyManager} from './dependency-managers/index.js';
 import {K8} from '../integration/kube/k8.js';
@@ -146,7 +148,7 @@ export class ClusterTaskManager extends ShellRunner {
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster`,
+            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
             ...sudoRunOptions,
           );
 
@@ -286,7 +288,14 @@ export class ClusterTaskManager extends ShellRunner {
       task: async (): Promise<void> => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
+        const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
+          .image(constants.KIND_NODE_IMAGE)
+          .config(constants.KIND_CLUSTER_CONFIG_FILE)
+          .build();
+        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+          constants.DEFAULT_CLUSTER,
+          clusterCreateOptions,
+        );
 
         parentTask.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
       },
