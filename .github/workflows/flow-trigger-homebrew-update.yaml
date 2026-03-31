@@ -56,7 +56,8 @@ jobs:
 
           RELEASE_CREATED_AT=$(echo "${RELEASE_JSON}" | jq -r '.createdAt')
           TAG_NAME=$(echo "${RELEASE_JSON}" | jq -r '.tagName')
-          VERSION=$(echo "${TAG_NAME}" | sed 's/^v//')
+          # Normalize tags like "v0.64.0" to "0.64.0" for Homebrew input.
+          VERSION="${TAG_NAME#v}"
 
           # Only proceed if the release was published after this workflow run started,
           # which means the release was actually triggered by this run (not a dry run).
