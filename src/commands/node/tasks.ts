@@ -304,18 +304,21 @@ export class NodeCommandTasks {
       return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
     };
 
-    await k8
-      .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, filterFunction);
+    const container = k8.containers().readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
+
+    // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
+    await container.execContainer([
+      'bash',
+      '-c',
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/data/lib/*.jar ${constants.HEDERA_HAPI_PATH}/data/apps/*.jar`,
+    ]);
+
+    await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, filterFunction);
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
         if (fs.existsSync(jsonFile)) {
-          await k8
-            .containers()
-            .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-            .copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
+          await container.copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
         }
       }
     }
