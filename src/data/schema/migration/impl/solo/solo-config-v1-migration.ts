@@ -66,8 +66,8 @@ export class SoloConfigV1Migration implements SchemaMigration {
         artifactsFolderName: 'wraps-v0.2.0',
         directoryName: 'wraps-v0.2.0',
         allowedKeyFiles: 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
-        // IMPORTANT: libDownloadUrl must be kept consistent with directoryName.
-        libDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+        // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
+        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
       },
     };
   }

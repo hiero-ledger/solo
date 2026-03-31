@@ -95,7 +95,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-      const soloConfig = this.configProvider.config().asObject(SoloConfigSchema);
+      const soloConfig: SoloConfigSchema | null = this.configProvider.config().asObject(SoloConfigSchema);
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
             messageSizeSoftLimitBytes: soloConfig?.tss?.messageSizeSoftLimitBytes,
@@ -118,7 +118,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
-      const soloConfig = this.configProvider.config().asObject(SoloConfigSchema);
+      const soloConfig: SoloConfigSchema | null = this.configProvider.config().asObject(SoloConfigSchema);
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
             messageSizeSoftLimitBytes: soloConfig?.tss?.messageSizeSoftLimitBytes,

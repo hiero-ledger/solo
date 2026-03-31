@@ -9,6 +9,6 @@ tss:
     artifactsFolderName: wraps-v0.2.0
     directoryName: wraps-v0.2.0
     allowedKeyFiles: decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin
-    # IMPORTANT: libDownloadUrl must be kept consistent with directoryName.
-    # If directoryName is updated, update libDownloadUrl to match.
-    libDownloadUrl: https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz
+    # IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
+    # If directoryName is updated, update libraryDownloadUrl to match.
+    libraryDownloadUrl: https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz

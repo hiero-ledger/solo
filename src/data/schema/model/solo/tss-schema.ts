@@ -13,21 +13,21 @@ export class WrapsSchema {
   @Expose()
   public allowedKeyFiles: string | undefined;
 
-  // IMPORTANT: libDownloadUrl must be kept consistent with directoryName.
-  // If directoryName is updated, update libDownloadUrl to match.
+  // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
+  // If directoryName is updated, update libraryDownloadUrl to match.
   @Expose()
-  public libDownloadUrl: string | undefined;
+  public libraryDownloadUrl: string | undefined;
 
   public constructor(
     artifactsFolderName?: string,
     directoryName?: string,
     allowedKeyFiles?: string,
-    libDownloadUrl?: string,
+    libraryDownloadUrl?: string,
   ) {
     this.artifactsFolderName = artifactsFolderName ?? undefined;
     this.directoryName = directoryName ?? undefined;
     this.allowedKeyFiles = allowedKeyFiles ?? undefined;
-    this.libDownloadUrl = libDownloadUrl ?? undefined;
+    this.libraryDownloadUrl = libraryDownloadUrl ?? undefined;
   }
 }
 

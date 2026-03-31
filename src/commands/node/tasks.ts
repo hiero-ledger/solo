@@ -170,6 +170,7 @@ import {CommandFlag} from '../../types/flag-types.js';
 import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 import {SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
+import {type TssSchema, type WrapsSchema} from '../../data/schema/model/solo/tss-schema.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1534,7 +1535,7 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Waiting for node: ${node.name}`,
             task: async (_, task): Promise<void> => {
-              const tss = this.configProvider.config().asObject(SoloConfigSchema)?.tss;
+              const tss: TssSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss;
               const maxAttempts: number = tss?.readyMaxAttempts ?? 60;
               let attempt: number = 0;
               let success: boolean = false;
@@ -3091,8 +3092,11 @@ export class NodeCommandTasks {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        const wraps = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
-        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps?.directoryName ?? 'wraps-v0.2.0');
+        const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+        const extractedDirectory: string = PathEx.join(
+          constants.SOLO_CACHE_DIR,
+          wraps?.directoryName ?? 'wraps-v0.2.0',
+        );
         const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
         if (wrapsKeyPath) {
@@ -3114,7 +3118,7 @@ export class NodeCommandTasks {
           }
         } else {
           await this.downloader.fetchPackage(
-            wraps?.libDownloadUrl ?? '',
+            wraps?.libraryDownloadUrl ?? '',
             'unusued', // doesn't check checksum
             constants.SOLO_CACHE_DIR,
             false,
@@ -3352,7 +3356,7 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const wraps = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+        const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
         const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
 
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
@@ -3443,7 +3447,7 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-      const wraps = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+      const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
       const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
 
       valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
@@ -3495,7 +3499,7 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-          const wraps = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+          const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
           const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
 
           valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;

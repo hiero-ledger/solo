@@ -81,6 +81,7 @@ import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
 import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
+import {type WrapsSchema} from '../data/schema/model/solo/tss-schema.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -499,7 +500,8 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const wrapsArtifacts = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+        const wrapsArtifacts: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)
+          ?.tss?.wraps;
         const path: string = `${constants.HEDERA_HAPI_PATH}/${wrapsArtifacts?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
@@ -1509,7 +1511,7 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            const wraps = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+            const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
             const extractedDirectory: string = PathEx.join(
               constants.SOLO_CACHE_DIR,
               wraps?.directoryName ?? 'wraps-v0.2.0',
@@ -1539,7 +1541,7 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.debug('Wraps library already installed');
               } else {
                 await this.downloader.fetchPackage(
-                  wraps?.libDownloadUrl ?? '',
+                  wraps?.libraryDownloadUrl ?? '',
                   'unusued',
                   constants.SOLO_CACHE_DIR,
                   false,
