@@ -205,9 +205,9 @@ export class K8ClientPod implements Pod {
       // When running via tsx (dev/test), __filename ends in .ts; use tsx to run the .ts source.
       // In a compiled build it ends in .js; use node to run the compiled .js.
       const isTsx: boolean = __filename.endsWith('.ts');
-      const persistScriptExt: string = isTsx ? '.ts' : '.js';
+      const persistScriptExtension: string = isTsx ? '.ts' : '.js';
       const persistCmd: string = isTsx ? 'tsx' : 'node';
-      const persistPortForwardScriptPath: string = path.resolve(__dirname, `persist-port-forward${persistScriptExt}`);
+      const persistPortForwardScriptPath: string = path.resolve(__dirname, `persist-port-forward${persistScriptExtension}`);
 
       let cmd: string;
       let cmdArguments: string[];
