@@ -46,7 +46,7 @@ NPM_VERSION=$(npm --version)
 echo "Using NPM version: ${NPM_VERSION}"
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" || true
+  timeout 60 kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" 2>/dev/null || true
 done
 
 docker network rm -f kind || true

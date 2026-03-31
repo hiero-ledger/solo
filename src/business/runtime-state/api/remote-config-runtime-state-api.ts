@@ -15,7 +15,7 @@ import {type ConsensusNode} from '../../../core/model/consensus-node.js';
 import {type ComponentFactoryApi} from '../../../core/config/remote/api/component-factory-api.js';
 import {type RemoteConfig} from '../config/remote/remote-config.js';
 import {type ComponentTypes} from '../../../core/config/remote/enumerations/component-types.js';
-import {type SemVer} from 'semver';
+import {type SemanticVersion} from '../../utils/semantic-version.js';
 
 export interface RemoteConfigRuntimeStateApi {
   configuration?: RemoteConfig;
@@ -68,7 +68,7 @@ export interface RemoteConfigRuntimeStateApi {
 
   extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string>;
 
-  updateComponentVersion(type: ComponentTypes, version: SemVer): void;
+  updateComponentVersion(type: ComponentTypes, version: SemanticVersion<string>): void;
 
-  getComponentVersion(type: ComponentTypes): SemVer;
+  getComponentVersion(type: ComponentTypes): SemanticVersion<string>;
 }
