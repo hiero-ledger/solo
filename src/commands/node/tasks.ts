@@ -169,7 +169,7 @@ import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client
 import {CommandFlag} from '../../types/flag-types.js';
 import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 
-import {DiagnosticsAnalyzer} from './diagnostics-analyzer.js';
+import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 

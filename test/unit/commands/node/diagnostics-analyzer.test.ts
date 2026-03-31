@@ -8,7 +8,7 @@ import path from 'node:path';
 import AdmZip from 'adm-zip';
 import sinon from 'sinon';
 
-import {DiagnosticsAnalyzer} from '../../../../src/commands/node/diagnostics-analyzer.js';
+import {DiagnosticsAnalyzer} from '../../../../src/commands/util/diagnostics-analyzer.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 describe('DiagnosticsAnalyzer', (): void => {
