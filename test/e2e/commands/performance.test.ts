@@ -42,6 +42,16 @@ const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
+
+// When the workflow cancels this step (e.g. due to a new commit superseding the PR),
+// go-task forwards SIGTERM to this process' process group before SIGKILL reaches task.
+// Without this handler, mocha's graceful shutdown waits for the currently-running
+// `await sleep(...)` to resolve AND for the setInterval to drain — which can take
+// minutes. Force-exit immediately so the runner can move on without waiting.
+process.on('SIGTERM', (): void => {
+  clearInterval(metricsInterval);
+  process.exit(143); // 128 + SIGTERM(15)
+});
 const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
