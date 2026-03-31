@@ -35,11 +35,10 @@ import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
-import {SemVer} from 'semver';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
@@ -307,7 +306,11 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Install cert manager',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableExplorerTls,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.soloChartVersion = Version.getValidSemanticVersion(config.soloChartVersion, false, 'Solo chart version');
+        config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+          config.soloChartVersion,
+          false,
+          'Solo chart version',
+        );
 
         const {soloChartVersion} = config;
 
@@ -352,7 +355,9 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         // sleep for a few seconds to allow cert-manager to be ready
-        await sleep(Duration.ofSeconds(10));
+        if (commandType === ExplorerCommandType.UPGRADE) {
+          await sleep(Duration.ofSeconds(10));
+        }
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
@@ -372,7 +377,11 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+        config.explorerVersion = SemanticVersion.getValidSemanticVersion(
+          config.explorerVersion,
+          false,
+          'Explorer version',
+        );
 
         let exploreValuesArgument: string = ' --install ';
         exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
@@ -641,18 +650,14 @@ export class ExplorerCommand extends BaseCommand {
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
-            if (this.oneShotState.isActive()) {
-              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
-            } else {
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.clusterContext,
-              );
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.clusterContext,
+            );
 
-              config.mirrorNodeId = mirrorNodeId;
-              config.mirrorNamespace = mirrorNamespace;
-              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-            }
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
@@ -965,7 +970,10 @@ export class ExplorerCommand extends BaseCommand {
         );
 
         // update explorer version in remote config
-        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorer, new SemVer(config.explorerVersion));
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.Explorer,
+          new SemanticVersion<string>(config.explorerVersion),
+        );
 
         await this.remoteConfig.persist();
       },

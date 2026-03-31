@@ -147,10 +147,9 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {lt, SemVer} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
-import {Version} from '../../business/utils/version.js';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
@@ -302,7 +301,7 @@ export class NodeCommandTasks {
     localDataLibraryBuildPath: string,
   ): Promise<void> {
     const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config'));
+      return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
     };
 
     await k8
@@ -412,22 +411,24 @@ export class NodeCommandTasks {
     });
   }
 
-  private _fetchPlatformSoftware(
+  private async _fetchPlatformSoftware(
     nodeAliases: NodeAliases,
     podReferences: Record<NodeAlias, PodReference>,
     releaseTag: string,
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
     consensusNodes: ConsensusNode[],
-  ): SoloListr<AnyListrContext> {
+    stagingDirectory: string,
+  ): Promise<SoloListr<AnyListrContext>> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
+    const [zipPath, checksumPath] = await platformInstaller.getPlatformRelease(stagingDirectory, releaseTag);
     for (const nodeAlias of nodeAliases) {
       const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       const podReference: PodReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, context);
+          await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
         },
       });
     }
@@ -1023,8 +1024,9 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        const consensusVersion: SemVer | undefined = this.remoteConfig.configuration?.versions?.consensusNode;
-        const releaseTag: string = consensusVersion?.version || consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
+        const consensusVersion: SemanticVersion<string> | undefined =
+          this.remoteConfig.configuration?.versions?.consensusNode;
+        const releaseTag: string = consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
         const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
         const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
         if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
@@ -1362,7 +1364,7 @@ export class NodeCommandTasks {
         let {releaseTag} = context_.config;
 
         if (releaseTag) {
-          releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
+          releaseTag = SemanticVersion.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
         }
 
         if ('upgradeVersion' in context_.config) {
@@ -1383,6 +1385,7 @@ export class NodeCommandTasks {
               task,
               this.platformInstaller,
               context_.config.consensusNodes,
+              context_.config.stagingDir,
             )
           : this._uploadPlatformSoftware(
               context_.config[aliasesField],
@@ -1468,9 +1471,9 @@ export class NodeCommandTasks {
     return {
       title: 'setup network node folders',
       skip: (): boolean => {
-        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer('0.63.0');
-        return lt(currentVersion, versionRequirement);
+        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>('0.63.0');
+        return currentVersion.lessThan(versionRequirement);
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
@@ -1499,7 +1502,7 @@ export class NodeCommandTasks {
           // save consensus node version in remote config
           this.remoteConfig.updateComponentVersion(
             ComponentTypes.ConsensusNode,
-            new SemVer(context_.config.releaseTag),
+            new SemanticVersion<string>(context_.config.releaseTag),
           );
           await this.remoteConfig.persist();
         }
@@ -1577,9 +1580,11 @@ export class NodeCommandTasks {
           return true;
         }
 
-        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
-        return lt(currentVersion, versionRequirement);
+        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>(
+          MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
+        );
+        return currentVersion.lessThan(versionRequirement);
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
@@ -2347,7 +2352,7 @@ export class NodeCommandTasks {
           clusterReferences.map(async (clusterReference: string): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = Version.getValidSemanticVersion(
+            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',
@@ -3277,7 +3282,7 @@ export class NodeCommandTasks {
           clusterReferencesList.map(async (clusterReference: string): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = Version.getValidSemanticVersion(
+            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',

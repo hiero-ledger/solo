@@ -37,6 +37,7 @@ permissions:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
   test-migration-process:
@@ -133,8 +134,7 @@ jobs:
 
           .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} &
           SCRIPT_PID=$!
-          wait "${SCRIPT_PID}"
-          RC=$?
+          wait "${SCRIPT_PID}" || RC=$?
           SCRIPT_PID=""
           trap - SIGTERM SIGINT
 

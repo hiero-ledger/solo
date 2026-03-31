@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {format} from 'node:util';
 import {SoloError} from './errors/solo-error.js';
-import * as semver from 'semver';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
@@ -42,14 +41,14 @@ import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 
 export function getInternalAddress(
-  releaseVersion: semver.SemVer | string,
+  releaseVersion: SemanticVersion<string> | string,
   namespaceName: NamespaceName,
   nodeAlias: NodeAlias,
 ): string {
-  // @ts-expect-error TS2353: Object literal may only specify known properties
-  return semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})
+  return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
     ? '127.0.0.1'
     : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
 }
@@ -178,16 +177,6 @@ export function backupOldPemKeys(
   makeBackup(fileMap, true);
 
   return backupDirectory;
-}
-
-export function isNumeric(string_: string): boolean {
-  if (typeof string_ !== 'string') {
-    return false;
-  } // we only process strings!
-  return (
-    !Number.isNaN(Number.parseInt(string_)) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
-    !Number.isNaN(Number.parseFloat(string_))
-  ); // ...and ensure strings of whitespace fail
 }
 
 export function getEnvironmentValue(environmentVariableArray: string[], name: string): string {

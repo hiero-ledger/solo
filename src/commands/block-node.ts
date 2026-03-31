@@ -36,10 +36,9 @@ import chalk from 'chalk';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {gte, lt, SemVer} from 'semver';
 import {injectable} from 'tsyringe-neo';
 import {Templates} from '../core/templates.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
@@ -258,7 +257,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if ('imageTag' in config && config.imageTag) {
-      config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
+      config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
@@ -458,10 +457,12 @@ export class BlockNodeCommand extends BaseCommand {
               consensusNodeVersion = config.releaseTag;
             }
 
-            const currentVersion: SemVer = new SemVer(consensusNodeVersion);
-            const minimumVersion: SemVer = new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE);
+            const currentVersion: SemanticVersion<string> = new SemanticVersion(consensusNodeVersion);
+            const minimumVersion: SemanticVersion<string> = new SemanticVersion(
+              versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
+            );
 
-            if (lt(currentVersion, minimumVersion)) {
+            if (currentVersion.lessThan(minimumVersion)) {
               throw new SoloError(
                 `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
@@ -476,21 +477,21 @@ export class BlockNodeCommand extends BaseCommand {
               this.remoteConfig.getConsensusNodes(),
             );
 
-            const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
+            const currentBlockNodeVersion: SemanticVersion<string> = new SemanticVersion(config.chartVersion);
+            const consensusNodeSemanticVersion: SemanticVersion<string> = new SemanticVersion(consensusNodeVersion);
             if (
-              lt(
-                new SemVer(consensusNodeVersion),
-                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+              consensusNodeSemanticVersion.lessThan(
+                new SemanticVersion(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
               ) &&
-              gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
+              currentBlockNodeVersion.greaterThanOrEqual(MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
               throw new SoloError(
                 `Current platform version is ${consensusNodeVersion}, Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
-                  `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version}`,
+                  `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString()}`,
               );
             }
 
-            config.chartVersion = Version.getValidSemanticVersion(
+            config.chartVersion = SemanticVersion.getValidSemanticVersion(
               config.chartVersion,
               false,
               'Block node chart version',
@@ -804,7 +805,8 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
-            config.currentVersion = this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.version ?? '0.0.0';
+            config.currentVersion =
+              this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.toString() ?? '0.0.0';
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -851,7 +853,7 @@ export class BlockNodeCommand extends BaseCommand {
             const {namespace, releaseName, context} = config;
 
             for (const step of config.migrationPlan) {
-              const stepTargetVersion: string = Version.getValidSemanticVersion(
+              const stepTargetVersion: string = SemanticVersion.getValidSemanticVersion(
                 step.toVersion,
                 false,
                 'Block node chart version',
@@ -891,7 +893,10 @@ export class BlockNodeCommand extends BaseCommand {
 
               // Persist the applied step version so remote config reflects the last
               // successfully applied step even if a later step fails.
-              this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, new SemVer(stepTargetVersion));
+              this.remoteConfig.updateComponentVersion(
+                ComponentTypes.BlockNode,
+                new SemanticVersion<string>(stepTargetVersion),
+              );
               await this.remoteConfig.persist();
             }
 
@@ -1125,15 +1130,18 @@ export class BlockNodeCommand extends BaseCommand {
   /**
    * Gives the port used for liveness check based on the chart version and image tag (if set)
    */
-  private getLivenessCheckPortNumber(chartVersion: string | SemVer, imageTag: Optional<string | SemVer>): number {
+  private getLivenessCheckPortNumber(
+    chartVersion: string | SemanticVersion<string>,
+    imageTag: Optional<string | SemanticVersion<string>>,
+  ): number {
     let useLegacyPort: boolean = false;
 
-    chartVersion = typeof chartVersion === 'string' ? new SemVer(chartVersion) : chartVersion;
-    imageTag = typeof imageTag === 'string' && imageTag ? new SemVer(imageTag) : undefined;
+    chartVersion = typeof chartVersion === 'string' ? new SemanticVersion<string>(chartVersion) : chartVersion;
+    imageTag = typeof imageTag === 'string' && imageTag ? new SemanticVersion<string>(imageTag) : undefined;
 
-    if (lt(chartVersion, versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
+    if (chartVersion.lessThan(versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
       useLegacyPort = true;
-    } else if (imageTag && lt(imageTag, versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
+    } else if (imageTag && imageTag.lessThan(versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
       useLegacyPort = true;
     }
 
@@ -1143,25 +1151,26 @@ export class BlockNodeCommand extends BaseCommand {
   private async updateBlockNodeVersionInRemoteConfig(
     config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
   ): Promise<void> {
-    let blockNodeVersion: SemVer;
-    let imageTag: SemVer | undefined;
+    let blockNodeVersion: SemanticVersion<string>;
+    let imageTag: SemanticVersion<string> | undefined;
 
     if (config.hasOwnProperty('upgradeVersion') && (config as BlockNodeUpgradeConfigClass).upgradeVersion) {
       const version: string = (config as BlockNodeUpgradeConfigClass).upgradeVersion;
-      blockNodeVersion = typeof version === 'string' ? new SemVer(version) : version;
+      blockNodeVersion = typeof version === 'string' ? new SemanticVersion<string>(version) : version;
     }
 
     if (config.hasOwnProperty('chartVersion') && (config as BlockNodeDeployConfigClass).chartVersion) {
       const version: string = (config as BlockNodeDeployConfigClass).chartVersion;
-      blockNodeVersion = typeof version === 'string' ? new SemVer(version) : version;
+      blockNodeVersion = typeof version === 'string' ? new SemanticVersion<string>(version) : version;
     }
 
     if (config.hasOwnProperty('imageTag') && (config as BlockNodeDeployConfigClass).imageTag) {
       const tag: string = (config as BlockNodeDeployConfigClass).imageTag;
-      imageTag = typeof tag === 'string' ? new SemVer(tag) : tag;
+      imageTag = typeof tag === 'string' ? new SemanticVersion<string>(tag) : tag;
     }
 
-    const finalVersion: SemVer = imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    const finalVersion: SemanticVersion<string> =
+      imageTag && blockNodeVersion.lessThan(imageTag) ? imageTag : blockNodeVersion;
     this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
@@ -1171,12 +1180,12 @@ export class BlockNodeCommand extends BaseCommand {
     currentVersion: string,
     targetVersion: string,
   ): ComponentUpgradeMigrationStep[] {
-    const normalizedCurrentVersion: string = Version.getValidSemanticVersion(
+    const normalizedCurrentVersion: string = SemanticVersion.getValidSemanticVersion(
       currentVersion || '0.0.0',
       false,
       'Current block node chart version',
     );
-    const normalizedTargetVersion: string = Version.getValidSemanticVersion(
+    const normalizedTargetVersion: string = SemanticVersion.getValidSemanticVersion(
       targetVersion || versions.BLOCK_NODE_VERSION,
       false,
       'Target block node chart version',
