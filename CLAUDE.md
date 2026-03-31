@@ -74,6 +74,12 @@ The codebase follows a layered, command-driven architecture with dependency inje
 - **Error Hierarchy:** `SoloError` (base), `SilentBreak` (exit without display), specialized errors in `src/core/errors/`.
 - **Component Versions:** Managed in `version.ts` at the repo root.
 
+## Environment Variable Documentation
+
+When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update `docs/site/content/en/docs/env.md` to reflect the change. This does not apply to environment variables used only in the `test/` directory.
+
+Each entry in `env.md` should include the variable name, a short description of its purpose, and its default value (as defined in the source).
+
 ## Coding Standards
 
 Follow the project's TypeScript style guide at [`docs/contributing/typescript-code-style.md`](docs/contributing/typescript-code-style.md) for all code changes.
