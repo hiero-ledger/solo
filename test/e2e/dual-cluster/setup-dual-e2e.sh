@@ -10,6 +10,7 @@ export PATH=~/.solo/bin:${PATH}
 ##### Setup Environment #####
 SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 readonly SCRIPT_PATH
+readonly KIND_CONFIG_RENDERER="${SCRIPT_PATH}/../../../.github/workflows/script/render_kind_config.sh"
 
 readonly CLUSTER_DIAGNOSTICS_PATH="${SCRIPT_PATH}/diagnostics/cluster"
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
@@ -58,7 +59,15 @@ helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ -
 helm repo add metallb https://metallb.github.io/metallb --force-update
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
-  kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster-${i}.yaml" || exit 1
+  cluster_kind_config="${SCRIPT_PATH}/kind-cluster-${i}.yaml"
+  if [[ -x "${KIND_CONFIG_RENDERER}" && -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" ]]; then
+    rendered_cluster_kind_config="$(mktemp -t kind-cluster-${i}-XXXX.yaml)"
+    "${KIND_CONFIG_RENDERER}" "${cluster_kind_config}" "${rendered_cluster_kind_config}"
+    kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${rendered_cluster_kind_config}" || exit 1
+    rm -f "${rendered_cluster_kind_config}"
+  else
+    kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${cluster_kind_config}" || exit 1
+  fi
 
   helm upgrade --install metrics-server metrics-server/metrics-server \
     --namespace kube-system \
