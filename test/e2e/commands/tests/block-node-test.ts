@@ -218,7 +218,7 @@ export class BlockNodeTest extends BaseCommandTest {
       const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
 
       // Make script executable (no-op on Windows; chmod is not available)
-      if (platform() !== 'win32') {
+      if (!OperatingSystem.isWin32()) {
         await execAsync('chmod +x ./get-block.sh', commandOptions);
       }
 
