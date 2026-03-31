@@ -74,6 +74,18 @@ The codebase follows a layered, command-driven architecture with dependency inje
 - **Error Hierarchy:** `SoloError` (base), `SilentBreak` (exit without display), specialized errors in `src/core/errors/`.
 - **Component Versions:** Managed in `version.ts` at the repo root.
 
+## Coding Standards
+
+Follow the project's TypeScript style guide at [`docs/contributing/typescript-code-style.md`](docs/contributing/typescript-code-style.md) for all code changes.
+
+Before writing or modifying code, review these configuration files to avoid lint and formatting issues:
+
+- **`.prettierrc.json`** — formatting rules (indentation, quotes, line length, etc.)
+- **`eslint.config.mjs`** — linting rules and TypeScript-specific restrictions
+- **`.remarkrc.mjs`** — Markdown linting rules (applies to `.md` files)
+
+Run `task format` to auto-fix formatting and lint issues before committing.
+
 ## PR Requirements
 
 - **DCO sign-off** on all commits (`git commit -s`)
