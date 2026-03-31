@@ -26,4 +26,5 @@ export interface OneShotSingleDeployConfigClass {
   force: boolean;
   quiet: boolean;
   rollback: boolean;
+  parallelDeploy: boolean;
 }
