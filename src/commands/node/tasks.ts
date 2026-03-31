@@ -15,7 +15,7 @@ import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 
-const localBuildPathFilter = (path: string | string[]): boolean => {
+const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
 };
 import {Templates} from '../../core/templates.js';
@@ -304,7 +304,9 @@ export class NodeCommandTasks {
     configManager: ConfigManager,
     localDataLibraryBuildPath: string,
   ): Promise<void> {
-    const container: Container = k8.containers().readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
+    const container: Container = k8
+      .containers()
+      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
 
     // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
     await container.execContainer([
