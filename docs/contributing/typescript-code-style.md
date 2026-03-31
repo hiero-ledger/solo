@@ -19,23 +19,13 @@ This guide uses RFC 2119 terminology:
 - **may**: optional
 - **prefer / avoid**: correspond to should / should not
 
-### 1.2 Scope (Hedera)
+### 1.2 Scope
 
-Applies to all projects and source code written in TypeScript and developed with intent to be adopted, directed, or officially supported by the Hashgraph Engineering team or contractors thereof, and is highly recommended for adoption by all teams supporting Hedera Hashgraph projects.
-
-### 1.3 Responsibilities (Hedera)
-
-Hedera Hashgraph employees and direct or indirect contractors are required to follow, enforce, and comply with this policy.
-
-### 1.4 Relationship between the two documents
-
-- The **Google TypeScript Style Guide** is the baseline.
-- **Hedera SDLC-P-014 overrides** specific sections and adds additional requirements (see “Hedera overrides and additions”).
-- When a Hedera rule conflicts with Google, **follow Hedera**.
+Applies to all source code written in TypeScript and developed with intent to be part of Hiero-Ledger Solo projects.
 
 ---
 
-## 2. Source file basics (Google)
+## 2. Source file basics
 
 ### 2.1 File encoding: UTF-8
 
@@ -53,9 +43,13 @@ For any character that has a special escape sequence (`\'`, `\"`, `\\`, `\b`, `\
 
 For remaining non-ASCII characters, use the actual Unicode character (e.g. `∞`). For non-printable characters, equivalent hex or Unicode escapes (e.g. `\u221e`) can be used along with an explanatory comment.
 
+#### 2.1.4 Column limit: 120
+
+Use **120 characters per line**.
+
 ---
 
-## 3. Source file structure (Google)
+## 3. Source file structure
 
 Files consist of the following, in order:
 
@@ -66,9 +60,11 @@ Files consist of the following, in order:
 
 Exactly one blank line separates each section that is present.
 
-### 3.1 Copyright information (Google baseline)
+### 3.1 Copyright information
 
-If license or copyright information is necessary in a file, add it in a JSDoc at the top of the file.
+License or copyright information is **required** in all source code files.
+
+- An **SPDX license identifier** must be present.
 
 ### 3.2 `@fileoverview` JSDoc
 
@@ -122,9 +118,15 @@ If externally accessible mutable bindings are required, provide explicit getter 
 
 Do not create container classes with static methods/properties purely for namespacing. Export constants and functions instead.
 
+### 3.5 Exported interfaces and classes in their own file
+
+Each exported interface and class should be in its own file with the file name in kebab-case all lowercase matching the interface/class.
+
+Rationale: helps prevent circular dependencies and makes items easier to find.
+
 ---
 
-## 4. Language features (Google)
+## 4. Language features
 
 ### 4.1 Local variable declarations
 
@@ -184,11 +186,12 @@ Do not use `let a = 1, b = 2;`.
 - Prefer parameter properties when appropriate.
 - Initialize fields at declaration when possible.
 
-#### 4.4.6 Visibility (Google baseline)
+#### 4.4.6 Visibility
 
 - Limit symbol visibility as much as possible.
 - TypeScript symbols are public by default.
-- Never use `public` except for non-readonly public parameter properties.
+- Always specify `public`, `private`, and `protected` modifiers.
+- Default to `private` first, then relax visibility only when needed.
 
 ### 4.5 Functions
 
@@ -276,7 +279,7 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 
 ---
 
-## 5. Naming (Google)
+## 5. Naming
 
 ### 5.1 Identifiers
 
@@ -284,7 +287,12 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 
 #### 5.1.1 Naming style
 
-Do not decorate names with type information included in the type.
+- Do not decorate names with type information included in the type.
+- Do not use trailing or leading underscores for private properties or methods.
+- Exception: underscore prefix is allowed for private variables when using `get` and `set` keywords for getter/setter methods.
+- When using the `of` and `from` prefixes for method names:
+    - use `of` for simple object creation
+    - use `from` for transformation
 
 #### 5.1.2 Descriptive names
 
@@ -322,17 +330,18 @@ Namespace imports are `lowerCamelCase` while files may be `snake_case`.
 
 ---
 
-## 6. Type system (Google)
+## 6. Type system
 
-### 6.1 Type inference (Google baseline)
+### 6.1 Type inference
 
-- Code may rely on inference.
-- Omit type annotations for trivially inferred literals and `new` expressions.
 - Add explicit types to avoid generics inferring `unknown` (e.g. empty collections).
+- Always specify the type for declarations.
+  - Rationale: improves readability without an IDE (code review, GitHub, text editor), improves type checking, and can speed compile time.
 
-#### 6.1.1 Return types (Google baseline)
+#### 6.1.1 Return types
 
-Return type annotations are optional; reviewers may request for clarity.
+- Always specify return types.
+  - Rationale: readability, stronger checking, and improved compile-time performance.
 
 ### 6.2 `undefined` and `null`
 
@@ -392,15 +401,16 @@ Avoid creating APIs with return-type-only generics.
 
 ---
 
-## 7. Toolchain requirements (Google)
+## 7. Toolchain requirements
 
 ### 7.1 TypeScript compiler
 
 All TypeScript files must pass type checking.
 
-#### 7.1.1 `@ts-ignore` (Google baseline)
+#### 7.1.1 `@ts-ignore`
 
-Do not use `@ts-ignore` nor variants `@ts-expect-error` or `@ts-nocheck`.
+- Do not use `@ts-ignore` (these are warnings in Hedera systems and are being removed and turned into errors).
+- Instead, use `@ts-expect-error` and provide the error being ignored as the description (or a strong explanation).
 
 ### 7.2 Conformance
 
@@ -468,74 +478,6 @@ Generated code is mostly exempt, but identifiers referenced from hand-written co
 
 ---
 
-# Hedera overrides and additions (SDLC-P-014)
-
-These items override or extend Google guidance.
-
-## H-1. License / Copyright required (Overrides Google §3.1)
-
-License or copyright information is **required** in all source code files.
-
-- If proprietary (not released as open source), a **Proprietary Copyright block** must be present.
-- If licensed (released as open source), an **SPDX license identifier** must be present.
-
-## H-2. Visibility modifiers required (Overrides Google §4.4.6)
-
-Google baseline: “TypeScript symbols are public by default. Never use `public` except when declaring non-readonly public parameter properties.”
-
-Hedera override:
-
-- Always specify `public`, `private`, and `protected` modifiers.
-- Default to `private` first, then relax visibility only when needed.
-
-## H-3. Naming style adjustments (Extends Google §5.1.1)
-
-- Do not use trailing or leading underscores for private properties or methods.
-- Exception: underscore prefix is allowed for private variables when using `get` and `set` keywords for getter/setter methods.
-- When using the `of` and `from` prefixes for method names:
-    - use `of` for simple object creation
-    - use `from` for transformation
-
-## H-4. Types must be explicit (Overrides Google §6.1)
-
-Google baseline allows relying on type inference.
-
-Hedera override:
-
-- Always specify the type for declarations.
-- Rationale: improves readability without an IDE (code review, GitHub, text editor), improves type checking, and can speed compile time.
-
-## H-5. Return types required (Overrides Google §6.1.1)
-
-Google baseline: return types optional.
-
-Hedera override:
-
-- Always specify return types.
-- Rationale: readability, stronger checking, and improved compile-time performance.
-
-## H-6. Column limit: 120 (Addition)
-
-Use **120 characters per line**.
-
-## H-7. `@ts-ignore` policy (Overrides/extends Google §7.1.1)
-
-Google baseline disallows `@ts-ignore`, `@ts-expect-error`, and `@ts-nocheck`.
-
-Hedera override:
-
-- Do not use `@ts-ignore` (these are warnings in Hedera systems and are being removed and turned into errors).
-- Instead, use `@ts-expect-error` and provide the error being ignored as the description (or a strong explanation).
-
-## H-8. Exported interfaces and classes in their own file (Addition)
-
-Each exported interface and class should be in its own file with the file name in kebab-case all lowercase matching the interface/class.
-
-Rationale: helps prevent circular dependencies and makes items easier to find.
-
----
-
 # References
 
 - Google TypeScript Style Guide: https://google.github.io/styleguide/tsguide.html
-- Hedera SDLC-P-014: 014 TypeScript Code Style (internal policy page)
