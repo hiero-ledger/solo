@@ -304,18 +304,21 @@ tasks:
             echo "=== Checking pod ${pod} for mixed-version jars ==="
 
             for dir in data/lib data/apps; do
+              # Only check jars built by hiero-consensus-node (swirlds-*, app-service-*) to avoid
+              # false positives from third-party dependencies that use independent versioning
               JARS=$(kubectl -n {{ .NAMESPACE }} exec "$pod" -c root-container -- \
-                sh -c "ls /opt/hgcapp/services-hedera/HapiApp2.0/${dir}/*.jar 2>/dev/null" || true)
+                sh -c "ls /opt/hgcapp/services-hedera/HapiApp2.0/${dir}/swirlds-*.jar \
+                          /opt/hgcapp/services-hedera/HapiApp2.0/${dir}/app-service-*.jar 2>/dev/null" || true)
 
               if [ -z "$JARS" ]; then
-                echo "  No jars found in ${dir} on pod ${pod}"
+                echo "  No hiero consensus node jars found in ${dir} on pod ${pod}"
                 continue
               fi
 
-              echo "  Jars in ${dir}:"
+              echo "  Hiero consensus node jars in ${dir}:"
               echo "$JARS" | while read -r jar; do echo "    $(basename "$jar")"; done
 
-              # Extract version strings from jar filenames (e.g. artifact-0.73.0-SNAPSHOT.jar -> 0.73.0-SNAPSHOT)
+              # Extract version strings from jar filenames (e.g. swirlds-common-0.73.0-SNAPSHOT.jar -> 0.73.0-SNAPSHOT)
               VERSIONS=$(echo "$JARS" | sed -n 's/.*-\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*[^.]*\)\.jar$/\1/p' | sort -u)
               VERSION_COUNT=$(echo "$VERSIONS" | grep -c . || true)
 
