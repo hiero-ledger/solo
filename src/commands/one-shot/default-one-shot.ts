@@ -81,7 +81,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     required: [],
     optional: [
       flags.quiet,
-      flags.numberOfConsensusNodes,
       flags.force,
       flags.deployment,
       flags.namespace,
@@ -89,6 +88,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.minimalSetup,
       flags.rollback,
     ],
+  };
+
+  public static readonly MULTI_DEPLOY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
