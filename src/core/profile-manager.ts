@@ -131,7 +131,7 @@ export class ProfileManager {
     for (const key in dotItems) {
       let itemKey: string = key;
 
-      // if it is an array key like extraEnv[0].JAVA_OPTS, convert it into a dot separated key as extraEnv.0.JAVA_OPTS
+      // if it is an array key like extraEnvironment[0].JAVA_OPTS, convert it into a dot separated key as extraEnvironment.0.JAVA_OPTS
       if (key.includes('[')) {
         itemKey = key.replace('[', '.').replace(']', '');
       }
@@ -246,9 +246,10 @@ export class ProfileManager {
       yamlRoot,
     );
 
+    const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
     this._setFileContentsAsValue(
       'hedera.configMaps.applicationEnv',
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
+      PathEx.resolve(applicationEnvironmentPath),
       yamlRoot,
     );
 
@@ -284,6 +285,32 @@ export class ProfileManager {
 
       fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
       this._setFileContentsAsValue(`hedera.nodes.${nodeIndex}.blockNodesJson`, blockNodesJsonPath, yamlRoot);
+    }
+  }
+
+  /**
+   * Parse a KEY=VALUE env file and override defaults.root.extraEnvironment in the Helm values
+   * so that pod-level environment variables match the application.env content.
+   */
+  private applyApplicationEnvToExtraEnv(applicationEnvironmentPath: string, yamlRoot: AnyObject): void {
+    if (!fs.existsSync(applicationEnvironmentPath)) {
+      return;
+    }
+
+    const extraEnvironment: AnyObject[] = [];
+    for (const line of fs.readFileSync(applicationEnvironmentPath, 'utf8').split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        extraEnvironment.push({name: trimmed.slice(0, equalsIndex), value: trimmed.slice(equalsIndex + 1)});
+      }
+    }
+
+    if (extraEnvironment.length > 0) {
+      this._setChartItems('defaults.root', {extraEnv: extraEnvironment}, yamlRoot);
     }
   }
 
@@ -363,6 +390,15 @@ export class ProfileManager {
         }
         this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
       }
+
+      // Override defaults.root.extraEnv with values from the staged application.env file.
+      // This must run AFTER the JFR block above, which overwrites defaults.root from solo-values.yaml.
+      const stagingDirectory: string = Templates.renderStagingDir(
+        this.configManager.getFlag(flags.cacheDir),
+        this.configManager.getFlag(flags.releaseTag),
+      );
+      const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+      this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
 
       const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
