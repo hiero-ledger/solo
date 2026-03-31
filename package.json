@@ -74,7 +74,6 @@
     "@types/mocha": "10.0.10",
     "@types/mocha-each": "2.0.4",
     "@types/node": "25.5.0",
-    "@types/pino": "7.0.5",
     "@types/semver": "7.7.1",
     "@types/sinon": "21.0.0",
     "@types/sinon-chai": "4.0.0",
@@ -99,7 +98,6 @@
     "eslint-plugin-unused-imports": "4.4.1",
     "globals": "17.4.0",
     "jsdoc": "4.0.5",
-    "madge": "8.0.0",
     "mocha": "11.7.5",
     "mocha-each": "2.0.1",
     "mocha-junit-reporter": "2.2.1",
@@ -117,7 +115,7 @@
     "tsx": "4.21.0",
     "typedoc": "0.28.18",
     "typescript": "6.0.2",
-    "typescript-eslint": "8.57.2"
+    "typescript-eslint": "8.58.0"
   },
   "repository": "https://github.com/hiero-ledger/solo",
   "os": [
