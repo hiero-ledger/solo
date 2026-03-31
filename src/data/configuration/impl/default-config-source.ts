@@ -4,23 +4,36 @@ import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
 import {LayeredModelConfigSource} from './layered-model-config-source.js';
 import {type SchemaDefinition} from '../../schema/migration/api/schema-definition.js';
 import {YamlFileStorageBackend} from '../../backend/impl/yaml-file-storage-backend.js';
+import {type Refreshable} from '../spi/refreshable.js';
 
 /**
  * A {@link ConfigSource} that reads default configuration data from its YAML file backend.
  */
-export class DefaultConfigSource<T extends object> extends LayeredModelConfigSource<T> {
+export class DefaultConfigSource<T extends object> extends LayeredModelConfigSource<T> implements Refreshable {
   private readonly data: Map<string, string>;
+  private readonly _sourceName: string;
 
-  public constructor(fileName: string, basePath: string, schema: SchemaDefinition<T>, mapper: ObjectMapper) {
+  public constructor(
+    fileName: string,
+    basePath: string,
+    schema: SchemaDefinition<T>,
+    mapper: ObjectMapper,
+    sourceName: string = 'DefaultConfigSource',
+  ) {
     super(fileName, schema, new YamlFileStorageBackend(basePath), mapper);
     this.data = new Map<string, string>();
+    this._sourceName = sourceName;
   }
 
   public get name(): string {
-    return 'DefaultConfigSource';
+    return this._sourceName;
   }
 
   public get ordinal(): number {
     return 0;
+  }
+
+  public async refresh(): Promise<void> {
+    await this.load();
   }
 }

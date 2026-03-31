@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type HelmChartSchema} from '../common/helm-chart-schema.js';
+import {type TssSchema} from './tss-schema.js';
 import {Exclude, Expose} from 'class-transformer';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
@@ -24,17 +25,22 @@ export class SoloConfigSchema {
   @Expose()
   public certManagerHelmChart: HelmChartSchema | undefined;
 
+  @Expose()
+  public tss: TssSchema | undefined;
+
   public constructor(
     schemaVersion?: number,
     helmChart?: HelmChartSchema,
     ingressControllerHelmChart?: HelmChartSchema,
     clusterSetupHelmChart?: HelmChartSchema,
     certManagerHelmChart?: HelmChartSchema,
+    tss?: TssSchema,
   ) {
     this.schemaVersion = schemaVersion ?? 1;
     this.helmChart = helmChart ?? undefined;
     this.ingressControllerHelmChart = ingressControllerHelmChart ?? undefined;
     this.clusterSetupHelmChart = clusterSetupHelmChart ?? undefined;
     this.certManagerHelmChart = certManagerHelmChart ?? undefined;
+    this.tss = tss ?? undefined;
   }
 }

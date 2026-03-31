@@ -48,7 +48,28 @@ export class SoloConfigV1Migration implements SchemaMigration {
       clone.certManagerHelmChart = this.getNewHelmChartObject();
     }
 
+    if (!clone.tss) {
+      clone.tss = this.getNewTssObject();
+    }
+
     return clone;
+  }
+
+  private getNewTssObject(): object {
+    return {
+      messageSizeSoftLimitBytes: 4_194_304,
+      messageSizeHardLimitBytes: 37_748_736,
+      timeoutAfterReadySeconds: 10,
+      readyMaxAttempts: 60,
+      readyBackoffSeconds: 3,
+      wraps: {
+        artifactsFolderName: 'wraps-v0.2.0',
+        directoryName: 'wraps-v0.2.0',
+        allowedKeyFiles: 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
+        // IMPORTANT: libDownloadUrl must be kept consistent with directoryName.
+        libDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+      },
+    };
   }
 
   private getNewHelmChartObject(): object {
