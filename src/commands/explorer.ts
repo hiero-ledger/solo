@@ -355,7 +355,9 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         // sleep for a few seconds to allow cert-manager to be ready
-        await sleep(Duration.ofSeconds(10));
+        if (commandType === ExplorerCommandType.UPGRADE) {
+          await sleep(Duration.ofSeconds(10));
+        }
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),

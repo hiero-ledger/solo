@@ -301,7 +301,7 @@ export class NodeCommandTasks {
     localDataLibraryBuildPath: string,
   ): Promise<void> {
     const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config'));
+      return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
     };
 
     await k8
@@ -411,22 +411,24 @@ export class NodeCommandTasks {
     });
   }
 
-  private _fetchPlatformSoftware(
+  private async _fetchPlatformSoftware(
     nodeAliases: NodeAliases,
     podReferences: Record<NodeAlias, PodReference>,
     releaseTag: string,
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
     consensusNodes: ConsensusNode[],
-  ): SoloListr<AnyListrContext> {
+    stagingDirectory: string,
+  ): Promise<SoloListr<AnyListrContext>> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
+    const [zipPath, checksumPath] = await platformInstaller.getPlatformRelease(stagingDirectory, releaseTag);
     for (const nodeAlias of nodeAliases) {
       const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       const podReference: PodReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, context);
+          await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
         },
       });
     }
@@ -1383,6 +1385,7 @@ export class NodeCommandTasks {
               task,
               this.platformInstaller,
               context_.config.consensusNodes,
+              context_.config.stagingDir,
             )
           : this._uploadPlatformSoftware(
               context_.config[aliasesField],
