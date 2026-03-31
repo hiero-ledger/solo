@@ -12,12 +12,12 @@ import * as constants from '../../../../src/core/constants.js';
 import {expect} from 'chai';
 import {exec, type ExecException, type ExecOptions} from 'node:child_process';
 import {promisify} from 'node:util';
-import {platform} from 'node:os';
 import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {K8Helper} from '../../../../src/business/utils/k8-helper.js';
 import {sleep} from '../../../../src/core/helpers.js';
+import {OperatingSystem} from '../../../../src/business/utils/operating-system.js';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
