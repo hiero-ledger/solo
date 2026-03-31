@@ -285,42 +285,12 @@ tasks:
           -n {{ .EXPLORER_NAME_SPACE }} \
           {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
 
-      - cmd: |
-          $SOLO_COMMAND deployment diagnostics logs 
-
-  destroy:
-    desc: Destroy the Solo network with block node
-    cmds:
-      # solo consensus node stop
-      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-
-      # solo mirror node destroy
-      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
-
-      # solo relay node destroy
-      - cmd: $SOLO_COMMAND relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-
-      # solo explorer node destroy
-      - cmd: $SOLO_COMMAND explorer node destroy --deployment {{ .DEPLOYMENT }}
-
-      # solo block node destroy
-      - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }}
-
-      # solo consensus network destroy
-      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force
-
-      # Delete Kind cluster
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
-
-  upgrade:
-    desc: Upgrade the consensus network using local build and verify no mixed-version jars remain
-    cmds:
       # Solo consensus network upgrade with local build path
       - cmd: |
           $SOLO_COMMAND consensus network upgrade --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
           {{.LOCAL_BUILD_FLAG}}
 
-      # Verify no mixed-version jars in data/lib and data/apps
+      # Verify no mixed-version jars in data/lib and data/apps after upgrade
       - cmd: |
           PODS=$(kubectl -n {{ .NAMESPACE }} get pods -l solo.hedera.com/type=network-node \
             -o jsonpath='{.items[*].metadata.name}')
@@ -366,3 +336,30 @@ tasks:
           fi
           echo ""
           echo "SUCCESS: No mixed-version jars found in data/lib or data/apps on any node."
+
+      - cmd: |
+          $SOLO_COMMAND deployment diagnostics logs
+
+  destroy:
+    desc: Destroy the Solo network with block node
+    cmds:
+      # solo consensus node stop
+      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # solo mirror node destroy
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # solo relay node destroy
+      - cmd: $SOLO_COMMAND relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # solo explorer node destroy
+      - cmd: $SOLO_COMMAND explorer node destroy --deployment {{ .DEPLOYMENT }}
+
+      # solo block node destroy
+      - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }}
+
+      # solo consensus network destroy
+      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
