@@ -251,6 +251,28 @@ tasks:
         EOF
       - cat examples/one-shot-falcon/README.md >> docs/site/build/one-shot-falcon.md
 
+  mutate:one-shot-evm-example:
+    desc: "Mutate the examples/one-shot-evm/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/one-shot-evm/README.md
+    generates:
+      - docs/site/build/one-shot-evm.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/one-shot-evm.md << 'EOF'
+        ---
+        title: "One-Shot EVM Deployment Example"
+        weight: 1
+        description: >
+          Example of how to use the Solo **one-shot single deploy --evm** commands.
+        type: docs
+        ---
+        EOF
+      - cat examples/one-shot-evm/README.md >> docs/site/build/one-shot-evm.md
+
   mutate:rapid-fire-example:
     desc: "Mutate the examples/one-shot-falcon/README.md file to add front-matter"
     dir: ../..

@@ -14,6 +14,7 @@
 | [node-create-transaction](./node-create-transaction/)               | Manually write a NodeCreateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [node-delete-transaction](./node-delete-transaction/)               | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [node-update-transaction](./node-update-transaction/)               | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| [one-shot-evm](./one-shot-evm/)                                     | Example of how to use the Solo **one-shot single deploy --evm** commands                                            |
 | [one-shot-falcon](./one-shot-falcon/)                               | Example of how to use the Solo **one-shot falcon** commands                                                         |
 | [rapid-fire](./rapid-fire/)                                         | Example of how to use the Solo **rapid-fire** commands                                                              |
 | [state-save-and-restore](./state-save-and-restore/)                 | Save network state, recreate network, and restore state with mirror node (with optional external database)          |

@@ -132,6 +132,42 @@ solo one-shot falcon destroy
 
 See the [Falcon example](../examples/one-shot-falcon/) for a complete configuration template.
 
+## EVM Deployment
+
+EVM deployment is a one-command solution optimised for smart-contract developers. It deploys a consensus node, mirror node, JSON-RPC relay, and mirror-node explorer, and creates 20 pre-funded ECDSA alias accounts.
+
+### Basic EVM Deployment
+
+```bash
+solo one-shot single deploy --evm \
+  --deployment evm-deployment \
+  --cluster-ref kind-evm-cluster
+```
+
+### EVM Deployment Variants
+
+```bash
+# Without explorer
+solo one-shot single deploy --evm --skip-explorer \
+  --deployment evm-deployment --cluster-ref kind-evm-cluster
+
+# Explicitly select mirror-node explorer
+solo one-shot single deploy --evm --explorer mirror-node \
+  --deployment evm-deployment --cluster-ref kind-evm-cluster
+
+# Request Blockscout explorer (falls back to mirror-node)
+solo one-shot single deploy --evm --explorer blockscout \
+  --deployment evm-deployment --cluster-ref kind-evm-cluster
+```
+
+### Tearing Down EVM Deployment
+
+```bash
+solo one-shot single destroy --deployment evm-deployment
+```
+
+See the [EVM example](../examples/one-shot-evm/) for a complete Taskfile with post-deploy verification.
+
 ## Step-by-Step Manual Deployment
 
 For maximum control, you can deploy each component individually. This is useful for debugging, custom configurations, or when you need to modify specific deployment steps.

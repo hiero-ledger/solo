@@ -36,6 +36,7 @@ module:
         - node-create-transaction.md
         - node-delete-transaction.md
         - node-update-transaction.md
+        - one-shot-evm.md
         - one-shot-falcon.md
         - rapid-fire.md
         - state-save-and-restore.md
