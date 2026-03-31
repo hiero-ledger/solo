@@ -303,10 +303,9 @@ export class PackageDownloader {
     }
 
     const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
-    const downloadDirectory: string = `${destinationDirectory}/${releaseDirectory}`;
     const packageURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.zip`;
     const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
 
-    return await this.fetchPackage(packageURL, checksumURL, downloadDirectory, true, 'sha384', force);
+    return await this.fetchPackage(packageURL, checksumURL, destinationDirectory, true, 'sha384', force);
   }
 }

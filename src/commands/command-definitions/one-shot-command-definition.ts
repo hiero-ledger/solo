@@ -95,7 +95,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Deploys all required components for the selected multiple node one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.deploy,
-              DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
+              DefaultOneShotCommand.MULTI_DEPLOY_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
               true,
             ),
@@ -143,7 +143,10 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
         // `solo one-shot single deploy --evm`.  It pre-wires the --evm flag
         // into the registered flags list so users can also pass --skip-explorer
         // or --explorer without typing --evm every time.
-        new CommandGroup(OneShotCommandDefinition.EVM_SUBCOMMAND_NAME, OneShotCommandDefinition.EVM_SUBCOMMAND_DESCRIPTION)
+        new CommandGroup(
+          OneShotCommandDefinition.EVM_SUBCOMMAND_NAME,
+          OneShotCommandDefinition.EVM_SUBCOMMAND_DESCRIPTION,
+        )
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.SINGLE_DEPLOY,

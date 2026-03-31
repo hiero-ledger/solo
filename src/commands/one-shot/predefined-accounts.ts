@@ -110,10 +110,7 @@ export const predefinedEcdsaAccountsWithAlias: PredefinedAccount[] = ecdsaAliasK
 // 10 additional (evmEcdsaAliasAdditionalKeys).  Every account has alias=true so an EVM-
 // compatible public-key alias (0x…) is derived and attached at creation time.  Each is
 // funded with 1 000 000 HBAR to satisfy the EVM profile pre-funded account requirement.
-export const predefinedEvmAccounts: PredefinedAccount[] = [
-  ...ecdsaAliasKeys,
-  ...evmEcdsaAliasAdditionalKeys,
-].map(
+export const predefinedEvmAccounts: PredefinedAccount[] = [...ecdsaAliasKeys, ...evmEcdsaAliasAdditionalKeys].map(
   (key: string): PredefinedAccount => {
     return {
       group: PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,

@@ -5,12 +5,12 @@ import * as helpers from '../helpers.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
-import * as semver from 'semver';
 import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 import path from 'node:path';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 
 /**
  * Base class for dependency managers that download and manage CLI tools
@@ -133,7 +133,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       );
       return false;
     }
-    if (semver.gte(version, this.getRequiredVersion())) {
+    if (new SemanticVersion<string>(version).greaterThanOrEqual(this.getRequiredVersion())) {
       return true;
     }
     this.logger.info(
