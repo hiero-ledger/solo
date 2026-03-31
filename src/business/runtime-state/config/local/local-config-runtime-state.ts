@@ -113,9 +113,14 @@ export class LocalConfigRuntimeState {
     );
     if (foundStagingDirectory && foundStagingDirectory.length > 0) {
       for (const stagingDirectory of foundStagingDirectory) {
+        // Guard against accidental self-copy when the discovered path already points to
+        // the current release staging directory.
+        if (stagingDirectory === currentStagingDirectory) {
+          continue;
+        }
+        // Keep source staging directories intact to avoid deleting another command's active staging path
+        // when multiple commands run concurrently (for example one-shot parallel subcommands).
         fs.cpSync(stagingDirectory, currentStagingDirectory, {recursive: true, force: true});
-        // remove the old staging directory
-        fs.rmSync(stagingDirectory, {recursive: true, force: true});
       }
     }
   }
