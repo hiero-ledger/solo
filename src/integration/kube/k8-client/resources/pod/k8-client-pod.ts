@@ -207,7 +207,10 @@ export class K8ClientPod implements Pod {
       const isTsx: boolean = __filename.endsWith('.ts');
       const persistScriptExtension: string = isTsx ? '.ts' : '.js';
       const persistCmd: string = isTsx ? 'tsx' : 'node';
-      const persistPortForwardScriptPath: string = path.resolve(__dirname, `persist-port-forward${persistScriptExtension}`);
+      const persistPortForwardScriptPath: string = path.resolve(
+        __dirname,
+        `persist-port-forward${persistScriptExtension}`,
+      );
 
       let cmd: string;
       let cmdArguments: string[];
