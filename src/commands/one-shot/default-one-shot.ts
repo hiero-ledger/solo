@@ -70,6 +70,8 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
+import {MirrorNodeDeployedEvent, SoloEventType} from '../../core/events/event-types.js';
+import {SoloEventBus} from '../../core/events/solo-event-bus.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -132,6 +134,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
+    @inject(InjectTokens.EventBus) private readonly eventBus: SoloEventBus,
   ) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -739,67 +742,61 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     this.taskList,
                                     (): boolean => !config.deployMirrorNode,
                                   ),
-                                  {
-                                    title: 'Deploy Extensions',
-                                    skip: (): boolean => config.minimalSetup,
-                                    task: (_, task): SoloListr<OneShotSingleDeployContext> => {
-                                      return task.newListr(
-                                        [
-                                          invokeSoloCommand(
-                                            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-                                            ExplorerCommandDefinition.ADD_COMMAND,
-                                            (): string[] => {
-                                              const argv: string[] = newArgv();
-                                              argv.push(
-                                                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                                                optionFromFlag(Flags.deployment),
-                                                config.deployment,
-                                                optionFromFlag(Flags.clusterRef),
-                                                config.clusterRef,
-                                                optionFromFlag(Flags.explorerVersion),
-                                                version.EXPLORER_VERSION,
-                                              );
-                                              this.appendConfigToArgv(argv, {
-                                                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
-                                                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                                ...config.explorerNodeConfiguration,
-                                              });
-                                              return argvPushGlobalFlags(argv, config.cacheDir);
-                                            },
-                                            this.taskList,
-                                            (): boolean => !config.deployExplorer,
-                                          ),
-                                          invokeSoloCommand(
-                                            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                                            RelayCommandDefinition.ADD_COMMAND,
-                                            (): string[] => {
-                                              const argv: string[] = newArgv();
-                                              argv.push(
-                                                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                                                optionFromFlag(Flags.deployment),
-                                                config.deployment,
-                                                optionFromFlag(Flags.clusterRef),
-                                                config.clusterRef,
-                                                optionFromFlag(Flags.nodeAliasesUnparsed),
-                                                'node1',
-                                              );
-                                              this.appendConfigToArgv(argv, {
-                                                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
-                                                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                                ...config.relayNodeConfiguration,
-                                              });
-                                              return argvPushGlobalFlags(argv);
-                                            },
-                                            this.taskList,
-                                            (): boolean => !config.deployRelay,
-                                          ),
-                                        ],
-                                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                                  invokeSoloCommand(
+                                    `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                                    ExplorerCommandDefinition.ADD_COMMAND,
+                                    async (): Promise<string[]> => {
+                                      await this.eventBus.waitFor(
+                                        SoloEventType.MirrorNodeDeployed,
+                                        (soloEvent: MirrorNodeDeployedEvent): boolean =>
+                                          soloEvent.deployment === config.deployment,
                                       );
+                                      const argv: string[] = newArgv();
+                                      argv.push(
+                                        ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                                        optionFromFlag(Flags.deployment),
+                                        config.deployment,
+                                        optionFromFlag(Flags.clusterRef),
+                                        config.clusterRef,
+                                        optionFromFlag(Flags.explorerVersion),
+                                        version.EXPLORER_VERSION,
+                                      );
+                                      this.appendConfigToArgv(argv, {
+                                        [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                        [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                        ...config.explorerNodeConfiguration,
+                                      });
+                                      return argvPushGlobalFlags(argv, config.cacheDir);
                                     },
-                                  },
+                                    this.taskList,
+                                    (): boolean => !config.deployExplorer && !config.minimalSetup,
+                                  ),
+                                  invokeSoloCommand(
+                                    `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                                    RelayCommandDefinition.ADD_COMMAND,
+                                    (): string[] => {
+                                      const argv: string[] = newArgv();
+                                      argv.push(
+                                        ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                                        optionFromFlag(Flags.deployment),
+                                        config.deployment,
+                                        optionFromFlag(Flags.clusterRef),
+                                        config.clusterRef,
+                                        optionFromFlag(Flags.nodeAliasesUnparsed),
+                                        'node1',
+                                      );
+                                      this.appendConfigToArgv(argv, {
+                                        [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                        [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                        ...config.relayNodeConfiguration,
+                                      });
+                                      return argvPushGlobalFlags(argv);
+                                    },
+                                    this.taskList,
+                                    (): boolean => (!config.deployRelay && !config.minimalSetup) || true,
+                                  ),
                                 ],
-                                {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+                                {concurrent: true, rendererOptions: {collapseSubtasks: false}},
                               );
                             },
                           },

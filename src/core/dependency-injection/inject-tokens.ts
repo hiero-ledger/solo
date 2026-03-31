@@ -25,6 +25,7 @@ export class InjectTokens {
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
   public static LockManager: symbol = Symbol.for('LockManager');
+  public static EventBus: symbol = Symbol.for('EventBus');
   public static K8Factory: symbol = Symbol.for('K8Factory');
   public static SoloLogger: symbol = Symbol.for('SoloLogger');
   public static PackageDownloader: symbol = Symbol.for('PackageDownloader');
