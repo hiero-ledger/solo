@@ -164,6 +164,36 @@ describe('SemanticVersion', (): void => {
       expect(version1.lessThan(version2)).to.be.true;
       expect(version1.lessThanOrEqual(version2)).to.be.true;
     });
+
+    it('v0.72.0-rc.4 > v0.72.0-0 (numeric identifiers have lower precedence than alphanumeric)', (): void => {
+      const version1: SemanticVersion<string> = new SemanticVersion('v0.72.0-rc.4');
+      const version2: SemanticVersion<string> = new SemanticVersion('v0.72.0-0');
+      expect(version1.compare(version2)).to.equal(1);
+      expect(version1.greaterThan(version2)).to.be.true;
+      expect(version1.greaterThanOrEqual(version2)).to.be.true;
+      expect(version2.lessThan(version1)).to.be.true;
+      expect(version2.lessThanOrEqual(version1)).to.be.true;
+    });
+
+    it('should follow semver §11 pre-release precedence ordering', (): void => {
+      // From semver.org: 1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta
+      //                  < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0
+      const versions: SemanticVersion<string>[] = [
+        new SemanticVersion('1.0.0-alpha'),
+        new SemanticVersion('1.0.0-alpha.1'),
+        new SemanticVersion('1.0.0-alpha.beta'),
+        new SemanticVersion('1.0.0-beta'),
+        new SemanticVersion('1.0.0-beta.2'),
+        new SemanticVersion('1.0.0-beta.11'),
+        new SemanticVersion('1.0.0-rc.1'),
+        new SemanticVersion('1.0.0'),
+      ];
+
+      for (let i: number = 0; i < versions.length - 1; i++) {
+        expect(versions[i].lessThan(versions[i + 1]), `${versions[i]} should be less than ${versions[i + 1]}`).to.be
+          .true;
+      }
+    });
   });
 
   describe('toString', (): void => {
