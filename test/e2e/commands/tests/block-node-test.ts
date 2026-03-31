@@ -223,7 +223,7 @@ export class BlockNodeTest extends BaseCommandTest {
       }
 
       // Execute script (use bash explicitly on Windows since .sh files have no default handler)
-      const scriptCommand: string = platform() === 'win32' ? 'bash ./get-block.sh 1' : './get-block.sh 1';
+      const scriptCommand: string = OperatingSystem.isWin32() ? 'bash ./get-block.sh 1' : './get-block.sh 1';
       const scriptStd: {stdout: string; stderr: string} = await execAsync(scriptCommand, commandOptions);
 
       expect(scriptStd.stderr).to.equal('');
