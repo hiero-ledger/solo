@@ -419,8 +419,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 // implemented; blockscout support is reserved for a future release.
                 if (config.explorerType && config.explorerType !== 'mirror-node') {
                   this.logger.warn(
-                    `Explorer type '${config.explorerType}' is not yet implemented; ` +
-                      `falling back to mirror-node explorer.`,
+                    `Explorer type '${config.explorerType}' is not yet implemented; falling back to mirror-node explorer.`,
                   );
                   config.explorerType = 'mirror-node';
                 }
