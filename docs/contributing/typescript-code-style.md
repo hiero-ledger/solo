@@ -320,6 +320,46 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 
 Names must be descriptive and clear to new readers. Avoid ambiguous abbreviations and internal-letter deletions.
 
+The `unicorn/prevent-abbreviations` ESLint rule enforces this at the **error** level. Common
+violations to avoid:
+
+| Avoid | Use instead |
+|---|---|
+| `fn` | `function_` (suffix `_` avoids the keyword) |
+| `vars` | `variables` |
+| `env` / `envVar` | `environment` / `environmentVariable` |
+| `cb` | `callback` |
+| `err` | `error` |
+| `e` (event/error) | `event` / `error` |
+| `src` | `source` |
+| `dest` / `dst` | `destination` |
+| `dir` | `directory` |
+| `val` | `value` |
+| `prop` | `property` |
+| `res` | `result` / `response` |
+| `req` | `request` |
+| `msg` | `message` |
+| `arg` / `args` | `argument` / `arguments_` |
+| `num` | `number` |
+| `str` | `string_` |
+| `buf` | `buffer` |
+| `ctx` | `context` |
+| `opts` | `options` |
+| `cfg` / `conf` | `config` / `configuration` |
+| `cmd` | `command` |
+| `tmp` | `temporary` |
+| `idx` | `index` |
+| `len` | `length` |
+| `acc` | `accumulator` |
+| `cur` / `curr` | `current` |
+| `prev` | `previous` |
+| `attr` | `attribute` |
+| `param` | `parameter` |
+
+The same rule applies to **file names**. For example, a test file must be named
+`solo-config-environment-variable-override.test.ts`, not
+`solo-config-env-var-override.test.ts`.
+
 #### 5.1.3 Camel case
 
 Treat acronyms as words: `loadHttpUrl`, not `loadHTTPURL`.
@@ -359,11 +399,30 @@ Namespace imports are `lowerCamelCase` while files may be `snake_case`.
 - Add explicit types to avoid generics inferring `unknown` (e.g. empty collections).
 - Always specify the type for declarations.
   - Rationale: improves readability without an IDE (code review, GitHub, text editor), improves type checking, and can speed compile time.
+- This applies equally in test files: every `const` / `let` must carry an explicit type annotation,
+  and every callback passed to `describe()` / `it()` / `beforeEach()` / `afterEach()` must declare
+  its return type (`: void` for synchronous, `: Promise<void>` for async).
 
 #### 6.1.1 Return types
 
 - Always specify return types.
   - Rationale: readability, stronger checking, and improved compile-time performance.
+- Arrow functions passed as callbacks are not exempt. Use `(): void =>` for synchronous callbacks
+  and `async (): Promise<void> =>` for asynchronous callbacks:
+
+```typescript
+// correct
+describe('my suite', (): void => {
+  it('my test', (): void => { ... });
+  it('async test', async (): Promise<void> => { ... });
+  beforeEach(async (): Promise<void> => { ... });
+});
+
+// incorrect — missing return types
+describe('my suite', () => {
+  it('my test', () => { ... });
+});
+```
 
 ### 6.2 `undefined` and `null`
 

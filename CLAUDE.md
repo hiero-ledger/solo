@@ -119,8 +119,15 @@ Key rules enforced as ESLint **errors** (not warnings):
 - **`import type`** — When all identifiers in an import are used only as types, use
   `import type {Foo} from '...'`. For mixed imports, use the inline form:
   `import {SomeClass, type SomeInterface} from '...'`. See §3.3.4 of the TypeScript style guide.
+- **Abbreviations** — `unicorn/prevent-abbreviations` bans common short names (`fn`, `vars`,
+  `envVar`, `cb`, `err`, `opts`, etc.) in identifiers **and file names**. See §5.1.2 of the
+  TypeScript style guide for the full substitution list.
+- **Explicit types** — Every variable declaration and every callback (including `it()` / `describe()`
+  callbacks in tests) must have an explicit type annotation. See §6.1 and §6.1.1 of the style guide.
 
-Run `task format` to auto-fix formatting and lint issues before committing.
+Run `task format` to auto-fix formatting and lint issues before committing. Note that
+`task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations
+and missing type annotations must be fixed manually** — they appear as errors in the lint output.
 
 ## PR Requirements
 
