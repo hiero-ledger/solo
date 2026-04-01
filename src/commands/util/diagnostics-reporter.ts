@@ -174,9 +174,7 @@ export class DiagnosticsReporter {
       }
 
       const issueUrl: string =
-        result.stdout
-          .split('\n')
-          .find((line: string): boolean => line.startsWith('https://')) ?? '';
+        result.stdout.split('\n').find((line: string): boolean => line.startsWith('https://')) ?? '';
 
       logger.showUser(chalk.green('\n✓ GitHub issue created successfully!'));
       if (issueUrl) {
