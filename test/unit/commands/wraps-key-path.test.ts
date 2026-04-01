@@ -9,10 +9,13 @@ import path from 'node:path';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as constants from '../../../src/core/constants.js';
+import {TssSchema} from '../../../src/data/schema/model/solo/tss-schema.js';
+import {WrapsSchema} from '../../../src/data/schema/model/solo/wraps-schema.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
+import {type ConfigProvider} from '../../../src/data/configuration/api/config-provider.js';
 import {type NodeCommandTasks} from '../../../src/commands/node/tasks.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
@@ -30,9 +33,9 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 
   const allowedFiles: string[] = ['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin'];
 
-  beforeEach((): void => {
+  beforeEach(async (): Promise<void> => {
     sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wraps-test-'));
-    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
 
     // Ensure parent cache directory exists
     if (!fs.existsSync(constants.SOLO_CACHE_DIR)) {
@@ -47,7 +50,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     downloaderStub = {fetchPackage: sinon.stub().resolves()};
     zippyStub = {untar: sinon.stub()};
 
-    const remoteConfigStub = {
+    const remoteConfigStub: {configuration: {state: {wrapsEnabled: boolean}}; isLoaded: any} = {
       configuration: {state: {wrapsEnabled: true}},
       isLoaded: sinon.stub().returns(true),
     };
@@ -65,6 +68,10 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 
     configManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
     nodeCommandTasks = container.resolve<NodeCommandTasks>(InjectTokens.NodeCommandTasks);
+
+    // Load the config sources so TSS/WRAPS values are available via ConfigProvider
+    const configProvider: ConfigProvider = container.resolve<ConfigProvider>(InjectTokens.ConfigProvider);
+    await configProvider.config().refresh();
   });
 
   afterEach((): void => {
@@ -162,9 +169,16 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
   });
 });
 
-describe('WRAPS_ALLOWED_KEY_FILES constant', (): void => {
-  it('should contain the expected default file names', (): void => {
-    const files: string[] = constants.WRAPS_ALLOWED_KEY_FILES.split(',');
+describe('TssSchema WRAPS defaults', (): void => {
+  it('allowedKeyFiles default should contain the expected file names', (): void => {
+    const wraps: WrapsSchema = new WrapsSchema(
+      'wraps-v0.2.0',
+      'wraps-v0.2.0',
+      'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
+      'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+    );
+    const tss: TssSchema = new TssSchema(undefined, undefined, undefined, undefined, undefined, wraps);
+    const files: string[] = (tss.wraps?.allowedKeyFiles ?? '').split(',');
     expect(files).to.have.members(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
   });
 });

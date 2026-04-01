@@ -78,10 +78,12 @@ import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
+import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
   applicationEnv: string;
+  chainId: string;
   cacheDir: string;
   chartDirectory: string;
   loadBalancerEnabled: boolean;
@@ -426,6 +428,14 @@ export class NetworkCommand extends BaseCommand {
       deploymentName,
       applicationPropertiesPath,
       jfrFile,
+      {
+        // Pass command-scoped values explicitly so profile/staging generation is isolated
+        // from mutable global flags when one-shot runs parallel subcommands.
+        cacheDir: config.cacheDir,
+        releaseTag: config.releaseTag,
+        appName: config.app,
+        chainId: config.chainId,
+      },
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
@@ -485,7 +495,8 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
       }
@@ -1564,7 +1575,8 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+            const wraps: Wraps = this.soloConfig.tss.wraps;
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
             if (config.wrapsKeyPath) {
               // Use user-provided local directory containing WRAPs proving key files
@@ -1578,7 +1590,7 @@ export class NetworkCommand extends BaseCommand {
                 fs.mkdirSync(extractedDirectory, {recursive: true});
               }
 
-              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(config.wrapsKeyPath)) {
                 if (allowedFiles.has(file)) {
@@ -1590,7 +1602,7 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.debug('Wraps library already installed');
               } else {
                 await this.downloader.fetchPackage(
-                  constants.WRAPS_LIB_DOWNLOAD_URL,
+                  wraps.libraryDownloadUrl,
                   'unusued',
                   constants.SOLO_CACHE_DIR,
                   false,
@@ -1598,10 +1610,7 @@ export class NetworkCommand extends BaseCommand {
                   false,
                 );
 
-                const tarFilePath: string = PathEx.join(
-                  constants.SOLO_CACHE_DIR,
-                  `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
-                );
+                const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
 
                 // Create extraction dir
                 fs.mkdirSync(extractedDirectory);
@@ -1611,7 +1620,7 @@ export class NetworkCommand extends BaseCommand {
               }
 
               // Having any files except for those inside the folder causes an error in CN
-              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(extractedDirectory)) {
                 if (!allowedFiles.has(file)) {

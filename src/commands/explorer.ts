@@ -355,7 +355,9 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         // sleep for a few seconds to allow cert-manager to be ready
-        await sleep(Duration.ofSeconds(10));
+        if (commandType === ExplorerCommandType.UPGRADE) {
+          await sleep(Duration.ofSeconds(10));
+        }
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
@@ -648,18 +650,14 @@ export class ExplorerCommand extends BaseCommand {
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
-            if (this.oneShotState.isActive()) {
-              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
-            } else {
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.clusterContext,
-              );
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.clusterContext,
+            );
 
-              config.mirrorNodeId = mirrorNodeId;
-              config.mirrorNamespace = mirrorNamespace;
-              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-            }
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,

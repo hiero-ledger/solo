@@ -36,12 +36,15 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
     const {k8Factory, accountManager, platformInstaller} = opts;
     const podReference: PodReference = PodReference.of(namespace, PodName.of('network-node1-0'));
     const packageVersion: string = 'v0.42.5';
+    let zipPath: string;
+    let checksumPath: string;
 
-    before(function (): void {
-      this.timeout(defaultTimeout);
+    before(async function (): Promise<void> {
+      this.timeout(Duration.ofMinutes(5).toMillis());
       if (!fs.existsSync(testCacheDirectory)) {
         fs.mkdirSync(testCacheDirectory);
       }
+      [zipPath, checksumPath] = await platformInstaller.getPlatformRelease(testCacheDirectory, packageVersion);
     });
 
     after(async function (): Promise<void> {
@@ -53,7 +56,7 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
 
     it('should fail with invalid pod', async (): Promise<void> => {
       try {
-        await platformInstaller.fetchPlatform(undefined, packageVersion);
+        await platformInstaller.fetchPlatform(undefined, packageVersion, zipPath, checksumPath);
         expect.fail();
       } catch (error) {
         expect(error.message).to.include('podReference is required');
@@ -63,6 +66,8 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
         await platformInstaller.fetchPlatform(
           PodReference.of(NamespaceName.of('valid-namespace'), PodName.of('INVALID_POD')),
           packageVersion,
+          zipPath,
+          checksumPath,
         );
         expect.fail();
       } catch (error) {
@@ -72,7 +77,7 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
 
     it('should fail with invalid tag', async (): Promise<void> => {
       try {
-        await platformInstaller.fetchPlatform(podReference, 'INVALID');
+        await platformInstaller.fetchPlatform(podReference, 'INVALID', zipPath, checksumPath);
         expect.fail();
       } catch (error) {
         expect(error).to.be.instanceOf(SoloError);
@@ -80,7 +85,7 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
     }).timeout(defaultTimeout);
 
     it('should succeed with valid tag and pod', async (): Promise<void> => {
-      expect(await platformInstaller.fetchPlatform(podReference, packageVersion)).to.be.true;
+      expect(await platformInstaller.fetchPlatform(podReference, packageVersion, zipPath, checksumPath)).to.be.true;
       const outputs: string = await k8Factory
         .default()
         .containers()

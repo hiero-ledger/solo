@@ -151,11 +151,14 @@ export function soloOneShotDestroy(testName: string): string[] {
   return argv;
 }
 
-export function soloOneShotShowDeployment(testName: string, _deployment: string): string[] {
-  const {newArgv, argvPushGlobalFlags, optionFromFlag: _optionFromFlag} = BaseCommandTest;
+export function soloOneShotShowDeployment(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.INFO_COMMAND_NAME, 'deployment');
+  if (deployment) {
+    argv.push(optionFromFlag(Flags.deployment), deployment);
+  }
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

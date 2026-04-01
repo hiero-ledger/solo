@@ -7,7 +7,6 @@ import {expect} from 'chai';
 
 import * as fs from 'node:fs';
 import {PackageDownloader} from '../../../../src/core/package-downloader.js';
-import {Templates} from '../../../../src/core/templates.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 
@@ -19,9 +18,8 @@ describe('PackageDownloaderE2E', () => {
     const testCacheDirectory = 'test/data/tmp';
 
     const tag = 'v0.42.5';
-    const releasePrefix = Templates.prepareReleasePrefix(tag);
 
-    const destinationPath = `${testCacheDirectory}/${releasePrefix}/build-${tag}.zip`;
+    const destinationPath = `${testCacheDirectory}/build-${tag}.zip`;
     await expect(downloader.fetchPlatform(tag, testCacheDirectory)).to.eventually.be.equal(destinationPath);
     expect(fs.existsSync(destinationPath)).to.be.ok;
     testLogger.showUser(destinationPath);

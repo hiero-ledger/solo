@@ -130,12 +130,20 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             }
           }
 
-          // save the file with the max CPU metrics
+          let maxMemoryMetrics: number = 0;
+          for (const metrics of Object.values(allMetrics)) {
+            if (metrics.memoryInMebibytes > maxMemoryMetrics) {
+              maxMemoryMetrics = metrics.memoryInMebibytes;
+            }
+          }
+
+          // save the file with the max CPU metrics and inject the peak memory value
           const maxCpuFileName: string = `${maxCpuFile}.json`;
-          fs.copyFileSync(
-            PathEx.join(tartgetDirectory, maxCpuFileName),
-            PathEx.join(tartgetDirectory, `${namespace}.json`),
-          );
+          const namespaceJson: Record<string, unknown> = {
+            ...(allMetrics[maxCpuFile] as unknown as Record<string, unknown>),
+            peakMemoryInMebibytes: maxMemoryMetrics,
+          };
+          fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
           // remove all files except the aggregated and max CPU files
           const filesToKeep: Set<string> = new Set([maxCpuFileName, aggregatedMetricsFileName]);

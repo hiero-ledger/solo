@@ -48,6 +48,7 @@ import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} f
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import path from 'node:path';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
@@ -58,6 +59,7 @@ import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.
 import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {type Lock} from '../../core/lock/lock.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ResourceNotFoundError} from '../../integration/kube/errors/resource-operation-errors.js';
@@ -81,14 +83,19 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     required: [],
     optional: [
       flags.quiet,
-      flags.numberOfConsensusNodes,
       flags.force,
       flags.deployment,
       flags.namespace,
       flags.clusterRef,
       flags.minimalSetup,
       flags.rollback,
+      flags.parallelDeploy,
     ],
+  };
+
+  public static readonly MULTI_DEPLOY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -110,6 +117,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployExplorer,
       flags.deployRelay,
       flags.rollback,
+      flags.parallelDeploy,
     ],
   };
 
@@ -134,6 +142,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       InjectTokens.SharedResourceManager,
       this.constructor.name,
     );
+  }
+
+  /**
+   * Concatenates a default config file with an override file, writing the result to outputFilePath.
+   * Later entries in the file override earlier ones, so the override values take precedence.
+   */
+  private concatConfigFiles(defaultFilePath: string, overrideFilePath: string, outputFilePath: string): string {
+    const defaultContent: string = fs.existsSync(defaultFilePath) ? fs.readFileSync(defaultFilePath, 'utf8') : '';
+    const overrideContent: string = fs.existsSync(overrideFilePath) ? fs.readFileSync(overrideFilePath, 'utf8') : '';
+
+    const outputDirectory: string = path.dirname(outputFilePath);
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory, {recursive: true});
+    }
+    fs.writeFileSync(outputFilePath, defaultContent.trimEnd() + '\n' + overrideContent);
+    return outputFilePath;
   }
 
   /**
@@ -308,6 +332,52 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
+
+              // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
+              const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
+              const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
+              const cnVersion: SemanticVersion<string> = new SemanticVersion(version.HEDERA_PLATFORM_VERSION);
+              if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
+                const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
+                const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
+                const stateOnDiskDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-state-on-disk');
+                const mergedDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-merged');
+                const settingsOverrideFile: string =
+                  config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
+                const useStateOnDisk: boolean = cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_STATE_ON_DISK);
+
+                const settingsMergedPath: string = PathEx.join(mergedDirectory, 'settings.txt');
+                // Merge default settings with small-memory overrides
+                this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'settings.txt'),
+                  PathEx.join(overridesDirectory, settingsOverrideFile),
+                  settingsMergedPath,
+                );
+                // For CN >= 0.73.0, append state-on-disk settings
+                config.networkConfiguration['--settings-txt'] = useStateOnDisk
+                  ? this.concatConfigFiles(
+                      settingsMergedPath,
+                      PathEx.join(stateOnDiskDirectory, 'settings.txt'),
+                      settingsMergedPath,
+                    )
+                  : settingsMergedPath;
+
+                config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'application.properties'),
+                  PathEx.join(overridesDirectory, 'application.properties'),
+                  PathEx.join(mergedDirectory, 'application.properties'),
+                );
+
+                // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
+                config.networkConfiguration['--application-env'] = useStateOnDisk
+                  ? PathEx.join(stateOnDiskDirectory, 'application.env')
+                  : PathEx.join(overridesDirectory, 'application.env');
+
+                const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
+                if (fs.existsSync(throttlesFile)) {
+                  config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
+                }
+              }
 
               // Initialize deployment toggles with defaults if not specified
               config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
@@ -569,7 +639,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
                   ),
                 ],
-                {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
               );
             },
           },
@@ -726,7 +796,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                             (): boolean => !config.deployRelay,
                                           ),
                                         ],
-                                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                                        {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                                       );
                                     },
                                   },
@@ -826,7 +896,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             },
                           },
                         ],
-                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                        {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                       );
                     },
                   },
@@ -862,7 +932,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       const cleanupPromises: Promise<void>[] = [];
       if (oneShotLease) {
         cleanupPromises.push(
-          oneShotLease.release().catch((error): void => {
+          oneShotLease.release(true).catch((error): void => {
             this.logger.error('Error releasing one-shot lease:', error);
           }),
         );
@@ -1484,13 +1554,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         this.taskList,
         (): boolean => !config.deployment,
       ),
-      {
-        title: 'Delete cache folder',
-        task: async (): Promise<void> => {
-          fs.rmSync(config.cacheDir, {recursive: true, force: true});
-        },
-        skip: (): boolean => this._isRollback,
-      },
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
@@ -1508,7 +1571,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       const cleanupPromises: Promise<void>[] = [];
       if (oneShotLease) {
         cleanupPromises.push(
-          oneShotLease.release().catch((error): void => {
+          oneShotLease.release(true).catch((error): void => {
             this.logger.error('Error releasing one-shot lease:', error);
           }),
         );

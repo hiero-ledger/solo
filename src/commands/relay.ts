@@ -234,6 +234,7 @@ export class RelayCommand extends BaseCommand {
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
+    valuesArgument += helpers.prepareValuesFiles(constants.RELAY_VALUES_FILE);
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
@@ -560,18 +561,14 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
-            if (this.oneShotState.isActive()) {
-              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
-            } else {
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.context,
-              );
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.context,
+            );
 
-              config.mirrorNodeId = mirrorNodeId;
-              config.mirrorNamespace = mirrorNamespace;
-              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-            }
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,

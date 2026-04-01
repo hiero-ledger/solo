@@ -36,9 +36,11 @@ defaults:
 permissions:
   contents: read
   pull-requests: write
+  actions: read
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
   performance-test:
@@ -114,6 +116,8 @@ jobs:
             ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
@@ -123,13 +127,10 @@ jobs:
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
 
-          # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
-          # cancellation (e.g. triggered by a new commit on this PR) terminates the
-          # test immediately rather than waiting 30-40 minutes for it to finish on
-          # its own.
           TASK_PID=""
           TASK_PGID=""
           TASK_RC=0
+          CANCEL_POLLER_PID=""
 
           # Recursively kill a process and all its descendants (depth-first).
           # go-task spawns each command in a new process group (Setpgid), so
@@ -180,9 +181,27 @@ jobs:
               # uninterruptible sleep (D state), wait blocks forever and keeps
               # the GitHub Actions step alive until the 90-minute job timeout.
             fi
+            [[ -n "${CANCEL_POLLER_PID}" ]] && kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
+
+          # API poller: polls the run's updated_at field every 30 s and sends
+          # SIGTERM to the main shell when GitHub marks the run as cancelled.
+          # Self-hosted runners do not deliver SIGTERM to step scripts directly,
+          # so this is the only reliable way to detect workflow cancellation.
+          # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
+          # do not auto-expose it as a shell variable).
+          _run_updated_at() {
+            local _api="${GITHUB_API_URL:-https://api.github.com}"
+            curl -sf \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              | jq -r '.updated_at // empty' 2>/dev/null || echo ""
+          }
+          RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
+          echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -191,7 +210,30 @@ jobs:
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          wait "${TASK_PID}"
+
+          # Start poller AFTER TASK_PID is set.
+          api_cancel_poller() {
+            while true; do
+              sleep 30
+              current="$(_run_updated_at)"
+              if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
+                    && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
+                echo "=== API poller: updated_at changed, signalling main shell ==="
+                kill -TERM $$ 2>/dev/null || true
+                return
+              fi
+            done
+          }
+          api_cancel_poller &
+          CANCEL_POLLER_PID=$!
+
+          # Sleep-poll instead of blocking wait so SIGTERM from the poller is
+          # processed within ≤5 s (bash 4.x queues signals during wait).
+          while kill -0 "${TASK_PID}" 2>/dev/null; do
+            sleep 5
+          done
+          kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
+          wait "${TASK_PID}" 2>/dev/null
           TASK_RC=$?
           TASK_PID=""
           TASK_PGID=""
@@ -293,15 +335,15 @@ jobs:
       - name: Build and Start Metrics Plotter tool
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-            cd ./scripts/metrics-plotter
-            npm ci
-            npm run build
-            mkdir -p ~/.solo/metrics
-            mkdir src/data
-            nohup npm start &
-            echo $! > /tmp/metrics-plotter.pid
-            mkdir -p ./src/data       
-            cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
+          cd ./scripts/metrics-plotter
+          npm ci
+          npm run build
+          mkdir -p ~/.solo/metrics
+          mkdir src/data
+          nohup npm start &
+          echo $! > /tmp/metrics-plotter.pid
+          mkdir -p ./src/data       
+          cp ~/.solo/logs/**/timeline-metrics.json ./src/data/timeline.json
 
       - name: Install Puppeteer / Chrome dependencies
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

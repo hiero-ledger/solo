@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {describe, it} from 'mocha';
+import {before, describe, it} from 'mocha';
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -15,6 +15,7 @@ import {PodReference} from '../../../src/integration/kube/resources/pod/pod-refe
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {getTestCacheDirectory} from '../../test-utility.js';
 
 describe('PackageInstaller', () => {
   let installer: PlatformInstaller;
@@ -79,14 +80,27 @@ describe('PackageInstaller', () => {
   });
 
   describe('extractPlatform', () => {
+    let zipPath: string;
+    let checksumPath: string;
+    const packageVersion: string = 'v0.42.5';
+
+    before(async (): Promise<void> => {
+      const testCacheDirectory: string = getTestCacheDirectory();
+      [zipPath, checksumPath] = await installer.getPlatformRelease(testCacheDirectory, packageVersion);
+    });
+
     it('should fail for missing pod name', async () => {
-      await expect(installer.fetchPlatform(null as PodReference, 'v0.42.5')).to.be.rejectedWith(MissingArgumentError);
+      await expect(
+        installer.fetchPlatform(null as PodReference, packageVersion, zipPath, checksumPath),
+      ).to.be.rejectedWith(MissingArgumentError);
     });
     it('should fail for missing tag', async () => {
       await expect(
         installer.fetchPlatform(
           PodReference.of(NamespaceName.of('platform-installer-test'), PodName.of('network-node1-0')),
           '',
+          zipPath,
+          checksumPath,
         ),
       ).to.be.rejectedWith(MissingArgumentError);
     });
