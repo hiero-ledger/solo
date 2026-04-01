@@ -88,6 +88,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.namespace,
       flags.clusterRef,
       flags.minimalSetup,
+      flags.parallelMirrorNodeDeploy,
+      flags.useK8sAddressBook,
       flags.rollback,
     ],
   };
@@ -116,6 +118,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployExplorer,
       flags.deployRelay,
       flags.parallelMirrorNodeDeploy,
+      flags.useK8sAddressBook,
       flags.rollback,
     ],
   };
