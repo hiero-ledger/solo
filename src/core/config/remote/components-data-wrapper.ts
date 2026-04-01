@@ -266,6 +266,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     label: string,
     reuse: boolean = false,
     nodeId?: number,
+    persist: boolean = false,
   ): Promise<number> {
     // found component by cluster reference or nodeId
     let component: BaseStateSchema;
@@ -306,7 +307,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     const portForwardPortNumber: number = await k8Client
       .pods()
       .readByReference(podReference)
-      .portForward(localPort, podPort, reuse);
+      .portForward(localPort, podPort, reuse, persist);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
     logger.addMessageGroupMessage(
