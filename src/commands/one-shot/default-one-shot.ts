@@ -115,6 +115,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.parallelMirrorNodeDeploy,
       flags.rollback,
     ],
   };
@@ -649,65 +650,120 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<Listr<OneShotSingleDeployContext>> => {
               return task.newListr(
                 [
+                  // Step 0: Configure HikariCP before any concurrent deployment so that
+                  // config.mirrorNodeConfiguration is fully populated before mirror node
+                  // add runs (whether in parallel or sequential mode).
+                  {
+                    title: 'Configure HikariCP connection pool limits',
+                    skip: (): boolean => !config.deployMirrorNode,
+                    task: (): void => {
+                      // Limit HikariCP idle connections. minimumIdle defaults to maximumPoolSize when unset,
+                      // causing every component to hold maximumPoolSize idle connections even under no load.
+                      config.mirrorNodeConfiguration ??= {};
+                      const existingValuesFile: string = config.mirrorNodeConfiguration['--values-file'];
+                      config.mirrorNodeConfiguration['--values-file'] = existingValuesFile
+                        ? `${existingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
+                        : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
+                    },
+                  },
+                  // Step 1: Setup/start consensus node.  When --parallel-mirror-node-deploy is set,
+                  // mirror node add runs concurrently with consensus node setup/start — removing
+                  // the sequential dependency since mirror node deployment no longer requires a
+                  // running consensus node (no seedDbDataTask, address book falls back to k8s metadata).
                   {
                     title: 'Setup and Start consensus node',
-                    task: async (
+                    task: (
                       _: OneShotSingleDeployContext,
                       task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                    ): Promise<SoloListr<OneShotSingleDeployContext>> => {
+                    ): SoloListr<OneShotSingleDeployContext> => {
+                      if (config.parallelMirrorNodeDeploy && config.deployMirrorNode) {
+                        task.title += ' (parallel with mirror node)';
+                      }
                       return task.newListr(
                         [
                           {
-                            title: 'Configure HikariCP connection pool limits',
-                            skip: (): boolean => !config.deployMirrorNode,
-                            task: (): void => {
-                              // Limit HikariCP idle connections. minimumIdle defaults to maximumPoolSize when unset,
-                              // causing every component to hold maximumPoolSize idle connections even under no load.
-                              config.mirrorNodeConfiguration ??= {};
-                              const existingValuesFile: string = config.mirrorNodeConfiguration['--values-file'];
-                              config.mirrorNodeConfiguration['--values-file'] = existingValuesFile
-                                ? `${existingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
-                                : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
+                            title: 'Setup and Start consensus node',
+                            task: (
+                              _: OneShotSingleDeployContext,
+                              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                            ): SoloListr<OneShotSingleDeployContext> => {
+                              return task.newListr(
+                                [
+                                  invokeSoloCommand(
+                                    `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
+                                    ConsensusCommandDefinition.SETUP_COMMAND,
+                                    (): string[] => {
+                                      const argv: string[] = newArgv();
+                                      argv.push(
+                                        ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
+                                        optionFromFlag(Flags.deployment),
+                                        config.deployment,
+                                      );
+                                      this.appendConfigToArgv(argv, config.setupConfiguration);
+                                      return argvPushGlobalFlags(argv, config.cacheDir);
+                                    },
+                                    this.taskList,
+                                  ),
+                                  invokeSoloCommand(
+                                    `solo ${ConsensusCommandDefinition.START_COMMAND}`,
+                                    ConsensusCommandDefinition.START_COMMAND,
+                                    (): string[] => {
+                                      const argv: string[] = newArgv();
+                                      argv.push(
+                                        ...ConsensusCommandDefinition.START_COMMAND.split(' '),
+                                        optionFromFlag(Flags.deployment),
+                                        config.deployment,
+                                      );
+                                      this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
+                                      return argvPushGlobalFlags(argv);
+                                    },
+                                    this.taskList,
+                                  ),
+                                ],
+                                {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+                              );
                             },
                           },
+                          // Mirror node runs here only in parallel mode; in sequential mode it runs in Step 2.
+                          // Pass --use-k8s-address-book to avoid calling loadNodeClient (prepareAddressBookBase64),
+                          // which would conflict with consensus node start's loadNodeClient call on the shared
+                          // accountManager singleton, causing port-forward teardown races on port 30212.
                           invokeSoloCommand(
-                            `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
-                            ConsensusCommandDefinition.SETUP_COMMAND,
+                            `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
+                            MirrorCommandDefinition.ADD_COMMAND,
                             (): string[] => {
                               const argv: string[] = newArgv();
                               argv.push(
-                                ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
+                                ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
                                 optionFromFlag(Flags.deployment),
                                 config.deployment,
+                                optionFromFlag(Flags.clusterRef),
+                                config.clusterRef,
+                                optionFromFlag(Flags.pinger),
+                                optionFromFlag(Flags.enableIngress),
+                                optionFromFlag(Flags.useK8sAddressBook),
+                                'true',
                               );
-                              this.appendConfigToArgv(argv, config.setupConfiguration);
+                              this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
                               return argvPushGlobalFlags(argv, config.cacheDir);
                             },
                             this.taskList,
-                          ),
-                          invokeSoloCommand(
-                            `solo ${ConsensusCommandDefinition.START_COMMAND}`,
-                            ConsensusCommandDefinition.START_COMMAND,
-                            (): string[] => {
-                              const argv: string[] = newArgv();
-                              argv.push(
-                                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-                                optionFromFlag(Flags.deployment),
-                                config.deployment,
-                              );
-                              this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
-                              return argvPushGlobalFlags(argv);
-                            },
-                            this.taskList,
+                            (): boolean => !config.deployMirrorNode || !config.parallelMirrorNodeDeploy,
                           ),
                         ],
-                        {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+                        {
+                          concurrent: config.parallelMirrorNodeDeploy,
+                          rendererOptions: {collapseSubtasks: false},
+                        },
                       );
                     },
                   },
+                  // Step 2: extensions + accounts run concurrently after Step 1.
+                  // Mirror node add runs here in sequential mode (parallelMirrorNodeDeploy=false);
+                  // it is skipped here when already deployed in Step 1 (parallelMirrorNodeDeploy=true).
                   {
                     title: '',
-                    task: (_, task): SoloListr<OneShotSingleDeployContext> => {
+                    task: (_: OneShotSingleDeployContext, task: SoloListrTaskWrapper<OneShotSingleDeployContext>): SoloListr<OneShotSingleDeployContext> => {
                       return task.newListr(
                         [
                           {
@@ -737,12 +793,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       return argvPushGlobalFlags(argv, config.cacheDir);
                                     },
                                     this.taskList,
-                                    (): boolean => !config.deployMirrorNode,
+                                    // Skip if already deployed in parallel mode (Step 1)
+                                    (): boolean => !config.deployMirrorNode || config.parallelMirrorNodeDeploy,
                                   ),
                                   {
                                     title: 'Deploy Extensions',
                                     skip: (): boolean => config.minimalSetup,
-                                    task: (_, task): SoloListr<OneShotSingleDeployContext> => {
+                                    task: (_: OneShotSingleDeployContext, task: SoloListrTaskWrapper<OneShotSingleDeployContext>): SoloListr<OneShotSingleDeployContext> => {
                                       return task.newListr(
                                         [
                                           invokeSoloCommand(
@@ -803,7 +860,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               );
                             },
                           },
-                          // Pipeline B: create accounts (concurrent with Pipeline A)
+                          // Create accounts concurrently with mirror node/extensions (always after consensus node starts)
                           {
                             title: 'Create Accounts',
                             skip: (): boolean => config.predefinedAccounts === false,

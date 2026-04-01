@@ -23,6 +23,7 @@ export interface OneShotSingleDeployConfigClass {
   deployMirrorNode: boolean;
   deployExplorer: boolean;
   deployRelay: boolean;
+  parallelMirrorNodeDeploy: boolean;
   force: boolean;
   quiet: boolean;
   rollback: boolean;

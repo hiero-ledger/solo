@@ -19,7 +19,6 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
   type ClusterReferenceName,
-  type ClusterReferences,
   type ComponentId,
   type Context,
   type DeploymentName,
@@ -35,7 +34,6 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -250,6 +248,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.forcePortForward,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
+      flags.useK8sAddressBook,
     ],
   };
 
@@ -800,25 +799,41 @@ export class MirrorNodeCommand extends BaseCommand {
               task: async (context_): Promise<void> => {
                 const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
                 const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
-                try {
-                  // Prefer the on-chain address book (file 0.0.102) when the consensus node is
-                  // reachable – it contains additional fields (cert hashes, RSA keys) and
-                  // reflects any post-genesis address book updates.
-                  context_.addressBook = await this.accountManager.prepareAddressBookBase64(
-                    context_.config.namespace,
-                    this.remoteConfig.getClusterRefs(),
-                    deployment,
-                    this.configManager.getFlag(flags.operatorId),
-                    this.configManager.getFlag(flags.operatorKey),
-                    portForward,
-                  );
-                } catch (error) {
-                  // Consensus node not yet available (e.g. one-shot deployment where mirror node
-                  // is started before the consensus node is fully ready).  Build the address book
-                  // directly from Kubernetes service metadata so that deployment can proceed.
-                  this.logger.warn(
-                    `Could not fetch address book from consensus node: ${error.message}. ` +
-                      'Falling back to local k8s-based address book.',
+                const useK8sAddressBook: boolean = this.configManager.getFlag<boolean>(flags.useK8sAddressBook);
+
+                if (!useK8sAddressBook) {
+                  try {
+                    // Prefer the on-chain address book (file 0.0.102) when the consensus node is
+                    // reachable – it contains additional fields (cert hashes, RSA keys) and
+                    // reflects any post-genesis address book updates.
+                    context_.addressBook = await this.accountManager.prepareAddressBookBase64(
+                      context_.config.namespace,
+                      this.remoteConfig.getClusterRefs(),
+                      deployment,
+                      this.configManager.getFlag(flags.operatorId),
+                      this.configManager.getFlag(flags.operatorKey),
+                      portForward,
+                    );
+                  } catch (error) {
+                    // Consensus node not yet available (e.g. one-shot deployment where mirror node
+                    // is started before the consensus node is fully ready).  Build the address book
+                    // directly from Kubernetes service metadata so that deployment can proceed.
+                    this.logger.warn(
+                      `Could not fetch address book from consensus node: ${error.message}. ` +
+                        'Falling back to local k8s-based address book.',
+                    );
+                    context_.addressBook = await this.accountManager.buildAddressBookBase64(
+                      context_.config.namespace,
+                      this.remoteConfig.getClusterRefs(),
+                      deployment,
+                    );
+                  }
+                } else {
+                  // --use-k8s-address-book: skip on-chain query entirely.
+                  // Used when mirror node runs concurrently with consensus node start to avoid
+                  // port-forward conflicts on the shared accountManager singleton.
+                  this.logger.info(
+                    'Using k8s-based address book (--use-k8s-address-book set); skipping on-chain query.',
                   );
                   context_.addressBook = await this.accountManager.buildAddressBookBase64(
                     context_.config.namespace,
@@ -936,162 +951,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
-    };
-  }
-
-  private seedDbDataTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Seed DB data',
-      skip: ({config}: MirrorNodeDeployContext): boolean => config.isChartInstalled,
-      task: (_, parentTask): SoloListr<AnyListrContext> =>
-        parentTask.newListr(
-          [
-            {
-              title: 'Insert data in public.file_data',
-              task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
-                const namespace: NamespaceName = config.namespace;
-
-                const feesFileIdNumber: number = 111;
-                const exchangeRatesFileIdNumber: number = 112;
-                const timestamp: number = Date.now();
-
-                const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-                const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-                const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
-                const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
-                const feesEntityId: string = MirrorNodeCommand.encodeEntityId(
-                  Number(shard),
-                  Number(realm),
-                  feesFileIdNumber,
-                );
-                const exchangeRatesEntityId: string = MirrorNodeCommand.encodeEntityId(
-                  Number(shard),
-                  Number(realm),
-                  exchangeRatesFileIdNumber,
-                );
-
-                let fees: string;
-                let exchangeRates: string;
-                try {
-                  fees = await this.accountManager.getFileContents(
-                    namespace,
-                    feesFileIdNumber,
-                    clusterReferences,
-                    deployment,
-                    this.configManager.getFlag<boolean>(flags.forcePortForward),
-                  );
-                  exchangeRates = await this.accountManager.getFileContents(
-                    namespace,
-                    exchangeRatesFileIdNumber,
-                    clusterReferences,
-                    deployment,
-                    this.configManager.getFlag<boolean>(flags.forcePortForward),
-                  );
-                } catch (error) {
-                  this.logger.warn(
-                    `Could not fetch fee schedule and exchange rate files from consensus node: ${error.message}. ` +
-                      'Skipping database seeding – the mirror node importer will sync these files once the consensus node is available.',
-                  );
-                  return;
-                }
-
-                const importFeesQuery: string = `
-INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesEntityId}, 17);`;
-                const importExchangeRatesQuery: string = `
-INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesEntityId}, 17);`;
-
-                // When using an external database the importer's V1.0__Init.sql migration
-                // creates mirror_rest without the readonly role, so it lacks SELECT on any
-                // table added by a migration after V1.0.  Prepend a safe grant so that
-                // whoever runs this script (manually or via runSql) gives mirror_rest the
-                // access it needs.  The DO block is idempotent: it is a no-op when the
-                // grant already exists or when either role is absent.
-                const grantReadonlyQuery: string = `DO $grant$
-BEGIN
-  IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly')
-     AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest')
-  THEN
-    GRANT readonly TO mirror_rest;
-  END IF;
-END $grant$;`;
-
-                const sqlQuery: string = config.useExternalDatabase
-                  ? [grantReadonlyQuery, importFeesQuery, importExchangeRatesQuery].join('\n')
-                  : [importFeesQuery, importExchangeRatesQuery].join('\n');
-
-                const cacheDirectory: string = config.cacheDir;
-                // Build the path
-                const databaseSeedingQueryFileName: string = 'database-seeding-query.sql';
-                const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, databaseSeedingQueryFileName);
-
-                // Write the file database seeding query inside the cache
-                fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
-
-                // When useExternalDatabase flag is enabled, the query is not executed,
-                // but exported to the specified path inside the cache directory,
-                // and the user has the responsibility to execute it manually on his own
-                if (config.useExternalDatabase) {
-                  // Notify the user
-                  this.logger.showUser(
-                    chalk.cyan(
-                      'Please run the following SQL script against the external database ' +
-                        'to enable Mirror Node to function correctly:',
-                    ),
-                    chalk.yellow(databaseSeedingQueryPath),
-                  );
-
-                  return; //! stop the execution
-                }
-
-                const containerReference: ContainerReference =
-                  await this.postgresSharedResource.resolveContainerReference(namespace, config.clusterContext);
-                const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
-
-                const secrets: Secret[] = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .secrets()
-                  .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-                const sharedPostgresPasswordsSecret: Secret = secrets.find(
-                  (secret: Secret): boolean => secret.name === 'solo-shared-resources-passwords',
-                );
-
-                const mirrorPasswordsSecrets: Secret = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .secrets()
-                  .read(config.namespace, 'mirror-passwords');
-
-                const DB_OWNER: string = 'postgres';
-                const DB_OWNER_PASSWORD: string = Base64.decode(sharedPostgresPasswordsSecret.data['password']);
-                const MIRROR_IMPORTER_DB_NAME: string = Base64.decode(
-                  mirrorPasswordsSecrets.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
-                );
-
-                const targetDirectory: string = '/tmp';
-                const targetPath: string = `${targetDirectory}/${databaseSeedingQueryFileName}`;
-
-                await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference)
-                  .copyTo(databaseSeedingQueryPath, targetDirectory);
-
-                await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer([
-                    'psql',
-                    `postgresql://${DB_OWNER}:${DB_OWNER_PASSWORD}@127.0.0.1:5432/${MIRROR_IMPORTER_DB_NAME}`,
-                    '-f',
-                    targetPath,
-                  ]);
-              },
-            },
-          ],
-          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-        ),
     };
   }
 
@@ -1292,21 +1151,9 @@ END $grant$;`;
         },
         this.addMirrorNodeComponents(),
         this.enableSharedResourcesTask(),
-        {
-          title: 'load node client',
-          task: async ({config}): Promise<void> => {
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              config.deployment,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-          },
-        },
         this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
-        this.seedDbDataTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -1591,23 +1438,6 @@ END $grant$;`;
     return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
       ? 'hedera'
       : 'hiero';
-  }
-
-  /**
-   * Encodes a shard.realm.num entity ID into the integer form used by the mirror node database.
-   * Matches the encoding in EntityId.java: |10-bit shard|16-bit realm|38-bit num|
-   */
-  private static encodeEntityId(shard: number, realm: number, entityNumber: number): string {
-    if (shard === 0 && realm === 0) {
-      return String(entityNumber);
-    }
-    const NUM_BITS: bigint = 38n;
-    const REALM_BITS: bigint = 16n;
-    const encoded: bigint =
-      (BigInt(entityNumber) & ((1n << NUM_BITS) - 1n)) |
-      ((BigInt(realm) & ((1n << REALM_BITS) - 1n)) << NUM_BITS) |
-      (BigInt(shard) << (REALM_BITS + NUM_BITS));
-    return encoded.toString();
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

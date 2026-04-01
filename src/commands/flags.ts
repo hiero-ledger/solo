@@ -2884,6 +2884,31 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly parallelMirrorNodeDeploy: CommandFlag = {
+    constName: 'parallelMirrorNodeDeploy',
+    name: 'parallel-mirror-node-deploy',
+    definition: {
+      describe: 'Deploy mirror node in parallel with consensus node setup and start in one-shot deployments',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly useK8sAddressBook: CommandFlag = {
+    constName: 'useK8sAddressBook',
+    name: 'use-k8s-address-book',
+    definition: {
+      describe:
+        'Skip querying the on-chain address book (file 0.0.102) and build it directly from Kubernetes service ' +
+        'metadata instead. Required when deploying mirror node concurrently with consensus node startup to avoid ' +
+        'port-forward conflicts on the shared accountManager singleton.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3043,6 +3068,8 @@ export class Flags {
     Flags.deployMirrorNode,
     Flags.deployExplorer,
     Flags.deployRelay,
+    Flags.parallelMirrorNodeDeploy,
+    Flags.useK8sAddressBook,
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
