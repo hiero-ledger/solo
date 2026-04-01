@@ -39,10 +39,8 @@ import {Deployment} from '../../business/runtime-state/config/local/deployment.j
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
-import {ShellRunner} from '../../core/shell-runner.js';
-import fs from 'node:fs';
-import os from 'node:os';
 import {getSoloVersion} from '../../../version.js';
+import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -801,37 +799,29 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   /**
-   * Checks whether the GitHub CLI (`gh`) is available on the system PATH.
-   * @returns true if `gh` is installed and reachable, false otherwise
-   */
-  private async isGhCliAvailable(): Promise<boolean> {
-    try {
-      const shellRunner: ShellRunner = new ShellRunner(this.logger);
-      const command: string = os.platform() === 'win32' ? 'where' : 'which';
-      await shellRunner.run(command, ['gh']);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Collects diagnostic logs for the deployment and then creates a GitHub issue
-   * using the `gh` CLI with the collected information pre-filled.
+   * Collects a full debug archive for the deployment (logs + configs + zip) and
+   * then creates a GitHub issue using the `gh` CLI with the archive pre-attached.
    *
    * Steps:
-   *  1. Collect logs via `deployment diagnostics logs`
+   *  1. Collect logs and create a zip via `deployment diagnostics debug`
    *  2. Verify the `gh` CLI is installed
    *  3. Prompt the user to confirm issue creation (skipped in quiet mode)
-   *  4. Create a GitHub issue with a pre-filled title and body
+   *  4. Create a GitHub issue with a pre-filled title and body referencing the zip
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
 
     this.logger.showUser(chalk.cyan('\nCollecting diagnostic information...'));
-    await this.logs(argv);
 
-    if (!(await this.isGhCliAvailable())) {
+    // Determine the zip search directory before debug() runs so the timestamp
+    // boundary is correct even if outputDir resolves later.
+    const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
+    const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
+    const startTime: number = Date.now();
+
+    await this.debug(argv);
+
+    if (!(await DiagnosticsReporter.isGhCliAvailable(this.logger))) {
       throw new SoloError(
         'The GitHub CLI (gh) is required for this command but was not found.\n' +
           'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
@@ -840,43 +830,23 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     const deployment: string = this.resolveDeploymentFlag(argv);
+    const zipFilePath: string | undefined = DiagnosticsReporter.findLatestDebugZip(
+      zipSearchDirectory,
+      deployment,
+      startTime,
+    );
     const soloVersion: string = getSoloVersion();
     const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
     const issueTitle: string = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
-
-    let analysisContent: string = '';
-    const analysisFilePath: string = PathEx.join(constants.SOLO_LOGS_DIR, 'diagnostics-analysis.txt');
-    if (fs.existsSync(analysisFilePath)) {
-      analysisContent = fs.readFileSync(analysisFilePath, 'utf8');
-    }
-
-    const issueBody: string = [
-      '## Solo Diagnostic Report',
-      '',
-      `- **Solo Version**: ${soloVersion}`,
-      `- **Deployment**: ${deployment || '(not specified)'}`,
-      `- **Timestamp**: ${timestamp}`,
-      `- **Platform**: ${os.platform()} ${os.release()}`,
-      `- **Node.js**: ${process.version}`,
-      `- **Diagnostic logs**: ${constants.SOLO_LOGS_DIR}`,
-      '',
-      '## Diagnostics Analysis',
-      '',
-      analysisContent ? '```\n' + analysisContent + '\n```' : '_No analysis available_',
-      '',
-      '## Description',
-      '',
-      '_Please describe the issue you encountered..._',
-      '',
-      '## Steps to Reproduce',
-      '',
-      '_Please list the steps to reproduce the issue..._',
-    ].join('\n');
+    const issueBody: string = DiagnosticsReporter.buildIssueBody({soloVersion, deployment, timestamp, zipFilePath});
 
     const isQuiet: boolean = (argv[flags.quiet.name] as boolean) === true;
     if (!isQuiet) {
       this.logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
       this.logger.showUser(chalk.cyan(`  Issue title: ${issueTitle}`));
+      if (zipFilePath) {
+        this.logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
+      }
 
       const confirmed: boolean = await confirmPrompt({
         message: 'Create a GitHub issue with the diagnostic information?',
@@ -886,33 +856,15 @@ export class NodeCommandHandlers extends CommandHandler {
       if (!confirmed) {
         this.logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
         this.logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`));
+        if (zipFilePath) {
+          this.logger.showUser(chalk.cyan(`Debug archive: ${zipFilePath}`));
+        }
         return false;
       }
     }
 
     this.logger.showUser(chalk.cyan('\nCreating GitHub issue...'));
-    const shellRunner: ShellRunner = new ShellRunner(this.logger);
-    try {
-      const output: string[] = await shellRunner.run('gh', [
-        'issue',
-        'create',
-        '--repo',
-        'hiero-ledger/solo',
-        '--title',
-        issueTitle,
-        '--body',
-        issueBody,
-      ]);
-
-      const issueUrl: string = output.find(line => line.startsWith('https://')) ?? output.at(-1) ?? '';
-      this.logger.showUser(chalk.green('\n✓ GitHub issue created successfully!'));
-      if (issueUrl) {
-        this.logger.showUser(chalk.cyan(`  Issue URL: ${issueUrl}`));
-      }
-      this.logger.showUser(chalk.cyan(`  Diagnostic logs: ${constants.SOLO_LOGS_DIR}`));
-    } catch (error: Error | unknown) {
-      throw new SoloError(`Failed to create GitHub issue: ${(error as Error).message}`, error as Error);
-    }
+    await DiagnosticsReporter.createGitHubIssue(this.logger, issueTitle, issueBody, zipFilePath);
 
     return true;
   }
