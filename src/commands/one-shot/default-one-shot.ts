@@ -761,9 +761,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       );
                     },
                   },
-                  // Step 2: extensions + accounts run concurrently after Step 1.
-                  // Mirror node add runs here in sequential mode (parallelMirrorNodeDeploy=false);
-                  // it is skipped here when already deployed in Step 1 (parallelMirrorNodeDeploy=true).
+                  // Step 2: When parallelMirrorNodeDeploy=true, MN was already deployed in Step 1, so here
+                  // extensions and accounts run concurrently (no heavy MN resource pressure).
+                  // When parallelMirrorNodeDeploy=false, MN deploys here first, then accounts run after —
+                  // serializing avoids resource contention (CN fully loaded + MN starting + concurrent account creation
+                  // causes "All nodes are unhealthy" SDK errors on resource-constrained local clusters).
                   {
                     title: '',
                     task: (_: OneShotSingleDeployContext, task: SoloListrTaskWrapper<OneShotSingleDeployContext>): SoloListr<OneShotSingleDeployContext> => {
@@ -863,7 +865,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               );
                             },
                           },
-                          // Create accounts concurrently with mirror node/extensions (always after consensus node starts)
+                          // In parallel mode: accounts run concurrently with extensions (MN already done in Step 1).
+                          // In sequential mode: accounts run after MN+extensions complete (serialized to avoid contention).
                           {
                             title: 'Create Accounts',
                             skip: (): boolean => config.predefinedAccounts === false,
@@ -954,7 +957,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             },
                           },
                         ],
-                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                        {concurrent: config.parallelMirrorNodeDeploy, rendererOptions: {collapseSubtasks: false}},
                       );
                     },
                   },
