@@ -185,15 +185,12 @@ export class NodeCommandConfigs {
       }
 
       // Compare target version against the version stored in remote config
-      const currentConsensusVersion: SemanticVersion<string> =
-        this.remoteConfig.configuration.versions.consensusNode;
-      if (!currentConsensusVersion.equals('0.0.0')) {
-        if (semVersion.lessThanOrEqual(currentConsensusVersion)) {
-          throw new SoloError(
-            `Consensus node upgrade target version ${context_.config.upgradeVersion} is not newer than the current version ${currentConsensusVersion.toString()} stored in remote config. ` +
-              'Use --upgrade-version to specify a version newer than the currently deployed version.',
-          );
-        }
+      const currentConsensusVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+      if (!currentConsensusVersion.equals('0.0.0') && semVersion.lessThanOrEqual(currentConsensusVersion)) {
+        throw new SoloError(
+          `Consensus node upgrade target version ${context_.config.upgradeVersion} is not newer than the current version ${currentConsensusVersion.toString()} stored in remote config. ` +
+            'Use --upgrade-version to specify a version newer than the currently deployed version.',
+        );
       }
     }
 

@@ -1371,8 +1371,9 @@ END $grant$;`;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
 
-            const currentMirrorNodeVersion: SemanticVersion<string> | null =
-              this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
+            const currentMirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+              ComponentTypes.MirrorNode,
+            );
             if (currentMirrorNodeVersion && !currentMirrorNodeVersion.equals('0.0.0')) {
               const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
                 config.mirrorNodeVersion,

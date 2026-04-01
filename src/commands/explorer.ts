@@ -785,8 +785,9 @@ export class ExplorerCommand extends BaseCommand {
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
-            const currentExplorerVersion: SemanticVersion<string> | null =
-              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
+            const currentExplorerVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+              ComponentTypes.Explorer,
+            );
             if (currentExplorerVersion && !currentExplorerVersion.equals('0.0.0')) {
               const targetExplorerVersion: SemanticVersion<string> = new SemanticVersion<string>(
                 config.explorerVersion,
