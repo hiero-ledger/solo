@@ -1864,6 +1864,11 @@ export class NodeCommandTasks {
               const startCommand: string = [
                 // Mark the service as intentionally enabled so s6-rc autostart picks it up on restart.
                 `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+                // Bring the service down first (idempotent). This is necessary for the upgrade
+                // restart case: after FREEZE_COMPLETE the JVM exits cleanly, but s6-rc still
+                // considers the service "up", so a plain s6-rc -u is a no-op and the node never
+                // restarts. Cycling through down→up forces s6-rc to re-launch the process.
+                '/command/s6-rc -d change network-node 2>/dev/null || true',
                 // Try s6-rc first (s6-overlay v3 with s6-rc service definition).
                 // Fall back to legacy s6-svc if the service is not registered in s6-rc
                 // (old container images using /etc/services.d/).
