@@ -409,6 +409,14 @@ export class RelayCommand extends BaseCommand {
         // wait for the pod to destroy in case it was an upgrade
         if (commandType === RelayCommandType.UPGRADE) {
           await helpers.sleep(Duration.ofSeconds(40));
+
+          // update relay version in remote config after successful upgrade
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.RelayNodes,
+            new SemanticVersion<string>(config.relayReleaseTag),
+          );
+
+          await this.remoteConfig.persist();
         }
 
         // Add component to remote config
