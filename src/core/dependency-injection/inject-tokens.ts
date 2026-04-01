@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
+import {DockerClient} from '../../integration/container-engine/docker-client.js';
+
 /**
  * Dependency injection tokens
  */
@@ -59,6 +62,7 @@ export class InjectTokens {
   public static MirrorNodeCommand: symbol = Symbol.for('MirrorNodeCommand');
   public static NetworkCommand: symbol = Symbol.for('NetworkCommand');
   public static RelayCommand: symbol = Symbol.for('RelayCommand');
+  public static CacheCommand: symbol = Symbol.for('CacheCommand');
   public static ClusterCommandTasks: symbol = Symbol.for('ClusterCommandTasks');
   public static ClusterCommandHandlers: symbol = Symbol.for('ClusterCommandHandlers');
   public static NodeCommandTasks: symbol = Symbol.for('NodeCommandTasks');
@@ -94,6 +98,14 @@ export class InjectTokens {
   public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
   public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');
 
+  // Cache
+  public static CacheHandlerRegistry: symbol = Symbol.for('CacheHandlerRegistry');
+  public static CacheCatalogStore: symbol = Symbol.for('CacheCatalogStore');
+  public static CacheCoordinator: symbol = Symbol.for('CacheCoordinator');
+  public static CacheHealthInspector: symbol = Symbol.for('CacheHealthInspector');
+  public static ImageCacheHandlerBuilder: symbol = Symbol.for('ImageCacheHandlerBuilder');
+  public static DockerClient: symbol = Symbol.for('DockerClient');
+
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
@@ -105,6 +117,7 @@ export class InjectTokens {
   public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
+  public static CacheCommandDefinition: symbol = Symbol.for('CacheCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
   public static RapidFireCommandDefinition: symbol = Symbol.for('RapidFireCommandDefinition');
 }

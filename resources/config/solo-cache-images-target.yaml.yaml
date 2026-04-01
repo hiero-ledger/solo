@@ -1,0 +1,156 @@
+images:
+  - name: docker.io/bitnamilegacy/postgresql-repmgr
+    version: 17.6.0-debian-12-r2
+    source: docker.io
+
+  - name: docker.io/curlimages/curl
+    version: 8.9.1
+    source: docker.io
+
+  - name: docker.io/envoyproxy/envoy
+    version: v1.21.1
+    source: docker.io
+
+  - name: docker.io/haproxytech/haproxy-alpine
+    version: 2.4.25
+    source: docker.io
+
+  - name: docker.io/kindest/kindnetd
+    version: v20241212-9f82dd49
+    source: docker.io
+
+  - name: docker.io/kindest/local-path-helper
+    version: v20241212-8ac705d0
+    source: docker.io
+
+  - name: docker.io/kindest/local-path-provisioner
+    version: v20241212-8ac705d0
+    source: docker.io
+
+  - name: docker.io/library/busybox
+    version: 1.36.1
+    source: docker.io
+
+  - name: docker.io/library/busybox
+    version: latest
+    source: docker.io
+
+  - name: docker.io/library/ubuntu
+    version: noble
+    source: docker.io
+
+  - name: docker.io/otel/opentelemetry-collector-contrib
+    version: 0.72.0
+    source: docker.io
+
+  - name: gcr.io/mirrornode/hedera-mirror-grpc
+    version: 0.146.0
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/hedera-mirror-importer
+    version: 0.146.0
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/hedera-mirror-monitor
+    version: 0.146.0
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/hedera-mirror-rest-java
+    version: 0.146.0
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/hedera-mirror-rest
+    version: 0.146.0
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/hedera-mirror-web3
+    version: 0.146.0
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/redis-sentinel
+    version: 8.2.2
+    source: gcr.io
+
+  - name: gcr.io/mirrornode/redis
+    version: 8.2.2
+    source: gcr.io
+
+  - name: ghcr.io/hashgraph/solo-cheetah/cheetah
+    version: 0.3.4
+    source: ghcr.io
+
+  - name: ghcr.io/hashgraph/solo-containers/ubi8-init-java21
+    version: 0.41.2
+    source: ghcr.io
+
+  - name: ghcr.io/hiero-ledger/hiero-block-node
+    version: 0.26.2
+    source: ghcr.io
+
+  - name: ghcr.io/hiero-ledger/hiero-json-rpc-relay
+    version: 0.73.0
+    source: ghcr.io
+
+  - name: ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer
+    version: 26.0.0
+    source: ghcr.io
+
+  - name: quay.io/jcmoraisjr/haproxy-ingress
+    version: v0.14.5
+    source: quay.io
+
+  - name: quay.io/minio/minio
+    version: RELEASE.2024-08-03T04-33-23Z
+    source: quay.io
+
+  - name: quay.io/minio/operator-sidecar
+    version: v7.0.1
+    source: quay.io
+
+  - name: quay.io/minio/operator
+    version: v7.1.1
+    source: quay.io
+
+  - name: registry.k8s.io/coredns/coredns
+    version: v1.11.3
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/etcd
+    version: 3.5.15-0
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-apiserver-arm64
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-apiserver
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-controller-manager-arm64
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-controller-manager
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-proxy-arm64
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-proxy
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-scheduler-arm64
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/kube-scheduler
+    version: v1.31.4
+    source: registry.k8s.io
+
+  - name: registry.k8s.io/metrics-server/metrics-server
+    version: v0.8.0
+    source: registry.k8s.io

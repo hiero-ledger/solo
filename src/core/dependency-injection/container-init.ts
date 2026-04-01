@@ -96,6 +96,8 @@ import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
+import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
+import {CacheCommand} from '../../commands/cache.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -164,6 +166,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
+      new SingletonContainer(InjectTokens.CacheCommand, CacheCommand),
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
@@ -200,6 +203,7 @@ export class Container {
       new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
+      new SingletonContainer(InjectTokens.CacheCommandDefinition, CacheCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
       new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];

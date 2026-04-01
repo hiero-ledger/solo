@@ -2884,6 +2884,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- Cache --------------- //
+
+  public static readonly dockerImagesTargetPath: CommandFlag = {
+    constName: 'dockerImagesTargetPath',
+    name: 'docker-images-target-path',
+    definition: {
+      describe: 'Path to file containing all images to be pulled or loaded into cluster',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
