@@ -41,8 +41,22 @@ function setup_smart_contract_test ()
   echo "PRIVATE_KEYS=\"$CONTRACT_TEST_KEYS\"" > .env
   echo "RETRY_DELAY=5000 # ms" >> .env
   echo "MAX_RETRY=5" >> .env
-  echo "RELAY_ENDPOINT=http://localhost:37546" >> .env
   cat .env
+
+  # Override the hardcoded legacy ports in constants.js (7546, 50211, 8081) with
+  # Solo's current port-forward scheme (37546, 35211, 38081).  The upstream repo
+  # keeps the old defaults so other tests are unaffected; we patch in-place after
+  # cloning to produce the correct environment for this smoke test run.
+  node -e "
+    const fs = require('fs');
+    let c = fs.readFileSync('utils/constants.js', 'utf8');
+    c = c.replace(\"url: 'http://localhost:7546'\",         \"url: 'http://localhost:37546'\");
+    c = c.replace(\"networkNodeUrl: '127.0.0.1:50211'\",    \"networkNodeUrl: '127.0.0.1:35211'\");
+    c = c.replace(\"mirrorNode: 'http://127.0.0.1:8081'\",  \"mirrorNode: 'http://127.0.0.1:38081'\");
+    fs.writeFileSync('utils/constants.js', c);
+    console.log('Patched utils/constants.js with Solo port-forward addresses');
+  "
+
   cd -
 }
 

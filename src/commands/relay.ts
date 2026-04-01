@@ -399,7 +399,7 @@ export class RelayCommand extends BaseCommand {
           config.releaseName,
           constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
-          '', // relay.image.tag is used to set the version
+          config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
           config.valuesArg,
           config.context,
         );

@@ -288,8 +288,16 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     } else if (component.metadata.portForwardConfigs) {
       for (const portForwardConfig of component.metadata.portForwardConfigs) {
         if (reuse === true && portForwardConfig.podPort === podPort) {
-          logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
-          return portForwardConfig.localPort;
+          if (portForwardConfig.localPort === localPort) {
+            logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
+            return portForwardConfig.localPort;
+          }
+          // localPort changed (migration) — remove stale config and fall through to set up new port-forward
+          logger.showUser(`${label} Port forward migrating from ${portForwardConfig.localPort} to ${localPort}`);
+          component.metadata.portForwardConfigs = component.metadata.portForwardConfigs.filter(
+            (c): boolean => !(c.podPort === podPort && c.localPort === portForwardConfig.localPort),
+          );
+          break;
         }
       }
     }
