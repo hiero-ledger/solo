@@ -768,7 +768,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   // causes "All nodes are unhealthy" SDK errors on resource-constrained local clusters).
                   {
                     title: '',
-                    task: (_: OneShotSingleDeployContext, task: SoloListrTaskWrapper<OneShotSingleDeployContext>): SoloListr<OneShotSingleDeployContext> => {
+                    task: (
+                      _: OneShotSingleDeployContext,
+                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                    ): SoloListr<OneShotSingleDeployContext> => {
                       return task.newListr(
                         [
                           {
@@ -804,7 +807,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                   {
                                     title: 'Deploy Extensions',
                                     skip: (): boolean => config.minimalSetup,
-                                    task: (_: OneShotSingleDeployContext, task: SoloListrTaskWrapper<OneShotSingleDeployContext>): SoloListr<OneShotSingleDeployContext> => {
+                                    task: (
+                                      _: OneShotSingleDeployContext,
+                                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                                    ): SoloListr<OneShotSingleDeployContext> => {
                                       return task.newListr(
                                         [
                                           invokeSoloCommand(

@@ -784,7 +784,7 @@ export class MirrorNodeCommand extends BaseCommand {
         );
       },
       skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+        config.useExternalDatabase || config.installSharedResources === false,
     };
   }
 
