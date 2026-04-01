@@ -777,6 +777,20 @@ export class ExplorerCommand extends BaseCommand {
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
+            const currentExplorerVersion: SemanticVersion<string> | null =
+              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer);
+            if (currentExplorerVersion && !currentExplorerVersion.equals('0.0.0')) {
+              const targetExplorerVersion: SemanticVersion<string> = new SemanticVersion<string>(
+                config.explorerVersion,
+              );
+              if (targetExplorerVersion.lessThanOrEqual(currentExplorerVersion)) {
+                throw new SoloError(
+                  `Explorer upgrade target version ${config.explorerVersion} is not newer than the current version ${currentExplorerVersion.toString()} stored in remote config. ` +
+                    'Use --explorer-version to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
+
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
             if (!this.oneShotState.isActive()) {

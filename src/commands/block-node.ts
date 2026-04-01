@@ -808,6 +808,17 @@ export class BlockNodeCommand extends BaseCommand {
             config.currentVersion =
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.toString() ?? '0.0.0';
 
+            if (config.currentVersion !== '0.0.0') {
+              const currentSemVer: SemanticVersion<string> = new SemanticVersion<string>(config.currentVersion);
+              const targetSemVer: SemanticVersion<string> = new SemanticVersion<string>(config.upgradeVersion);
+              if (targetSemVer.lessThanOrEqual(currentSemVer)) {
+                throw new SoloError(
+                  `Block node upgrade target version ${config.upgradeVersion} is not newer than the current version ${config.currentVersion} stored in remote config. ` +
+                    'Use --upgrade-version to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
