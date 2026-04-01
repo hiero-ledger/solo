@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {Exclude, Expose} from 'class-transformer';
+
+@Exclude()
+export class WrapsSchema {
+  @Expose()
+  public artifactsFolderName: string;
+
+  @Expose()
+  public directoryName: string;
+
+  @Expose()
+  public allowedKeyFiles: string;
+
+  // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
+  // If directoryName is updated, update libraryDownloadUrl to match.
+  @Expose()
+  public libraryDownloadUrl: string;
+
+  public constructor(
+    artifactsFolderName?: string,
+    directoryName?: string,
+    allowedKeyFiles?: string,
+    libraryDownloadUrl?: string,
+  ) {
+    this.artifactsFolderName = artifactsFolderName ?? 'wraps-v0.2.0';
+    this.directoryName = directoryName ?? 'wraps-v0.2.0';
+    this.allowedKeyFiles = allowedKeyFiles ?? 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
+    this.libraryDownloadUrl =
+      libraryDownloadUrl ?? 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz';
+  }
+}

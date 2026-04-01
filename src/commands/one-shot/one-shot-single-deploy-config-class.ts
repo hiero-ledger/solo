@@ -34,4 +34,5 @@ export interface OneShotSingleDeployConfigClass {
   noExplorer: boolean;
   // explorerType selects which explorer to deploy: 'mirror-node' (default) or 'blockscout'.
   explorerType: string;
+  parallelDeploy: boolean;
 }

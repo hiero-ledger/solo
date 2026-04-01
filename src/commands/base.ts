@@ -36,8 +36,12 @@ import {Templates} from '../core/templates.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {NodeCommandTasks} from './node/tasks.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
+import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
 
 export abstract class BaseCommand extends ShellRunner {
+  public readonly soloConfig: SoloConfig;
+
   public constructor(
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory?: K8Factory,
@@ -52,6 +56,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
     @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
     @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
+    @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
   ) {
     super();
 
@@ -67,6 +72,8 @@ export abstract class BaseCommand extends ShellRunner {
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.nodeCommandTasks = patchInject(nodeCommandTasks, InjectTokens.NodeCommandTasks, this.constructor.name);
+    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.soloConfig = SoloConfig.getConfig(this.configProvider);
   }
 
   protected async loadRemoteConfigOrWarn(
