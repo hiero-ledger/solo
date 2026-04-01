@@ -189,9 +189,11 @@ describe('SemanticVersion', (): void => {
         new SemanticVersion('1.0.0'),
       ];
 
-      for (let i: number = 0; i < versions.length - 1; i++) {
-        expect(versions[i].lessThan(versions[i + 1]), `${versions[i]} should be less than ${versions[i + 1]}`).to.be
-          .true;
+      for (let index: number = 0; index < versions.length - 1; index++) {
+        expect(
+          versions[index].lessThan(versions[index + 1]),
+          `${versions[index]} should be less than ${versions[index + 1]}`,
+        ).to.be.true;
       }
     });
   });
