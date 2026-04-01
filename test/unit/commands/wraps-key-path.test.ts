@@ -49,7 +49,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     downloaderStub = {fetchPackage: sinon.stub().resolves()};
     zippyStub = {untar: sinon.stub()};
 
-    const remoteConfigStub = {
+    const remoteConfigStub: {configuration: {state: {wrapsEnabled: boolean}}; isLoaded: any} = {
       configuration: {state: {wrapsEnabled: true}},
       isLoaded: sinon.stub().returns(true),
     };
@@ -69,7 +69,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     nodeCommandTasks = container.resolve<NodeCommandTasks>(InjectTokens.NodeCommandTasks);
 
     // Load the config sources so TSS/WRAPS values are available via ConfigProvider
-    const configProvider = container.resolve<ConfigProvider>(InjectTokens.ConfigProvider);
+    const configProvider: ConfigProvider = container.resolve<ConfigProvider>(InjectTokens.ConfigProvider);
     await configProvider.config().refresh();
   });
 
@@ -170,13 +170,13 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 
 describe('TssSchema WRAPS defaults', (): void => {
   it('allowedKeyFiles default should contain the expected file names', (): void => {
-    const wraps = new WrapsSchema(
+    const wraps: WrapsSchema = new WrapsSchema(
       'wraps-v0.2.0',
       'wraps-v0.2.0',
       'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
       'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
     );
-    const tss = new TssSchema(undefined, undefined, undefined, undefined, undefined, wraps);
+    const tss: TssSchema = new TssSchema(undefined, undefined, undefined, undefined, undefined, wraps);
     const files: string[] = (tss.wraps?.allowedKeyFiles ?? '').split(',');
     expect(files).to.have.members(['decider_pp.bin', 'decider_vp.bin', 'nova_pp.bin', 'nova_vp.bin']);
   });
