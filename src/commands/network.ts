@@ -24,6 +24,7 @@ import {
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
@@ -994,64 +995,11 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
-   * Fetch a URL with exponential-backoff retry on HTTP 429 (Too Many Requests).
-   * Retries up to maxRetries times; waits retryDelayMs * 2^attempt milliseconds between attempts.
-   *
-   * @param extraHeaders - additional HTTP headers to include in every attempt (e.g. Accept for the GitHub API)
-   */
-  private async fetchWithRetry(
-    url: string,
-    maxRetries: number = 5,
-    retryDelayMs: number = 2000,
-    extraHeaders: Record<string, string> = {},
-  ): Promise<Response> {
-    const headers: Record<string, string> = {...extraHeaders};
-
-    // When running inside GitHub Actions, GITHUB_TOKEN is automatically injected into
-    // every job.  Sending it as a Bearer token authenticates the request against the
-    // GitHub API, which raises the documented rate limit from 60 to 5 000 req/hour.
-    // We only attach it when the variable is present so local developer runs are unaffected.
-    if (process.env.GITHUB_TOKEN) {
-      headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
-
-    let lastError: Error | undefined;
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const response: Response = await fetch(url, {headers});
-      if (response.status !== 429) {
-        return response;
-      }
-      lastError = new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
-      if (attempt < maxRetries) {
-        const delay: number = retryDelayMs * 2 ** attempt;
-        this.logger.warn(
-          `Received 429 Too Many Requests from ${url}; retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`,
-        );
-        await new Promise<void>(resolve => setTimeout(resolve, delay));
-      }
-    }
-    throw lastError;
-  }
-
-  /**
    * Ensure the PodLogs CRD from Grafana Alloy is installed
    */
   private async ensurePodLogsCrd({contexts}: NetworkDeployConfigClass): Promise<void> {
     const PODLOGS_CRD: string = 'podlogs.monitoring.grafana.com';
-    const CRD_FILE_PATH: string = 'operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml';
-
-    // Use the GitHub Contents API (api.github.com) instead of raw.githubusercontent.com.
-    //
-    // Why: raw.githubusercontent.com is served by the Fastly CDN and its rate-limiting
-    // behaviour for unauthenticated requests is undocumented — adding a token there may
-    // have no effect.  The Contents API, on the other hand, is part of the GitHub REST API
-    // (api.github.com) whose rate limits are well-documented: 60 req/hour unauthenticated
-    // vs 5 000 req/hour when a valid token is supplied.  Since GITHUB_TOKEN is injected
-    // automatically into every GitHub Actions job, CI runs always get the higher limit,
-    // making 429s far less likely in the first place.
-    const CRD_URL: string =
-      `https://api.github.com/repos/grafana/alloy/contents/${CRD_FILE_PATH}` +
-      `?ref=${versions.GRAFANA_PODLOGS_CRD_VERSION}`;
+    const CRD_URL: string = `https://raw.githubusercontent.com/grafana/alloy/${versions.GRAFANA_PODLOGS_CRD_VERSION}/operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml`;
 
     for (const context of contexts as string[]) {
       const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
@@ -1062,34 +1010,17 @@ export class NetworkCommand extends BaseCommand {
 
       this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
 
-      const temporaryFile: string = PathEx.join(
-        constants.SOLO_CACHE_DIR,
-        `podlogs-crd-${versions.GRAFANA_PODLOGS_CRD_VERSION}.yaml`,
-      );
+      const temporaryFile: string = PathEx.join(os.tmpdir(), 'podlogs-crd.yaml');
 
-      // Download and cache the CRD YAML.  The cache file is keyed by the CRD version so
-      // it is automatically invalidated when GRAFANA_PODLOGS_CRD_VERSION is bumped.
-      // SOLO_CACHE_DIR persists across job steps (unlike os.tmpdir() which is ephemeral),
-      // ensuring we only make one network request per job even if multiple contexts need
-      // the CRD installed.
+      // download YAML from GitHub
       if (!fs.existsSync(temporaryFile)) {
-        // The GitHub Contents API returns a JSON envelope; the file content is base64-encoded
-        // inside the "content" field.  We request application/vnd.github.v3+json so the
-        // response is always the metadata+content JSON object rather than the raw bytes
-        // (the raw media type bypasses the API rate-limit accounting we want).
-        const response: Response = await this.fetchWithRetry(CRD_URL, 5, 2000, {
-          Accept: 'application/vnd.github.v3+json',
-        });
+        const response: Response = await fetch(CRD_URL);
 
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
         }
 
-        // The "content" field contains the file's base64 content with newline characters
-        // inserted every 60 characters by GitHub.  Strip all whitespace before decoding
-        // so Buffer.from() receives a clean base64 string.
-        const json: {content: string} = (await response.json()) as {content: string};
-        const yamlContent: string = Buffer.from(json.content.replaceAll(/\s/g, ''), 'base64').toString('utf8');
+        const yamlContent: string = await response.text();
         fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
       }
 

@@ -178,8 +178,6 @@ import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 
-import {DiagnosticsAnalyzer} from './diagnostics-analyzer.js';
-
 const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
