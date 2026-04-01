@@ -11,22 +11,14 @@ import {type Refreshable} from '../spi/refreshable.js';
  */
 export class DefaultConfigSource<T extends object> extends LayeredModelConfigSource<T> implements Refreshable {
   private readonly data: Map<string, string>;
-  private readonly _sourceName: string;
 
-  public constructor(
-    fileName: string,
-    basePath: string,
-    schema: SchemaDefinition<T>,
-    mapper: ObjectMapper,
-    sourceName: string = 'DefaultConfigSource',
-  ) {
+  public constructor(fileName: string, basePath: string, schema: SchemaDefinition<T>, mapper: ObjectMapper) {
     super(fileName, schema, new YamlFileStorageBackend(basePath), mapper);
     this.data = new Map<string, string>();
-    this._sourceName = sourceName;
   }
 
   public get name(): string {
-    return this._sourceName;
+    return this.constructor.name;
   }
 
   public get ordinal(): number {
