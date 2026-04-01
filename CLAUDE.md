@@ -76,9 +76,25 @@ The codebase follows a layered, command-driven architecture with dependency inje
 
 ## Environment Variable Documentation
 
-When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update `docs/site/content/en/docs/env.md` to reflect the change. This does not apply to environment variables used only in the `test/` directory.
+There are two categories of environment variables to keep in sync with `docs/site/content/en/docs/env.md`. This requirement does NOT apply to variables used only in the `test/` directory.
 
-Each entry in `env.md` should include the variable name, a short description of its purpose, and its default value (as defined in the source).
+### 1. Direct env vars
+
+When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update `env.md`. Each entry must include the variable name, a short description, and its default value (as defined in the source).
+
+### 2. Config-system env vars
+
+The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows environment variables to override any `@Expose()`d field on `SoloConfigSchema` and its nested schemas (`HelmChartSchema`, `TssSchema`, `WrapsSchema`). When adding, renaming, or removing `@Expose()`d properties on these schema classes, update `env.md` to reflect the corresponding env var.
+
+**Naming convention:** Each camelCase property name segment is converted to `UPPER-KEBAB-CASE` (dashes separate words within a segment); schema object nesting levels are joined with `_`; the whole thing is prefixed with `SOLO_`.
+
+| Config property path | Env var |
+|---|---|
+| `helmChart.directory` | `SOLO_HELM-CHART_DIRECTORY` |
+| `tss.readyMaxAttempts` | `SOLO_TSS_READY-MAX-ATTEMPTS` |
+| `tss.wraps.libraryDownloadUrl` | `SOLO_TSS_WRAPS_LIBRARY-DOWNLOAD-URL` |
+
+This is **not** the same as plain `UPPER_SNAKE_CASE` — dashes within a segment represent camelCase word boundaries, not underscores.
 
 ## Architecture and Design
 
