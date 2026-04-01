@@ -1818,18 +1818,13 @@ export class NodeCommandTasks {
               await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
 
               const startCommand: string = [
-                // Mark the service as intentionally enabled and clear the s6 "down" file
-                // so the supervisor will allow it to run.
+                // Mark the service as intentionally enabled so s6-rc autostart picks it up on restart.
                 `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
-                'rm -f /run/service/network-node/down',
-                // Reset any lingering supervisor state, then signal s6 to bring the service up.
-                // Both commands use || true because the service may already be in the target state.
-                '/command/s6-svc -d /run/service/network-node || true',
-                '/command/s6-svc -u /run/service/network-node || true',
-                // s6-svc -u is fire-and-forget, so poll until the supervisor reports "up"
-                // and the JVM process is visible — equivalent to systemctl's synchronous start.
+                // Bring the service up via s6-rc (the s6-overlay v3 service manager).
+                '/command/s6-rc -u change network-node',
+                // Poll until the JVM process is visible — s6-rc returns before the app is fully ready.
                 `for attempt in $(seq 1 ${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}); do`,
-                "  /command/s6-svstat /run/service/network-node | grep -q '^up' && ps -ef | grep -q '[j]ava' && exit 0",
+                "  ps -ef | grep -q '[j]ava' && exit 0",
                 '  sleep 1',
                 'done',
                 'exit 1',
@@ -2135,10 +2130,10 @@ export class NodeCommandTasks {
                   'bash',
                   '-c',
                   [
-                    // Remove the enabled flag so s6 won't restart the service after it stops.
+                    // Remove the enabled flag so s6-rc autostart won't restart the service on container restart.
                     `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
-                    // -D sends SIGTERM and writes the down file, preventing s6 from auto-restarting.
-                    '/command/s6-svc -D /run/service/network-node',
+                    // Bring the service down via s6-rc (the s6-overlay v3 service manager).
+                    '/command/s6-rc -d change network-node',
                   ].join('\n'),
                 ]);
 
