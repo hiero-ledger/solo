@@ -694,6 +694,18 @@ export class RelayCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
+            const currentRelayVersion: SemanticVersion<string> | null =
+              this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
+            if (currentRelayVersion && !currentRelayVersion.equals('0.0.0')) {
+              const targetRelayVersion: SemanticVersion<string> = new SemanticVersion<string>(config.relayReleaseTag);
+              if (targetRelayVersion.lessThanOrEqual(currentRelayVersion)) {
+                throw new SoloError(
+                  `Relay upgrade target version ${config.relayReleaseTag} is not newer than the current version ${currentRelayVersion.toString()} stored in remote config. ` +
+                    'Use --relay-release to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
