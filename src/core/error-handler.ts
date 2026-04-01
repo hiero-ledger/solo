@@ -35,6 +35,12 @@ export class ErrorHandler {
 
   private handleError(error: Error | any): void {
     this.logger.showUserError(error);
+    this.logger.showUser(
+      '\n💡 Tip: To collect diagnostic information and help debug this issue, you can run:\n' +
+        '   solo deployment diagnostics logs\n' +
+        'Or to collect logs and create a GitHub issue in one step:\n' +
+        '   solo deployment diagnostics report\n',
+    );
   }
 
   /**
