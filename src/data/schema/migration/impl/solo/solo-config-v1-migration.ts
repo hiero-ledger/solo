@@ -5,6 +5,8 @@ import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
+import {type TssSchema} from '../../../model/solo/tss-schema.js';
+import {type HelmChartSchema} from '../../../model/common/helm-chart-schema.js';
 
 export class SoloConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -41,7 +43,7 @@ export class SoloConfigV1Migration implements SchemaMigration {
     return clone;
   }
 
-  private getNewTssObject(): object {
+  private getNewTssObject(): TssSchema {
     return {
       messageSizeSoftLimitBytes: 4_194_304,
       messageSizeHardLimitBytes: 37_748_736,
@@ -58,7 +60,7 @@ export class SoloConfigV1Migration implements SchemaMigration {
     };
   }
 
-  private getNewHelmChartObject(): object {
+  private getNewHelmChartObject(): HelmChartSchema {
     return {
       name: undefined,
       namespace: undefined,
