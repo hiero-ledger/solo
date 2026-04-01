@@ -50,38 +50,16 @@ export class HelmChartSchema {
     ingressControllerName?: string,
     ingressControllerPrefix?: string,
   ) {
-    if (name !== undefined) {
-      this.name = name;
-    }
-    if (namespace !== undefined) {
-      this.namespace = namespace;
-    }
-    if (release !== undefined) {
-      this.release = release;
-    }
-    if (repository !== undefined) {
-      this.repository = repository;
-    }
-    if (directory !== undefined) {
-      this.directory = directory;
-    }
-    if (version !== undefined) {
-      this.version = version;
-    }
-    if (labelSelector !== undefined) {
-      this.labelSelector = labelSelector;
-    }
-    if (containerName !== undefined) {
-      this.containerName = containerName;
-    }
-    if (ingressClassName !== undefined) {
-      this.ingressClassName = ingressClassName;
-    }
-    if (ingressControllerName !== undefined) {
-      this.ingressControllerName = ingressControllerName;
-    }
-    if (ingressControllerPrefix !== undefined) {
-      this.ingressControllerPrefix = ingressControllerPrefix;
-    }
+    this.name ||= name;
+    this.namespace ||= namespace;
+    this.release ||= release;
+    this.repository ||= repository;
+    this.directory ||= directory;
+    this.version ||= version;
+    this.labelSelector ||= labelSelector;
+    this.containerName ||= containerName;
+    this.ingressClassName ||= ingressClassName;
+    this.ingressControllerName ||= ingressControllerName;
+    this.ingressControllerPrefix ||= ingressControllerPrefix;
   }
 }
