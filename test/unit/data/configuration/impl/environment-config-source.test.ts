@@ -6,8 +6,8 @@ import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-
 import {type ObjectMapper} from '../../../../../src/data/mapper/api/object-mapper.js';
 import {container} from 'tsyringe-neo';
 
-describe('EnvironmentConfigSource', () => {
-  it('test prefix is working correctly', async () => {
+describe('EnvironmentConfigSource', (): void => {
+  it('test prefix is working correctly', async (): Promise<void> => {
     const environment: NodeJS.ProcessEnv = process.env;
     try {
       process.env.ENV_NBR42_TRUE = '42';

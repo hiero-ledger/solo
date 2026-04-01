@@ -14,6 +14,10 @@ import {ReleaseItem} from '../../integration/helm/model/release/release-item.js'
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+
+const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
+  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
+};
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -168,6 +172,11 @@ import {PackageDownloader} from '../../core/package-downloader.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
 import {CommandFlag} from '../../types/flag-types.js';
 import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
+import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
+import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
+import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
+
+import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -175,6 +184,8 @@ export type LeaseWrapper = {lease: Lock};
 
 @injectable()
 export class NodeCommandTasks {
+  private readonly soloConfig: SoloConfig;
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -192,6 +203,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
+    @inject(InjectTokens.ConfigProvider) configProvider: ConfigProvider,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -208,6 +220,8 @@ export class NodeCommandTasks {
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
     this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
+    configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.soloConfig = SoloConfig.getConfig(configProvider);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -272,7 +286,7 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | null = null;
+        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | undefined = undefined;
 
         fileTransaction =
           start === 0
@@ -300,22 +314,23 @@ export class NodeCommandTasks {
     configManager: ConfigManager,
     localDataLibraryBuildPath: string,
   ): Promise<void> {
-    const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
-    };
-
-    await k8
+    const container: Container = k8
       .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, filterFunction);
+      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
+
+    // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
+    await container.execContainer([
+      'bash',
+      '-c',
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/data/lib/*.jar ${constants.HEDERA_HAPI_PATH}/data/apps/*.jar`,
+    ]);
+
+    await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
         if (fs.existsSync(jsonFile)) {
-          await k8
-            .containers()
-            .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-            .copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
+          await container.copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
         }
       }
     }
@@ -1530,7 +1545,7 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Waiting for node: ${node.name}`,
             task: async (_, task): Promise<void> => {
-              const maxAttempts: number = constants.TSS_READY_MAX_ATTEMPTS;
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
               let attempt: number = 0;
               let success: boolean = false;
 
@@ -1549,10 +1564,10 @@ export class NodeCommandTasks {
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
                 if (output.includes('TSS protocol ready to sign blocks')) {
-                  await sleep(Duration.ofSeconds(constants.TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS));
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
                   success = true;
                 } else {
-                  await sleep(Duration.ofSeconds(constants.TSS_READY_BACKOFF_SECONDS));
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
                 }
               }
 
@@ -1896,6 +1911,7 @@ export class NodeCommandTasks {
               'Consensus Node gRPC',
               config.isChartInstalled, // Reuse existing port if chart is already installed
               nodeId,
+              true, // persist: auto-restart on failure using persist-port-forward.js
             );
           }
           await this.remoteConfig.persist();
@@ -3086,7 +3102,8 @@ export class NodeCommandTasks {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
         const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
         if (wrapsKeyPath) {
@@ -3099,7 +3116,7 @@ export class NodeCommandTasks {
             fs.mkdirSync(extractedDirectory, {recursive: true});
           }
 
-          const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+          const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
           for (const file of fs.readdirSync(wrapsKeyPath)) {
             if (allowedFiles.has(file)) {
@@ -3108,7 +3125,7 @@ export class NodeCommandTasks {
           }
         } else {
           await this.downloader.fetchPackage(
-            constants.WRAPS_LIB_DOWNLOAD_URL,
+            wraps.libraryDownloadUrl,
             'unusued', // doesn't check checksum
             constants.SOLO_CACHE_DIR,
             false,
@@ -3116,7 +3133,7 @@ export class NodeCommandTasks {
             false,
           );
 
-          const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
+          const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
 
           // Create extraction dir
           fs.mkdirSync(extractedDirectory);
@@ -3131,7 +3148,7 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${constants.WRAPS_DIRECTORY_NAME}`;
+          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
           if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
@@ -3343,7 +3360,8 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
       }
@@ -3433,7 +3451,8 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-      const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+      const wraps: Wraps = this.soloConfig.tss.wraps;
+      const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
       valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
     }
@@ -3484,7 +3503,8 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-          const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+          const wraps: Wraps = this.soloConfig.tss.wraps;
+          const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
           valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
         }
@@ -4059,6 +4079,23 @@ export class NodeCommandTasks {
         }
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
+      },
+    };
+  }
+
+  public analyzeCollectedDiagnostics(
+    customOutputDirectory: string = '',
+    namespaceName?: string,
+  ): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Analyze collected logs for common failures',
+      task: async (context_): Promise<void> => {
+        try {
+          const resolvedNamespace: string | undefined = namespaceName ?? context_?.config?.namespace?.name;
+          new DiagnosticsAnalyzer(this.logger).analyze(customOutputDirectory, resolvedNamespace);
+        } catch (error) {
+          this.logger.warn(`Failed to analyze collected diagnostics: ${(error as Error).message}`);
+        }
       },
     };
   }

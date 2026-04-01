@@ -79,6 +79,10 @@ export abstract class LayeredConfigSource implements ConfigSource {
       throw new ConfigurationError('class constructor is required');
     }
 
+    if (!this.forest) {
+      return null;
+    }
+
     try {
       let object: object = null;
 
