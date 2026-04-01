@@ -2889,7 +2889,7 @@ export class Flags {
     name: 'parallel-mirror-node-deploy',
     definition: {
       describe: 'Deploy mirror node in parallel with consensus node setup and start in one-shot deployments',
-      defaultValue: false,
+      defaultValue: true,
       type: 'boolean',
     },
     prompt: undefined,
@@ -2903,7 +2903,7 @@ export class Flags {
         'Skip querying the on-chain address book (file 0.0.102) and build it directly from Kubernetes service ' +
         'metadata instead. Required when deploying mirror node concurrently with consensus node startup to avoid ' +
         'port-forward conflicts on the shared accountManager singleton.',
-      defaultValue: false,
+      defaultValue: true,
       type: 'boolean',
     },
     prompt: undefined,
