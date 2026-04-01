@@ -702,8 +702,9 @@ export class RelayCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
-            const currentRelayVersion: SemanticVersion<string> | null =
-              this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes);
+            const currentRelayVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+              ComponentTypes.RelayNodes,
+            );
             if (currentRelayVersion && !currentRelayVersion.equals('0.0.0')) {
               const targetRelayVersion: SemanticVersion<string> = new SemanticVersion<string>(config.relayReleaseTag);
               if (targetRelayVersion.lessThanOrEqual(currentRelayVersion)) {
