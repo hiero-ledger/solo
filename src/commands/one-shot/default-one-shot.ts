@@ -793,7 +793,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       return argvPushGlobalFlags(argv);
                                     },
                                     this.taskList,
-                                    (): boolean => (!config.deployRelay && !config.minimalSetup) || true,
+                                    (): boolean => !config.deployRelay && !config.minimalSetup,
                                   ),
                                 ],
                                 {concurrent: true, rendererOptions: {collapseSubtasks: false}},

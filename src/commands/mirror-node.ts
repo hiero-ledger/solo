@@ -507,6 +507,13 @@ export class MirrorNodeCommand extends BaseCommand {
         'web3.db.password': readonlyPassword,
         'rest.db.password': readonlyPassword,
       });
+    } else {
+      // Only set the host. All passwords and usernames are
+      // generated and persisted by the mirror-node chart via the mirror-passwords secret.
+      // initializeMirrorNode() reads from that secret so everything stays consistent.
+      valuesArgument += helpers.populateHelmArguments({
+        'db.host': `solo-shared-resources-postgres.${config.namespace.name}.svc.cluster.local`,
+      });
     }
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
@@ -723,17 +730,6 @@ export class MirrorNodeCommand extends BaseCommand {
                       context_.config.namespace,
                       context_.config.clusterContext,
                     );
-                  },
-                },
-                {
-                  title: 'Set database connection details',
-                  task: (context_: MirrorNodeDeployContext): void => {
-                    // Only set the host. All passwords and usernames are
-                    // generated and persisted by the mirror-node chart via the mirror-passwords secret.
-                    // initializeMirrorNode() reads from that secret so everything stays consistent.
-                    context_.config.valuesArg += helpers.populateHelmArguments({
-                      'db.host': `solo-shared-resources-postgres.${context_.config.namespace.name}.svc.cluster.local`,
-                    });
                   },
                 },
               ];
@@ -1269,7 +1265,6 @@ END $grant$;`;
           },
         },
         this.addMirrorNodeComponents(),
-        this.enableSharedResourcesTask(),
         {
           title: 'load node client',
           task: async ({config}): Promise<void> => {
@@ -1281,7 +1276,22 @@ END $grant$;`;
             );
           },
         },
-        this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
+        {
+          title: 'Deploy charts',
+          task: (_, parentTask): SoloListr<AnyListrContext> => {
+            const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+              this.enableSharedResourcesTask(),
+              this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
+            ];
+
+            return parentTask.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+        },
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.seedDbDataTask(),
