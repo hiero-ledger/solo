@@ -292,7 +292,14 @@ jobs:
 
           if [ -n "$COLD" ] && [ -n "$WARM" ]; then
             DIFF=$(( COLD - WARM ))
-            echo "| Improvement | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$DIFF" -gt 0 ]; then
+              echo "| Improvement | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
+            elif [ "$DIFF" -lt 0 ]; then
+              DELTA=$(( -DIFF ))
+              echo "| Improvement | ${DELTA}s slower on warm start |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| Improvement | No difference between cold and warm start |" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
