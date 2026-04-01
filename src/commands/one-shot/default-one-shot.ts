@@ -414,11 +414,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 // Explorer is opt-in in EVM mode: only deploy when --explorer is explicitly
                 // passed.  --skip-explorer (or simply omitting --explorer) skips it, saving
                 // ~20s on cold start for headless/CI environments.
-                if (config.explorerType && !config.noExplorer) {
-                  config.deployExplorer = true;
-                } else {
-                  config.deployExplorer = false;
-                }
+                config.deployExplorer = Boolean(config.explorerType && !config.noExplorer);
 
                 // Validate the requested explorer type.  Currently only mirror-node is
                 // implemented; blockscout support is reserved for a future release.
