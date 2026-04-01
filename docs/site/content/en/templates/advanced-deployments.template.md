@@ -134,7 +134,7 @@ See the [Falcon example](../examples/one-shot-falcon/) for a complete configurat
 
 ## EVM Deployment
 
-EVM deployment is a one-command solution optimised for smart-contract developers. It deploys a consensus node, mirror node, JSON-RPC relay, and mirror-node explorer, and creates 20 pre-funded ECDSA alias accounts.
+EVM deployment is a one-command solution optimised for smart-contract developers. It deploys a consensus node, mirror node, and JSON-RPC relay, and creates 20 pre-funded ECDSA alias accounts. The mirror-node explorer is opt-in (pass `--explorer mirror-node` to include it).
 
 ### Basic EVM Deployment
 
@@ -144,19 +144,27 @@ solo one-shot single deploy --evm \
   --cluster-ref kind-evm-cluster
 ```
 
+The convenience alias `solo one-shot evm deploy` is equivalent:
+
+```bash
+solo one-shot evm deploy \
+  --deployment evm-deployment \
+  --cluster-ref kind-evm-cluster
+```
+
 ### EVM Deployment Variants
 
 ```bash
-# Without explorer
-solo one-shot single deploy --evm --skip-explorer \
-  --deployment evm-deployment --cluster-ref kind-evm-cluster
-
-# Explicitly select mirror-node explorer
+# With mirror-node explorer (opt-in)
 solo one-shot single deploy --evm --explorer mirror-node \
   --deployment evm-deployment --cluster-ref kind-evm-cluster
 
 # Request Blockscout explorer (falls back to mirror-node)
 solo one-shot single deploy --evm --explorer blockscout \
+  --deployment evm-deployment --cluster-ref kind-evm-cluster
+
+# Explicitly skip explorer (equivalent to the default)
+solo one-shot single deploy --evm --skip-explorer \
   --deployment evm-deployment --cluster-ref kind-evm-cluster
 ```
 
