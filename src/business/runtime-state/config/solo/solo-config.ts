@@ -5,6 +5,7 @@ import {type Facade} from '../../facade/facade.js';
 import {SoloConfigSchema} from '../../../../data/schema/model/solo/solo-config-schema.js';
 import {HelmChart} from '../common/helm-chart.js';
 import {Tss} from './tss.js';
+import {type ConfigProvider} from '../../../../data/configuration/api/config-provider.js';
 
 export class SoloConfig implements Facade<SoloConfigSchema> {
   public readonly encapsulatedObject: SoloConfigSchema;
@@ -23,6 +24,10 @@ export class SoloConfig implements Facade<SoloConfigSchema> {
     this._clusterSetupHelmChart = new HelmChart(this.encapsulatedObject.clusterSetupHelmChart);
     this._certManagerHelmChart = new HelmChart(this.encapsulatedObject.certManagerHelmChart);
     this._tss = new Tss(this.encapsulatedObject.tss);
+  }
+
+  public static getConfig(configProvider: ConfigProvider): SoloConfig {
+    return new SoloConfig(configProvider.config().asObject(SoloConfigSchema));
   }
 
   public get helmChart(): HelmChart {

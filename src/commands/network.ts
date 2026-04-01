@@ -79,9 +79,6 @@ import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
-import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
-import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
-import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
 export interface NetworkDeployConfigClass {
@@ -178,7 +175,6 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
-    @inject(InjectTokens.ConfigProvider) private readonly configProvider: ConfigProvider,
   ) {
     super();
 
@@ -188,7 +184,6 @@ export class NetworkCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
-    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -501,8 +496,8 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const wrapsArtifacts: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wrapsArtifacts.artifactsFolderName}`;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
       }
@@ -1511,7 +1506,7 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+            const wraps: Wraps = this.soloConfig.tss.wraps;
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
             if (config.wrapsKeyPath) {
