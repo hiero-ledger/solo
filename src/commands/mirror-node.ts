@@ -801,7 +801,19 @@ export class MirrorNodeCommand extends BaseCommand {
                 const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
                 const useK8sAddressBook: boolean = this.configManager.getFlag<boolean>(flags.useK8sAddressBook);
 
-                if (!useK8sAddressBook) {
+                if (useK8sAddressBook) {
+                  // --use-k8s-address-book: skip on-chain query entirely.
+                  // Used when mirror node runs concurrently with consensus node start to avoid
+                  // port-forward conflicts on the shared accountManager singleton.
+                  this.logger.info(
+                    'Using k8s-based address book (--use-k8s-address-book set); skipping on-chain query.',
+                  );
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
+                    context_.config.namespace,
+                    this.remoteConfig.getClusterRefs(),
+                    deployment,
+                  );
+                } else {
                   try {
                     // Prefer the on-chain address book (file 0.0.102) when the consensus node is
                     // reachable – it contains additional fields (cert hashes, RSA keys) and
@@ -828,18 +840,6 @@ export class MirrorNodeCommand extends BaseCommand {
                       deployment,
                     );
                   }
-                } else {
-                  // --use-k8s-address-book: skip on-chain query entirely.
-                  // Used when mirror node runs concurrently with consensus node start to avoid
-                  // port-forward conflicts on the shared accountManager singleton.
-                  this.logger.info(
-                    'Using k8s-based address book (--use-k8s-address-book set); skipping on-chain query.',
-                  );
-                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
-                    context_.config.namespace,
-                    this.remoteConfig.getClusterRefs(),
-                    deployment,
-                  );
                 }
                 context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
               },
