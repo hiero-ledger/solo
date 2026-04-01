@@ -1512,10 +1512,7 @@ export class NetworkCommand extends BaseCommand {
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
             const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
-            const extractedDirectory: string = PathEx.join(
-              constants.SOLO_CACHE_DIR,
-              wraps.directoryName,
-            );
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
             if (config.wrapsKeyPath) {
               // Use user-provided local directory containing WRAPs proving key files
@@ -1549,10 +1546,7 @@ export class NetworkCommand extends BaseCommand {
                   false,
                 );
 
-                const tarFilePath: string = PathEx.join(
-                  constants.SOLO_CACHE_DIR,
-                  `${wraps.directoryName}.tar.gz`,
-                );
+                const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
 
                 // Create extraction dir
                 fs.mkdirSync(extractedDirectory);

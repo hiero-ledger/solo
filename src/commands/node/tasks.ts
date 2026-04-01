@@ -3094,10 +3094,7 @@ export class NodeCommandTasks {
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
         const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
-        const extractedDirectory: string = PathEx.join(
-          constants.SOLO_CACHE_DIR,
-          wraps.directoryName,
-        );
+        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
         const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
         if (wrapsKeyPath) {
@@ -3127,10 +3124,7 @@ export class NodeCommandTasks {
             false,
           );
 
-          const tarFilePath: string = PathEx.join(
-            constants.SOLO_CACHE_DIR,
-            `${wraps.directoryName}.tar.gz`,
-          );
+          const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
 
           // Create extraction dir
           fs.mkdirSync(extractedDirectory);
