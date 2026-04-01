@@ -27,6 +27,7 @@ export class WrapsSchema {
     this.artifactsFolderName = artifactsFolderName ?? 'wraps-v0.2.0';
     this.directoryName = directoryName ?? 'wraps-v0.2.0';
     this.allowedKeyFiles = allowedKeyFiles ?? 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
-    this.libraryDownloadUrl = libraryDownloadUrl ?? 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz';
+    this.libraryDownloadUrl =
+      libraryDownloadUrl ?? 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz';
   }
 }
