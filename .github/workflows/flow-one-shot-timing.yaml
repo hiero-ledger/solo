@@ -30,30 +30,30 @@ on:
         required: false
         default: false
       consensus-node-version:
-        description: "Consensus node version"
+        description: "Consensus node version (leave empty for version.ts default)"
         type: string
         required: false
-        default: "v0.71.0"
+        default: ""
       block-node-version:
-        description: "Block node chart version"
+        description: "Block node chart version (leave empty for version.ts default)"
         type: string
         required: false
-        default: "v0.28.1"
+        default: ""
       mirror-node-version:
-        description: "Mirror node version"
+        description: "Mirror node version (leave empty for version.ts default)"
         type: string
         required: false
-        default: "v0.149.0"
+        default: ""
       relay-version:
-        description: "JSON RPC Relay version"
+        description: "JSON RPC Relay version (leave empty for version.ts default)"
         type: string
         required: false
-        default: "0.75.0"
+        default: ""
       explorer-version:
-        description: "Explorer version"
+        description: "Explorer version (leave empty for version.ts default)"
         type: string
         required: false
-        default: "26.0.0"
+        default: ""
 
 defaults:
   run:
@@ -125,6 +125,37 @@ jobs:
           ${{ steps.solo-cmd.outputs.cmd }} init --dev
           export PATH=~/.solo/bin:${PATH}
 
+      - name: Resolve Versions
+        id: versions
+        run: |
+          # Read defaults from version.ts and allow input overrides
+          DEFAULT_CN=$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+          DEFAULT_BN=$(awk -F"'" '/^export const BLOCK_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
+          DEFAULT_MN=$(awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
+          DEFAULT_RELAY=$(awk -F"'" '/^export const HEDERA_JSON_RPC_RELAY_VERSION/ {print $(NF-1); exit}' version.ts)
+          DEFAULT_EXPLORER=$(awk -F"'" '/^export const EXPLORER_VERSION/ {print $(NF-1); exit}' version.ts)
+
+          CN_VERSION="${{ inputs.consensus-node-version }}"
+          BN_VERSION="${{ inputs.block-node-version }}"
+          MN_VERSION="${{ inputs.mirror-node-version }}"
+          RELAY_VERSION="${{ inputs.relay-version }}"
+          EXPLORER_VERSION="${{ inputs.explorer-version }}"
+
+          echo "cn-version=${CN_VERSION:-$DEFAULT_CN}" >> "$GITHUB_OUTPUT"
+          echo "bn-version=${BN_VERSION:-$DEFAULT_BN}" >> "$GITHUB_OUTPUT"
+          echo "mn-version=${MN_VERSION:-$DEFAULT_MN}" >> "$GITHUB_OUTPUT"
+          echo "relay-version=${RELAY_VERSION:-$DEFAULT_RELAY}" >> "$GITHUB_OUTPUT"
+          echo "explorer-version=${EXPLORER_VERSION:-$DEFAULT_EXPLORER}" >> "$GITHUB_OUTPUT"
+
+          echo "### Resolved Versions" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Component | Version |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Consensus Node | ${CN_VERSION:-$DEFAULT_CN} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Block Node | ${BN_VERSION:-$DEFAULT_BN} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mirror Node | ${MN_VERSION:-$DEFAULT_MN} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Relay | ${RELAY_VERSION:-$DEFAULT_RELAY} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Explorer | ${EXPLORER_VERSION:-$DEFAULT_EXPLORER} |" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Java and Gradle (for local build)
         if: ${{ inputs.use-local-build == true }}
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -137,7 +168,7 @@ jobs:
         if: ${{ inputs.use-local-build == true }}
         timeout-minutes: 30
         run: |
-          CN_VERSION="${{ inputs.consensus-node-version }}"
+          CN_VERSION="${{ steps.versions.outputs.cn-version }}"
           echo "Building consensus node at version: $CN_VERSION"
 
           CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
@@ -156,45 +187,33 @@ jobs:
           }
           echo "Consensus node build complete."
 
-      - name: Log Versions
-        id: versions
-        run: |
-          echo "### Resolved Versions" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Component | Version |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-----------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Consensus Node | ${{ inputs.consensus-node-version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Block Node | ${{ inputs.block-node-version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Mirror Node | ${{ inputs.mirror-node-version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Relay | ${{ inputs.relay-version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Explorer | ${{ inputs.explorer-version }} |" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Generate Values File
         id: values-file
         run: |
           VALUES_FILE="/tmp/one-shot-timing-values.yaml"
           {
             echo "network:"
-            echo "  --release-tag: \"${{ inputs.consensus-node-version }}\""
+            echo "  --release-tag: \"${{ steps.versions.outputs.cn-version }}\""
             echo "  --tss: \"true\""
             echo ""
             if [ "${{ inputs.use-local-build }}" = "true" ]; then
               CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
               echo "setup:"
               echo "  --local-build-path: \"${CN_REPO_DIR}/hedera-node/data\""
-              echo "  --release-tag: \"${{ inputs.consensus-node-version }}\""
+              echo "  --release-tag: \"${{ steps.versions.outputs.cn-version }}\""
               echo ""
             fi
             echo "blockNode:"
-            echo "  --chart-version: \"${{ inputs.block-node-version }}\""
+            echo "  --chart-version: \"${{ steps.versions.outputs.bn-version }}\""
             echo ""
             echo "mirrorNode:"
-            echo "  --mirror-node-version: \"${{ inputs.mirror-node-version }}\""
+            echo "  --mirror-node-version: \"${{ steps.versions.outputs.mn-version }}\""
             echo ""
             echo "relay:"
-            echo "  --relay-release: \"${{ inputs.relay-version }}\""
+            echo "  --relay-release: \"${{ steps.versions.outputs.relay-version }}\""
             echo ""
             echo "explorer:"
-            echo "  --explorer-version: \"${{ inputs.explorer-version }}\""
+            echo "  --explorer-version: \"${{ steps.versions.outputs.explorer-version }}\""
           } > "$VALUES_FILE"
           echo "Generated values file:"
           cat "$VALUES_FILE"
