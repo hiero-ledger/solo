@@ -239,7 +239,7 @@ After deployment, your network services are automatically available at:
 > local port map configurations or if the default ports were already in use during deployment.
 > Review the output of `solo one-shot single deploy` to confirm your active endpoints.
 
-Open http://localhost:8080 in your browser to explore your network.
+Open http://localhost:38080 in your browser to explore your network.
 
 #### Discovering and Verifying Active Ports
 

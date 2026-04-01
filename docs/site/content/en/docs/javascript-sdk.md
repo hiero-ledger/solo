@@ -210,7 +210,7 @@ The output would be similar to:
 ```
 
 You can use Hiero Explorer to check transactions and topics created in the Solo network:
-<http://localhost:8080/localnet/dashboard>
+<http://localhost:38080/localnet/dashboard>
 
 Finally, after done with using solo, using the following command to tear down the Solo network:
 
