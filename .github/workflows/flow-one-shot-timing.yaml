@@ -30,30 +30,30 @@ on:
         required: false
         default: false
       consensus-node-version:
-        description: "Consensus node version (e.g. v0.72.0-rc.4). Leave empty for default."
+        description: "Consensus node version"
         type: string
         required: false
-        default: ""
+        default: "v0.71.0"
       block-node-version:
-        description: "Block node chart version (e.g. 0.29.0). Leave empty for default."
+        description: "Block node chart version"
         type: string
         required: false
-        default: ""
+        default: "v0.28.1"
       mirror-node-version:
-        description: "Mirror node version (e.g. v0.151.0). Leave empty for default."
+        description: "Mirror node version"
         type: string
         required: false
-        default: ""
+        default: "v0.149.0"
       relay-version:
-        description: "JSON RPC Relay version (e.g. 0.75.0). Leave empty for default."
+        description: "JSON RPC Relay version"
         type: string
         required: false
-        default: ""
+        default: "0.75.0"
       explorer-version:
-        description: "Explorer version (e.g. 26.0.0). Leave empty for default."
+        description: "Explorer version"
         type: string
         required: false
-        default: ""
+        default: "26.0.0"
 
 defaults:
   run:
@@ -138,9 +138,6 @@ jobs:
         timeout-minutes: 30
         run: |
           CN_VERSION="${{ inputs.consensus-node-version }}"
-          if [ -z "$CN_VERSION" ]; then
-            CN_VERSION=$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
-          fi
           echo "Building consensus node at version: $CN_VERSION"
 
           CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
@@ -159,46 +156,27 @@ jobs:
           }
           echo "Consensus node build complete."
 
-      - name: Read Default Versions
+      - name: Log Versions
         id: versions
         run: |
-          # Read defaults from version.ts and allow input overrides
-          DEFAULT_CN=$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_BN=$(awk -F"'" '/^export const BLOCK_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_MN=$(awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_RELAY=$(awk -F"'" '/^export const HEDERA_JSON_RPC_RELAY_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_EXPLORER=$(awk -F"'" '/^export const EXPLORER_VERSION/ {print $(NF-1); exit}' version.ts)
-
-          CN_VERSION="${{ inputs.consensus-node-version }}"
-          BN_VERSION="${{ inputs.block-node-version }}"
-          MN_VERSION="${{ inputs.mirror-node-version }}"
-          RELAY_VERSION="${{ inputs.relay-version }}"
-          EXPLORER_VERSION="${{ inputs.explorer-version }}"
-
-          echo "cn-version=${CN_VERSION:-$DEFAULT_CN}" >> "$GITHUB_OUTPUT"
-          echo "bn-version=${BN_VERSION:-$DEFAULT_BN}" >> "$GITHUB_OUTPUT"
-          echo "mn-version=${MN_VERSION:-$DEFAULT_MN}" >> "$GITHUB_OUTPUT"
-          echo "relay-version=${RELAY_VERSION:-$DEFAULT_RELAY}" >> "$GITHUB_OUTPUT"
-          echo "explorer-version=${EXPLORER_VERSION:-$DEFAULT_EXPLORER}" >> "$GITHUB_OUTPUT"
-
           echo "### Resolved Versions" >> "$GITHUB_STEP_SUMMARY"
           echo "| Component | Version |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-----------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Consensus Node | ${CN_VERSION:-$DEFAULT_CN} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Block Node | ${BN_VERSION:-$DEFAULT_BN} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Mirror Node | ${MN_VERSION:-$DEFAULT_MN} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Relay | ${RELAY_VERSION:-$DEFAULT_RELAY} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Explorer | ${EXPLORER_VERSION:-$DEFAULT_EXPLORER} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Consensus Node | ${{ inputs.consensus-node-version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Block Node | ${{ inputs.block-node-version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mirror Node | ${{ inputs.mirror-node-version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Relay | ${{ inputs.relay-version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Explorer | ${{ inputs.explorer-version }} |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build Deploy Arguments
         id: deploy-args
         run: |
           ARGS=""
-          ARGS="$ARGS --release-tag ${{ steps.versions.outputs.cn-version }}"
-          ARGS="$ARGS --block-node-chart-version ${{ steps.versions.outputs.bn-version }}"
-          ARGS="$ARGS --mirror-node-version ${{ steps.versions.outputs.mn-version }}"
-          ARGS="$ARGS --relay-release ${{ steps.versions.outputs.relay-version }}"
-          ARGS="$ARGS --explorer-version ${{ steps.versions.outputs.explorer-version }}"
+          ARGS="$ARGS --release-tag ${{ inputs.consensus-node-version }}"
+          ARGS="$ARGS --block-node-chart-version ${{ inputs.block-node-version }}"
+          ARGS="$ARGS --mirror-node-version ${{ inputs.mirror-node-version }}"
+          ARGS="$ARGS --relay-release ${{ inputs.relay-version }}"
+          ARGS="$ARGS --explorer-version ${{ inputs.explorer-version }}"
 
           if [ "${{ inputs.use-local-build }}" = "true" ]; then
             CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
