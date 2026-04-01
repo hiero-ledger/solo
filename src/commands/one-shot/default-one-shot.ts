@@ -192,10 +192,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
   }
 
-  // EVM profile entry-point: `solo one-shot single deploy --evm [--skip-explorer] [--explorer <type>]`
-  // Delegates to the shared deployInternal with the EVM flag list so that all EVM-specific
-  // options are registered and parsed correctly before the deploy tasks run.
+  // EVM profile entry-point: `solo one-shot evm deploy [--skip-explorer] [--explorer <type>]`
+  // Forces evm=true so users do not have to type --evm explicitly when using the
+  // `one-shot evm` subcommand, then delegates to the shared deployInternal with the
+  // EVM flag list so all EVM-specific options are registered and parsed correctly.
   public async deployEvm(argv: ArgvStruct): Promise<boolean> {
+    argv.evm = true;
     return this.deployInternal(argv, DefaultOneShotCommand.EVM_DEPLOY_FLAGS_LIST);
   }
 
@@ -407,12 +409,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 config.deployMirrorNode = true;
                 config.deployRelay = true;
 
-                // Explorer defaults to ON in EVM mode (mirror-node explorer).
-                // --skip-explorer overrides this, letting users skip it for minimal setups.
-                if (config.noExplorer) {
-                  config.deployExplorer = false;
+                // Explorer is opt-in in EVM mode: only deploy when --explorer is explicitly
+                // passed.  --skip-explorer (or simply omitting --explorer) skips it, saving
+                // ~20s on cold start for headless/CI environments.
+                if (config.explorerType && !config.noExplorer) {
+                  config.deployExplorer = true;
                 } else {
-                  config.deployExplorer = config.deployExplorer === false ? false : true;
+                  config.deployExplorer = false;
                 }
 
                 // Validate the requested explorer type.  Currently only mirror-node is
@@ -846,102 +849,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               );
                             },
                           },
-                          // Pipeline B: create accounts (concurrent with Pipeline A)
-                          {
-                            title: 'Create Accounts',
-                            skip: (): boolean => config.predefinedAccounts === false,
-                            task: async (
-                              _: OneShotSingleDeployContext,
-                              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                            ): Promise<Listr<OneShotSingleDeployContext>> => {
-                              await this.localConfig.load();
-                              await this.remoteConfig.loadAndValidate(argv);
-
-                              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
-
-                              const client: Client = await this.accountManager.loadNodeClient(
-                                config.namespace,
-                                this.remoteConfig.getClusterRefs(),
-                                config.deployment,
-                              );
-
-                              const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
-                              const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
-
-                              // Check if Topic with ID 1001 exists, if not create a buffer topic to bump the entity ID counter
-                              // so that created accounts have IDs start from x.x.1002
-                              try {
-                                const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-                                  TopicId.fromString(entityId(realm, shard, 1001)),
-                                );
-                                await entity1001Query.execute(client);
-                              } catch (error) {
-                                try {
-                                  if (error.message.includes('INVALID_TOPIC_ID')) {
-                                    const bufferTopic: TopicCreateTransaction =
-                                      new TopicCreateTransaction().setTopicMemo('Buffer topic to bump entity IDs');
-                                    await bufferTopic.execute(client);
-                                  }
-                                } catch (error) {
-                                  this.logger.warn(
-                                    'Failed to create topic. Created account IDs may be offset from the expected values.',
-                                    error,
-                                  );
-                                }
-                              }
-
-                              const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
-
-                              for (const [index, account] of accountsToCreate.entries()) {
-                                // inject index to avoid closure issues
-                                ((index: number, account: PredefinedAccount): void => {
-                                  subTasks.push({
-                                    title: `Creating Account ${index}`,
-                                    task: async (
-                                      context_: OneShotSingleDeployContext,
-                                      subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                                    ): Promise<void> => {
-                                      await helpers.sleep(Duration.ofMillis(100 * index));
-
-                                      const createdAccount: {
-                                        accountId: string;
-                                        privateKey: string;
-                                        publicKey: string;
-                                        balance: number;
-                                        accountAlias?: string;
-                                      } = await this.accountManager.createNewAccount(
-                                        context_.config.namespace,
-                                        account.privateKey,
-                                        account.balance.to(HbarUnit.Hbar).toNumber(),
-                                        account.alias,
-                                        context_.config.context,
-                                      );
-
-                                      context_.createdAccounts.push({
-                                        accountId: AccountId.fromString(createdAccount.accountId),
-                                        data: account,
-                                        alias: createdAccount.accountAlias,
-                                        publicKey: createdAccount.publicKey,
-                                      });
-
-                                      subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
-                                    },
-                                  });
-                                })(index, account);
-                              }
-
-                              return task.newListr(subTasks, {
-                                concurrent: true,
-                                rendererOptions: {collapseSubtasks: false},
-                              });
-                            },
-                          },
                         ],
-                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                        // Single-element list; concurrent flag has no effect here.
+                        {concurrent: false, rendererOptions: {collapseSubtasks: false}},
                       );
                     },
                   },
-                  // Pipeline B: create accounts (concurrent with Pipeline A)
                   {
                     title: 'Create Accounts',
                     skip: (): boolean => config.predefinedAccounts === false,

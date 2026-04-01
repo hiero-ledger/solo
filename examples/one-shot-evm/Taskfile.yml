@@ -8,15 +8,15 @@ version: 3
 #   • 1 consensus node
 #   • Mirror node (indexer / REST API)
 #   • JSON-RPC relay  ← MetaMask / ethers.js / Hardhat connect here
-#   • Mirror-node explorer (default; disable with --no-explorer)
+#   • Mirror-node explorer (opt-in; enable with --explorer mirror-node or --explorer blockscout)
 #   • 20 pre-funded ECDSA accounts with 0x… public-key aliases (1 000 000 HBAR each)
 #     Private keys are printed to stdout and saved to ~/.solo/one-shot-<deployment>/accounts.json
 #
 # Usage from this directory:
 #   task          → CI entry-point: cycles through all four deploy variants,
 #                   checking expectations after each deploy then destroying
-#   task deploy                      → --evm (default mirror-node explorer)
-#   task deploy-no-explorer          → --evm --skip-explorer
+#   task deploy                      → --evm (no explorer; relay + mirror node only)
+#   task deploy-no-explorer          → --evm --skip-explorer (equivalent to default)
 #   task deploy-explorer-mirror-node → --evm --explorer mirror-node (explicit)
 #   task deploy-explorer-blockscout  → --evm --explorer blockscout (falls back to mirror-node)
 #   task destroy  → tear down and delete Kind cluster
@@ -40,8 +40,9 @@ tasks:
 
   deploy:
     desc: >
-      Deploy the EVM profile (1 consensus node, mirror node, JSON-RPC relay,
-      mirror-node explorer) and create 20 pre-funded ECDSA alias accounts.
+      Deploy the EVM profile (1 consensus node, mirror node, JSON-RPC relay)
+      and create 20 pre-funded ECDSA alias accounts.
+      The explorer is opt-in; use --explorer mirror-node to add it.
     cmds:
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -58,7 +59,7 @@ tasks:
           fi
 
       # solo one-shot single deploy --evm
-      # Mirror-node explorer is included by default in EVM mode.
+      # Explorer is opt-in in EVM mode; no --explorer flag means no explorer is deployed.
       - cmd: |
           $SOLO_COMMAND one-shot single deploy --evm \
             --deployment {{ .DEPLOYMENT }} \
@@ -184,7 +185,7 @@ tasks:
           NEW=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hiero-explorer --no-headers 2>/dev/null | grep -c Running || true)
           OLD=$(kubectl get pods -n "$NS" -l app.kubernetes.io/component=hedera-explorer --no-headers 2>/dev/null | grep -c Running || true)
           [ $((NEW + OLD)) -eq 0 ] \
-            || { echo "ERROR: explorer pod is Running but --no-explorer was set"; exit 1; }
+            || { echo "ERROR: explorer pod is Running but --skip-explorer was set"; exit 1; }
           echo "✓ no explorer pod (as expected with --skip-explorer)"
 
   # ── Destroy ───────────────────────────────────────────────────────────────
@@ -205,13 +206,13 @@ tasks:
       CI entry-point: cycle through all four EVM deploy variants, verifying
       component expectations after each deploy, then destroying the cluster.
     cmds:
-      # ── Variant 1: default (--evm) ── explorer ON by default
+      # ── Variant 1: default (--evm) ── explorer OFF (opt-in, not requested)
       - task: deploy
       - task: _check-common
-      - task: _check-explorer-present
+      - task: _check-explorer-absent
       - task: destroy
 
-      # ── Variant 2: --no-explorer ── relay + mirror node only
+      # ── Variant 2: --skip-explorer ── relay + mirror node only
       - task: deploy-no-explorer
       - task: _check-common
       - task: _check-explorer-absent

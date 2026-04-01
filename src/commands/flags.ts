@@ -2888,8 +2888,7 @@ export class Flags {
   // These flags are added to `solo one-shot single deploy` to enable the EVM
   // developer profile.  The profile:
   //   • Creates 20 pre-funded ECDSA accounts with EVM-compatible public-key aliases
-  //   • Defaults to deploying the mirror-node explorer (overridable via --no-explorer
-  //     or --explorer)
+  //   • Explorer is opt-in: deploy by passing --explorer mirror-node (overridable via --skip-explorer)
   //   • Keeps the JSON-RPC relay so MetaMask / ethers.js can connect immediately
 
   public static readonly evm: CommandFlag = {
