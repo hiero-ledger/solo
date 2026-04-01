@@ -14,6 +14,10 @@ import {ReleaseItem} from '../../integration/helm/model/release/release-item.js'
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+
+const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
+  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
+};
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -282,7 +286,7 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | null = null;
+        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | undefined = undefined;
 
         fileTransaction =
           start === 0
@@ -310,22 +314,23 @@ export class NodeCommandTasks {
     configManager: ConfigManager,
     localDataLibraryBuildPath: string,
   ): Promise<void> {
-    const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
-    };
-
-    await k8
+    const container: Container = k8
       .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, filterFunction);
+      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
+
+    // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
+    await container.execContainer([
+      'bash',
+      '-c',
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/data/lib/*.jar ${constants.HEDERA_HAPI_PATH}/data/apps/*.jar`,
+    ]);
+
+    await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
         if (fs.existsSync(jsonFile)) {
-          await k8
-            .containers()
-            .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-            .copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
+          await container.copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
         }
       }
     }
