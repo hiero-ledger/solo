@@ -324,3 +324,11 @@ jobs:
           path: ~/.solo/logs/*
           overwrite: true
           if-no-files-found: warn
+
+      - name: Final Cleanup
+        if: always()
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
+          $SOLO_CMD one-shot single destroy -q || true
