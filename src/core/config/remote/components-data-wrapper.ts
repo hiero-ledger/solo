@@ -293,8 +293,10 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
             logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
             return portForwardConfig.localPort;
           }
-          // localPort changed (migration) — remove stale config and fall through to set up new port-forward
+          // localPort changed (migration) — kill the old process so portForward() reuse logic
+          // does not find it and return the stale port, then remove the stale config.
           logger.showUser(`${label} Port forward migrating from ${portForwardConfig.localPort} to ${localPort}`);
+          await k8Client.pods().readByReference(null).stopPortForward(portForwardConfig.localPort);
           component.metadata.portForwardConfigs = component.metadata.portForwardConfigs.filter(
             (c): boolean => !(c.podPort === podPort && c.localPort === portForwardConfig.localPort),
           );
