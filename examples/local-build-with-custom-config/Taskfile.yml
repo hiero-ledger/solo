@@ -285,8 +285,63 @@ tasks:
           -n {{ .EXPLORER_NAME_SPACE }} \
           {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
 
+      # Solo consensus network upgrade with local build path
       - cmd: |
-          $SOLO_COMMAND deployment diagnostics logs 
+          $SOLO_COMMAND consensus network upgrade --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
+          {{.LOCAL_BUILD_FLAG}}
+
+      # Verify no mixed-version jars in data/lib and data/apps after upgrade
+      - cmd: |
+          PODS=$(kubectl -n {{ .NAMESPACE }} get pods -l solo.hedera.com/type=network-node \
+            -o jsonpath='{.items[*].metadata.name}')
+          if [ -z "$PODS" ]; then
+            echo "No consensus node pods found in namespace {{ .NAMESPACE }}"
+            exit 1
+          fi
+
+          FAILED=false
+          for pod in $PODS; do
+            echo "=== Checking pod ${pod} for mixed-version jars ==="
+
+            for dir in data/lib data/apps; do
+              # Only check jars built by hiero-consensus-node (swirlds-*, app-service-*) to avoid
+              # false positives from third-party dependencies that use independent versioning
+              JARS=$(kubectl -n {{ .NAMESPACE }} exec "$pod" -c root-container -- \
+                sh -c "ls /opt/hgcapp/services-hedera/HapiApp2.0/${dir}/swirlds-*.jar \
+                          /opt/hgcapp/services-hedera/HapiApp2.0/${dir}/app-service-*.jar 2>/dev/null" || true)
+
+              if [ -z "$JARS" ]; then
+                echo "  No hiero consensus node jars found in ${dir} on pod ${pod}"
+                continue
+              fi
+
+              echo "  Hiero consensus node jars in ${dir}:"
+              echo "$JARS" | while read -r jar; do echo "    $(basename "$jar")"; done
+
+              # Extract version strings from jar filenames (e.g. swirlds-common-0.73.0-SNAPSHOT.jar -> 0.73.0-SNAPSHOT)
+              VERSIONS=$(echo "$JARS" | sed -n 's/.*-\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*[^.]*\)\.jar$/\1/p' | sort -u)
+              VERSION_COUNT=$(echo "$VERSIONS" | grep -c . || true)
+
+              if [ "$VERSION_COUNT" -gt 1 ]; then
+                echo "  ERROR: Mixed versions detected in ${dir} on pod ${pod}:"
+                echo "$VERSIONS" | while read -r v; do echo "    - $v"; done
+                FAILED=true
+              elif [ "$VERSION_COUNT" -eq 1 ]; then
+                echo "  OK: Single version detected in ${dir}: $(echo "$VERSIONS" | head -1)"
+              fi
+            done
+          done
+
+          if [ "$FAILED" = "true" ]; then
+            echo ""
+            echo "FAILURE: Mixed-version jars detected after upgrade. This indicates stale jars were not cleaned."
+            exit 1
+          fi
+          echo ""
+          echo "SUCCESS: No mixed-version jars found in data/lib or data/apps on any node."
+
+      - cmd: |
+          $SOLO_COMMAND deployment diagnostics logs
 
   destroy:
     desc: Destroy the Solo network with block node
