@@ -6,23 +6,23 @@ import {WrapsSchema} from './wraps-schema.js';
 @Exclude()
 export class TssSchema {
   @Expose()
-  public messageSizeSoftLimitBytes: number = 4_194_304;
+  public messageSizeSoftLimitBytes: number;
 
   @Expose()
-  public messageSizeHardLimitBytes: number = 37_748_736;
+  public messageSizeHardLimitBytes: number;
 
   @Expose()
-  public timeoutAfterReadySeconds: number = 10;
+  public timeoutAfterReadySeconds: number;
 
   @Expose()
-  public readyMaxAttempts: number = 60;
+  public readyMaxAttempts: number;
 
   @Expose()
-  public readyBackoffSeconds: number = 3;
+  public readyBackoffSeconds: number;
 
   @Expose()
   @Type((): typeof WrapsSchema => WrapsSchema)
-  public wraps: WrapsSchema = new WrapsSchema();
+  public wraps: WrapsSchema;
 
   public constructor(
     messageSizeSoftLimitBytes?: number,
@@ -32,23 +32,11 @@ export class TssSchema {
     readyBackoffSeconds?: number,
     wraps?: WrapsSchema,
   ) {
-    if (messageSizeSoftLimitBytes !== undefined) {
-      this.messageSizeSoftLimitBytes = messageSizeSoftLimitBytes;
-    }
-    if (messageSizeHardLimitBytes !== undefined) {
-      this.messageSizeHardLimitBytes = messageSizeHardLimitBytes;
-    }
-    if (timeoutAfterReadySeconds !== undefined) {
-      this.timeoutAfterReadySeconds = timeoutAfterReadySeconds;
-    }
-    if (readyMaxAttempts !== undefined) {
-      this.readyMaxAttempts = readyMaxAttempts;
-    }
-    if (readyBackoffSeconds !== undefined) {
-      this.readyBackoffSeconds = readyBackoffSeconds;
-    }
-    if (wraps !== undefined) {
-      this.wraps = wraps;
-    }
+    this.messageSizeSoftLimitBytes = messageSizeSoftLimitBytes ?? 4_194_304;
+    this.messageSizeHardLimitBytes = messageSizeHardLimitBytes ?? 37_748_736;
+    this.timeoutAfterReadySeconds = timeoutAfterReadySeconds ?? 10;
+    this.readyMaxAttempts = readyMaxAttempts ?? 60;
+    this.readyBackoffSeconds = readyBackoffSeconds ?? 3;
+    this.wraps = wraps || new WrapsSchema();
   }
 }

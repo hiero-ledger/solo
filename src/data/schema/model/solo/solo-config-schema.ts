@@ -15,23 +15,23 @@ export class SoloConfigSchema {
 
   @Expose()
   @Type((): typeof HelmChartSchema => HelmChartSchema)
-  public helmChart: HelmChartSchema = new HelmChartSchema();
+  public helmChart: HelmChartSchema;
 
   @Expose()
   @Type((): typeof HelmChartSchema => HelmChartSchema)
-  public ingressControllerHelmChart: HelmChartSchema = new HelmChartSchema();
+  public ingressControllerHelmChart: HelmChartSchema;
 
   @Expose()
   @Type((): typeof HelmChartSchema => HelmChartSchema)
-  public clusterSetupHelmChart: HelmChartSchema = new HelmChartSchema();
+  public clusterSetupHelmChart: HelmChartSchema;
 
   @Expose()
   @Type((): typeof HelmChartSchema => HelmChartSchema)
-  public certManagerHelmChart: HelmChartSchema = new HelmChartSchema();
+  public certManagerHelmChart: HelmChartSchema;
 
   @Expose()
   @Type((): typeof TssSchema => TssSchema)
-  public tss: TssSchema = new TssSchema();
+  public tss: TssSchema;
 
   public constructor(
     schemaVersion?: number,
@@ -42,20 +42,10 @@ export class SoloConfigSchema {
     tss?: TssSchema,
   ) {
     this.schemaVersion = schemaVersion ?? 1;
-    if (helmChart !== undefined) {
-      this.helmChart = helmChart;
-    }
-    if (ingressControllerHelmChart !== undefined) {
-      this.ingressControllerHelmChart = ingressControllerHelmChart;
-    }
-    if (clusterSetupHelmChart !== undefined) {
-      this.clusterSetupHelmChart = clusterSetupHelmChart;
-    }
-    if (certManagerHelmChart !== undefined) {
-      this.certManagerHelmChart = certManagerHelmChart;
-    }
-    if (tss !== undefined) {
-      this.tss = tss;
-    }
+    this.helmChart = helmChart || new HelmChartSchema();
+    this.ingressControllerHelmChart = ingressControllerHelmChart || new HelmChartSchema();
+    this.clusterSetupHelmChart = clusterSetupHelmChart || new HelmChartSchema();
+    this.certManagerHelmChart = certManagerHelmChart || new HelmChartSchema();
+    this.tss = tss || new TssSchema();
   }
 }

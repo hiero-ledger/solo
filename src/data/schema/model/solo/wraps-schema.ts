@@ -5,18 +5,18 @@ import {Exclude, Expose} from 'class-transformer';
 @Exclude()
 export class WrapsSchema {
   @Expose()
-  public artifactsFolderName: string = 'wraps-v0.2.0';
+  public artifactsFolderName: string;
 
   @Expose()
-  public directoryName: string = 'wraps-v0.2.0';
+  public directoryName: string;
 
   @Expose()
-  public allowedKeyFiles: string = 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
+  public allowedKeyFiles: string;
 
   // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
   // If directoryName is updated, update libraryDownloadUrl to match.
   @Expose()
-  public libraryDownloadUrl: string = 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz';
+  public libraryDownloadUrl: string;
 
   public constructor(
     artifactsFolderName?: string,
@@ -24,17 +24,9 @@ export class WrapsSchema {
     allowedKeyFiles?: string,
     libraryDownloadUrl?: string,
   ) {
-    if (artifactsFolderName !== undefined) {
-      this.artifactsFolderName = artifactsFolderName;
-    }
-    if (directoryName !== undefined) {
-      this.directoryName = directoryName;
-    }
-    if (allowedKeyFiles !== undefined) {
-      this.allowedKeyFiles = allowedKeyFiles;
-    }
-    if (libraryDownloadUrl !== undefined) {
-      this.libraryDownloadUrl = libraryDownloadUrl;
-    }
+    this.artifactsFolderName = artifactsFolderName ?? 'wraps-v0.2.0';
+    this.directoryName = directoryName ?? 'wraps-v0.2.0';
+    this.allowedKeyFiles = allowedKeyFiles ?? 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
+    this.libraryDownloadUrl = libraryDownloadUrl ?? 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz';
   }
 }
