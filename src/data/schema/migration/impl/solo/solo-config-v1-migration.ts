@@ -32,25 +32,11 @@ export class SoloConfigV1Migration implements SchemaMigration {
     // Set the schema version to the new version
     clone.schemaVersion = this.version.major;
 
-    if (!clone.helmChart) {
-      clone.helmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.ingressControllerHelmChart) {
-      clone.ingressControllerHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.clusterSetupHelmChart) {
-      clone.clusterSetupHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.certManagerHelmChart) {
-      clone.certManagerHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.tss) {
-      clone.tss = this.getNewTssObject();
-    }
+    clone.helmChart ||= this.getNewHelmChartObject();
+    clone.ingressControllerHelmChart ||= this.getNewHelmChartObject();
+    clone.clusterSetupHelmChart ||= this.getNewHelmChartObject();
+    clone.certManagerHelmChart ||= this.getNewHelmChartObject();
+    clone.tss ||= this.getNewTssObject();
 
     return clone;
   }
