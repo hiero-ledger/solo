@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type SemanticVersion} from './base/api/version/semantic-version.js';
 import {type Chart} from './model/chart.js';
 import {type InstallChartOptions} from './model/install/install-chart-options.js';
 import {type UpgradeChartOptions} from './model/upgrade/upgrade-chart-options.js';
@@ -10,6 +9,7 @@ import {type ReleaseItem} from './model/release/release-item.js';
 import {type TestChartOptions} from './model/test/test-chart-options.js';
 import {type UnInstallChartOptions} from './model/install/un-install-chart-options.js';
 import {type AddRepoOptions} from './model/add/add-repo-options.js';
+import {type SemanticVersion} from '../../business/utils/semantic-version.js';
 
 /**
  * The HelmClient is a bridge between TypeScript and the Helm CLI. The client is highly dependent on specific features
@@ -22,7 +22,7 @@ export interface HelmClient {
    *
    * @returns the version of the Helm CLI that is being used by this client.
    */
-  version(): Promise<SemanticVersion>;
+  version(): Promise<SemanticVersion<string>>;
 
   /**
    * Executes the Helm CLI repo list sub-command and returns the list of repositories.

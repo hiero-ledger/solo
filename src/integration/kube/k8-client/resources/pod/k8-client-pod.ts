@@ -201,13 +201,22 @@ export class K8ClientPod implements Pod {
       );
 
       // If the persist flag is set, we need to run the port-forward in a detached process that restarts on failure even after the typescript process ends.
-      const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
-      const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
+      const __filename: string = fileURLToPath(import.meta.url);
+      const __dirname: string = path.dirname(__filename);
+      // When running via tsx (dev/test), __filename ends in .ts; use tsx to run the .ts source.
+      // In a compiled build it ends in .js; use node to run the compiled .js.
+      const isTsx: boolean = __filename.endsWith('.ts');
+      const persistScriptExtension: string = isTsx ? '.ts' : '.js';
+      const persistCmd: string = isTsx ? 'tsx' : 'node';
+      const persistPortForwardScriptPath: string = path.resolve(
+        __dirname,
+        `persist-port-forward${persistScriptExtension}`,
+      );
 
       let cmd: string;
       let cmdArguments: string[];
       if (persist) {
-        cmd = 'node';
+        cmd = persistCmd;
         cmdArguments = [
           persistPortForwardScriptPath,
           this.podReference.namespace.name,

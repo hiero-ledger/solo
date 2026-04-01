@@ -14,7 +14,14 @@ export interface ComponentsDataWrapperApi {
   state: DeploymentStateSchema;
   componentIds: ComponentIdsStructure;
 
-  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void;
+  /**
+   * When running in one-shot mode, component id increment is skipped
+   * @param component
+   * @param type
+   * @param isReplace
+   * @param skipIncrement
+   */
+  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean, skipIncrement?: boolean): void;
 
   changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void;
 
@@ -46,6 +53,7 @@ export interface ComponentsDataWrapperApi {
     label: string,
     reuse?: boolean,
     nodeId?: number,
+    persist?: boolean,
   ): Promise<number>;
 
   stopPortForwards(

@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SemVer} from 'semver';
-import {Version} from './version.js';
+import {SemanticVersion} from './semantic-version.js';
 
 /**
  * A range of versions which includes the beginning version and excludes the end version.
  */
-export class VersionRange<T extends SemVer | number> {
+export class VersionRange<T extends string | number> {
   public constructor(
     /**
      * The beginning of the version range (inclusive).
      */
-    public readonly begin: Version<T>,
+    public readonly begin: SemanticVersion<T>,
     /**
      * The end of the version range (exclusive).
      */
-    public readonly end: Version<T>,
+    public readonly end: SemanticVersion<T>,
   ) {
     if (this.begin !== null && this.end !== null && this.begin.compare(this.end) >= 0) {
       throw new RangeError('Invalid version range');
@@ -31,7 +30,7 @@ export class VersionRange<T extends SemVer | number> {
    * @throws RangeError if the bounds are invalid.
    */
   public static fromIntegerBounds(begin: number, end: number): VersionRange<number> {
-    return new VersionRange(new Version(begin), new Version(end));
+    return new VersionRange(new SemanticVersion(begin), new SemanticVersion(end));
   }
 
   /**
@@ -42,7 +41,7 @@ export class VersionRange<T extends SemVer | number> {
    * @throws RangeError if the version is invalid.
    */
   public static fromIntegerVersion(version: number): VersionRange<number> {
-    return new VersionRange(new Version(version), new Version(version + 1));
+    return new VersionRange(new SemanticVersion(version), new SemanticVersion(version + 1));
   }
 
   /**
@@ -53,8 +52,11 @@ export class VersionRange<T extends SemVer | number> {
    * @returns the version range.
    * @throws RangeError if the bounds are invalid.
    */
-  public static fromSemVerBounds(begin: SemVer, end: SemVer): VersionRange<SemVer> {
-    return new VersionRange(new Version(begin), new Version(end));
+  public static fromSemanticVersionBounds<R extends string | number>(
+    begin: SemanticVersion<R>,
+    end: SemanticVersion<R>,
+  ): VersionRange<R> {
+    return new VersionRange(new SemanticVersion(begin), new SemanticVersion(end));
   }
 
   /**
@@ -63,10 +65,10 @@ export class VersionRange<T extends SemVer | number> {
    * @param version - the semantic version.
    * @returns the version range.
    */
-  public static patchVersionBounds(version: SemVer): VersionRange<SemVer> {
+  public static patchVersionBounds(version: SemanticVersion<string>): VersionRange<string> {
     // clone the version to avoid modifying the original
-    const rangeEnd: SemVer = new SemVer(version.toString());
-    return new VersionRange(new Version(version), new Version(rangeEnd.inc('minor')));
+    const rangeEnd: SemanticVersion<string | number> = new SemanticVersion(version.toString());
+    return new VersionRange(new SemanticVersion(version), new SemanticVersion(rangeEnd.bumpMinor()));
   }
 
   /**
@@ -75,10 +77,8 @@ export class VersionRange<T extends SemVer | number> {
    * @param version - the semantic version.
    * @returns the version range.
    */
-  public static minorVersionBounds(version: SemVer): VersionRange<SemVer> {
-    // clone the version to avoid modifying the original
-    const rangeEnd: SemVer = new SemVer(version.toString());
-    return new VersionRange(new Version(version), new Version(rangeEnd.inc('major')));
+  public static minorVersionBounds<R extends string | number>(version: SemanticVersion<R>): VersionRange<R> {
+    return new VersionRange<R>(new SemanticVersion(version), version.bumpMajor());
   }
 
   public equals(other: VersionRange<T>): boolean {
@@ -97,7 +97,7 @@ export class VersionRange<T extends SemVer | number> {
     return this.end.compare(other.end);
   }
 
-  public contains(version: Version<T>): boolean {
+  public contains(version: SemanticVersion<T>): boolean {
     if (this.begin === null || this.end === null) {
       throw new RangeError('Invalid version range');
     }

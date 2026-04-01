@@ -75,7 +75,7 @@ export class HelmChart implements Facade<HelmChartSchema> {
   }
 
   public get labels(): string[] {
-    return this.encapsulatedObject.labelSelector?.split(',') ?? [];
+    return this.encapsulatedObject.labelSelector.split(',').filter(Boolean);
   }
 
   public get containerName(): string {

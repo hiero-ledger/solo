@@ -652,9 +652,27 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
+        this.tasks.analyzeCollectedDiagnostics(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
+      null,
+    );
+
+    return true;
+  }
+
+  public async analyze(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.ANALYZE_FLAGS);
+
+    this.nodeConfigManager.update(argv);
+    const inputDirectory: string = this.nodeConfigManager.getFlag<string>(flags.inputDir) || '';
+
+    await this.commandAction(
+      argv,
+      [this.tasks.analyzeCollectedDiagnostics(inputDirectory)],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      'Error analyzing diagnostics logs',
       null,
     );
 
@@ -714,6 +732,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
+        this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.getNodeStateFiles(),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],

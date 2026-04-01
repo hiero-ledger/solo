@@ -26,7 +26,12 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void {
+  public addNewComponent(
+    component: BaseStateSchema,
+    type: ComponentTypes,
+    isReplace?: boolean,
+    skipIncrement: boolean = false,
+  ): void {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number') {
@@ -46,8 +51,10 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
 
-    // Increment the component id counter for the specified type when adding
-    this.componentIds[type] += 1;
+    if (!skipIncrement) {
+      // Increment the component id counter for the specified type when adding
+      this.componentIds[type] += 1;
+    }
   }
 
   // TODO: Remove once unified method is fully utilized
@@ -209,6 +216,16 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
+      case ComponentTypes.Postgres: {
+        callback(this.state.postgres);
+        break;
+      }
+
+      case ComponentTypes.Redis: {
+        callback(this.state.redis);
+        break;
+      }
+
       default: {
         throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
       }
@@ -249,6 +266,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     label: string,
     reuse: boolean = false,
     nodeId?: number,
+    persist: boolean = false,
   ): Promise<number> {
     // found component by cluster reference or nodeId
     let component: BaseStateSchema;
@@ -281,7 +299,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     const portForwardPortNumber: number = await k8Client
       .pods()
       .readByReference(podReference)
-      .portForward(localPort, podPort, reuse);
+      .portForward(localPort, podPort, reuse, persist);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
     logger.addMessageGroupMessage(

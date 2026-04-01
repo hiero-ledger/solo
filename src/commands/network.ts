@@ -14,7 +14,9 @@ import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
   addRootImageValues,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
+  prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
@@ -60,12 +62,10 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
-import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -73,19 +73,18 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
-import {SoloLogger} from '../core/logging/solo-logger.js';
-import {K8Factory} from '../integration/kube/k8-factory.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import semver from 'semver/preload.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
+import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
   applicationEnv: string;
+  chainId: string;
   cacheDir: string;
   chartDirectory: string;
   loadBalancerEnabled: boolean;
@@ -430,9 +429,17 @@ export class NetworkCommand extends BaseCommand {
       deploymentName,
       applicationPropertiesPath,
       jfrFile,
+      {
+        // Pass command-scoped values explicitly so profile/staging generation is isolated
+        // from mutable global flags when one-shot runs parallel subcommands.
+        cacheDir: config.cacheDir,
+        releaseTag: config.releaseTag,
+        appName: config.app,
+        chainId: config.chainId,
+      },
     );
 
-    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
+    const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
@@ -489,7 +496,8 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
       }
@@ -784,9 +792,12 @@ export class NetworkCommand extends BaseCommand {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-    const networkNodeVersion: SemVer = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms: SemVer = new SemVer('0.60.0');
-    if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
+    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.releaseTag);
+    const minimumVersionForNonZeroRealms: SemanticVersion<string> = new SemanticVersion<string>('0.60.0');
+    if (
+      (realm !== 0 || shard !== 0) &&
+      new SemanticVersion<string>(networkNodeVersion).lessThan(minimumVersionForNonZeroRealms)
+    ) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
       );
@@ -1133,33 +1144,37 @@ export class NetworkCommand extends BaseCommand {
               lease = await this.leaseManager.create();
             }
 
-            const releaseTag: SemVer = semver.parse(this.configManager.getFlag(flags.releaseTag));
+            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(
+              this.configManager.getFlag(flags.releaseTag),
+            );
 
             if (
               this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
-              semver.neq(this.remoteConfig.configuration.versions.consensusNode, releaseTag)
+              !new SemanticVersion<string>(this.remoteConfig.configuration.versions.consensusNode).equals(releaseTag)
             ) {
               // if is possible block node deployed before consensus node, then use release tag as fallback
               this.remoteConfig.configuration.versions.consensusNode = releaseTag;
               await this.remoteConfig.persist();
             }
 
-            const currentVersion: SemVer = new SemVer(
+            const currentVersion: SemanticVersion<string> = new SemanticVersion<string>(
               this.remoteConfig.configuration.versions.consensusNode.toString(),
             );
 
             let tssEnabled: boolean = this.configManager.getFlag(flags.tssEnabled);
-            const minimumVersion: SemVer = semver.parse(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+            const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(
+              versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+            );
 
             // if platform version is insufficient for tss, disable it
-            if (tssEnabled && semver.lt(currentVersion, minimumVersion)) {
+            if (tssEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
               tssEnabled = false;
             }
 
             const wrapsEnabled: boolean = this.configManager.getFlag(flags.wrapsEnabled);
             this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
 
-            if (wrapsEnabled && semver.lt(currentVersion, minimumVersion)) {
+            if (wrapsEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
               throw new SoloError(
                 `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
               );
@@ -1268,7 +1283,7 @@ export class NetworkCommand extends BaseCommand {
                 config.isUpgrade = true;
               }
 
-              config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
                 config.soloChartVersion,
                 false,
                 'Solo chart version',
@@ -1491,7 +1506,8 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+            const wraps: Wraps = this.soloConfig.tss.wraps;
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
             if (config.wrapsKeyPath) {
               // Use user-provided local directory containing WRAPs proving key files
@@ -1505,7 +1521,7 @@ export class NetworkCommand extends BaseCommand {
                 fs.mkdirSync(extractedDirectory, {recursive: true});
               }
 
-              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(config.wrapsKeyPath)) {
                 if (allowedFiles.has(file)) {
@@ -1517,7 +1533,7 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.debug('Wraps library already installed');
               } else {
                 await this.downloader.fetchPackage(
-                  constants.WRAPS_LIB_DOWNLOAD_URL,
+                  wraps.libraryDownloadUrl,
                   'unusued',
                   constants.SOLO_CACHE_DIR,
                   false,
@@ -1525,10 +1541,7 @@ export class NetworkCommand extends BaseCommand {
                   false,
                 );
 
-                const tarFilePath: string = PathEx.join(
-                  constants.SOLO_CACHE_DIR,
-                  `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
-                );
+                const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
 
                 // Create extraction dir
                 fs.mkdirSync(extractedDirectory);
@@ -1538,7 +1551,7 @@ export class NetworkCommand extends BaseCommand {
               }
 
               // Having any files except for those inside the folder causes an error in CN
-              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(extractedDirectory)) {
                 if (!allowedFiles.has(file)) {
@@ -1564,11 +1577,7 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
-                await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(
-                  consensusNode,
-                  this.logger,
-                  this.k8Factory,
-                );
+                await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
@@ -1635,102 +1644,6 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  /**
-   * @param consensusNode - the targeted consensus node
-   * @param logger
-   * @param k8Factory
-   */
-  public static async createAndCopyBlockNodeJsonFileForConsensusNode(
-    consensusNode: ConsensusNode,
-    logger: SoloLogger,
-    k8Factory: K8Factory,
-  ): Promise<void> {
-    const {
-      nodeId,
-      context,
-      name: nodeAlias,
-      blockNodeMap,
-      externalBlockNodeMap,
-      namespace: namespaceNameAsString,
-    } = consensusNode;
-
-    const namespace: NamespaceName = NamespaceName.of(namespaceNameAsString);
-
-    const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
-
-    const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
-    const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
-
-    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
-
-    // Check if the file exists before copying
-    if (!fs.existsSync(blockNodesJsonPath)) {
-      logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
-      return;
-    }
-
-    const k8: K8 = k8Factory.getK8(context);
-
-    const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-
-    await container.execContainer('pwd');
-    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
-
-    await container.execContainer(`mkdir -p ${targetDirectory}`);
-
-    // Copy the file and rename it to block-nodes.json in the destination
-    await container.copyTo(blockNodesJsonPath, targetDirectory);
-
-    // If using node-specific files, rename the copied file to the standard name
-    const sourceFilename: string = path.basename(blockNodesJsonPath);
-    await container.execContainer(
-      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-    );
-
-    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
-    const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
-
-    const lines: string[] = applicationPropertiesData.split('\n');
-
-    // Remove line to enable overriding below.
-    for (const line of lines) {
-      if (line === 'blockStream.streamMode=RECORDS') {
-        lines.splice(lines.indexOf(line), 1);
-      }
-    }
-
-    // Switch to block streaming.
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
-      lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
-    }
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
-      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
-    }
-
-    await k8.configMaps().update(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME, {
-      ['application.properties']: lines.join('\n'),
-    });
-
-    const configName: string = `network-${nodeAlias}-data-config-cm`;
-    const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
-
-    await (configMapExists
-      ? k8.configMaps().update(namespace, configName, {'block-nodes.json': blockNodesJsonData})
-      : k8.configMaps().create(namespace, configName, {}, {'block-nodes.json': blockNodesJsonData}));
-
-    logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
-
-    const updatedApplicationPropertiesFilePath: string = PathEx.join(
-      constants.SOLO_CACHE_DIR,
-      'application.properties',
-    );
-
-    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -1872,7 +1785,10 @@ export class NetworkCommand extends BaseCommand {
         }
         if (releaseTag) {
           // update the solo chart version to match the deployed version
-          this.remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer(releaseTag));
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemanticVersion<string>(releaseTag),
+          );
         }
 
         await this.remoteConfig.persist();

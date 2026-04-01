@@ -198,7 +198,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           go-version: '1.22.3'
@@ -218,7 +218,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        uses: gradle/actions/setup-gradle@39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f # v6.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
@@ -241,6 +241,22 @@ jobs:
       - name: Build Application
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
+
+      - name: Cache Helm chart tarballs
+        # helm dependency build pulls OCI chart tarballs (e.g. bitnamicharts/redis)
+        # directly from registry-1.docker.io on the runner host — the Kind containerd
+        # mirror only covers image pulls inside the cluster, not host-side helm pulls.
+        # This cache persists ~/.solo/helm-chart-cache ACROSS separate CI runs (not just
+        # within the same run), so all chart tarballs (block-node-server, hedera-mirror,
+        # hedera-json-rpc, hiero-mirror-node-explorer) are restored in one shot on every
+        # subsequent run sharing the same version.ts hash. Docker Hub is contacted at most
+        # once per version bump — preventing anonymous rate-limit 429s.
+        if: ${{ matrix.example.local-java-build }}
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.solo/helm-chart-cache
+          key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}
+          restore-keys: helm-chart-deps-${{ runner.os }}-
 
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
@@ -374,8 +390,7 @@ jobs:
           fi
           TASK_PID=$!
           TASK_PGID="$(ps -o pgid= -p "${TASK_PID}" | tr -d '[:space:]' || true)"
-          wait "${TASK_PID}"
-          TASK_RC=$?
+          wait "${TASK_PID}" || TASK_RC=$?
           TASK_PID=""
           TASK_PGID=""
           trap - SIGTERM SIGINT
