@@ -292,9 +292,7 @@ jobs:
         id: install
 
       - name: Setup Kind
-        # helm/kind-action installs the Linux binary even on Windows runners, causing an Exec format error.
-        # Use this action only on non-Windows runners; Windows uses chocolatey below.
-        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && runner.os != 'Windows' && !cancelled() && !failure() }}
+        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && !cancelled() && !failure() }}
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -304,13 +302,6 @@ jobs:
           kubectl_version: 'v${{ inputs.kubectl-version }}'
           verbosity: 3
           wait: 120s
-
-      - name: Setup Kind (Windows)
-        # helm/kind-action does not support Windows runners; install the native Windows binary via chocolatey.
-        if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && runner.os == 'Windows' && !cancelled() && !failure() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        shell: pwsh
-        run: choco install kind --version '${{ inputs.kind-version }}' -y
 
       - name: Setup Helm
         if: ${{ inputs.install-dependencies == true && inputs.helm-install == true && !cancelled() && !failure() }}
@@ -366,7 +357,7 @@ jobs:
           cache-read-only: false
 
       - name: Create Diagnostic Script
-        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
+        if: ${{ !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
@@ -392,85 +383,6 @@ jobs:
             ls -ltr
             ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
             cd ../solo
-
-      - name: Configure Docker for Linux Containers via WSL2 (Windows)
-        # Docker Engine on windows-latest runs in Windows containers mode by default.
-        # Install Ubuntu via WSL2, then install Docker CE inside it, expose via TCP,
-        # and point DOCKER_HOST at it so Kind uses the Linux daemon.
-        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
-        timeout-minutes: 15
-        shell: pwsh
-        run: |
-          # Ensure WSL2 is enabled and install Ubuntu if not already present
-          $distros = wsl --list --quiet 2>&1
-          Write-Host "Available WSL distros: $distros"
-          $hasUbuntu = $distros | Where-Object { $_ -match 'Ubuntu' }
-          if (-not $hasUbuntu) {
-            Write-Host "Ubuntu not found in WSL2, installing..."
-            # wsl --install on Windows Server runners may require --no-launch and --web-download
-            wsl --install --distribution Ubuntu --no-launch --web-download 2>&1 | Write-Host
-            # Give WSL time to register
-            Start-Sleep 5
-            # Initialize Ubuntu (create default user noninteractively)
-            wsl -d Ubuntu -- bash -c "whoami" 2>&1 | Write-Host
-          }
-          # Write the Docker setup script with Unix line endings (LF only).
-          # Passing a multi-line string directly to wsl bash -c embeds Windows CRLF
-          # line endings which cause bash to fail with "$'\r': command not found".
-          # Start dockerd directly (nohup background) rather than via service/systemd
-          # because systemd is not running in WSL2 on GitHub-hosted runners.
-          $setupScript = "#!/bin/bash`nset -e`n" +
-            "if ! command -v docker &>/dev/null; then`n" +
-            "  export DEBIAN_FRONTEND=noninteractive`n" +
-            "  sudo apt-get update -q`n" +
-            "  sudo apt-get install -y -q docker.io`n" +
-            "fi`n" +
-            "# docker.io apt package auto-starts dockerd on install. Kill it so we can`n" +
-            "# restart with TCP host and cgroupfs driver (systemd is not running in WSL2).`n" +
-            "if [ -f /var/run/docker.pid ]; then`n" +
-            "  sudo kill `$(cat /var/run/docker.pid) 2>/dev/null || true`n" +
-            "  sleep 2`n" +
-            "  sudo rm -f /var/run/docker.pid`n" +
-            "fi`n" +
-            "sudo nohup dockerd \`n" +
-            "  --exec-opt native.cgroupdriver=cgroupfs \`n" +
-            "  --host unix:///var/run/docker.sock \`n" +
-            "  --host tcp://0.0.0.0:2375 \`n" +
-            "  > /tmp/dockerd.log 2>&1 &`n" +
-            "timeout 30 bash -c 'until docker info &>/dev/null; do sleep 1; done'`n" +
-            "echo 'Docker is ready'`n" +
-            "docker info`n" +
-            "echo '--- dockerd log ---'`n" +
-            "sudo tail -5 /tmp/dockerd.log`n"
-          $tmpScript = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "wsl-docker-setup.sh")
-          [System.IO.File]::WriteAllText($tmpScript, $setupScript)
-          # Convert Windows path to WSL /mnt/... format manually.
-          # wslpath drops backslashes when called via PowerShell (C:\foo becomes C:foo).
-          $driveLetter = $tmpScript.Substring(0, 1).ToLower()
-          $relativePath = $tmpScript.Substring(3).Replace('\', '/')
-          $wslScript = "/mnt/$driveLetter/$relativePath"
-          Write-Host "WSL script path: $wslScript"
-          wsl -d Ubuntu -- bash $wslScript
-          # Direct TCP from Windows to the WSL2 VM IP is blocked in the GitHub runner
-          # environment (harden-runner intercepts the vEthernet adapter traffic).
-          # Use netsh portproxy to forward Windows 127.0.0.1:2375 → WSL2 IP:2375.
-          # This routes through the loopback adapter which is not affected by the block.
-          $wslIp = (wsl -d Ubuntu -- hostname -I).Trim().Split()[0]
-          Write-Host "WSL2 IP: $wslIp"
-          netsh interface portproxy add v4tov4 listenaddress=127.0.0.1 listenport=2375 connectaddress=$wslIp connectport=2375
-          Write-Host "Port proxy: 127.0.0.1:2375 → ${wslIp}:2375"
-          $env:DOCKER_HOST = "tcp://127.0.0.1:2375"
-          echo "DOCKER_HOST=tcp://127.0.0.1:2375" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          # Verify Windows-side docker CLI can reach the WSL2 daemon
-          $maxWait = 30
-          $waited = 0
-          while ($waited -lt $maxWait) {
-            $null = docker info 2>&1
-            if ($LASTEXITCODE -eq 0) { break }
-            Start-Sleep 2
-            $waited += 2
-          }
-          docker info
 
       - name: Setup E2E Tests
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
@@ -607,21 +519,6 @@ jobs:
 
           exit $TEST_EXIT_CODE
 
-      - name: Run E2E Tests (Windows)
-        id: run-e2e-tests-windows
-        # The Linux Run E2E Tests step uses setsid/ps/ionice which are not available on Windows.
-        # This step runs the same test task on Windows using pwsh without process-group management.
-        if: ${{ inputs.runner == 'windows-latest' && !cancelled() && !failure() }}
-        timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
-        shell: pwsh
-        run: |
-          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
-          if ("${{ inputs.consensus-node-version }}" -ne "") {
-            $env:CONSENSUS_NODE_VERSION = "${{ inputs.consensus-node-version }}"
-          }
-          "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1" | Out-File -FilePath .env -Encoding utf8
-          task ${{ inputs.test-script }}
-
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
@@ -660,7 +557,6 @@ jobs:
 
       - name: Generate ASCII Resource Chart
         id: generate-chart
-        if: ${{ runner.os != 'Windows' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
