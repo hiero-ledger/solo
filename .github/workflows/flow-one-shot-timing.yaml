@@ -168,31 +168,37 @@ jobs:
           echo "| Relay | ${{ inputs.relay-version }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Explorer | ${{ inputs.explorer-version }} |" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Build Deploy Arguments
-        id: deploy-args
+      - name: Generate Values File
+        id: values-file
         run: |
-          ARGS=""
-          ARGS="$ARGS --release-tag ${{ inputs.consensus-node-version }}"
-          ARGS="$ARGS --block-node-chart-version ${{ inputs.block-node-version }}"
-          ARGS="$ARGS --mirror-node-version ${{ inputs.mirror-node-version }}"
-          ARGS="$ARGS --relay-release ${{ inputs.relay-version }}"
-          ARGS="$ARGS --explorer-version ${{ inputs.explorer-version }}"
-
-          if [ "${{ inputs.use-local-build }}" = "true" ]; then
-            CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
-            ARGS="$ARGS --local-build-path ${CN_REPO_DIR}/hedera-node/data"
-          fi
-
-          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
-          echo "Deploy arguments: $ARGS"
-
-      - name: Setup E2E Environment
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
-        with:
-          max_attempts: 3
-          timeout_minutes: 10
-          command: |
-            ./test/e2e/dual-cluster/setup-dual-e2e.sh
+          VALUES_FILE="/tmp/one-shot-timing-values.yaml"
+          {
+            echo "network:"
+            echo "  --release-tag: \"${{ inputs.consensus-node-version }}\""
+            echo "  --tss: \"true\""
+            echo ""
+            if [ "${{ inputs.use-local-build }}" = "true" ]; then
+              CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
+              echo "setup:"
+              echo "  --local-build-path: \"${CN_REPO_DIR}/hedera-node/data\""
+              echo "  --release-tag: \"${{ inputs.consensus-node-version }}\""
+              echo ""
+            fi
+            echo "blockNode:"
+            echo "  --chart-version: \"${{ inputs.block-node-version }}\""
+            echo ""
+            echo "mirrorNode:"
+            echo "  --mirror-node-version: \"${{ inputs.mirror-node-version }}\""
+            echo ""
+            echo "relay:"
+            echo "  --relay-release: \"${{ inputs.relay-version }}\""
+            echo ""
+            echo "explorer:"
+            echo "  --explorer-version: \"${{ inputs.explorer-version }}\""
+          } > "$VALUES_FILE"
+          echo "Generated values file:"
+          cat "$VALUES_FILE"
+          echo "path=$VALUES_FILE" >> "$GITHUB_OUTPUT"
 
       - name: "Cold Start: Deploy"
         id: cold-start
@@ -200,12 +206,12 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          DEPLOY_ARGS="${{ steps.deploy-args.outputs.args }}"
+          VALUES_FILE="${{ steps.values-file.outputs.path }}"
 
           echo "==== Cold Start: Measuring one-shot single deploy time ===="
           COLD_START_TIME=$SECONDS
 
-          $SOLO_CMD one-shot single deploy $DEPLOY_ARGS
+          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
 
           COLD_ELAPSED=$(( SECONDS - COLD_START_TIME ))
           COLD_MINUTES=$(( COLD_ELAPSED / 60 ))
@@ -229,12 +235,12 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          DEPLOY_ARGS="${{ steps.deploy-args.outputs.args }}"
+          VALUES_FILE="${{ steps.values-file.outputs.path }}"
 
           echo "==== Warm Start: Measuring one-shot single deploy time ===="
           WARM_START_TIME=$SECONDS
 
-          $SOLO_CMD one-shot single deploy $DEPLOY_ARGS
+          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
 
           WARM_ELAPSED=$(( SECONDS - WARM_START_TIME ))
           WARM_MINUTES=$(( WARM_ELAPSED / 60 ))
