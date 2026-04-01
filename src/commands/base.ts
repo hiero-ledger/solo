@@ -40,6 +40,8 @@ import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
 
 export abstract class BaseCommand extends ShellRunner {
+  public readonly soloConfig: SoloConfig;
+
   public constructor(
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory?: K8Factory,
@@ -55,7 +57,6 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
     @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
     @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
-    public readonly soloConfig?: SoloConfig,
   ) {
     super();
 

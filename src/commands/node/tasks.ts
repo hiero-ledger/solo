@@ -169,7 +169,6 @@ import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client
 import {CommandFlag} from '../../types/flag-types.js';
 import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
-import {SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
 import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
@@ -179,6 +178,8 @@ export type LeaseWrapper = {lease: Lock};
 
 @injectable()
 export class NodeCommandTasks {
+  private readonly soloConfig: SoloConfig;
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -196,7 +197,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
-    @inject(InjectTokens.ConfigProvider) private readonly configProvider: ConfigProvider,
+    @inject(InjectTokens.ConfigProvider) configProvider: ConfigProvider,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -213,7 +214,8 @@ export class NodeCommandTasks {
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
     this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
-    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.soloConfig = SoloConfig.getConfig(configProvider);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -1536,8 +1538,7 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Waiting for node: ${node.name}`,
             task: async (_, task): Promise<void> => {
-              const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
-              const maxAttempts: number = soloConfig.tss.readyMaxAttempts;
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
               let attempt: number = 0;
               let success: boolean = false;
 
@@ -1556,10 +1557,10 @@ export class NodeCommandTasks {
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
                 if (output.includes('TSS protocol ready to sign blocks')) {
-                  await sleep(Duration.ofSeconds(soloConfig.tss.timeoutAfterReadySeconds));
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
                   success = true;
                 } else {
-                  await sleep(Duration.ofSeconds(soloConfig.tss.readyBackoffSeconds));
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
                 }
               }
 
@@ -3093,7 +3094,7 @@ export class NodeCommandTasks {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
         const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
         const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
@@ -3351,7 +3352,7 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
         const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
@@ -3442,7 +3443,7 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-      const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+      const wraps: Wraps = this.soloConfig.tss.wraps;
       const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
       valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
@@ -3494,7 +3495,7 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-          const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+          const wraps: Wraps = this.soloConfig.tss.wraps;
           const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
           valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;

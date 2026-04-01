@@ -256,7 +256,6 @@ export class Container {
               PathEx.join('resources', 'config'),
               new SoloConfigSchemaDefinition(objectMapper),
               objectMapper,
-              'HelmChartConfigSource',
             );
 
           const tssConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
@@ -264,7 +263,6 @@ export class Container {
             PathEx.join('resources', 'config'),
             new SoloConfigSchemaDefinition(objectMapper),
             objectMapper,
-            'TssConfigSource',
           );
 
           const provider: ConfigProvider = new LayeredConfigProvider(objectMapper);
