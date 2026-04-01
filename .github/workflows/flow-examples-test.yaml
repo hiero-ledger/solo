@@ -242,6 +242,22 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Cache Helm chart tarballs
+        # helm dependency build pulls OCI chart tarballs (e.g. bitnamicharts/redis)
+        # directly from registry-1.docker.io on the runner host — the Kind containerd
+        # mirror only covers image pulls inside the cluster, not host-side helm pulls.
+        # This cache persists ~/.solo/helm-chart-cache ACROSS separate CI runs (not just
+        # within the same run), so all chart tarballs (block-node-server, hedera-mirror,
+        # hedera-json-rpc, hiero-mirror-node-explorer) are restored in one shot on every
+        # subsequent run sharing the same version.ts hash. Docker Hub is contacted at most
+        # once per version bump — preventing anonymous rate-limit 429s.
+        if: ${{ matrix.example.local-java-build }}
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.solo/helm-chart-cache
+          key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}
+          restore-keys: helm-chart-deps-${{ runner.os }}-
+
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
