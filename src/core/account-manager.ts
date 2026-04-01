@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import * as crypto from 'node:crypto';
 import * as Base64 from 'js-base64';
 import * as constants from './constants.js';
 import {IGNORED_NODE_ACCOUNT_ID} from './constants.js';
@@ -1084,6 +1085,30 @@ export class AccountManager {
         serviceEndpoint = {domainName: externalAddress, port: grpcPort};
       }
 
+      // Try to include the RSA public key from the node's gossip signing cert stored in k8s.
+      // The mirror node importer uses this key to verify record file signatures; without it,
+      // signature verification fails and the importer cannot ingest any record files.
+      let rsaPubKeyHex: string | undefined;
+      try {
+        const secretName: string = Templates.renderGossipKeySecretName(networkNodeService.nodeAlias);
+        const secret = await this.k8Factory
+          .getK8(networkNodeService.context)
+          .secrets()
+          .read(networkNodeService.namespace, secretName);
+        const pemKey = `s-public-${networkNodeService.nodeAlias}.pem`;
+        if (secret?.data?.[pemKey]) {
+          const pemData: string = Buffer.from(secret.data[pemKey], 'base64').toString('utf8');
+          const cert = new crypto.X509Certificate(pemData);
+          const derBuffer = cert.publicKey.export({type: 'spki', format: 'der'}) as Buffer;
+          rsaPubKeyHex = derBuffer.toString('hex');
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Could not read gossip signing key for ${networkNodeService.nodeAlias}: ${error.message}. ` +
+            'Address book entry will have no RSA_PubKey; mirror node importer may fail signature verification.',
+        );
+      }
+
       nodeAddresses.push({
         nodeId: Long.fromNumber(networkNodeService.nodeId),
         nodeAccountId: {
@@ -1091,6 +1116,7 @@ export class AccountManager {
           realmNum: Long.fromNumber(Number(accountId.realm)),
           accountNum: Long.fromNumber(Number(accountId.num)),
         },
+        RSA_PubKey: rsaPubKeyHex,
         serviceEndpoint: [serviceEndpoint],
         description: networkNodeService.nodeAlias,
       });
