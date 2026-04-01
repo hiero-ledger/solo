@@ -1906,6 +1906,7 @@ export class NodeCommandTasks {
               'Consensus Node gRPC',
               config.isChartInstalled, // Reuse existing port if chart is already installed
               nodeId,
+              true, // persist: auto-restart on failure using persist-port-forward.js
             );
           }
           await this.remoteConfig.persist();
