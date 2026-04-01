@@ -313,8 +313,8 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 - Do not use trailing or leading underscores for private properties or methods.
 - Exception: underscore prefix is allowed for private variables when using `get` and `set` keywords for getter/setter methods.
 - When using the `of` and `from` prefixes for method names:
-    - use `of` for simple object creation
-    - use `from` for transformation
+  - use `of` for simple object creation
+  - use `from` for transformation
 
 #### 5.1.2 Descriptive names
 
