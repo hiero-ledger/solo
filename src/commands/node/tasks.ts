@@ -163,6 +163,7 @@ import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
+import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
@@ -2442,7 +2443,11 @@ export class NodeCommandTasks {
               try {
                 this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
 
-                const getAllCommand: string = `helm get all ${release.name} -n ${release.namespace} --kube-context ${context}`;
+                // Use "helm get values --all" (user-supplied + chart defaults only).
+                // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
+                // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
+                // and pod specs that may embed plaintext passwords from chart values.
+                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
                 const output: string = execSync(getAllCommand, {
                   encoding: 'utf8',
                   cwd: process.cwd(),
@@ -4079,6 +4084,59 @@ export class NodeCommandTasks {
         }
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
+      },
+    };
+  }
+
+  public getRemoteConfig(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Get solo-remote-config ConfigMaps from all clusters',
+      task: async (): Promise<void> => {
+        const outputDirectory: string = customOutputDirectory
+          ? path.resolve(customOutputDirectory, 'remote-config')
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'remote-config');
+        fs.mkdirSync(outputDirectory, {recursive: true});
+
+        const contexts: Contexts = this.k8Factory.default().contexts();
+        for (const context of contexts.list()) {
+          const k8: K8 = this.k8Factory.getK8(context);
+          try {
+            const configMaps: ConfigMap[] = await k8
+              .configMaps()
+              .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
+
+            for (const configMap of configMaps) {
+              const namespace: string = configMap.namespace.name;
+              const outputFileName: string = `${context}-${namespace}-${configMap.name}.json`;
+              const outputFilePath: string = PathEx.join(outputDirectory, outputFileName);
+
+              // Pretty-print the raw ConfigMap; parse the inner JSON data key for readability
+              const output: Record<string, unknown> = {
+                name: configMap.name,
+                namespace,
+                labels: configMap.labels ?? {},
+                data: {} as Record<string, unknown>,
+              };
+
+              if (configMap.data) {
+                for (const [key, value] of Object.entries(configMap.data)) {
+                  try {
+                    (output.data as Record<string, unknown>)[key] = JSON.parse(value);
+                  } catch {
+                    (output.data as Record<string, unknown>)[key] = value;
+                  }
+                }
+              }
+
+              fs.writeFileSync(outputFilePath, JSON.stringify(output, undefined, 2), 'utf8');
+              this.logger.info(`Saved solo-remote-config for ${context}/${namespace} to ${outputFilePath}`);
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to get solo-remote-config in context ${context}: ${(error as Error).message}`);
+          }
+        }
+
+        this.logger.showUser(`Remote config saved to ${outputDirectory}`);
       },
     };
   }

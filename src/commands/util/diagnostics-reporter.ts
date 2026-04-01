@@ -3,6 +3,7 @@
 import chalk from 'chalk';
 import fs from 'node:fs';
 import os from 'node:os';
+import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -155,20 +156,28 @@ export class DiagnosticsReporter {
     body: string,
     zipFilePath?: string,
   ): Promise<string> {
-    const shellRunner: ShellRunner = new ShellRunner(logger);
+    // Write body to a temp file to avoid any shell interpretation of the markdown content.
+    // We use spawnSync without shell:true so the title and all other args are also passed
+    // verbatim — ShellRunner uses shell:true which splits space-containing args into separate
+    // tokens, breaking both multi-word titles and multi-line bodies.
+    const bodyFilePath: string = PathEx.join(os.tmpdir(), `solo-gh-issue-body-${Date.now()}.md`);
+    fs.writeFileSync(bodyFilePath, body, 'utf8');
     try {
-      const output: string[] = await shellRunner.run('gh', [
-        'issue',
-        'create',
-        '--repo',
-        'hiero-ledger/solo',
-        '--title',
-        title,
-        '--body',
-        body,
-      ]);
+      const result: SpawnSyncReturns<string> = spawnSync(
+        'gh',
+        ['issue', 'create', '--repo', 'hiero-ledger/solo', '--title', title, '--body-file', bodyFilePath],
+        {encoding: 'utf8', env: process.env},
+      );
 
-      const issueUrl: string = output.find(line => line.startsWith('https://')) ?? output.at(-1) ?? '';
+      if (result.status !== 0) {
+        throw new Error(result.stderr?.trim() || `gh exited with status ${result.status}`);
+      }
+
+      const issueUrl: string =
+        result.stdout
+          .split('\n')
+          .find((line: string): boolean => line.startsWith('https://')) ?? '';
+
       logger.showUser(chalk.green('\n✓ GitHub issue created successfully!'));
       if (issueUrl) {
         logger.showUser(chalk.cyan(`  Issue URL: ${issueUrl}`));
@@ -183,6 +192,8 @@ export class DiagnosticsReporter {
       return issueUrl;
     } catch (error: Error | unknown) {
       throw new SoloError(`Failed to create GitHub issue: ${(error as Error).message}`, error as Error);
+    } finally {
+      fs.rmSync(bodyFilePath, {force: true});
     }
   }
 }

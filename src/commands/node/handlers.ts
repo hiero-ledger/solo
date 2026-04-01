@@ -653,12 +653,21 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
+        this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
       null,
+    );
+
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠  Warning: Collected diagnostic data may contain sensitive node configuration\n' +
+          '   (TLS certificates, onboard data). Store it securely and do not share publicly\n' +
+          '   without reviewing the contents first. Private keys under data/keys are NOT included.',
+      ),
     );
 
     return true;
@@ -726,6 +735,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    await this.resolveDeploymentForLogs(argv);
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
@@ -733,6 +743,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
+        this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.getNodeStateFiles(),
@@ -847,6 +858,13 @@ export class NodeCommandHandlers extends CommandHandler {
       if (zipFilePath) {
         this.logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
       }
+      this.logger.showUser(
+        chalk.yellow(
+          '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
+            '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
+            '   Private keys under data/keys are NOT included.',
+        ),
+      );
 
       const confirmed: boolean = await confirmPrompt({
         message: 'Create a GitHub issue with the diagnostic information?',
@@ -859,7 +877,7 @@ export class NodeCommandHandlers extends CommandHandler {
         if (zipFilePath) {
           this.logger.showUser(chalk.cyan(`Debug archive: ${zipFilePath}`));
         }
-        return false;
+        return true;
       }
     }
 

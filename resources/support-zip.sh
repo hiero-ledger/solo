@@ -61,7 +61,8 @@ AddToFileList ${HEDERA_KEY}
 AddToFileList ${OUTPUT_DIR}
 AddToFileList ${ADDRESS_BOOK_DIR}
 AddToFileList ${CONFIG_DIR}
-AddToFileList ${KEYS_DIR}
+# data/keys is intentionally excluded: it contains private gossip/signing keys
+# which must not be collected in diagnostic archives that could be shared externally.
 AddToFileList ${ONBOARD_DIR}
 AddToFileList ${UPGRADE_DIR}
 AddToFileList ${STATS_DIR}
