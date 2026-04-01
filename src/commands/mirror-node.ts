@@ -576,6 +576,14 @@ export class MirrorNodeCommand extends BaseCommand {
       );
 
       await this.remoteConfig.persist();
+    } else if (commandType === MirrorNodeCommandType.UPGRADE) {
+      // update mirror node version in remote config after successful upgrade
+      this.remoteConfig.updateComponentVersion(
+        ComponentTypes.MirrorNode,
+        new SemanticVersion<string>(config.mirrorNodeVersion),
+      );
+
+      await this.remoteConfig.persist();
     }
 
     if (config.enableIngress) {
