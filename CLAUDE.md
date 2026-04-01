@@ -124,6 +124,8 @@ Key rules enforced as ESLint **errors** (not warnings):
   TypeScript style guide for the full substitution list.
 - **Explicit types** — Every variable declaration and every callback (including `it()` / `describe()`
   callbacks in tests) must have an explicit type annotation. See §6.1 and §6.1.1 of the style guide.
+- **One class/interface per file** — Each exported class or interface must be in its own file, named
+  in kebab-case to match the class/interface name. See §3.5 of the style guide.
 
 Run `task format` to auto-fix formatting and lint issues before committing. Note that
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations

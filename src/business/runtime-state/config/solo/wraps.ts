@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Facade} from '../../facade/facade.js';
-import {type WrapsSchema} from '../../../../data/schema/model/solo/tss-schema.js';
+import {type WrapsSchema} from '../../../../data/schema/model/solo/wraps-schema.js';
 
 export class Wraps implements Facade<WrapsSchema> {
   public constructor(public readonly encapsulatedObject: WrapsSchema) {}

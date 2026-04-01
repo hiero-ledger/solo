@@ -9,7 +9,8 @@ import path from 'node:path';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as constants from '../../../src/core/constants.js';
-import {TssSchema, WrapsSchema} from '../../../src/data/schema/model/solo/tss-schema.js';
+import {TssSchema} from '../../../src/data/schema/model/solo/tss-schema.js';
+import {WrapsSchema} from '../../../src/data/schema/model/solo/wraps-schema.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
