@@ -2884,15 +2884,15 @@ export class Flags {
     prompt: undefined,
   };
 
-  // --------------- Cache --------------- //
-
-  public static readonly dockerImagesTargetPath: CommandFlag = {
-    constName: 'dockerImagesTargetPath',
-    name: 'docker-images-target-path',
+  public static readonly parallelDeploy: CommandFlag = {
+    constName: 'parallelDeploy',
+    name: 'parallel-deploy',
     definition: {
-      describe: 'Path to file containing all images to be pulled or loaded into cluster',
-      defaultValue: '',
-      type: 'string',
+      describe:
+        'Run independent one-shot deploy stages in parallel (consensus+block, mirror+accounts, explorer+relay). ' +
+        'Disable with --no-parallel-deploy for sequential execution (useful for debugging or resource-constrained environments).',
+      defaultValue: true,
+      type: 'boolean',
     },
     prompt: undefined,
   };
@@ -3070,6 +3070,7 @@ export class Flags {
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
     Flags.rollback,
+    Flags.parallelDeploy,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

@@ -53,6 +53,7 @@ export interface ComponentsDataWrapperApi {
     label: string,
     reuse?: boolean,
     nodeId?: number,
+    persist?: boolean,
   ): Promise<number>;
 
   stopPortForwards(

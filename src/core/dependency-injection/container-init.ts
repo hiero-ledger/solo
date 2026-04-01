@@ -254,15 +254,28 @@ export class Container {
         (container: DependencyContainer): ConfigProvider => {
           const objectMapper: ClassToObjectMapper = container.resolve<ClassToObjectMapper>(InjectTokens.ObjectMapper);
 
-          const defaultConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
-            'solo-config.yaml',
+          const helmChartConfigSource: DefaultConfigSource<SoloConfigSchema> =
+            new DefaultConfigSource<SoloConfigSchema>(
+              'helm-chart-config.yaml',
+              PathEx.join('resources', 'config'),
+              new SoloConfigSchemaDefinition(objectMapper),
+              objectMapper,
+            );
+
+          const tssConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
+            'tss-config.yaml',
             PathEx.join('resources', 'config'),
             new SoloConfigSchemaDefinition(objectMapper),
             objectMapper,
           );
 
           const provider: ConfigProvider = new LayeredConfigProvider(objectMapper);
-          provider.builder().withDefaultSources().withSources(defaultConfigSource).withMergeSourceValues(true).build();
+          provider
+            .builder()
+            .withDefaultSources()
+            .withSources(helmChartConfigSource, tssConfigSource)
+            .withMergeSourceValues(true)
+            .build();
           return provider;
         },
       ),

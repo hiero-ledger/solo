@@ -147,7 +147,7 @@ flags may be specified at any level of the command hierarchy.
 | deployment  | config             | < list & info & create & delete & import >                                         |
 | deployment  | cluster            | < list & info & attach & detach >                                                  |
 | deployment  | state              | < info & destroy >                                                                 |
-| deployment  | diagnostics        | < logs & configs & all & connections >                                             |
+| deployment  | diagnostics        | < logs & configs & all & connections & analyze >                                   |
 | explorer    | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | keys        | consensus          | < generate >                                                                       |
 | ledger      | system             | < init & accounts-rekey & staking-setup >                                          |
@@ -436,12 +436,13 @@ operations associated with each resource.
 
 #### diagnostics
 
-| Operation Name  | Command Syntax | Description                                                                |
-|-----------------|----------------|----------------------------------------------------------------------------|
-| **Logs**        | `logs`         | Collects logs from consensus nodes in the deployment.                      |
-| **Configs**     | `configs`      | Collects configuration files from consensus nodes.                         |
-| **All**         | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes. |
-| **Connections** | `connections`  | Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.   |
+| Operation Name  | Command Syntax | Description                                                                                      |
+|-----------------|----------------|--------------------------------------------------------------------------------------------------|
+| **Logs**        | `logs`         | Collects logs from consensus nodes in the deployment.                                            |
+| **Configs**     | `configs`      | Collects configuration files from consensus nodes.                                               |
+| **All**         | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes.                       |
+| **Connections** | `connections`  | Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.                         |
+| **Analyze**     | `analyze`      | Analyzes a previously collected diagnostics directory for common failure signatures without requiring a live cluster connection. Accepts an optional `--input-dir` flag pointing to the directory produced by `logs`, `configs`, or `all`; defaults to `~/.solo/logs/<namespace>`. Findings are written to `diagnostics-analysis.txt` inside the input directory and the top issues are printed to the terminal. |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

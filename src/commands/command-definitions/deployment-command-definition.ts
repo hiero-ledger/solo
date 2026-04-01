@@ -59,6 +59,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_INFO: string = 'info';
 
   public static readonly DIAGNOSTICS_ALL: string = 'all';
+  public static readonly DIAGNOSTICS_ANALYZE: string = 'analyze';
   public static readonly DIAGNOSTICS_DEBUG: string = 'debug';
   public static readonly DIAGNOSTICS_LOGS: string = 'logs';
   public static readonly DIAGNOSTICS_CONNECTIONS: string = 'connections';
@@ -199,6 +200,15 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.logs,
               NodeFlags.LOGS_FLAGS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTICS_ANALYZE,
+              'Analyze a previously collected diagnostics logs directory for common failure signatures.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.analyze,
+              NodeFlags.ANALYZE_FLAGS,
             ),
           ),
       )

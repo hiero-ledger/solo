@@ -244,9 +244,9 @@ export class SemanticVersion<T extends string | number> {
             return false;
           }
         } else if (thisPartIsNumeric) {
-          return true; // Numeric identifiers are less than non-numeric
+          return false; // Numeric identifiers have lower precedence than non-numeric (semver §11.4.4)
         } else if (otherPartIsNumeric) {
-          return false; // Numeric identifiers are less than non-numeric
+          return true; // Numeric identifiers have lower precedence than non-numeric (semver §11.4.4)
         } else {
           if (thisPart > otherPart) {
             return true;
