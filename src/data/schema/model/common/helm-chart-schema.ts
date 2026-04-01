@@ -5,37 +5,37 @@ import {Exclude, Expose} from 'class-transformer';
 @Exclude()
 export class HelmChartSchema {
   @Expose()
-  public name: string | undefined;
+  public name: string = '';
 
   @Expose()
-  public namespace: string | undefined;
+  public namespace: string = '';
 
   @Expose()
-  public release: string | undefined;
+  public release: string = '';
 
   @Expose()
-  public repository: string | undefined;
+  public repository: string = '';
 
   @Expose()
-  public directory: string | undefined;
+  public directory: string = '';
 
   @Expose()
-  public version: string | undefined;
+  public version: string = '';
 
   @Expose()
-  public labelSelector: string | undefined;
+  public labelSelector: string = '';
 
   @Expose()
-  public containerName: string | undefined;
+  public containerName: string = '';
 
   @Expose()
-  public ingressClassName: string | undefined;
+  public ingressClassName: string = '';
 
   @Expose()
-  public ingressControllerName: string | undefined;
+  public ingressControllerName: string = '';
 
   @Expose()
-  public ingressControllerPrefix: string | undefined;
+  public ingressControllerPrefix: string = '';
 
   public constructor(
     name?: string,
@@ -50,16 +50,38 @@ export class HelmChartSchema {
     ingressControllerName?: string,
     ingressControllerPrefix?: string,
   ) {
-    this.name = name ?? undefined;
-    this.namespace = namespace ?? undefined;
-    this.release = release ?? undefined;
-    this.repository = repository ?? undefined;
-    this.directory = directory ?? undefined;
-    this.version = version ?? undefined;
-    this.labelSelector = labelSelector ?? undefined;
-    this.containerName = containerName ?? undefined;
-    this.ingressClassName = ingressClassName ?? undefined;
-    this.ingressControllerName = ingressControllerName ?? undefined;
-    this.ingressControllerPrefix = ingressControllerPrefix ?? undefined;
+    if (name !== undefined) {
+      this.name = name;
+    }
+    if (namespace !== undefined) {
+      this.namespace = namespace;
+    }
+    if (release !== undefined) {
+      this.release = release;
+    }
+    if (repository !== undefined) {
+      this.repository = repository;
+    }
+    if (directory !== undefined) {
+      this.directory = directory;
+    }
+    if (version !== undefined) {
+      this.version = version;
+    }
+    if (labelSelector !== undefined) {
+      this.labelSelector = labelSelector;
+    }
+    if (containerName !== undefined) {
+      this.containerName = containerName;
+    }
+    if (ingressClassName !== undefined) {
+      this.ingressClassName = ingressClassName;
+    }
+    if (ingressControllerName !== undefined) {
+      this.ingressControllerName = ingressControllerName;
+    }
+    if (ingressControllerPrefix !== undefined) {
+      this.ingressControllerPrefix = ingressControllerPrefix;
+    }
   }
 }

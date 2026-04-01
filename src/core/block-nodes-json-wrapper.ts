@@ -13,6 +13,7 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
 import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 
 type BlockNodeConnectionDataBase = {
   messageSizeSoftLimitBytes?: number;
@@ -95,11 +96,11 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-      const soloConfig: SoloConfigSchema | null = this.configProvider.config().asObject(SoloConfigSchema);
+      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
-            messageSizeSoftLimitBytes: soloConfig?.tss?.messageSizeSoftLimitBytes,
-            messageSizeHardLimitBytes: soloConfig?.tss?.messageSizeHardLimitBytes,
+            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
+            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
           }
         : {};
 
@@ -118,11 +119,11 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
-      const soloConfig: SoloConfigSchema | null = this.configProvider.config().asObject(SoloConfigSchema);
+      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
-            messageSizeSoftLimitBytes: soloConfig?.tss?.messageSizeSoftLimitBytes,
-            messageSizeHardLimitBytes: soloConfig?.tss?.messageSizeHardLimitBytes,
+            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
+            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
           }
         : {};
 

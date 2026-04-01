@@ -170,7 +170,8 @@ import {CommandFlag} from '../../types/flag-types.js';
 import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 import {SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
-import {type TssSchema, type WrapsSchema} from '../../data/schema/model/solo/tss-schema.js';
+import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
+import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1535,8 +1536,8 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Waiting for node: ${node.name}`,
             task: async (_, task): Promise<void> => {
-              const tss: TssSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss;
-              const maxAttempts: number = tss?.readyMaxAttempts ?? 60;
+              const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
+              const maxAttempts: number = soloConfig.tss.readyMaxAttempts;
               let attempt: number = 0;
               let success: boolean = false;
 
@@ -1555,10 +1556,10 @@ export class NodeCommandTasks {
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
                 if (output.includes('TSS protocol ready to sign blocks')) {
-                  await sleep(Duration.ofSeconds(tss?.timeoutAfterReadySeconds ?? 10));
+                  await sleep(Duration.ofSeconds(soloConfig.tss.timeoutAfterReadySeconds));
                   success = true;
                 } else {
-                  await sleep(Duration.ofSeconds(tss?.readyBackoffSeconds ?? 3));
+                  await sleep(Duration.ofSeconds(soloConfig.tss.readyBackoffSeconds));
                 }
               }
 
@@ -3092,10 +3093,10 @@ export class NodeCommandTasks {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+        const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
         const extractedDirectory: string = PathEx.join(
           constants.SOLO_CACHE_DIR,
-          wraps?.directoryName ?? 'wraps-v0.2.0',
+          wraps.directoryName,
         );
         const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
@@ -3109,7 +3110,7 @@ export class NodeCommandTasks {
             fs.mkdirSync(extractedDirectory, {recursive: true});
           }
 
-          const allowedFiles: Set<string> = new Set((wraps?.allowedKeyFiles ?? '').split(','));
+          const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
           for (const file of fs.readdirSync(wrapsKeyPath)) {
             if (allowedFiles.has(file)) {
@@ -3118,7 +3119,7 @@ export class NodeCommandTasks {
           }
         } else {
           await this.downloader.fetchPackage(
-            wraps?.libraryDownloadUrl ?? '',
+            wraps.libraryDownloadUrl,
             'unusued', // doesn't check checksum
             constants.SOLO_CACHE_DIR,
             false,
@@ -3128,7 +3129,7 @@ export class NodeCommandTasks {
 
           const tarFilePath: string = PathEx.join(
             constants.SOLO_CACHE_DIR,
-            `${wraps?.directoryName ?? 'wraps-v0.2.0'}.tar.gz`,
+            `${wraps.directoryName}.tar.gz`,
           );
 
           // Create extraction dir
@@ -3144,7 +3145,7 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.directoryName ?? 'wraps-v0.2.0'}`;
+          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
           if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
@@ -3356,8 +3357,8 @@ export class NodeCommandTasks {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
+        const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
       }
@@ -3447,8 +3448,8 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-      const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
-      const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
+      const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+      const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
       valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
     }
@@ -3499,8 +3500,8 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-          const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
-          const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
+          const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+          const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
           valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
         }

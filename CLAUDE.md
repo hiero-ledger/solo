@@ -80,6 +80,14 @@ When adding, removing, or modifying environment variables consumed via `getEnvir
 
 Each entry in `env.md` should include the variable name, a short description of its purpose, and its default value (as defined in the source).
 
+## Architecture and Design
+
+Before implementing a new feature or undertaking a major refactor, review the architecture and
+design documentation under [`docs/design/architecture/`](docs/design/architecture/) and align the
+implementation with the patterns and standards described there.
+
+For small enhancements to existing features or bug fixes, architectural alignment is not required.
+
 ## Coding Standards
 
 Follow the project's TypeScript style guide at [`docs/contributing/typescript-code-style.md`](docs/contributing/typescript-code-style.md) for all code changes.
@@ -89,6 +97,12 @@ Before writing or modifying code, review these configuration files to avoid lint
 - **`.prettierrc.json`** — formatting rules (indentation, quotes, line length, etc.)
 - **`eslint.config.mjs`** — linting rules and TypeScript-specific restrictions
 - **`.remarkrc.mjs`** — Markdown linting rules (applies to `.md` files)
+
+Key rules enforced as ESLint **errors** (not warnings):
+
+- **`import type`** — When all identifiers in an import are used only as types, use
+  `import type {Foo} from '...'`. For mixed imports, use the inline form:
+  `import {SomeClass, type SomeInterface} from '...'`. See §3.3.4 of the TypeScript style guide.
 
 Run `task format` to auto-fix formatting and lint issues before committing.
 

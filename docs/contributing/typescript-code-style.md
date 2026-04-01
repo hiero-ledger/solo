@@ -94,6 +94,28 @@ There are four variants of import statements in ES6 and TypeScript:
 
 Prefer resolving name collisions via namespace imports or renaming exports; renaming imports (`import {SomeThing as SomeOtherThing}`) is allowed when needed.
 
+#### 3.3.4 Type-only imports (`import type`)
+
+When every identifier in an import statement is used only as a type (not as a value at runtime),
+the `type` modifier **must** be used. This is enforced by the
+`@typescript-eslint/consistent-type-imports` ESLint rule at the `error` level.
+
+Use the **inline** form when an import contains a mix of types and values:
+
+```typescript
+// All type-only → import type
+import type {Facade} from './facade.js';
+
+// Mixed value + type → inline type modifier on the type-only identifiers
+import {SomeClass, type SomeInterface} from './some-module.js';
+```
+
+`task format` will auto-fix violations automatically.
+
+> **Rationale:** Explicit type imports are erased completely by the TypeScript compiler and help
+> bundlers with tree-shaking. They also reduce the risk of circular-dependency issues at runtime
+> since modules that contain only type imports do not create a runtime dependency edge.
+
 ### 3.4 Exports
 
 #### 3.4.1 Use named exports

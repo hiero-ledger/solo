@@ -81,7 +81,8 @@ import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
 import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
-import {type WrapsSchema} from '../data/schema/model/solo/tss-schema.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
+import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -500,9 +501,8 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const wrapsArtifacts: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)
-          ?.tss?.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wrapsArtifacts?.artifactsFolderName ?? 'wraps-v0.2.0'}`;
+        const wrapsArtifacts: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wrapsArtifacts.artifactsFolderName}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
       }
@@ -1511,10 +1511,10 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            const wraps: WrapsSchema | undefined = this.configProvider.config().asObject(SoloConfigSchema)?.tss?.wraps;
+            const wraps: Wraps = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema)).tss.wraps;
             const extractedDirectory: string = PathEx.join(
               constants.SOLO_CACHE_DIR,
-              wraps?.directoryName ?? 'wraps-v0.2.0',
+              wraps.directoryName,
             );
 
             if (config.wrapsKeyPath) {
@@ -1529,7 +1529,7 @@ export class NetworkCommand extends BaseCommand {
                 fs.mkdirSync(extractedDirectory, {recursive: true});
               }
 
-              const allowedFiles: Set<string> = new Set((wraps?.allowedKeyFiles ?? '').split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(config.wrapsKeyPath)) {
                 if (allowedFiles.has(file)) {
@@ -1541,7 +1541,7 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.debug('Wraps library already installed');
               } else {
                 await this.downloader.fetchPackage(
-                  wraps?.libraryDownloadUrl ?? '',
+                  wraps.libraryDownloadUrl,
                   'unusued',
                   constants.SOLO_CACHE_DIR,
                   false,
@@ -1551,7 +1551,7 @@ export class NetworkCommand extends BaseCommand {
 
                 const tarFilePath: string = PathEx.join(
                   constants.SOLO_CACHE_DIR,
-                  `${wraps?.directoryName ?? 'wraps-v0.2.0'}.tar.gz`,
+                  `${wraps.directoryName}.tar.gz`,
                 );
 
                 // Create extraction dir
@@ -1562,7 +1562,7 @@ export class NetworkCommand extends BaseCommand {
               }
 
               // Having any files except for those inside the folder causes an error in CN
-              const allowedFiles: Set<string> = new Set((wraps?.allowedKeyFiles ?? '').split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(extractedDirectory)) {
                 if (!allowedFiles.has(file)) {

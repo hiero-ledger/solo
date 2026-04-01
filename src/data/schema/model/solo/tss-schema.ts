@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Exclude, Expose} from 'class-transformer';
+import {Exclude, Expose, Type} from 'class-transformer';
 
 @Exclude()
 export class WrapsSchema {
   @Expose()
-  public artifactsFolderName: string | undefined;
+  public artifactsFolderName: string = 'wraps-v0.2.0';
 
   @Expose()
-  public directoryName: string | undefined;
+  public directoryName: string = 'wraps-v0.2.0';
 
   @Expose()
-  public allowedKeyFiles: string | undefined;
+  public allowedKeyFiles: string = 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
 
   // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
   // If directoryName is updated, update libraryDownloadUrl to match.
   @Expose()
-  public libraryDownloadUrl: string | undefined;
+  public libraryDownloadUrl: string = 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz';
 
   public constructor(
     artifactsFolderName?: string,
@@ -24,32 +24,41 @@ export class WrapsSchema {
     allowedKeyFiles?: string,
     libraryDownloadUrl?: string,
   ) {
-    this.artifactsFolderName = artifactsFolderName ?? undefined;
-    this.directoryName = directoryName ?? undefined;
-    this.allowedKeyFiles = allowedKeyFiles ?? undefined;
-    this.libraryDownloadUrl = libraryDownloadUrl ?? undefined;
+    if (artifactsFolderName !== undefined) {
+      this.artifactsFolderName = artifactsFolderName;
+    }
+    if (directoryName !== undefined) {
+      this.directoryName = directoryName;
+    }
+    if (allowedKeyFiles !== undefined) {
+      this.allowedKeyFiles = allowedKeyFiles;
+    }
+    if (libraryDownloadUrl !== undefined) {
+      this.libraryDownloadUrl = libraryDownloadUrl;
+    }
   }
 }
 
 @Exclude()
 export class TssSchema {
   @Expose()
-  public messageSizeSoftLimitBytes: number | undefined;
+  public messageSizeSoftLimitBytes: number = 4_194_304;
 
   @Expose()
-  public messageSizeHardLimitBytes: number | undefined;
+  public messageSizeHardLimitBytes: number = 37_748_736;
 
   @Expose()
-  public timeoutAfterReadySeconds: number | undefined;
+  public timeoutAfterReadySeconds: number = 10;
 
   @Expose()
-  public readyMaxAttempts: number | undefined;
+  public readyMaxAttempts: number = 60;
 
   @Expose()
-  public readyBackoffSeconds: number | undefined;
+  public readyBackoffSeconds: number = 3;
 
   @Expose()
-  public wraps: WrapsSchema | undefined;
+  @Type((): typeof WrapsSchema => WrapsSchema)
+  public wraps: WrapsSchema = new WrapsSchema();
 
   public constructor(
     messageSizeSoftLimitBytes?: number,
@@ -59,11 +68,23 @@ export class TssSchema {
     readyBackoffSeconds?: number,
     wraps?: WrapsSchema,
   ) {
-    this.messageSizeSoftLimitBytes = messageSizeSoftLimitBytes ?? undefined;
-    this.messageSizeHardLimitBytes = messageSizeHardLimitBytes ?? undefined;
-    this.timeoutAfterReadySeconds = timeoutAfterReadySeconds ?? undefined;
-    this.readyMaxAttempts = readyMaxAttempts ?? undefined;
-    this.readyBackoffSeconds = readyBackoffSeconds ?? undefined;
-    this.wraps = wraps ?? undefined;
+    if (messageSizeSoftLimitBytes !== undefined) {
+      this.messageSizeSoftLimitBytes = messageSizeSoftLimitBytes;
+    }
+    if (messageSizeHardLimitBytes !== undefined) {
+      this.messageSizeHardLimitBytes = messageSizeHardLimitBytes;
+    }
+    if (timeoutAfterReadySeconds !== undefined) {
+      this.timeoutAfterReadySeconds = timeoutAfterReadySeconds;
+    }
+    if (readyMaxAttempts !== undefined) {
+      this.readyMaxAttempts = readyMaxAttempts;
+    }
+    if (readyBackoffSeconds !== undefined) {
+      this.readyBackoffSeconds = readyBackoffSeconds;
+    }
+    if (wraps !== undefined) {
+      this.wraps = wraps;
+    }
   }
 }
