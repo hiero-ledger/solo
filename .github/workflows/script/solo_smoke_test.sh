@@ -42,6 +42,21 @@ function setup_smart_contract_test ()
   echo "RETRY_DELAY=5000 # ms" >> .env
   echo "MAX_RETRY=5" >> .env
   cat .env
+
+  # Override the hardcoded legacy ports in constants.js (7546, 50211, 8081) with
+  # Solo's current port-forward scheme (37546, 35211, 38081).  The upstream repo
+  # keeps the old defaults so other tests are unaffected; we patch in-place after
+  # cloning to produce the correct environment for this smoke test run.
+  node -e "
+    const fs = require('fs');
+    let c = fs.readFileSync('utils/constants.js', 'utf8');
+    c = c.replace(\"url: 'http://localhost:7546'\",         \"url: 'http://localhost:37546'\");
+    c = c.replace(\"networkNodeUrl: '127.0.0.1:50211'\",    \"networkNodeUrl: '127.0.0.1:35211'\");
+    c = c.replace(\"mirrorNode: 'http://127.0.0.1:8081'\",  \"mirrorNode: 'http://127.0.0.1:38081'\");
+    fs.writeFileSync('utils/constants.js', c);
+    console.log('Patched utils/constants.js with Solo port-forward addresses');
+  "
+
   cd -
 }
 
@@ -79,7 +94,7 @@ function start_contract_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     printf "\r::group::Test local network connection using nc\n"
     echo "Test local network connection using nc"
-    nc -zv 127.0.0.1 50211 || ncat -zv 127.0.0.1 50211 || true
+    nc -zv 127.0.0.1 35211 || ncat -zv 127.0.0.1 35211 || true
     printf "\r::endgroup::\n"
   fi
 
@@ -97,7 +112,7 @@ function start_sdk_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
     log_and_exit $result
