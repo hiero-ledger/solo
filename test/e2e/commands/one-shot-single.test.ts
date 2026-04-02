@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {describe} from 'mocha';
+import http from 'node:http';
+import {expect} from 'chai';
 
 import {resetForTest} from '../../test-container.js';
 import {container} from 'tsyringe-neo';
@@ -118,6 +120,28 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
       }).timeout(Duration.ofMinutes(60).toMillis());
+
+      it('Should expose mirror node REST API on localhost:5551 without manual port forwarding', async (): Promise<void> => {
+        if (minimalSetup) {
+          return; // mirror node is not deployed in minimal setup
+        }
+
+        await new Promise<void>((resolve, reject): void => {
+          const request: http.ClientRequest = http.request(
+            'http://localhost:5551/api/v1/transactions',
+            {method: 'GET', timeout: 5000, headers: {Connection: 'close'}},
+            (response: http.IncomingMessage): void => {
+              expect(response.statusCode, 'mirror node REST API should return HTTP 200').to.equal(200);
+              response.resume();
+              resolve();
+            },
+          );
+          request.on('error', (error: Error): void => {
+            reject(new Error(`mirror node REST API is not reachable on localhost:5551: ${error.message}`));
+          });
+          request.end();
+        });
+      }).timeout(Duration.ofSeconds(30).toMillis());
 
       // TODO add verifications
     });
