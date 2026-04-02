@@ -633,7 +633,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         ...BlockCommandDefinition.ADD_COMMAND.split(' '),
                         optionFromFlag(Flags.deployment),
                         config.deployment,
-                        optionFromFlag(Flags.tssEnabled),
+                        optionFromFlag(Flags.blockNodeTssOverlay),
                         'true',
                       );
                       this.appendConfigToArgv(argv, config.blockNodeConfiguration);
