@@ -1837,13 +1837,17 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
-              // Touch the flag file so network-node-autostart restarts the JVM
-              // on any subsequent pod restart, then bring the service up via s6-rc.
-              await container.execContainer([
-                'bash',
-                '-c',
-                `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && /command/s6-rc -u change network-node`,
-              ]);
+              await (constants.ENABLE_S6_IMAGE
+                ? container.execContainer([
+                    'bash',
+                    '-c',
+                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
+                  ])
+                : container.execContainer([
+                    'bash',
+                    '-c',
+                    'systemctl stop network-node || true && systemctl enable --now network-node',
+                  ]));
             },
           });
         }
@@ -2136,16 +2140,15 @@ export class NodeCommandTasks {
               task: async () => {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                // Remove the flag file first so network-node-autostart does not
-                // restart the JVM on any subsequent pod restart, then bring the
-                // service down via s6-rc.  Fall back to s6-svc -d if s6-rc fails
-                // (e.g. when called while the container is still initialising).
-                await container.execContainer([
-                  'bash',
-                  '-c',
-                  `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled && ` +
-                    '(/command/s6-rc -d change network-node 2>/dev/null || /command/s6-svc -d /run/service/network-node 2>/dev/null || true)',
-                ]);
+                if (constants.ENABLE_S6_IMAGE) {
+                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
+
+                  // Wait for graceful shutdown
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                } else {
+                  // systemd stop (legacy)
+                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
+                }
               },
             });
           }
