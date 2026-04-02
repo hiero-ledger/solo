@@ -1237,33 +1237,17 @@ END $grant$;`;
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              if (config.operatorKey) {
-                this.logger.info('Using provided operator key');
-                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
-              } else {
-                try {
-                  const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-                    this.localConfig,
-                    this.configManager,
-                    task,
-                  );
-
-                  const secrets: Secret[] = await this.k8Factory
-                    .getK8(config.clusterContext)
-                    .secrets()
-                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                  if (secrets.length === 0) {
-                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
-                  } else {
-                    this.logger.info('Using operator key from k8s secret');
-                    const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
-                  }
-                } catch (error) {
-                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
-                }
-              }
+              const resolvedNamespace: NamespaceName = await resolveNamespaceFromDeployment(
+                this.localConfig,
+                this.configManager,
+                task,
+              );
+              config.valuesArg += await this.prepareMonitorOperatorKeyValues(
+                operatorId,
+                config.operatorKey,
+                config.clusterContext,
+                resolvedNamespace,
+              );
             } else {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
@@ -1447,33 +1431,17 @@ END $grant$;`;
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              if (config.operatorKey) {
-                this.logger.info('Using provided operator key');
-                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
-              } else {
-                try {
-                  const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-                    this.localConfig,
-                    this.configManager,
-                    task,
-                  );
-
-                  const secrets: Secret[] = await this.k8Factory
-                    .getK8(config.clusterContext)
-                    .secrets()
-                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                  if (secrets.length === 0) {
-                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
-                  } else {
-                    this.logger.info('Using operator key from k8s secret');
-                    const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
-                  }
-                } catch (error) {
-                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
-                }
-              }
+              const resolvedNamespace: NamespaceName = await resolveNamespaceFromDeployment(
+                this.localConfig,
+                this.configManager,
+                task,
+              );
+              config.valuesArg += await this.prepareMonitorOperatorKeyValues(
+                operatorId,
+                config.operatorKey,
+                config.clusterContext,
+                resolvedNamespace,
+              );
             } else {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
@@ -1594,6 +1562,66 @@ END $grant$;`;
         `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
       );
     }
+  }
+
+  /**
+   * Resolve the operator private key for the monitor pinger and store it in the
+   * mirror-passwords k8s Secret under HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY.
+   * Returns Helm values arguments that wire monitor.envFrom to that secret so
+   * the key is never stored in Helm release history.
+   */
+  private async prepareMonitorOperatorKeyValues(
+    operatorId: string,
+    operatorKey: string | undefined,
+    clusterContext: string,
+    namespace: NamespaceName,
+  ): Promise<string> {
+    let resolvedKey: string;
+
+    if (operatorKey) {
+      this.logger.info('Using provided operator key for monitor pinger');
+      resolvedKey = operatorKey;
+    } else {
+      try {
+        const secrets: Secret[] = await this.k8Factory
+          .getK8(clusterContext)
+          .secrets()
+          .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+        if (secrets.length === 0) {
+          this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+          resolvedKey = constants.OPERATOR_KEY;
+        } else {
+          this.logger.info('Using operator key from k8s secret');
+          resolvedKey = Base64.decode(secrets[0].data.privateKey);
+        }
+      } catch (error) {
+        throw new SoloError(`Error getting operator key: ${error.message}`, error);
+      }
+    }
+
+    // Merge the key into mirror-passwords without overwriting existing keys.
+    let existingData: Record<string, string> = {};
+    try {
+      const existingSecret: Secret = await this.k8Factory
+        .getK8(clusterContext)
+        .secrets()
+        .read(namespace, 'mirror-passwords');
+      existingData = existingSecret?.data ?? {};
+    } catch {
+      // Secret does not exist yet
+    }
+    await this.k8Factory
+      .getK8(clusterContext)
+      .secrets()
+      .createOrReplace(namespace, 'mirror-passwords', SecretType.OPAQUE, {
+        ...existingData,
+        HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY: Base64.encode(resolvedKey),
+      });
+
+    // Tell the monitor to load its env vars from mirror-passwords.
+    // Spring Boot maps HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY →
+    // hiero.mirror.monitor.operator.privateKey at runtime.
+    return ` --set 'monitor.envFrom[0].secretRef.name=mirror-passwords'`;
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
