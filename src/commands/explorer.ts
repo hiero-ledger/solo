@@ -540,7 +540,7 @@ export class ExplorerCommand extends BaseCommand {
           config.clusterRef,
           podReference,
           constants.EXPLORER_PORT, // Pod port
-          constants.EXPLORER_PORT, // Local port
+          constants.EXPLORER_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.clusterContext),
           this.logger,
           ComponentTypes.Explorer,
@@ -552,7 +552,7 @@ export class ExplorerCommand extends BaseCommand {
           config.clusterRef,
           podReference,
           constants.EXPLORER_PORT, // Pod port
-          constants.EXPLORER_PORT, // Local port
+          constants.EXPLORER_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.clusterContext),
           this.logger,
           ComponentTypes.Explorer,

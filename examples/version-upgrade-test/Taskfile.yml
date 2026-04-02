@@ -183,7 +183,7 @@ tasks:
           echo "Checking Explorer API for account: $ACCOUNT_ID"
           
           # Get the explorer service URL (assuming port-forward or ingress)
-          EXPLORER_URL="http://localhost:8080"
+          EXPLORER_URL="http://localhost:38080"
           
           # Try to access the account via Explorer API
           curl -s "${EXPLORER_URL}/api/v1/accounts/${ACCOUNT_ID}" | jq '.' || echo "Explorer API check completed"
@@ -192,7 +192,7 @@ tasks:
       # Test Relay functionality
       - cmd: |
           # Get relay service URL (assuming port-forward or ingress)
-          RELAY_URL="http://localhost:7546"
+          RELAY_URL="http://localhost:37546"
           
           # Make a simple JSON-RPC call to verify relay is working
           curl -X POST "${RELAY_URL}" \

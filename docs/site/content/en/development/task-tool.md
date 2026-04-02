@@ -37,7 +37,7 @@ cd scripts
 task default-with-relay
 ```
 
-If a Mirror Node or a Relay node is deployed, the user can access the Hiero Explorer at <http://localhost:8080>
+If a Mirror Node or a Relay node is deployed, the user can access the Hiero Explorer at <http://localhost:38080>
 
 ### Stop the Consensus Node network
 
