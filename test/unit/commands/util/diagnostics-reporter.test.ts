@@ -156,9 +156,9 @@ describe('DiagnosticsReporter', (): void => {
         status: 0,
         stdout: `${expectedUrl}\n`,
         stderr: '',
-        output: [null, `${expectedUrl}\n`, ''],
+        output: [undefined, `${expectedUrl}\n`, ''],
         pid: mockPid,
-        signal: null,
+        signal: undefined,
       } as SpawnSyncReturns<string>);
 
       const url: string = await DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body');
@@ -172,9 +172,9 @@ describe('DiagnosticsReporter', (): void => {
         status: 1,
         stdout: '',
         stderr: 'authentication required',
-        output: [null, '', 'authentication required'],
+        output: [undefined, '', 'authentication required'],
         pid: mockPid,
-        signal: null,
+        signal: undefined,
       } as SpawnSyncReturns<string>);
 
       await expect(DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body')).to.be.rejectedWith(

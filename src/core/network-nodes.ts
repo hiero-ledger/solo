@@ -24,7 +24,7 @@ import chalk from 'chalk';
  */
 @injectable()
 export class NetworkNodes {
-  constructor(
+  public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
   ) {
@@ -133,31 +133,36 @@ export class NetworkNodes {
    * @param [baseDirectory] - optional base directory to save state files, defaults to SOLO_LOGS_DIR
    * @returns a promise that resolves when the state files are downloaded
    */
-  public async getStatesFromPod(namespace: NamespaceName, nodeAlias: string, context?: string, baseDirectory?: string) {
+  public async getStatesFromPod(
+    namespace: NamespaceName,
+    nodeAlias: string,
+    context?: string,
+    baseDirectory?: string,
+  ): Promise<void[]> {
     const pods: Pod[] = await this.k8Factory
       .getK8(context)
       .pods()
       .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
 
     // get length of pods
-    const stateBaseDirectory = baseDirectory || SOLO_LOGS_DIR;
-    const promises = [];
+    const stateBaseDirectory: string = baseDirectory || SOLO_LOGS_DIR;
+    const promises: Promise<void>[] = [];
     for (const pod of pods) {
       promises.push(this.getState(pod, namespace, stateBaseDirectory, context));
     }
     return await Promise.all(promises);
   }
 
-  private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
+  private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = PathEx.join(baseDirectory, namespace.toString());
+    const targetDirectory: string = PathEx.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
       // Use zip for compression, similar to tar -czf with -C flag
-      const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
+      const containerReference: ContainerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;

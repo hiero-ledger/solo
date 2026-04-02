@@ -64,15 +64,15 @@ export class DiagnosticsReporter {
     const prefix: string = `solo-debug-${deployment}-`;
     const candidates: {filePath: string; mtime: number}[] = fs
       .readdirSync(searchDirectory)
-      .filter(file => file.startsWith(prefix) && file.endsWith('.zip'))
-      .map(file => {
+      .filter((file: string): boolean => file.startsWith(prefix) && file.endsWith('.zip'))
+      .map((file: string): {filePath: string; mtime: number} => {
         const filePath: string = PathEx.join(searchDirectory, file);
         const mtime: number = fs.statSync(filePath).mtimeMs;
         return {filePath, mtime};
       })
-      .filter(({mtime}) => mtime >= afterTimestampMs)
+      .filter(({mtime}: {filePath: string; mtime: number}): boolean => mtime >= afterTimestampMs)
       // eslint-disable-next-line unicorn/no-array-sort
-      .sort((a, b) => b.mtime - a.mtime);
+      .sort((a: {filePath: string; mtime: number}, b: {filePath: string; mtime: number}): number => b.mtime - a.mtime);
 
     return candidates.length > 0 ? candidates[0].filePath : undefined;
   }

@@ -423,10 +423,15 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
     }
 
-    // Sensitive data to write into the mirror-passwords k8s Secret rather than
-    // passing as Helm values (which would appear in `helm get values` output).
+    // Sensitive data to write into mirror-passwords-solo (a Solo-managed k8s Secret)
+    // rather than passing as Helm values (which would appear in `helm get values` output).
+    // We use a separate secret from the chart's mirror-passwords to avoid Helm ownership
+    // conflicts: the chart owns mirror-passwords, Solo owns mirror-passwords-solo.
     // All entries are accumulated here and written in a single merged operation.
     const mirrorPasswordsSensitiveData: Record<string, string> = {};
+    // Track whether DB passwords are stored in mirror-passwords-solo so we know
+    // which additional components need their extraEnvVarsSecret wired to it.
+    let hasDatabasePasswords: boolean = false;
 
     let storageType: string = '';
     if (
@@ -453,9 +458,9 @@ export class MirrorNodeCommand extends BaseCommand {
           config.storageEndpoint,
       });
 
-      // Store credentials in mirror-passwords; the chart's importer already reads
-      // all keys from that secret via extraEnvVarsSecret, so they are injected as
-      // env vars without appearing in Helm release history.
+      // Store credentials in mirror-passwords-solo (Solo-managed secret) so they
+      // are never stored in Helm release history.  The importer is wired to read
+      // from this secret via extraEnvVarsSecret below.
       const accessKeyEncoded: string = Base64.encode(config.storageReadAccessKey);
       const secretKeyEncoded: string = Base64.encode(config.storageReadSecrets);
       mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] =
@@ -502,10 +507,9 @@ export class MirrorNodeCommand extends BaseCommand {
         // 'rest.db.username': readonlyUsername,
       });
 
-      // Store DB passwords in mirror-passwords k8s Secret using the HIERO_MIRROR_*
-      // key names that the chart's secret-passwords.yaml template reads via the
-      // existingPassword lookup.  This prevents plaintext passwords from being
-      // stored in Helm release history.
+      // Store DB passwords in mirror-passwords-solo (Solo-managed secret) so they
+      // are never stored in Helm release history.  Each mirror component is wired
+      // to read from this secret via extraEnvVarsSecret below.
       const ownerPassword: string = config.externalDatabaseOwnerPassword;
       const readonlyPassword: string = config.externalDatabaseReadonlyPassword;
       mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD'] = Base64.encode(ownerPassword);
@@ -514,17 +518,19 @@ export class MirrorNodeCommand extends BaseCommand {
       mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_RESTPASSWORD'] = Base64.encode(readonlyPassword);
       mirrorPasswordsSensitiveData['HIERO_MIRROR_RESTJAVA_DB_PASSWORD'] = Base64.encode(readonlyPassword);
       mirrorPasswordsSensitiveData['HIERO_MIRROR_WEB3_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+      hasDatabasePasswords = true;
     }
 
-    // Write all sensitive data to mirror-passwords in one merged operation so we
-    // do not overwrite chart-managed keys (e.g. pgpool passwords, host entries).
+    // Write all sensitive data into mirror-passwords-solo (Solo-managed secret).
+    // This is a separate secret from the chart's mirror-passwords to avoid Helm
+    // ownership conflicts.  We read-merge-write to preserve any existing keys.
     if (Object.keys(mirrorPasswordsSensitiveData).length > 0) {
       let existingSecretData: Record<string, string> = {};
       try {
         const existingSecret: Secret = await this.k8Factory
           .getK8(config.clusterContext)
           .secrets()
-          .read(config.namespace, 'mirror-passwords');
+          .read(config.namespace, 'mirror-passwords-solo');
         existingSecretData = existingSecret?.data ?? {};
       } catch {
         // Secret does not exist yet; will be created on first install
@@ -532,10 +538,23 @@ export class MirrorNodeCommand extends BaseCommand {
       await this.k8Factory
         .getK8(config.clusterContext)
         .secrets()
-        .createOrReplace(config.namespace, 'mirror-passwords', SecretType.OPAQUE, {
+        .createOrReplace(config.namespace, 'mirror-passwords-solo', SecretType.OPAQUE, {
           ...existingSecretData,
           ...mirrorPasswordsSensitiveData,
         });
+
+      // Wire each affected component to load its env vars from mirror-passwords-solo
+      // so the credentials injected above take effect at runtime.
+      // importer is always wired when any sensitive data exists (storage or db passwords).
+      const extraEnvironmentArguments: Record<string, string> = {
+        'importer.extraEnvVarsSecret': 'mirror-passwords-solo',
+      };
+      if (hasDatabasePasswords) {
+        extraEnvironmentArguments['grpc.extraEnvVarsSecret'] = 'mirror-passwords-solo';
+        extraEnvironmentArguments['restjava.extraEnvVarsSecret'] = 'mirror-passwords-solo';
+        extraEnvironmentArguments['web3.extraEnvVarsSecret'] = 'mirror-passwords-solo';
+      }
+      valuesArgument += helpers.populateHelmArguments(extraEnvironmentArguments);
     }
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
@@ -1566,7 +1585,7 @@ END $grant$;`;
 
   /**
    * Resolve the operator private key for the monitor pinger and store it in the
-   * mirror-passwords k8s Secret under HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY.
+   * mirror-passwords-solo k8s Secret (Solo-managed) under HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY.
    * Returns Helm values arguments that wire monitor.envFrom to that secret so
    * the key is never stored in Helm release history.
    */
@@ -1599,13 +1618,15 @@ END $grant$;`;
       }
     }
 
-    // Merge the key into mirror-passwords without overwriting existing keys.
+    // Merge the key into mirror-passwords-solo (Solo-managed secret) without
+    // overwriting existing keys.  We use a separate secret from the chart's
+    // mirror-passwords to avoid Helm ownership conflicts.
     let existingData: Record<string, string> = {};
     try {
       const existingSecret: Secret = await this.k8Factory
         .getK8(clusterContext)
         .secrets()
-        .read(namespace, 'mirror-passwords');
+        .read(namespace, 'mirror-passwords-solo');
       existingData = existingSecret?.data ?? {};
     } catch {
       // Secret does not exist yet
@@ -1613,15 +1634,15 @@ END $grant$;`;
     await this.k8Factory
       .getK8(clusterContext)
       .secrets()
-      .createOrReplace(namespace, 'mirror-passwords', SecretType.OPAQUE, {
+      .createOrReplace(namespace, 'mirror-passwords-solo', SecretType.OPAQUE, {
         ...existingData,
         HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY: Base64.encode(resolvedKey),
       });
 
-    // Tell the monitor to load its env vars from mirror-passwords.
+    // Tell the monitor to load its env vars from mirror-passwords-solo.
     // Spring Boot maps HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY →
     // hiero.mirror.monitor.operator.privateKey at runtime.
-    return ` --set 'monitor.envFrom[0].secretRef.name=mirror-passwords'`;
+    return " --set 'monitor.envFrom[0].secretRef.name=mirror-passwords-solo'";
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
