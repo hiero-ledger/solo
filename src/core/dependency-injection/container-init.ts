@@ -96,6 +96,7 @@ import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
+import {ROOT_DIR} from '../constants.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -253,14 +254,14 @@ export class Container {
           const helmChartConfigSource: DefaultConfigSource<SoloConfigSchema> =
             new DefaultConfigSource<SoloConfigSchema>(
               'helm-chart-config.yaml',
-              PathEx.join('resources', 'config'),
+              PathEx.joinWithRealPath(ROOT_DIR, 'resources', 'config'),
               new SoloConfigSchemaDefinition(objectMapper),
               objectMapper,
             );
 
           const tssConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
             'tss-config.yaml',
-            PathEx.join('resources', 'config'),
+            PathEx.joinWithRealPath(ROOT_DIR, 'resources', 'config'),
             new SoloConfigSchemaDefinition(objectMapper),
             objectMapper,
           );
