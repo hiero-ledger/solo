@@ -271,6 +271,13 @@ jobs:
             rm -rf ~/.solo/logs/performance-tests
           fi
 
+      - name: Collect Deployment Diagnostics Logs
+        if: ${{ !cancelled() && always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
