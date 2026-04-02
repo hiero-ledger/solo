@@ -2,7 +2,6 @@
 set -eo pipefail
 
 
-task build:compile
 # install dependencies in case they haven't been installed yet, and cache args for subsequent commands
 npm run solo -- init || exit 1
 export PATH=~/.solo/bin:${PATH}
@@ -54,6 +53,17 @@ done
 # plugin registry. Kind manages its own Docker network automatically on Windows, so
 # manual network creation is not needed and will fail. Skip it on Windows (msys/Git Bash).
 if [[ "$OSTYPE" != msys* ]]; then
+  # After kind delete cluster, Docker may still be detaching container endpoints from the
+  # 'kind' network. docker network rm -f silently fails (|| true) if endpoints are still
+  # attached, and docker network create then hangs because the daemon is busy. Poll until
+  # all containers detach (or 60 s pass) before attempting removal.
+  echo "Waiting for Docker to detach all endpoints from the kind network..."
+  for _i in $(seq 1 20); do
+    containers=$(timeout 5 docker network inspect kind --format '{{len .Containers}}' 2>/dev/null || echo "0")
+    [[ "${containers}" == "0" ]] && break
+    echo "  ${containers} container(s) still attached to kind network, waiting 3s..."
+    sleep 3
+  done
   docker network rm -f kind 2>/dev/null || true
   timeout 60 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 fi
