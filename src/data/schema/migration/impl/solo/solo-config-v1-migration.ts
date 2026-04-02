@@ -5,6 +5,8 @@ import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
+import {type TssSchema} from '../../../model/solo/tss-schema.js';
+import {type HelmChartSchema} from '../../../model/common/helm-chart-schema.js';
 
 export class SoloConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -32,26 +34,33 @@ export class SoloConfigV1Migration implements SchemaMigration {
     // Set the schema version to the new version
     clone.schemaVersion = this.version.major;
 
-    if (!clone.helmChart) {
-      clone.helmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.ingressControllerHelmChart) {
-      clone.ingressControllerHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.clusterSetupHelmChart) {
-      clone.clusterSetupHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.certManagerHelmChart) {
-      clone.certManagerHelmChart = this.getNewHelmChartObject();
-    }
+    clone.helmChart ||= this.getNewHelmChartObject();
+    clone.ingressControllerHelmChart ||= this.getNewHelmChartObject();
+    clone.clusterSetupHelmChart ||= this.getNewHelmChartObject();
+    clone.certManagerHelmChart ||= this.getNewHelmChartObject();
+    clone.tss ||= this.getNewTssObject();
 
     return clone;
   }
 
-  private getNewHelmChartObject(): object {
+  private getNewTssObject(): TssSchema {
+    return {
+      messageSizeSoftLimitBytes: 4_194_304,
+      messageSizeHardLimitBytes: 37_748_736,
+      timeoutAfterReadySeconds: 10,
+      readyMaxAttempts: 60,
+      readyBackoffSeconds: 3,
+      wraps: {
+        artifactsFolderName: 'wraps-v0.2.0',
+        directoryName: 'wraps-v0.2.0',
+        allowedKeyFiles: 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
+        // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
+        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+      },
+    };
+  }
+
+  private getNewHelmChartObject(): HelmChartSchema {
     return {
       name: undefined,
       namespace: undefined,

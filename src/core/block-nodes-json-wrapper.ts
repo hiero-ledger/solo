@@ -11,6 +11,9 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 
 type BlockNodeConnectionDataBase = {
   messageSizeSoftLimitBytes?: number;
@@ -41,6 +44,7 @@ interface BlockNodesJsonStructure {
  */
 export class BlockNodesJsonWrapper implements ToJSON {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+  private readonly configProvider: ConfigProvider;
   private readonly blockNodes: BlockNodeStateSchema[];
   private readonly externalBlockNodes: ExternalBlockNodeStateSchema[];
   private readonly tssEnabled: boolean;
@@ -49,8 +53,10 @@ export class BlockNodesJsonWrapper implements ToJSON {
     private readonly blockNodeMap: PriorityMapping[],
     private readonly externalBlockNodeMap: PriorityMapping[],
     @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.ConfigProvider) configProvider?: ConfigProvider,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
     this.blockNodes = this.remoteConfig.configuration.state.blockNodes;
     this.externalBlockNodes = this.remoteConfig.configuration.state.externalBlockNodes;
     this.tssEnabled = this.remoteConfig.configuration.state.tssEnabled ?? false;
@@ -90,10 +96,11 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
+      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
-            messageSizeSoftLimitBytes: constants.MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS,
-            messageSizeHardLimitBytes: constants.MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS,
+            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
+            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
           }
         : {};
 
@@ -112,10 +119,11 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
+      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
-            messageSizeSoftLimitBytes: constants.MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS,
-            messageSizeHardLimitBytes: constants.MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS,
+            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
+            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
           }
         : {};
 

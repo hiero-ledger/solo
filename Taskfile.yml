@@ -69,7 +69,7 @@ tasks:
         {{else}}
         npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
         {{end}}
-      - npx madge --circular {{.TASKFILE_DIR | toSlash}}/src/*
+      - npx dpdm ./solo.ts
       - npx typedoc --emit none
 
   format:
@@ -82,7 +82,7 @@ tasks:
     cmds:
       - npx remark . --quiet --frail --output
       - npx eslint --fix {{.TASKFILE_DIR | toSlash}} || true
-      - npx madge --circular {{.TASKFILE_DIR | toSlash}}/src/*
+      - npx dpdm ./solo.ts
       - npx typedoc --emit none
       - |
         {{if eq OS "windows"}}

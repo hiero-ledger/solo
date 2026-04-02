@@ -91,6 +91,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.clusterRef,
       flags.minimalSetup,
       flags.rollback,
+      flags.parallelDeploy,
     ],
   };
 
@@ -118,6 +119,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployExplorer,
       flags.deployRelay,
       flags.rollback,
+      flags.parallelDeploy,
     ],
   };
 
@@ -771,7 +773,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                         (): boolean => !config.deployRelay && !config.minimalSetup,
                                       ),
                                     ],
-                                    {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                                    {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                                   );
                                 },
                               },
@@ -864,13 +866,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                   }
 
                                   return task.newListr(subTasks, {
-                                    concurrent: true,
+                                    concurrent: config.parallelDeploy,
                                     rendererOptions: {collapseSubtasks: false},
                                   });
                                 },
                               },
                             ],
-                            {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                            {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                           );
                         },
                       },
@@ -920,7 +922,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     (): boolean => !config.deployMirrorNode,
                   ),
                 ],
-                {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
               );
             },
           },
