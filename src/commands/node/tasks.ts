@@ -3383,15 +3383,13 @@ export class NodeCommandTasks {
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
-      if (constants.ENABLE_S6_IMAGE) {
-        valuesArgumentMap[clusterReference] = addRootImageValues(
-          valuesArgumentMap[clusterReference],
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
-      }
+      valuesArgumentMap[clusterReference] = addRootImageValues(
+        valuesArgumentMap[clusterReference],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
@@ -3437,15 +3435,13 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
-      if (constants.ENABLE_S6_IMAGE) {
-        valuesArgumentMap[node.cluster] = addRootImageValues(
-          valuesArgumentMap[node.cluster],
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
-      }
+      valuesArgumentMap[node.cluster] = addRootImageValues(
+        valuesArgumentMap[node.cluster],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
     }
 
     // Add new node
@@ -3455,15 +3451,13 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
 
-    if (constants.ENABLE_S6_IMAGE) {
-      valuesArgumentMap[clusterReference] = addRootImageValues(
-        valuesArgumentMap[clusterReference],
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
-    }
+    valuesArgumentMap[clusterReference] = addRootImageValues(
+      valuesArgumentMap[clusterReference],
+      `hedera.nodes[${index}]`,
+      constants.S6_NODE_IMAGE_REGISTRY,
+      constants.S6_NODE_IMAGE_REPOSITORY,
+      versions.S6_NODE_IMAGE_VERSION,
+    );
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3526,15 +3520,13 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
-        if (constants.ENABLE_S6_IMAGE) {
-          valuesArgumentMap[clusterReference] = addRootImageValues(
-            valuesArgumentMap[clusterReference],
-            `hedera.nodes[${index}]`,
-            constants.S6_NODE_IMAGE_REGISTRY,
-            constants.S6_NODE_IMAGE_REPOSITORY,
-            versions.S6_NODE_IMAGE_VERSION,
-          );
-        }
+        valuesArgumentMap[clusterReference] = addRootImageValues(
+          valuesArgumentMap[clusterReference],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
         if (this.remoteConfig.configuration.state.wrapsEnabled) {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;

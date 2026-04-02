@@ -103,11 +103,6 @@ on:
         type: string
         required: false
         default: "3.14.2"
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: false
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -205,11 +200,6 @@ on:
         type: string
         required: false
         default: "22"
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: false
       test-timeout-minutes:
         description: "Test Timeout (minutes):"
         type: number
@@ -233,7 +223,6 @@ env:
   CG_EXEC: "ionice -c 2 -n 2 nice -n 19"
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
-  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
