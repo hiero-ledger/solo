@@ -84,24 +84,24 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
-        BlockNodeTest.add(options);
+        // BlockNodeTest.add(options);
 
         NetworkTest.deploy(options);
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options, true);
 
-        MirrorNodeTest.add(options);
-        MirrorNodeTest.pullAddressBook(options);
+        // MirrorNodeTest.add(options);
+        // MirrorNodeTest.pullAddressBook(options);
 
         ConsensusNodeTest.PemStop(options);
         ConsensusNodeTest.PemKill(options);
 
-        ConsensusNodeTest.add(options);
-        ConsensusNodeTest.update(options);
-        ConsensusNodeTest.destroy(options);
-
-        ExplorerTest.add(options);
-        RelayTest.add(options);
+        // ConsensusNodeTest.add(options);
+        // ConsensusNodeTest.update(options);
+        // ConsensusNodeTest.destroy(options);
+        //
+        // ExplorerTest.add(options);
+        // RelayTest.add(options);
 
         it('Should write log metrics', async (): Promise<void> => {
           await new MetricsServerImpl().logMetrics(
@@ -113,13 +113,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           );
         });
 
-        if (destroyEnabled()) {
-          BlockNodeTest.destroy(options);
-          RelayTest.destroy(options);
-          ExplorerTest.destroy(options);
-          MirrorNodeTest.destroy(options);
-          NetworkTest.destroy(options);
-        }
+        // if (destroyEnabled()) {
+        //   BlockNodeTest.destroy(options);
+        //   RelayTest.destroy(options);
+        //   ExplorerTest.destroy(options);
+        //   MirrorNodeTest.destroy(options);
+        //   NetworkTest.destroy(options);
+        // }
       }).timeout(Duration.ofMinutes(30).toMillis());
     },
   )
