@@ -2,8 +2,11 @@
 # This script creates a zip file so that it can be copied out of the pod for research purposes
 set -o pipefail
 
-# Usage: support-zip.sh <useZip>
+# Usage: support-zip.sh <useZip> [excludeSensitiveData]
+#   excludeSensitiveData: when "true", omits TLS certificates, private keys,
+#                         and the data/keys directory from the archive.
 readonly useZip="${1}"
+readonly excludeSensitiveData="${2:-false}"
 
 readonly HAPI_DIR=/opt/hgcapp/services-hedera/HapiApp2.0
 readonly DATA_DIR=data
@@ -56,13 +59,16 @@ echo -n > ${FILE_LIST}
 AddToFileList ${CONFIG_TXT}
 AddToFileList ${SETTINGS_TXT}
 AddToFileList ${SETTINGS_USED_TXT}
-AddToFileList ${HEDERA_CRT}
-AddToFileList ${HEDERA_KEY}
+if [[ "${excludeSensitiveData}" != "true" ]]; then
+  AddToFileList ${HEDERA_CRT}
+  AddToFileList ${HEDERA_KEY}
+fi
 AddToFileList ${OUTPUT_DIR}
 AddToFileList ${ADDRESS_BOOK_DIR}
 AddToFileList ${CONFIG_DIR}
-# data/keys is intentionally excluded: it contains private gossip/signing keys
-# which must not be collected in diagnostic archives that could be shared externally.
+if [[ "${excludeSensitiveData}" != "true" ]]; then
+  AddToFileList ${KEYS_DIR}
+fi
 AddToFileList ${ONBOARD_DIR}
 AddToFileList ${UPGRADE_DIR}
 AddToFileList ${STATS_DIR}

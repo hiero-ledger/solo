@@ -733,7 +733,7 @@ export class NodeCommandHandlers extends CommandHandler {
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
   }
 
-  public async all(argv: ArgvStruct): Promise<boolean> {
+  public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
     await this.resolveDeploymentForLogs(argv);
     const outputDirectory: string = this.resolveOutputDirectory(argv);
@@ -741,7 +741,7 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeLogsAndConfigs(),
+        this.tasks.getNodeLogsAndConfigs(excludeSensitiveData),
         this.tasks.getHelmChartValues(),
         this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
@@ -757,9 +757,9 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async debug(argv: ArgvStruct): Promise<boolean> {
+  public async debug(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     // First run all diagnostics
-    await this.all(argv);
+    await this.all(argv, excludeSensitiveData);
 
     // Then create a zip file from the logs directory
     const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
@@ -830,7 +830,7 @@ export class NodeCommandHandlers extends CommandHandler {
     const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
     const startTime: number = Date.now();
 
-    await this.debug(argv);
+    await this.debug(argv, true);
 
     if (!(await DiagnosticsReporter.isGhCliAvailable(this.logger))) {
       throw new SoloError(

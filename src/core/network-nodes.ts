@@ -37,9 +37,15 @@ export class NetworkNodes {
    * @param namespace - the namespace of the network
    * @param [contexts]
    * @param [baseDirectory] - optional base directory to save logs, defaults to SOLO_LOGS_DIR
+   * @param [excludeSensitiveData] - when true, omit TLS certificates, private keys, and data/keys from the archive
    * @returns a promise that resolves when the logs are downloaded
    */
-  public async getLogs(namespace: NamespaceName, contexts?: string[], baseDirectory?: string): Promise<void[]> {
+  public async getLogs(
+    namespace: NamespaceName,
+    contexts?: string[],
+    baseDirectory?: string,
+    excludeSensitiveData?: boolean,
+  ): Promise<void[]> {
     const podsData: {pod: Pod; context?: string}[] = [];
 
     if (contexts) {
@@ -63,13 +69,19 @@ export class NetworkNodes {
 
     const promises: Promise<void>[] = [];
     for (const podData of podsData) {
-      promises.push(this.getLog(podData.pod, namespace, logBaseDirectory, podData.context));
+      promises.push(this.getLog(podData.pod, namespace, logBaseDirectory, podData.context, excludeSensitiveData));
     }
     this.logger.showUser(`Configurations and logs saved to ${logBaseDirectory}`);
     return await Promise.all(promises);
   }
 
-  private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
+  private async getLog(
+    pod: Pod,
+    namespace: NamespaceName,
+    baseDirectory: string,
+    context?: string,
+    excludeSensitiveData?: boolean,
+  ): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
     const targetDirectory: string = PathEx.join(baseDirectory, namespace.toString());
@@ -94,7 +106,9 @@ export class NetworkNodes {
       ]);
 
       await container.execContainer(['bash', '-c', `chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
+      await container.execContainer(
+        `${HEDERA_HAPI_PATH}/${scriptName} true ${excludeSensitiveData === true ? 'true' : 'false'}`,
+      );
       await container.copyFrom(
         `${HEDERA_HAPI_PATH}/data/${podReference.name}${LOG_CONFIG_ZIP_SUFFIX}`,
         targetDirectory,

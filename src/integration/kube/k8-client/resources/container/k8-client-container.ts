@@ -228,7 +228,15 @@ export class K8ClientContainer implements Container {
       throw new SoloError(`invalid source path: ${sourcePath}`);
     }
 
-    const remoteDestination: string = `${namespace.name}/${podName}:${destinationDirectory}`;
+    // kubectl 1.32+ treats a destination without a trailing slash as the target
+    // filename rather than the target directory, causing tar to fail with
+    // "Cannot open: File exists" when the directory already exists on the pod.
+    // Always append a trailing slash so kubectl cp places the file inside the
+    // directory regardless of kubectl version.
+    const normalizedDestination: string = destinationDirectory.endsWith('/')
+      ? destinationDirectory
+      : `${destinationDirectory}/`;
+    const remoteDestination: string = `${namespace.name}/${podName}:${normalizedDestination}`;
 
     this.logger.info(
       `copyTo: [srcPath=${sourcePath}, destDir=${destinationDirectory}] to ${remoteDestination} (container=${containerName})`,

@@ -423,6 +423,11 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
     }
 
+    // Sensitive data to write into the mirror-passwords k8s Secret rather than
+    // passing as Helm values (which would appear in `helm get values` output).
+    // All entries are accumulated here and written in a single merged operation.
+    const mirrorPasswordsSensitiveData: Record<string, string> = {};
+
     let storageType: string = '';
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
@@ -441,14 +446,22 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
 
-      const mapping: Record<string, string | boolean | number> = {
+      // Pass non-sensitive storage config as Helm values
+      valuesArgument += helpers.populateHelmArguments({
         [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER`]: storageType,
         [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE`]:
           config.storageEndpoint,
-        [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`]: config.storageReadAccessKey,
-        [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`]: config.storageReadSecrets,
-      };
-      valuesArgument += helpers.populateHelmArguments(mapping);
+      });
+
+      // Store credentials in mirror-passwords; the chart's importer already reads
+      // all keys from that secret via extraEnvVarsSecret, so they are injected as
+      // env vars without appearing in Helm release history.
+      const accessKeyEncoded: string = Base64.encode(config.storageReadAccessKey);
+      const secretKeyEncoded: string = Base64.encode(config.storageReadSecrets);
+      mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] =
+        accessKeyEncoded;
+      mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`] =
+        secretKeyEncoded;
     }
 
     if (config.storageBucketRegion) {
@@ -464,7 +477,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
-    let host: string, ownerPassword: string, ownerUsername: string, readonlyPassword: string, readonlyUsername: string;
+    let host: string, ownerUsername: string, readonlyUsername: string;
     valuesArgument += helpers.populateHelmArguments({
       // Disable default database deployment
       'stackgres.enabled': false,
@@ -474,35 +487,55 @@ export class MirrorNodeCommand extends BaseCommand {
 
     if (config.useExternalDatabase) {
       host = config.externalDatabaseHost;
-      ownerPassword = config.externalDatabaseOwnerPassword;
       ownerUsername = config.externalDatabaseOwnerUsername;
       readonlyUsername = config.externalDatabaseReadonlyUsername;
-      readonlyPassword = config.externalDatabaseReadonlyPassword;
 
+      // Pass non-sensitive connection info as Helm values
       valuesArgument += helpers.populateHelmArguments({
-        // Set the host and name
         'db.host': host,
-
-        // set the usernames
         'db.owner.username': ownerUsername,
         'importer.db.username': ownerUsername,
-
         'grpc.db.username': readonlyUsername,
         'restjava.db.username': readonlyUsername,
         'web3.db.username': readonlyUsername,
-
         // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
         // 'rest.db.username': readonlyUsername,
-
-        // set the passwords
-        'db.owner.password': ownerPassword,
-        'importer.db.password': ownerPassword,
-
-        'grpc.db.password': readonlyPassword,
-        'restjava.db.password': readonlyPassword,
-        'web3.db.password': readonlyPassword,
-        'rest.db.password': readonlyPassword,
       });
+
+      // Store DB passwords in mirror-passwords k8s Secret using the HIERO_MIRROR_*
+      // key names that the chart's secret-passwords.yaml template reads via the
+      // existingPassword lookup.  This prevents plaintext passwords from being
+      // stored in Helm release history.
+      const ownerPassword: string = config.externalDatabaseOwnerPassword;
+      const readonlyPassword: string = config.externalDatabaseReadonlyPassword;
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD'] = Base64.encode(ownerPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_PASSWORD'] = Base64.encode(ownerPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_GRPC_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_RESTPASSWORD'] = Base64.encode(readonlyPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_RESTJAVA_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_WEB3_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+    }
+
+    // Write all sensitive data to mirror-passwords in one merged operation so we
+    // do not overwrite chart-managed keys (e.g. pgpool passwords, host entries).
+    if (Object.keys(mirrorPasswordsSensitiveData).length > 0) {
+      let existingSecretData: Record<string, string> = {};
+      try {
+        const existingSecret: Secret = await this.k8Factory
+          .getK8(config.clusterContext)
+          .secrets()
+          .read(config.namespace, 'mirror-passwords');
+        existingSecretData = existingSecret?.data ?? {};
+      } catch {
+        // Secret does not exist yet; will be created on first install
+      }
+      await this.k8Factory
+        .getK8(config.clusterContext)
+        .secrets()
+        .createOrReplace(config.namespace, 'mirror-passwords', SecretType.OPAQUE, {
+          ...existingSecretData,
+          ...mirrorPasswordsSensitiveData,
+        });
     }
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
@@ -697,10 +730,13 @@ export class MirrorNodeCommand extends BaseCommand {
                 (secret: Secret): boolean => secret.name === 'solo-shared-resources-redis',
               );
 
-              // Update values
+              // Point the mirror chart at the pre-existing redis secret instead of
+              // passing the password as a Helm value (which would expose it via
+              // `helm get values`).  Only non-sensitive host/port are set inline.
               context_.config.valuesArg += helpers.populateHelmArguments({
                 'redis.enabled': false,
-                'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
+                'redis.existingSecret': 'solo-shared-resources-redis',
+                'redis.existingSecretPasswordKey': 'SPRING_DATA_REDIS_PASSWORD',
                 'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
                 'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
               });
