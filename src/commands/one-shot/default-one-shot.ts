@@ -614,6 +614,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                         optionFromFlag(Flags.deployment),
                         config.deployment,
+                        optionFromFlag(Flags.tssEnabled),
+                        'true',
                       );
                       if (config.networkConfiguration) {
                         this.appendConfigToArgv(argv, config.networkConfiguration);
@@ -631,6 +633,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         ...BlockCommandDefinition.ADD_COMMAND.split(' '),
                         optionFromFlag(Flags.deployment),
                         config.deployment,
+                        optionFromFlag(Flags.tssEnabled),
+                        'true',
                       );
                       this.appendConfigToArgv(argv, config.blockNodeConfiguration);
                       return argvPushGlobalFlags(argv);
