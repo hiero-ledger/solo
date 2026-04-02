@@ -56,7 +56,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.SINGLE_DEPLOY,
-              'Deploys all required components for the selected one shot configuration.',
+              'Deploys all required components for the selected one shot configuration (with optional values file).',
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,

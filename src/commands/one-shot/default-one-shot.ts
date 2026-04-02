@@ -84,6 +84,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     optional: [
       flags.quiet,
       flags.force,
+      flags.valuesFile,
       flags.deployment,
       flags.namespace,
       flags.clusterRef,
