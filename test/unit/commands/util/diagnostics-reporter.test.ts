@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sinon, {type SinonStub} from 'sinon';
+import {type SpawnSyncReturns} from 'node:child_process';
 
 import {DiagnosticsReporter} from '../../../../src/commands/util/diagnostics-reporter.js';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
@@ -142,24 +143,39 @@ describe('DiagnosticsReporter', (): void => {
   });
 
   describe('createGitHubIssue', (): void => {
-    let shellRunnerRunStub: SinonStub;
+    let executeGhCommandStub: SinonStub;
+    const mockPid: number = 12_345;
 
     beforeEach((): void => {
-      shellRunnerRunStub = sinon.stub(ShellRunner.prototype, 'run');
+      executeGhCommandStub = sinon.stub(DiagnosticsReporter, 'executeGhCommand');
     });
 
     it('returns the issue URL on success', async (): Promise<void> => {
       const expectedUrl: string = 'https://github.com/hiero-ledger/solo/issues/42';
-      shellRunnerRunStub.resolves([expectedUrl]);
+      executeGhCommandStub.returns({
+        status: 0,
+        stdout: `${expectedUrl}\n`,
+        stderr: '',
+        output: [null, `${expectedUrl}\n`, ''],
+        pid: mockPid,
+        signal: null,
+      } as SpawnSyncReturns<string>);
 
       const url: string = await DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body');
 
       expect(url).to.equal(expectedUrl);
-      expect(shellRunnerRunStub).to.have.been.calledOnce;
+      expect(executeGhCommandStub).to.have.been.calledOnce;
     });
 
     it('throws SoloError when gh command fails', async (): Promise<void> => {
-      shellRunnerRunStub.rejects(new Error('authentication required'));
+      executeGhCommandStub.returns({
+        status: 1,
+        stdout: '',
+        stderr: 'authentication required',
+        output: [null, '', 'authentication required'],
+        pid: mockPid,
+        signal: null,
+      } as SpawnSyncReturns<string>);
 
       await expect(DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body')).to.be.rejectedWith(
         SoloError,

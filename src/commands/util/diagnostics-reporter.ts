@@ -140,6 +140,20 @@ export class DiagnosticsReporter {
   }
 
   /**
+   * Executes `gh issue create` with the provided args using `spawnSync` (without a shell)
+   * so that space-containing arguments such as the issue title are passed verbatim.
+   *
+   * Extracted as a public static method so that unit tests can stub it without invoking
+   * the real `gh` CLI.
+   *
+   * @param arguments_  Arguments to pass to the `gh` CLI.
+   * @returns           The `SpawnSyncReturns` result from the `gh` process.
+   */
+  public static executeGhCommand(arguments_: string[]): SpawnSyncReturns<string> {
+    return spawnSync('gh', arguments_, {encoding: 'utf8', env: process.env});
+  }
+
+  /**
    * Creates a GitHub issue using the `gh` CLI with the supplied title and body.
    * If a zip archive path is provided, the user is reminded to attach it manually
    * since the GitHub Issues API does not support binary attachments.
@@ -157,17 +171,22 @@ export class DiagnosticsReporter {
     zipFilePath?: string,
   ): Promise<string> {
     // Write body to a temp file to avoid any shell interpretation of the markdown content.
-    // We use spawnSync without shell:true so the title and all other args are also passed
+    // We use spawnSync without shell:true so the title and all other args are passed
     // verbatim — ShellRunner uses shell:true which splits space-containing args into separate
     // tokens, breaking both multi-word titles and multi-line bodies.
     const bodyFilePath: string = PathEx.join(os.tmpdir(), `solo-gh-issue-body-${Date.now()}.md`);
     fs.writeFileSync(bodyFilePath, body, 'utf8');
     try {
-      const result: SpawnSyncReturns<string> = spawnSync(
-        'gh',
-        ['issue', 'create', '--repo', 'hiero-ledger/solo', '--title', title, '--body-file', bodyFilePath],
-        {encoding: 'utf8', env: process.env},
-      );
+      const result: SpawnSyncReturns<string> = DiagnosticsReporter.executeGhCommand([
+        'issue',
+        'create',
+        '--repo',
+        'hiero-ledger/solo',
+        '--title',
+        title,
+        '--body-file',
+        bodyFilePath,
+      ]);
 
       if (result.status !== 0) {
         throw new Error(result.stderr?.trim() || `gh exited with status ${result.status}`);
