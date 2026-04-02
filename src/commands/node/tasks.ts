@@ -1862,11 +1862,16 @@ export class NodeCommandTasks {
               await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
 
               const startCommand: string = [
-                // Mark the service as intentionally enabled so s6-rc autostart picks it up on restart.
+                // Mark the service as intentionally enabled so the autostart oneshot
+                // (network-node-autostart) will re-start network-node on future pod restarts.
                 `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
-                // Bring the service up via s6-rc (the s6-overlay v3 service manager).
+                // Cycle down → up via s6-rc.  A plain "s6-rc -u" is a no-op when s6-rc
+                // already considers the service "up" (e.g. after FREEZE_COMPLETE the finish
+                // script sets the "once" flag, so the JVM has exited but s6-rc still reports
+                // the service as up).  Bringing it down first forces s6-rc to re-launch.
+                '/command/s6-rc -d change network-node 2>/dev/null || true',
                 '/command/s6-rc -u change network-node',
-                // Poll until the JVM process is visible — s6-rc returns before the app is fully ready.
+                // Poll until the JVM process is visible — s6-rc returns before the app starts.
                 `for attempt in $(seq 1 ${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}); do`,
                 "  ps -ef | grep -q '[j]ava' && exit 0",
                 '  sleep 1',
@@ -3599,6 +3604,26 @@ export class NodeCommandTasks {
           if (!config.allNodeAliases.includes(service.nodeAlias)) {
             continue;
           }
+
+          // Remove the autostart flag file BEFORE killing the pod so that when the
+          // pod restarts the network-node-autostart oneshot does NOT fire prematurely
+          // (i.e. before new config files are staged by later tasks).  startNodes()
+          // will re-create the flag file when it is safe to start the platform.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer(['bash', '-c', `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
