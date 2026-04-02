@@ -165,6 +165,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.copyNodeKeysToSecrets(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Deploy new network node', NodeSubcommandType.ADD),
+      this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.killNodes(),
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.populateServiceMap(),
