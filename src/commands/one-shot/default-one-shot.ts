@@ -73,6 +73,7 @@ import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-n
 // import {MirrorNodeDeployedEvent, SoloEventType} from '../../core/events/event-types.js';
 import {SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
+import {MirrorNodeDeployedEvent, SoloEventType} from '../../core/events/event-types.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -601,12 +602,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
           },
           {
-            title: 'Deploy Consensus Nodes',
+            title: 'Deploy Solo components',
             task: (_, task): SoloListr<OneShotSingleDeployContext> => {
-              if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true') {
-                task.title += ' and Block node';
-              }
-
+              // Network node pipeline: deploy network node, then setup and start consensus node (must be sequential)
               const deployNetworkNodeTask = {
                 title: 'Deploy network node',
                 task: async (_, networkNodeTask): Promise<SoloListr<OneShotSingleDeployContext>> => {
@@ -680,89 +678,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                 },
                                 this.taskList,
                               ),
-                            ],
-                            {concurrent: false, rendererOptions: {collapseSubtasks: false}},
-                          );
-                        },
-                      },
-                      {
-                        title: '',
-                        task: (_, task): SoloListr<OneShotSingleDeployContext> => {
-                          return task.newListr(
-                            [
-                              {
-                                title: 'Deploy mirror node and extensions',
-                                skip: (): boolean => !config.deployMirrorNode,
-                                task: async (
-                                  _: OneShotSingleDeployContext,
-                                  task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                                ): Promise<Listr<OneShotSingleDeployContext>> => {
-                                  return task.newListr(
-                                    [
-                                      invokeSoloCommand(
-                                        `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-                                        ExplorerCommandDefinition.ADD_COMMAND,
-                                        async (): Promise<string[]> => {
-                                          // await this.eventBus.waitFor(
-                                          //   SoloEventType.MirrorNodeDeployed,
-                                          //   (soloEvent: MirrorNodeDeployedEvent): boolean =>
-                                          //     soloEvent.deployment === config.deployment,
-                                          // );
-                                          const argv: string[] = newArgv();
-                                          argv.push(
-                                            ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                                            optionFromFlag(Flags.deployment),
-                                            config.deployment,
-                                            optionFromFlag(Flags.clusterRef),
-                                            config.clusterRef,
-                                            optionFromFlag(Flags.explorerVersion),
-                                            version.EXPLORER_VERSION,
-                                          );
-                                          this.appendConfigToArgv(argv, {
-                                            [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
-                                            [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                            ...config.explorerNodeConfiguration,
-                                          });
-                                          return argvPushGlobalFlags(argv, config.cacheDir);
-                                        },
-                                        this.taskList,
-                                        (): boolean => !config.deployExplorer && !config.minimalSetup,
-                                      ),
-                                      invokeSoloCommand(
-                                        `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                                        RelayCommandDefinition.ADD_COMMAND,
-                                        async (): Promise<string[]> => {
-                                          // await this.eventBus.waitFor(
-                                          //   SoloEventType.MirrorNodeDeployed,
-                                          //   (soloEvent: MirrorNodeDeployedEvent): boolean =>
-                                          //     soloEvent.deployment === config.deployment,
-                                          // );
-                                          const argv: string[] = newArgv();
-                                          argv.push(
-                                            ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                                            optionFromFlag(Flags.deployment),
-                                            config.deployment,
-                                            optionFromFlag(Flags.clusterRef),
-                                            config.clusterRef,
-                                            optionFromFlag(Flags.nodeAliasesUnparsed),
-                                            'node1',
-                                          );
-                                          this.appendConfigToArgv(argv, {
-                                            [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
-                                            [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                            ...config.relayNodeConfiguration,
-                                          });
-                                          return argvPushGlobalFlags(argv);
-                                        },
-                                        this.taskList,
-                                        (): boolean => !config.deployRelay && !config.minimalSetup,
-                                      ),
-                                    ],
-                                    {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
-                                  );
-                                },
-                              },
-                              // Pipeline B: create accounts (concurrent with Pipeline A)
                               {
                                 title: 'Create Accounts',
                                 skip: (): boolean => config.predefinedAccounts === false,
@@ -857,7 +772,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                 },
                               },
                             ],
-                            {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
+                            {concurrent: false, rendererOptions: {collapseSubtasks: false}},
                           );
                         },
                       },
@@ -869,7 +784,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               return task.newListr(
                 [
-                  deployNetworkNodeTask,
                   invokeSoloCommand(
                     `solo ${BlockCommandDefinition.ADD_COMMAND}`,
                     BlockCommandDefinition.ADD_COMMAND,
@@ -886,6 +800,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     this.taskList,
                     (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
                   ),
+                  deployNetworkNodeTask,
                   invokeSoloCommand(
                     `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
                     MirrorCommandDefinition.ADD_COMMAND,
@@ -906,11 +821,63 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     this.taskList,
                     (): boolean => !config.deployMirrorNode,
                   ),
+                  invokeSoloCommand(
+                    `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                    ExplorerCommandDefinition.ADD_COMMAND,
+                    async (): Promise<string[]> => {
+                      await this.eventBus.waitFor(
+                        SoloEventType.MirrorNodeDeployed,
+                        (soloEvent: MirrorNodeDeployedEvent): boolean => soloEvent.deployment === config.deployment,
+                      );
+                      const argv: string[] = newArgv();
+                      argv.push(
+                        ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                        optionFromFlag(Flags.deployment),
+                        config.deployment,
+                        optionFromFlag(Flags.clusterRef),
+                        config.clusterRef,
+                        optionFromFlag(Flags.explorerVersion),
+                        version.EXPLORER_VERSION,
+                      );
+                      this.appendConfigToArgv(argv, {
+                        [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                        [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                        ...config.explorerNodeConfiguration,
+                      });
+                      return argvPushGlobalFlags(argv, config.cacheDir);
+                    },
+                    this.taskList,
+                    (): boolean => !config.deployExplorer && !config.minimalSetup,
+                  ),
                 ],
                 {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
               );
             },
           },
+          invokeSoloCommand(
+            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+            RelayCommandDefinition.ADD_COMMAND,
+            async (): Promise<string[]> => {
+              const argv: string[] = newArgv();
+              argv.push(
+                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                optionFromFlag(Flags.deployment),
+                config.deployment,
+                optionFromFlag(Flags.clusterRef),
+                config.clusterRef,
+                optionFromFlag(Flags.nodeAliasesUnparsed),
+                'node1',
+              );
+              this.appendConfigToArgv(argv, {
+                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                ...config.relayNodeConfiguration,
+              });
+              return argvPushGlobalFlags(argv);
+            },
+            this.taskList,
+            (): boolean => !config.deployRelay && !config.minimalSetup,
+          ),
           {
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {

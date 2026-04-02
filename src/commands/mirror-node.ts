@@ -506,9 +506,6 @@ export class MirrorNodeCommand extends BaseCommand {
         'rest.db.password': readonlyPassword,
       });
     } else {
-      // Only set the host. All passwords and usernames are
-      // generated and persisted by the mirror-node chart via the mirror-passwords secret.
-      // initializeMirrorNode() reads from that secret so everything stays consistent.
       valuesArgument += helpers.populateHelmArguments({
         'db.host': `solo-shared-resources-postgres.${config.namespace.name}.svc.cluster.local`,
       });
