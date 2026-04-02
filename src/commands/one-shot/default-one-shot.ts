@@ -72,6 +72,7 @@ import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 // import {MirrorNodeDeployedEvent, SoloEventType} from '../../core/events/event-types.js';
 import {SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -499,39 +500,23 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
             this.taskList,
           ),
-          // invokeSoloCommand(
-          //   `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
-          //   KeysCommandDefinition.KEYS_COMMAND,
-          //   (): string[] => {
-          //     const argv: string[] = newArgv();
-          //     argv.push(
-          //       ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
-          //       optionFromFlag(Flags.deployment),
-          //       config.deployment,
-          //       optionFromFlag(Flags.generateGossipKeys),
-          //       'true',
-          //       optionFromFlag(Flags.generateTlsKeys),
-          //     );
-          //     return argvPushGlobalFlags(argv, config.cacheDir);
-          //   },
-          //   this.taskList,
-          // ),
-          {
-            title: 'Copy predefined node keys',
-            task: async (): Promise<void> => {
-              const keysDirectory: string = PathEx.join(config.cacheDir, 'keys');
-              fs.mkdirSync(keysDirectory, {recursive: true});
-              const sourceDirectory: string = PathEx.join(constants.RESOURCES_DIR, 'one-shot-keys');
-              for (const file of [
-                's-private-node1.pem',
-                's-public-node1.pem',
-                'hedera-node1.key',
-                'hedera-node1.crt',
-              ]) {
-                fs.copyFileSync(PathEx.join(sourceDirectory, file), PathEx.join(keysDirectory, file));
-              }
+          invokeSoloCommand(
+            `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
+            KeysCommandDefinition.KEYS_COMMAND,
+            (): string[] => {
+              const argv: string[] = newArgv();
+              argv.push(
+                ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
+                optionFromFlag(Flags.deployment),
+                config.deployment,
+                optionFromFlag(Flags.generateGossipKeys),
+                'true',
+                optionFromFlag(Flags.generateTlsKeys),
+              );
+              return argvPushGlobalFlags(argv, config.cacheDir);
             },
-          },
+            this.taskList,
+          ),
           {
             title: 'Create remote config components',
             task: async (): Promise<void> => {

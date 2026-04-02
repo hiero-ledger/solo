@@ -799,8 +799,11 @@ export class MirrorNodeCommand extends BaseCommand {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
                 if (this.oneShotState.isActive()) {
-                  context_.addressBook =
-                    'Co4HIswGMzA4MjAxYTIzMDBkMDYwOTJhODY0ODg2ZjcwZDAxMDEwMTA1MDAwMzgyMDE4ZjAwMzA4MjAxOGEwMjgyMDE4MTAwYzIwNTUwNTAxMTQ3NTU1ODU4NjE2NmI1ZjhmN2NhZWExN2YxMmQ1MzZhYWMzOWY2MmNiYjk4NjYxMzMxNzY3NTY5NDgxMjY1MTA5MWU4OGNmNzc4YjhmZDVkZTZhYjE0YjZiMWMzYzhiMTkxODlkYjY0OTc0NWJlOGVkZWY0MzU3NjEyOGMzZjM3ZGRkZWZmOTJlZTZhYmE2ZTEwZTM5ZmMzYTcwMTEwNGMxMTk2N2U3ZDE5NWZhMTBmOTEwYWRhNTY4MGIzNGVkNzU5MjgxZmIwZGQ2ZDVkYTc5NzQzNWZhZjM2OTdmZjdiMjg1ODA0ZGE3NmQxODkxZmQxMDllMmVmMGQ4ZDFmMWFhNTNkMzE0ZDNmMTBlMjI5ZDEzNjMyY2RiYzlhMjRkMzZkOGY2Mzc1ZTA3ZWIwZjAyZjQ1MjE1NDk4OTAwNDhjYTdhMjA1NGVlYjJmYmMxNjc2NjUxMmI5NGU3YzEyNzdkZDBhY2M4ZGY2ZTFjZjEyZWM3NzU4NjM4ZjBhYWVlNmI4OWQ5MmNhM2Y2NGQ2ZTljZmE2MmM5NzllOTc4NjBjNmVhOTEzM2QzY2RmZWMyNjVlOTBjMTY4OTY4NjYwM2ZmZTAxZTE4N2Y3N2RhYTBjNWFlMTQyZmJkMjQxOGM2YzNjODAzZTY5ZDdhMGZjM2E1NDk4OGFlYzk1Y2EyZWYxZjgzZTBlNzg4NTAwODE5N2VjNmY3YzRlOWEwODk4MmYwOWIyMWM0ZTUyMDA1N2U0NjdmMDJjMDhhN2VhNjI3NjZjYjE2MjY3ZDczZjBlZDQyZjUzYWIwNGUyNWFhZGM5OGQ2MmJlYWIxYmNiNmY4NjQ5ZjkyNjY2MmUyNTBlY2FlM2IzMzQ2OGNiYjdiNjMyYWQ1OTI4YzkyMWE0OTJkOTlmODZhNzFmNmRmZWRjNmQwNWU0YmMyNGQzZDQ5YmE0Y2U5MjRlMDAyZDVlOGUyYzYzODFlNjA3MmI0OWEwNDgwY2JkMGI3M2U5ZDQ2OGE5ZDE5MDYxMDIwMzAxMDAwMTICGANCMhCjiAMaLG5ldHdvcmstbm9kZTEtc3ZjLm9uZS1zaG90LnN2Yy5jbHVzdGVyLmxvY2FsSgVub2RlMQ==';
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
+                    PathEx.join(context_.config.cacheDir, 'keys'),
+                    context_.config.deployment,
+                  );
+
                   context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
                 } else {
                   const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);

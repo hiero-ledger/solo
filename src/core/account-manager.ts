@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 import * as constants from './constants.js';
 import {IGNORED_NODE_ACCOUNT_ID} from './constants.js';
@@ -60,6 +61,8 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {Address} from '../business/address/address.js';
 import {Numbers} from '../business/utils/numbers.js';
+import {proto} from '@hiero-ledger/proto';
+import * as crypto from 'node:crypto';
 
 const REASON_FAILED_TO_GET_KEYS: string = 'failed to get keys for accountId';
 const REASON_SKIPPED: string = 'skipped since it does not have a genesis key';
@@ -1052,6 +1055,71 @@ export class AccountManager {
     const fileId: any = FileId.fromString(entityId(shard, realm, fileNumber));
     const queryFees: any = new FileContentsQuery().setFileId(fileId);
     return Buffer.from(await queryFees.execute(client)).toString('hex');
+  }
+
+  /**
+   * Build and prepare address book as a base64 string by reading gossip signing keys from the
+   * local keys directory and node topology from RemoteConfig.
+   * This method does not require Kubernetes services or secrets to exist yet, making it suitable
+   * for use during simultaneous consensus node + mirror node deployment.
+   * @param keysDirectory - path to the directory containing gossip key PEM files (e.g. ~/.solo/cache/keys)
+   * @param deployment - deployment name, used to derive per-node account IDs
+   */
+  public async buildAddressBookBase64(keysDirectory: string, deployment: DeploymentName): Promise<string> {
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    const nodeAliases: NodeAlias[] = consensusNodes.map((node: ConsensusNode): NodeAlias => node.name);
+    const accountMap: Map<NodeAlias, string> = this.getNodeAccountMap(nodeAliases, deployment);
+
+    const nodeAddresses: proto.INodeAddress[] = [];
+
+    for (const consensusNode of consensusNodes) {
+      const nodeAlias: NodeAlias = consensusNode.name;
+      const accountIdString: string | undefined = accountMap.get(nodeAlias);
+      if (!accountIdString || accountIdString === IGNORED_NODE_ACCOUNT_ID) {
+        continue;
+      }
+
+      const accountId: AccountId = AccountId.fromString(accountIdString);
+
+      // Use the pre-computed FQDN from ConsensusNode — always a cluster-internal domain name.
+      const serviceEndpoint: proto.IServiceEndpoint = {
+        domainName: consensusNode.fullyQualifiedDomainName,
+        port: constants.GRPC_PORT,
+      };
+
+      // Read the gossip signing certificate from the local keys directory.
+      // The mirror node importer uses the embedded public key to verify record file signatures.
+      let rsaPubKeyHex: string | undefined;
+      try {
+        const pemFilePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(nodeAlias));
+        const pemData: string = fs.readFileSync(pemFilePath, 'utf8');
+        const cert = new crypto.X509Certificate(pemData);
+        const derBuffer = cert.publicKey.export({type: 'spki', format: 'der'}) as Buffer;
+        rsaPubKeyHex = derBuffer.toString('hex');
+      } catch (error) {
+        this.logger.warn(
+          `Could not read gossip signing key for ${nodeAlias} from ${keysDirectory}: ${error.message}. ` +
+            'Address book entry will have no RSA_PubKey; mirror node importer may fail signature verification.',
+        );
+      }
+
+      nodeAddresses.push({
+        nodeId: Long.fromNumber(consensusNode.nodeId),
+        nodeAccountId: {
+          shardNum: Long.fromNumber(Number(accountId.shard)),
+          realmNum: Long.fromNumber(Number(accountId.realm)),
+          accountNum: Long.fromNumber(Number(accountId.num)),
+        },
+        RSA_PubKey: rsaPubKeyHex,
+        serviceEndpoint: [serviceEndpoint],
+        description: nodeAlias,
+      });
+    }
+
+    this.logger.debug(`Built local address book with ${nodeAddresses.length} nodes for deployment ${deployment}`);
+
+    const addressBookBytes: Uint8Array = proto.NodeAddressBook.encode({nodeAddress: nodeAddresses}).finish();
+    return Buffer.from(addressBookBytes).toString('base64');
   }
 
   /**
