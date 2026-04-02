@@ -2184,11 +2184,16 @@ export class NodeCommandTasks {
                     `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
                     // Bring the service down via s6-rc (the s6-overlay v3 service manager).
                     '/command/s6-rc -d change network-node',
+                    // Poll until the JVM exits so the MerkleDb state snapshot is fully
+                    // written before the caller kills or restarts the pod.  A fixed
+                    // sleep is not sufficient because an ACTIVE node that has processed
+                    // many rounds may take >3 s to flush its state to disk.
+                    'for attempt in $(seq 1 60); do',
+                    "  ps -ef | grep -q '[j]ava' || exit 0",
+                    '  sleep 1',
+                    'done',
                   ].join('\n'),
                 ]);
-
-                // Wait for graceful shutdown
-                await sleep(Duration.ofMillis(3000));
               },
             });
           }
