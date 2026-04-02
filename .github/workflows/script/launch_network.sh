@@ -105,7 +105,7 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
 solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version ${MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE} --dev
-solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} -q --dev
+solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} -q --dev --explorer-version 25.0.0
 solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --relay-release "${PREV_RELAY_VERSION}" --dev
 
 echo "::endgroup::"
