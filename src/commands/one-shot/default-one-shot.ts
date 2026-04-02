@@ -95,6 +95,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.clusterRef,
       flags.minimalSetup,
       flags.rollback,
+      flags.parallelDeploy,
     ],
   };
 
@@ -122,6 +123,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployExplorer,
       flags.deployRelay,
       flags.rollback,
+      flags.parallelDeploy,
     ],
   };
 
@@ -648,7 +650,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
                   ),
                 ],
-                {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
               );
             },
           },
@@ -805,7 +807,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                             (): boolean => !config.deployRelay,
                                           ),
                                         ],
-                                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                                        {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                                       );
                                     },
                                   },
@@ -905,7 +907,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             },
                           },
                         ],
-                        {concurrent: true, rendererOptions: {collapseSubtasks: false}},
+                        {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                       );
                     },
                   },

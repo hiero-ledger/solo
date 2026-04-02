@@ -2895,6 +2895,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly parallelDeploy: CommandFlag = {
+    constName: 'parallelDeploy',
+    name: 'parallel-deploy',
+    definition: {
+      describe:
+        'Run independent one-shot deploy stages in parallel (consensus+block, mirror+accounts, explorer+relay). ' +
+        'Disable with --no-parallel-deploy for sequential execution (useful for debugging or resource-constrained environments).',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3068,6 +3081,7 @@ export class Flags {
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
     Flags.rollback,
+    Flags.parallelDeploy,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
