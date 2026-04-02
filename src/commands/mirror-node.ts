@@ -1120,8 +1120,8 @@ END $grant$;`;
         await this.remoteConfig.configuration.components.managePortForward(
           config.clusterReference,
           podReference,
-          constants.MIRROR_NODE_REST_PORT, 
-          constants.MIRROR_NODE_REST_PORT, 
+          constants.MIRROR_NODE_REST_PORT,
+          constants.MIRROR_NODE_REST_PORT,
           this.k8Factory.getK8(config.clusterContext),
           this.logger,
           ComponentTypes.MirrorNode,
