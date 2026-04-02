@@ -1103,6 +1103,36 @@ END $grant$;`;
     };
   }
 
+  private enableRestPortForwardingTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding for mirror node REST API',
+      skip: ({config}: MirrorNodeDeployContext): boolean => !config.forcePortForward,
+      task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
+        const pods: Pod[] = await this.k8Factory
+          .getK8(config.clusterContext)
+          .pods()
+          .list(config.namespace, [constants.SOLO_MIRROR_REST_NAME_LABEL]);
+        if (pods.length === 0) {
+          throw new SoloError('No mirror node REST pod found');
+        }
+        const podReference: PodReference = pods[0].podReference;
+
+        await this.remoteConfig.configuration.components.managePortForward(
+          config.clusterReference,
+          podReference,
+          constants.MIRROR_NODE_REST_PORT, 
+          constants.MIRROR_NODE_REST_PORT, 
+          this.k8Factory.getK8(config.clusterContext),
+          this.logger,
+          ComponentTypes.MirrorNode,
+          'Mirror node REST API',
+          config.isChartInstalled,
+        );
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
