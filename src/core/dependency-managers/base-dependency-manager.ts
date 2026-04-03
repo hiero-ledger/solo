@@ -227,15 +227,21 @@ export abstract class BaseDependencyManager extends ShellRunner {
 
     // Check if it is already installed locally
     if (await this.isInstalledLocallyAndMeetsRequirements()) {
-      this.logger.debug(
-        `${this.executableName} is installed at ${this.installationDirectory} and meets version requirements.`,
+      const localVersion: string = await this.getVersion(this.localExecutableWithPath).catch((): string =>
+        this.getRequiredVersion(),
+      );
+      this.logger.showUser(
+        `Compatible ${this.executableName} v${localVersion} found at ${this.localExecutableWithPath}`,
       );
       return true;
     }
 
     // If it is installed globally and meets requirements, use the global installation
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
-      this.logger.debug(`${this.executableName} is installed at globally and meets version requirements.`);
+      const globalVersion: string = await this.getVersion(this.globalExecutablePath).catch((): string =>
+        this.getRequiredVersion(),
+      );
+      this.logger.showUser(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
       return true;
     }
 
