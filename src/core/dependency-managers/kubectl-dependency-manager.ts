@@ -82,9 +82,17 @@ export class KubectlDependencyManager extends BaseDependencyManager {
           }
         }
       } catch (error: unknown) {
-        this.logger.debug(
-          `kubectl version check failed with environment override ${JSON.stringify(environmentOverride)}: ${error instanceof Error ? error.message : error}`,
-        );
+        // Only warn when falling back from the null-device override; if the override was
+        // already empty there is nothing more to try, so we let the final throw report it.
+        if (Object.keys(environmentOverride).length > 0) {
+          this.logger.warn(
+            `kubectl version check with KUBECONFIG=${nullDevice} failed, retrying without override: ${error instanceof Error ? error.message : error}`,
+          );
+        } else {
+          this.logger.debug(
+            `kubectl version check without KUBECONFIG override also failed: ${error instanceof Error ? error.message : error}`,
+          );
+        }
       }
     }
 
