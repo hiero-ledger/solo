@@ -154,6 +154,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
     try {
       if (path && (await this.installationMeetsRequirements(path))) {
         return true;
+      } else {
+        this.logger.info(`${this.executableName}${path ? ` at ${path}` : ''} is not a compatible global installation`);
       }
     } catch (error) {
       this.logger.debug(
@@ -169,6 +171,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
     try {
       if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutableWithPath))) {
         return true;
+      } else {
+        this.logger.info(
+          `${this.executableName} at ${this.localExecutableWithPath} is not a compatible local installation`,
+        );
       }
     } catch (error) {
       this.logger.debug(
