@@ -111,12 +111,20 @@ export class HelmDependencyManager extends BaseDependencyManager {
           environmentOverride,
           30_000,
         );
-        const parts: string[] = output[0].split('+');
-        const versionOnly: string = parts[0];
-        this.logger.info(`Helm version: ${versionOnly}`);
-        this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
-        return versionOnly;
+        if (output.length > 0) {
+          const parts: string[] = output[0].split('+');
+          // Strip any leading 'v' so callers receive a bare semver string (e.g. "4.1.1" not "v4.1.1")
+          const versionOnly: string = parts[0].replace(/^v/, '');
+          this.logger.info(`Helm version: ${versionOnly}`);
+          this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
+          return versionOnly;
+        }
+        // Empty output — the env override may be the cause; let the loop try the fallback.
+        this.logger.debug(`helm version check at ${executableWithPath} produced empty output`);
       } catch (error: unknown) {
+        if (error instanceof SoloError) {
+          throw error; // propagate descriptive errors immediately; don't retry
+        }
         if (Object.keys(environmentOverride).length > 0) {
           this.logger.warn(
             `helm version check with KUBECONFIG=${nullDevice} failed, retrying without override: ${error instanceof Error ? error.message : error}`,

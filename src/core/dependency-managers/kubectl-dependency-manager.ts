@@ -80,8 +80,18 @@ export class KubectlDependencyManager extends BaseDependencyManager {
               }
             }
           }
+          // Output is non-empty but contains no parseable version — retrying with a different
+          // KUBECONFIG override will not help, so throw immediately with a descriptive message.
+          throw new SoloError(
+            `Failed to check kubectl version: unexpected output from ${executableWithPath}: ${output.join(' | ')}`,
+          );
         }
+        // Empty output — the env override may be the cause; let the loop try the fallback.
+        this.logger.debug(`kubectl version check at ${executableWithPath} produced empty output`);
       } catch (error: unknown) {
+        if (error instanceof SoloError) {
+          throw error; // propagate descriptive errors immediately; don't retry
+        }
         // Only warn when falling back from the null-device override; if the override was
         // already empty there is nothing more to try, so we let the final throw report it.
         if (Object.keys(environmentOverride).length > 0) {

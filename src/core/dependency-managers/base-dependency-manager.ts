@@ -111,11 +111,15 @@ export abstract class BaseDependencyManager extends ShellRunner {
       const cmd: string = OperatingSystem.isWin32() ? 'where' : 'which';
       const path: string[] = await this.run(`${cmd} ${this.executableName}`);
       if (path.length === 0) {
+        this.logger.info(`${this.executableName} was not found in PATH (${cmd} returned no results)`);
         return false;
       }
       this.globalExecutablePath = path[0];
       return path[0];
-    } catch {
+    } catch (error: unknown) {
+      this.logger.info(
+        `${this.executableName} was not found in PATH: ${error instanceof Error ? error.message : error}`,
+      );
       return false;
     }
   }
