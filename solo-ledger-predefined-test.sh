@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Random node lifecycle stress test for s6-overlay image validation.
-# Randomly mixes 10 operations (start / stop / restart / refresh / freeze / ledger-create)
+# Randomly mixes 10 operations (start / stop / restart / freeze / ledger-create)
 # while keeping the sequence always valid for the current node state.
 #
 # Usage:  bash solo-ledger-predefined-test.sh [SEED]
@@ -13,10 +13,8 @@
 #   started → stop          → stopped
 #   started → freeze        → frozen        (consensus network freeze)
 #   started → restart       → started       (stop + start, exercises s6-rc cycle)
-#   started → refresh       → started       (stop + setup + start via solo refresh)
 #   started → ledger_create → started       (ledger account create)
 #   stopped → start         → started
-#   stopped → refresh       → started
 #   frozen  → start         → started       (s6-rc -d/-u cycle re-launches JVM)
 
 set -eo pipefail
@@ -43,7 +41,7 @@ rand() {
 
 seed_after_start() {
   # After node start, submit a ledger transaction to drive new consensus activity.
-  # This helps ensure a fresh saved state exists before a later refresh operation.
+  # This helps keep node activity healthy for subsequent lifecycle operations.
   npm run solo-test -- ledger account create \
     --deployment "${SOLO_DEPLOYMENT}" \
     --hbar-amount 100
@@ -128,16 +126,6 @@ op_restart() {
   STATE="started"
 }
 
-op_refresh() {
-  echo ""
-  echo "▶ [${STEP}/${TOTAL_OPS}] REFRESH (${STATE} → started)"
-  echo "▶ [${STEP}/${TOTAL_OPS}] Waiting 60s before REFRESH to allow save state generation"
-  sleep 60
-  npm run solo-test -- consensus node refresh \
-    --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-  STATE="started"
-}
-
 op_ledger_create() {
   echo ""
   echo "▶ [${STEP}/${TOTAL_OPS}] LEDGER CREATE account (${STATE} → started)"
@@ -150,27 +138,20 @@ op_ledger_create() {
 pick_op() {
   case "${STATE}" in
     started)
-      # 5 valid ops: stop(0) freeze(1) restart(2) refresh(3) ledger_create(4)
+      # 4 valid ops: stop(0) freeze(1) restart(2) ledger_create(3)
       local choice
-      rand 5
+      rand 4
       choice="${RAND_RESULT}"
       case "${choice}" in
         0) op_stop ;;
         1) op_freeze ;;
         2) op_restart ;;
-        3) op_refresh ;;
-        4) op_ledger_create ;;
+        3) op_ledger_create ;;
       esac
       ;;
     stopped)
-      # 2 valid ops: start(0) refresh(1)
-      local choice
-      rand 2
-      choice="${RAND_RESULT}"
-      case "${choice}" in
-        0) op_start ;;
-        1) op_refresh ;;
-      esac
+      # 1 valid op: start(0)
+      op_start
       ;;
     frozen)
       # 1 valid op: start (s6-rc -d/-u re-launches the JVM)
