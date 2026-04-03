@@ -114,10 +114,10 @@ export class HelmDependencyManager extends BaseDependencyManager {
         if (output.length > 0) {
           const parts: string[] = output[0].split('+');
           // Strip any leading 'v' so callers receive a bare semver string (e.g. "4.1.1" not "v4.1.1")
-          const versionOnly: string = parts[0].replace(/^v/, '');
-          this.logger.info(`Helm version: ${versionOnly}`);
-          this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
-          return versionOnly;
+          const bareVersion: string = parts[0].replace(/^v/, '');
+          this.logger.info(`Helm version: ${bareVersion}`);
+          this.logger.debug(`Found ${constants.HELM}:${bareVersion}`);
+          return bareVersion;
         }
         // Empty output — the env override may be the cause; let the loop try the fallback.
         this.logger.debug(`helm version check at ${executableWithPath} produced empty output`);
