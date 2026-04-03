@@ -116,6 +116,7 @@ jobs:
           curl -fsSL -o kubectl \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          echo "/usr/local/bin" >> "${GITHUB_PATH}"
           which kubectl
           kubectl version --client
 
