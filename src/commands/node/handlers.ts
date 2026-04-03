@@ -182,7 +182,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
       this.tasks.loadAdminKey(),
-      this.tasks.setGrpcWebEndpoint('newNodeAliases'),
+      this.tasks.setGrpcWebEndpoint('newNodeAliases', NodeSubcommandType.ADD),
       this.tasks.finalize(),
     ];
   }
@@ -706,7 +706,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
-    await this.resolveDeploymentForLogs(argv);
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
@@ -814,8 +813,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
         this.tasks.startNodes('nodeAliases'),
-        this.tasks.checkAllNodesAreActive('nodeAliases'),
-        this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in refreshing nodes',
@@ -883,10 +881,9 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
-        this.tasks.checkAllNodesAreActive('nodeAliases'),
-        this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.waitForTss(),
-        this.tasks.setGrpcWebEndpoint('nodeAliases'),
+        this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
         // TODO only show this if we are not running in one-shot mode
@@ -964,8 +961,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
-        this.tasks.checkAllNodesAreActive('existingNodeAliases'),
-        this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.checkNodesAndProxiesAreActive('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
