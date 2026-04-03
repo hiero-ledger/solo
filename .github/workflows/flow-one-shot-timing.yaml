@@ -138,6 +138,10 @@ jobs:
           which kubectl
           which helm
 
+          echo "--- GITHUB_PATH file contents ---"
+          cat "${GITHUB_PATH}"
+          echo "---------------------------------"
+
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
           npm run solo-test -- init
           npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
