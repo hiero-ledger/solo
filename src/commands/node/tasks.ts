@@ -1901,33 +1901,13 @@ export class NodeCommandTasks {
    */
   private buildStopNetworkNodeCommand(): string {
     const lifecycleHelperPath: string = '/command/network-node-lifecycle';
-    const servicesMainPattern: string = '[c]om\\.hedera\\.node\\.app\\.ServicesMain';
-    const networkNodeServiceDir: string = '/run/service/network-node';
     return [
       // Remove the enabled marker to prevent autostart after pod/container restarts.
       `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
       `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
-      // Primary stop path: use the container-owned lifecycle helper.
-      `"${lifecycleHelperPath}" stop || {`,
-      // Fallback: in newer solo-container images, s6-rc can report success while
-      // network-node remains "up (normally down)". Explicitly mark the supervisor
-      // down first so any forced JVM kill is not immediately restarted by s6.
-      `  echo "network-node-lifecycle stop failed; attempting emergency ServicesMain shutdown" >&2`,
-      `  /command/s6-svc -d "${networkNodeServiceDir}" >/dev/null 2>&1 || true`,
-      // Resolve JVM PIDs from ps output (instead of pgrep -f) so shell command
-      // text cannot create false positives when validating process shutdown.
-      `  pids="$(ps -eo pid,args | awk '/${servicesMainPattern}/{print $1}')"`,
-      `  [ -n "$pids" ] && kill -TERM $pids || true`,
-      `  sleep 5`,
-      `  pids="$(ps -eo pid,args | awk '/${servicesMainPattern}/{print $1}')"`,
-      `  [ -n "$pids" ] && kill -KILL $pids || true`,
-      `  sleep 2`,
-      `  pids="$(ps -eo pid,args | awk '/${servicesMainPattern}/{print $1}')"`,
-      `  [ -n "$pids" ] && {`,
-      `    echo "failed to stop ServicesMain JVM after fallback" >&2`,
-      `    exit 1`,
-      `  } || true`,
-      `}`,
+      // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
+      // solo-container's /command/network-node-lifecycle helper.
+      `"${lifecycleHelperPath}" stop`,
     ].join('\n');
   }
 

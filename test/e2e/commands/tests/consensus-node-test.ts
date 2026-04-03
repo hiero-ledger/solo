@@ -862,8 +862,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
-    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning} =
-      ConsensusNodeTest;
+    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning} = ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
