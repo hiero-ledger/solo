@@ -2,6 +2,7 @@
 
 export enum SoloEventType {
   NetworkDeployed = 'NetworkDeployed',
+  NodesStarted = 'NodesStarted',
   MirrorNodeDeployed = 'MirrorNodeDeployed',
 }
 
@@ -12,6 +13,12 @@ export abstract class SoloEvent {
 export class NetworkDeployedEvent extends SoloEvent {
   public constructor(public readonly deployment: string) {
     super(SoloEventType.NetworkDeployed);
+  }
+}
+
+export class NodesStartedEvent extends SoloEvent {
+  public constructor(public readonly deployment: string) {
+    super(SoloEventType.NodesStarted);
   }
 }
 

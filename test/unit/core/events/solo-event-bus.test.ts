@@ -5,6 +5,9 @@ import {expect} from 'chai';
 import {describe, it, beforeEach} from 'mocha';
 import {SoloEventBus} from '../../../../src/core/events/solo-event-bus.js';
 import {SoloEventType, NetworkDeployedEvent, MirrorNodeDeployedEvent} from '../../../../src/core/events/event-types.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
+import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 describe('SoloEventBus', (): void => {
   let bus: SoloEventBus;
@@ -13,18 +16,20 @@ describe('SoloEventBus', (): void => {
   const mirrorEvent: MirrorNodeDeployedEvent = new MirrorNodeDeployedEvent('my-deployment');
 
   beforeEach((): void => {
-    bus = new SoloEventBus();
+    // resolve the test logger from the DI container
+    const testLogger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
+    bus = new SoloEventBus(testLogger);
   });
 
   it('should call a registered handler when the matching event is emitted', (): void => {
-    const handler = sinon.spy();
+    const handler: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.NetworkDeployed, handler);
     bus.emit(networkEvent);
     expect(handler).to.have.been.calledOnceWithExactly(networkEvent);
   });
 
   it('should not call a handler after it has been removed with off()', (): void => {
-    const handler = sinon.spy();
+    const handler: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.NetworkDeployed, handler);
     bus.off(SoloEventType.NetworkDeployed, handler);
     bus.emit(networkEvent);
@@ -32,8 +37,8 @@ describe('SoloEventBus', (): void => {
   });
 
   it('should call all registered handlers for the same event type', (): void => {
-    const handlerA = sinon.spy();
-    const handlerB = sinon.spy();
+    const handlerA: sinon.SinonSpy = sinon.spy();
+    const handlerB: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.NetworkDeployed, handlerA);
     bus.on(SoloEventType.NetworkDeployed, handlerB);
     bus.emit(networkEvent);
@@ -42,15 +47,15 @@ describe('SoloEventBus', (): void => {
   });
 
   it('should not call a handler registered for a different event type', (): void => {
-    const handler = sinon.spy();
+    const handler: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.MirrorNodeDeployed, handler);
     bus.emit(networkEvent);
     expect(handler).not.to.have.been.called;
   });
 
   it('should call handlers for different event types independently', (): void => {
-    const networkHandler = sinon.spy();
-    const mirrorHandler = sinon.spy();
+    const networkHandler: sinon.SinonSpy = sinon.spy();
+    const mirrorHandler: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.NetworkDeployed, networkHandler);
     bus.on(SoloEventType.MirrorNodeDeployed, mirrorHandler);
     bus.emit(networkEvent);
@@ -60,8 +65,8 @@ describe('SoloEventBus', (): void => {
   });
 
   it('should only remove the specific handler passed to off(), leaving others intact', (): void => {
-    const handlerA = sinon.spy();
-    const handlerB = sinon.spy();
+    const handlerA: sinon.SinonSpy = sinon.spy();
+    const handlerB: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.NetworkDeployed, handlerA);
     bus.on(SoloEventType.NetworkDeployed, handlerB);
     bus.off(SoloEventType.NetworkDeployed, handlerA);
@@ -71,7 +76,7 @@ describe('SoloEventBus', (): void => {
   });
 
   it('should call a handler each time the event is emitted', (): void => {
-    const handler = sinon.spy();
+    const handler: sinon.SinonSpy = sinon.spy();
     bus.on(SoloEventType.NetworkDeployed, handler);
     bus.emit(networkEvent);
     bus.emit(networkEvent);
@@ -79,15 +84,15 @@ describe('SoloEventBus', (): void => {
   });
 
   it('waitFor() should resolve with the event when it is emitted', async (): Promise<void> => {
-    const promise = bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
+    const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
     bus.emit(networkEvent);
-    const result = await promise;
+    const result: NetworkDeployedEvent = await promise;
     expect(result).to.equal(networkEvent);
   });
 
   it('waitFor() should resolve only once even if the event is emitted multiple times', async (): Promise<void> => {
     const results: NetworkDeployedEvent[] = [];
-    const promise = bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
+    const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
     promise.then((soloEvent: NetworkDeployedEvent): number => results.push(soloEvent));
     bus.emit(networkEvent);
     bus.emit(networkEvent);
@@ -97,7 +102,7 @@ describe('SoloEventBus', (): void => {
 
   it('waitFor() should not resolve for a different event type', async (): Promise<void> => {
     let resolved: boolean = false;
-    bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed).then(() => {
+    bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed).then((): void => {
       resolved = true;
     });
     bus.emit(mirrorEvent);
@@ -136,7 +141,7 @@ describe('SoloEventBus', (): void => {
     const results: NetworkDeployedEvent[] = [];
     const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(
       SoloEventType.NetworkDeployed,
-      () => true,
+      (): boolean => true,
     );
     promise.then((soloEvent: NetworkDeployedEvent): number => results.push(soloEvent));
     bus.emit(networkEvent);
@@ -168,5 +173,15 @@ describe('SoloEventBus', (): void => {
     const event: MirrorNodeDeployedEvent = new MirrorNodeDeployedEvent('solo-deployment');
     expect(event.type).to.equal(SoloEventType.MirrorNodeDeployed);
     expect(event.deployment).to.equal('solo-deployment');
+  });
+
+  it('waitFor() should resolve if event was emitted before waitFor is called', async (): Promise<void> => {
+    // Emit the event first (before waitFor is called)
+    bus.emit(networkEvent);
+
+    // Now call waitFor; it should resolve immediately with the past event
+    const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
+    const result: NetworkDeployedEvent = await promise;
+    expect(result).to.equal(networkEvent);
   });
 });

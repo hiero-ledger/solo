@@ -70,10 +70,9 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
-// import {MirrorNodeDeployedEvent, SoloEventType} from '../../core/events/event-types.js';
 import {SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
-import {MirrorNodeDeployedEvent, SoloEventType} from '../../core/events/event-types.js';
+import {MirrorNodeDeployedEvent, NodesStartedEvent, SoloEventType} from '../../core/events/event-types.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -142,6 +141,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   ) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.eventBus = patchInject(eventBus, InjectTokens.EventBus, this.constructor.name);
     this.sharedResourceManager = patchInject(
       sharedResourceManager,
       InjectTokens.SharedResourceManager,
@@ -849,35 +849,43 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     this.taskList,
                     (): boolean => !config.deployExplorer && !config.minimalSetup,
                   ),
+                  invokeSoloCommand(
+                    `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                    RelayCommandDefinition.ADD_COMMAND,
+                    async (): Promise<string[]> => {
+                      await this.eventBus.waitFor(
+                        SoloEventType.MirrorNodeDeployed,
+                        (soloEvent: MirrorNodeDeployedEvent): boolean => soloEvent.deployment === config.deployment,
+                      );
+                      await this.eventBus.waitFor(
+                        SoloEventType.NodesStarted,
+                        (soloEvent: NodesStartedEvent): boolean => soloEvent.deployment === config.deployment,
+                      );
+                      const argv: string[] = newArgv();
+                      argv.push(
+                        ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                        optionFromFlag(Flags.deployment),
+                        config.deployment,
+                        optionFromFlag(Flags.clusterRef),
+                        config.clusterRef,
+                        optionFromFlag(Flags.nodeAliasesUnparsed),
+                        'node1',
+                      );
+                      this.appendConfigToArgv(argv, {
+                        [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                        [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                        ...config.relayNodeConfiguration,
+                      });
+                      return argvPushGlobalFlags(argv);
+                    },
+                    this.taskList,
+                    (): boolean => !config.deployRelay && !config.minimalSetup,
+                  ),
                 ],
                 {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
               );
             },
           },
-          invokeSoloCommand(
-            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-            RelayCommandDefinition.ADD_COMMAND,
-            async (): Promise<string[]> => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                optionFromFlag(Flags.nodeAliasesUnparsed),
-                'node1',
-              );
-              this.appendConfigToArgv(argv, {
-                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
-                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                ...config.relayNodeConfiguration,
-              });
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-            (): boolean => !config.deployRelay && !config.minimalSetup,
-          ),
           {
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {
