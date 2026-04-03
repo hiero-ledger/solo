@@ -19,11 +19,6 @@ name: "One-Shot Timing Test"
 on:
   workflow_dispatch:
     inputs:
-      use-released-solo:
-        description: "Use latest released Solo CLI (true) or build from source (false)"
-        type: boolean
-        required: false
-        default: false
       use-local-build:
         description: "Build consensus node from source using --local-build-path"
         type: boolean
@@ -120,12 +115,11 @@ jobs:
           verbosity: 3
           wait: 120s
 
-      - name: Install Solo
-        run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+      - name: Install Dependencies
+        run: npm ci
 
-          # verify the installation
-          solo --version
+      - name: Build Application
+        run: task build:compile
 
       - name: Start CNs
         run: |
@@ -137,16 +131,16 @@ jobs:
           export SOLO_LOG_LEVEL=debug
 
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
-          solo init
-          solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-          solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-          solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
-          solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-          solo block node add --deployment "${SOLO_DEPLOYMENT}"
-          solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-          solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-          solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-          solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- init
+          npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+          npm run solo-test -- deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+          npm run solo-test -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+          npm run solo-test -- block node add --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 
       - name: Upload Logs to GitHub
         if: ${{ !cancelled() && always() }}
