@@ -911,6 +911,7 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (deleteSecrets && deletePvcs) {
+      task.title = `Deleting namespace ${namespace}`;
       await this.logDestroyResults(
         'Delete namespace',
         await Promise.allSettled(
