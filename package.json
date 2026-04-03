@@ -29,7 +29,7 @@
     "@kubernetes/client-node": "1.4.0",
     "@listr2/prompt-adapter-inquirer": "4.2.2",
     "@peculiar/x509": "2.0.0",
-    "adm-zip": "0.5.16",
+    "adm-zip": "0.5.17",
     "chalk": "5.6.2",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
