@@ -93,6 +93,17 @@ jobs:
           which helm
           helm version
 
+      - name: Install kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION="v1.33.1"
+          curl -fsSL -o kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          which kubectl
+          kubectl version --client
+
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
