@@ -169,13 +169,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   private async isInstalledLocallyAndMeetsRequirements(): Promise<boolean> {
     try {
-      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutableWithPath))) {
-        return true;
-      } else {
-        this.logger.info(
-          `${this.executableName} at ${this.localExecutableWithPath} is not a compatible local installation`,
-        );
+      if (!this.isInstalledLocally()) {
+        this.logger.info(`${this.executableName} is not installed locally at ${this.localExecutableWithPath}`);
+        return false;
       }
+      if (await this.installationMeetsRequirements(this.localExecutableWithPath)) {
+        return true;
+      }
+      this.logger.info(
+        `${this.executableName} at ${this.localExecutableWithPath} is installed locally but does not meet version requirements`,
+      );
     } catch (error) {
       this.logger.debug(
         `Local installation of ${this.executableName} does not meet version requirements: ${error instanceof Error ? error.message : error}`,

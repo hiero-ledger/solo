@@ -123,9 +123,9 @@ jobs:
           export SOLO_DEPLOYMENT=solo-deployment
           export NODE_ALIASES="node1,node2"
           export SOLO_LOG_LEVEL=debug
-          which kind
-          which kubectl
-          which helm
+          which kind && kind version
+          which kubectl && kubectl version --client
+          which helm && helm version
 
           echo "--- GITHUB_PATH file contents ---"
           cat "${GITHUB_PATH}"
