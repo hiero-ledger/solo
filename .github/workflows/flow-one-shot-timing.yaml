@@ -134,6 +134,7 @@ jobs:
           export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
           export SOLO_DEPLOYMENT=solo-deployment
           export NODE_ALIASES="node1,node2"
+          export SOLO_LOG_LEVEL=debug
 
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
           solo init
