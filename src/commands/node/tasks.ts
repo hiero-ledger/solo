@@ -1861,23 +1861,7 @@ export class NodeCommandTasks {
               const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
               await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
 
-              const startCommand: string = [
-                // Mark the service as intentionally enabled so the autostart oneshot
-                // (network-node-autostart) will re-start network-node on future pod restarts.
-                `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
-                // Cycle down → up via s6-rc.  A plain "s6-rc -u" is a no-op when s6-rc
-                // already considers the service "up" (e.g. after FREEZE_COMPLETE the finish
-                // script sets the "once" flag, so the JVM has exited but s6-rc still reports
-                // the service as up).  Bringing it down first forces s6-rc to re-launch.
-                '/command/s6-rc -d change network-node 2>/dev/null || true',
-                '/command/s6-rc -u change network-node',
-                // Poll until the JVM process is visible — s6-rc returns before the app starts.
-                `for attempt in $(seq 1 ${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}); do`,
-                "  ps -ef | grep -q '[j]ava' && exit 0",
-                '  sleep 1',
-                'done',
-                'exit 1',
-              ].join('\n');
+              const startCommand: string = this.buildStartNetworkNodeCommand();
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -1892,6 +1876,37 @@ export class NodeCommandTasks {
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
+  }
+
+  /**
+   * Build the command used by `consensus node start` to restart the network-node service.
+   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
+   */
+  private buildStartNetworkNodeCommand(): string {
+    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
+    return [
+      // Persist "enabled" state so the autostart oneshot can bring network-node back
+      // automatically when the pod restarts in later operations.
+      `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+      // Fail fast when the helper is missing so callers immediately know the image
+      // does not satisfy Solo's lifecycle contract.
+      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      `"${lifecycleHelperPath}" start`,
+    ].join('\n');
+  }
+
+  /**
+   * Build the command used by `consensus node stop` to stop the network-node service.
+   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
+   */
+  private buildStopNetworkNodeCommand(): string {
+    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
+    return [
+      // Remove the enabled marker to prevent autostart after pod/container restarts.
+      `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      `"${lifecycleHelperPath}" stop`,
+    ].join('\n');
   }
 
   public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
@@ -2176,24 +2191,7 @@ export class NodeCommandTasks {
               task: async () => {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                await container.execContainer([
-                  'bash',
-                  '-c',
-                  [
-                    // Remove the enabled flag so s6-rc autostart won't restart the service on container restart.
-                    `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
-                    // Bring the service down via s6-rc (the s6-overlay v3 service manager).
-                    '/command/s6-rc -d change network-node',
-                    // Poll until the JVM exits so the MerkleDb state snapshot is fully
-                    // written before the caller kills or restarts the pod.  A fixed
-                    // sleep is not sufficient because an ACTIVE node that has processed
-                    // many rounds may take >3 s to flush its state to disk.
-                    'for attempt in $(seq 1 60); do',
-                    "  ps -ef | grep -q '[j]ava' || exit 0",
-                    '  sleep 1',
-                    'done',
-                  ].join('\n'),
-                ]);
+                await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
               },
             });
           }
