@@ -130,6 +130,9 @@ jobs:
           echo "--- GITHUB_PATH file contents ---"
           cat "${GITHUB_PATH}"
           echo "---------------------------------"
+          echo "--- PATH ---"
+          echo "$PATH"
+          echo "------------"
 
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
           npm run solo-test -- init

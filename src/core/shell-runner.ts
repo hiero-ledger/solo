@@ -21,6 +21,7 @@ export class ShellRunner {
     const currentPath: string = process.env.PATH ?? '';
     const githubPathFile: string | undefined = process.env.GITHUB_PATH;
     if (!githubPathFile) {
+      this.logger.debug(`effectivePath: GITHUB_PATH not set; using inherited PATH: ${currentPath}`);
       return currentPath;
     }
     try {
@@ -29,8 +30,16 @@ export class ShellRunner {
         .map((line: string): string => line.trim())
         .filter((line: string): boolean => line.length > 0)
         .join(':');
-      return extraPaths ? `${extraPaths}:${currentPath}` : currentPath;
+      const result: string = extraPaths ? `${extraPaths}:${currentPath}` : currentPath;
+      this.logger.debug(
+        `effectivePath: inherited PATH=${currentPath}; GITHUB_PATH file=${githubPathFile}, ` +
+          `extra entries=[${extraPaths || 'none'}]; effective PATH=${result}`,
+      );
+      return result;
     } catch {
+      this.logger.debug(
+        `effectivePath: failed to read GITHUB_PATH file ${githubPathFile}; using inherited PATH: ${currentPath}`,
+      );
       return currentPath;
     }
   }
