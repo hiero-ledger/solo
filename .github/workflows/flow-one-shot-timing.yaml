@@ -129,6 +129,9 @@ jobs:
           export SOLO_DEPLOYMENT=solo-deployment
           export NODE_ALIASES="node1,node2"
           export SOLO_LOG_LEVEL=debug
+          which kind
+          which kubectl
+          which helm
 
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
           npm run solo-test -- init
