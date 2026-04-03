@@ -105,7 +105,7 @@ jobs:
           HELM_VERSION="v4.1.1"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
           curl -fsSL -o "${ARCHIVE}" \
-            "https://github.com/helm/helm/releases/download/${HELM_VERSION}/${ARCHIVE}"
+            "https://get.helm.sh/${ARCHIVE}"
           tar xfz "${ARCHIVE}"
           sudo install -m 0755 linux-amd64/helm /usr/bin/helm
           which helm
