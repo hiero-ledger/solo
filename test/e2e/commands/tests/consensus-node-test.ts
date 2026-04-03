@@ -459,7 +459,18 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
+  public static firstNodeCustomGrpcWebEndpointAddress: string = 'localhost';
+  public static firstNodeCustomGrpcWebEndpointPort: number = 4444;
+
+  public static secondNodeCustomGrpcWebEndpointAddress: string = 'remote.cluster.address';
+  public static secondNodeCustomGrpcWebEndpointPort: number = 4445;
+
+  private static soloNodeStartArgv(
+    testName: string,
+    deployment: DeploymentName,
+    nodeAliases?: string,
+    setCustomGrpcWebAddress?: boolean,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
 
     const argv: string[] = newArgv();
@@ -474,6 +485,17 @@ export class ConsensusNodeTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliases);
     }
     argvPushGlobalFlags(argv, testName);
+
+    if (setCustomGrpcWebAddress) {
+      argv.push(
+        optionFromFlag(flags.grpcWebEndpoints),
+        [
+          `node1=${ConsensusNodeTest.firstNodeCustomGrpcWebEndpointAddress}:${ConsensusNodeTest.firstNodeCustomGrpcWebEndpointPort}`,
+          `node2=${ConsensusNodeTest.secondNodeCustomGrpcWebEndpointAddress}:${ConsensusNodeTest.secondNodeCustomGrpcWebEndpointPort}`,
+        ].join(','),
+      );
+    }
+
     return argv;
   }
 
@@ -536,13 +558,13 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }
   }
 
-  public static start(options: BaseTestOptions): void {
+  public static start(options: BaseTestOptions, setCustomGrpcWebAddress: boolean = false): void {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences, consensusNodesCount} =
       options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = ConsensusNodeTest;
 
     it(`${testName}: consensus node start`, async (): Promise<void> => {
-      await main(soloNodeStartArgv(testName, deployment));
+      await main(soloNodeStartArgv(testName, deployment, undefined, setCustomGrpcWebAddress));
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -822,8 +844,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     await expect(
       container
         .resolve(NodeCommandTasks)
-        // @ts-expect-error - TS2341: to access private property
-        ._checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
+        .checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
     ).to.be.rejected;
   }
 
@@ -893,7 +914,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       await checkNetwork(testName, namespace, testLogger);
 
-      await main(soloNodeStartArgv(testName, deployment));
+      await main(soloNodeStartArgv(testName, deployment, undefined, false));
 
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));

@@ -147,7 +147,7 @@ flags may be specified at any level of the command hierarchy.
 | deployment  | config             | < list & info & create & delete & import >                                         |
 | deployment  | cluster            | < list & info & attach & detach >                                                  |
 | deployment  | state              | < info & destroy >                                                                 |
-| deployment  | diagnostics        | < logs & configs & all & connections >                                             |
+| deployment  | diagnostics        | < logs & configs & all & connections & analyze >                                   |
 | explorer    | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | keys        | consensus          | < generate >                                                                       |
 | ledger      | system             | < init & accounts-rekey & staking-setup >                                          |
@@ -163,6 +163,8 @@ flags may be specified at any level of the command hierarchy.
 ```bash
 solo cluster-ref config connect --cluster-ref <name> --context <context>
 solo deployment config create --deployment <name> --namespace <name> 
+solo deployment config list
+solo deployment config info [--deployment <name>]
 solo deployment cluster attach --deployment <name> --cluster-ref <name> --num-consensus-nodes 3 
 solo keys consensus generate --deployment <name> --gossip-tls-keys --grpc-tls-keys
 solo block node add --deployment <name> --cluster-ref <name> 
@@ -276,7 +278,7 @@ associated with each group.
 | Resource Name   | Command Syntax | Description                                                                                                                                       |
 |-----------------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Cluster**     | `cluster`      | View and manage Solo cluster references used by a deployment.                                                                                     |
-| **Config**      | `config`       | List, view, create, delete, and import deployments. These commands affect the local configuration only.                                           |
+| **Config**      | `config`       | List, inspect, create, delete, and import deployments. These commands affect the local configuration only.                                        |
 | **State**       | `state`        | View the actual state of the deployment on the Kubernetes clusters or teardown/destroy all remote and local configuration for a given deployment. |
 | **Diagnostics** | `diagnostics`  | Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.                                               |
 
@@ -434,12 +436,13 @@ operations associated with each resource.
 
 #### diagnostics
 
-| Operation Name  | Command Syntax | Description                                                                |
-|-----------------|----------------|----------------------------------------------------------------------------|
-| **Logs**        | `logs`         | Collects logs from consensus nodes in the deployment.                      |
-| **Configs**     | `configs`      | Collects configuration files from consensus nodes.                         |
-| **All**         | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes. |
-| **Connections** | `connections`  | Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.   |
+| Operation Name  | Command Syntax | Description                                                                                      |
+|-----------------|----------------|--------------------------------------------------------------------------------------------------|
+| **Logs**        | `logs`         | Collects logs from consensus nodes in the deployment.                                            |
+| **Configs**     | `configs`      | Collects configuration files from consensus nodes.                                               |
+| **All**         | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes.                       |
+| **Connections** | `connections`  | Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.                         |
+| **Analyze**     | `analyze`      | Analyzes a previously collected diagnostics directory for common failure signatures without requiring a live cluster connection. Accepts an optional `--input-dir` flag pointing to the directory produced by `logs`, `configs`, or `all`; defaults to `~/.solo/logs/<namespace>`. Findings are written to `diagnostics-analysis.txt` inside the input directory and the top issues are printed to the terminal. |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -462,13 +465,13 @@ operations associated with each resource.
 
 #### Config
 
-| Operation Name | Command Syntax | Description                                                 |
-|----------------|----------------|-------------------------------------------------------------|
-| **List**       | `list`         | Lists all local deployment configurations.                  |
-| **Info**       | `info`         | Displays metadata and state information about a deployment. |
-| **Create**     | `create`       | Creates a new local deployment configuration.               |
-| **Delete**     | `delete`       | Removes a local deployment configuration.                   |
-| **Import**     | `import`       | Imports deployment config from a file.                      |
+| Operation Name | Command Syntax | Description                                                                                                                                     |
+|----------------|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| **List**       | `list`         | Lists local deployments and reports per cluster-ref status: `connected`, `disconnected`, or `not-found`.                                     |
+| **Info**       | `info`         | Displays deployment metadata, component versions, and port-forward status. If `--deployment` is omitted, it iterates all local deployments.  |
+| **Create**     | `create`       | Creates a new local deployment configuration.                                                                                                   |
+| **Delete**     | `delete`       | Removes a local deployment configuration.                                                                                                       |
+| **Import**     | `import`       | Imports deployment config from a file.                                                                                                          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

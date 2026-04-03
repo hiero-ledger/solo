@@ -12,4 +12,5 @@ export interface NodeStartConfigClass extends NodeCommonConfigWithNodeAliases, C
   debugNodeAlias: NodeAlias;
   stagingDir: string;
   forcePortForward: Optional<boolean>;
+  grpcWebEndpoints: string;
 }

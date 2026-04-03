@@ -16,6 +16,8 @@ import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {K8Helper} from '../../../../src/business/utils/k8-helper.js';
+import {sleep} from '../../../../src/core/helpers.js';
+import {OperatingSystem} from '../../../../src/business/utils/operating-system.js';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
@@ -209,19 +211,26 @@ export class BlockNodeTest extends BaseCommandTest {
       const pod: Pod = await new K8Helper(contexts[0]).getBlockNodePod(namespace, blockNodeId);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+
+      // Sleep to allow the port-forward to be established before attempting to connect
+      await sleep(Duration.ofSeconds(5));
+
       const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
 
-      // Make script executable
-      await execAsync('chmod +x ./get-block.sh', commandOptions);
+      // Make script executable (no-op on Windows; chmod is not available)
+      if (!OperatingSystem.isWin32()) {
+        await execAsync('chmod +x ./get-block.sh', commandOptions);
+      }
 
-      // Execute script
-      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
+      // Execute script (use bash explicitly on Windows since .sh files have no default handler)
+      const scriptCommand: string = OperatingSystem.isWin32() ? 'bash ./get-block.sh 1' : './get-block.sh 1';
+      const scriptStd: {stdout: string; stderr: string} = await execAsync(scriptCommand, commandOptions);
 
       expect(scriptStd.stderr).to.equal('');
       expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
 
       await pod.stopPortForward(srv);
-    });
+    }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static verifyBlockNodesJson(

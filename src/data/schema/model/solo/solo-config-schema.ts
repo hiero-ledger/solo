@@ -1,28 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type HelmChartSchema} from '../common/helm-chart-schema.js';
-import {Exclude, Expose} from 'class-transformer';
-import {Version} from '../../../../business/utils/version.js';
+import {HelmChartSchema} from '../common/helm-chart-schema.js';
+import {TssSchema} from './tss-schema.js';
+import {Exclude, Expose, Type} from 'class-transformer';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 @Exclude()
 export class SoloConfigSchema {
-  public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
-  public static readonly EMPTY: SoloConfigSchema = new SoloConfigSchema(SoloConfigSchema.SCHEMA_VERSION.value);
+  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
+  public static readonly EMPTY: SoloConfigSchema = new SoloConfigSchema(SoloConfigSchema.SCHEMA_VERSION.major);
 
   @Expose()
   public schemaVersion: number;
 
   @Expose()
-  public helmChart: HelmChartSchema | undefined;
+  @Type((): typeof HelmChartSchema => HelmChartSchema)
+  public helmChart: HelmChartSchema;
 
   @Expose()
-  public ingressControllerHelmChart: HelmChartSchema | undefined;
+  @Type((): typeof HelmChartSchema => HelmChartSchema)
+  public ingressControllerHelmChart: HelmChartSchema;
 
   @Expose()
-  public clusterSetupHelmChart: HelmChartSchema | undefined;
+  @Type((): typeof HelmChartSchema => HelmChartSchema)
+  public clusterSetupHelmChart: HelmChartSchema;
 
   @Expose()
-  public certManagerHelmChart: HelmChartSchema | undefined;
+  @Type((): typeof HelmChartSchema => HelmChartSchema)
+  public certManagerHelmChart: HelmChartSchema;
+
+  @Expose()
+  @Type((): typeof TssSchema => TssSchema)
+  public tss: TssSchema;
 
   public constructor(
     schemaVersion?: number,
@@ -30,11 +39,13 @@ export class SoloConfigSchema {
     ingressControllerHelmChart?: HelmChartSchema,
     clusterSetupHelmChart?: HelmChartSchema,
     certManagerHelmChart?: HelmChartSchema,
+    tss?: TssSchema,
   ) {
     this.schemaVersion = schemaVersion ?? 1;
-    this.helmChart = helmChart ?? undefined;
-    this.ingressControllerHelmChart = ingressControllerHelmChart ?? undefined;
-    this.clusterSetupHelmChart = clusterSetupHelmChart ?? undefined;
-    this.certManagerHelmChart = certManagerHelmChart ?? undefined;
+    this.helmChart = helmChart || new HelmChartSchema();
+    this.ingressControllerHelmChart = ingressControllerHelmChart || new HelmChartSchema();
+    this.clusterSetupHelmChart = clusterSetupHelmChart || new HelmChartSchema();
+    this.certManagerHelmChart = certManagerHelmChart || new HelmChartSchema();
+    this.tss = tss || new TssSchema();
   }
 }

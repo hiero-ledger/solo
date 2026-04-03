@@ -50,7 +50,7 @@ function log_and_exit()
     echo "SOLO_NAMESPACE is not set. Exiting."
     exit 1
   fi
-  echo "load_log_and_exit begin with rc=$1"
+  echo "log_and_exit begin with rc=$1"
 
   printf "\r::group::Relay log dump\n"
   echo "------- BEGIN RELAY DUMP -------"

@@ -7,11 +7,9 @@
 | [address-book](./address-book/)                                     | Example of using Yahcli to pull the ledger and mirror node address book                                             |
 | [consensus-node-jvm-parameters](./consensus-node-jvm-parameters/)   | Example of customizing JVM parameters for Solo consensus nodes                                                      |
 | [multicluster-backup-restore](./multicluster-backup-restore/)       | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes             |
-| [custom-network-config](./custom-network-config/)                   | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.)                                 |
 | [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                          |
 | [hardhat-with-solo](./hardhat-with-solo/)                           | Example of using Hardhat to test a smart contract with a local Solo deployment                                      |
 | [local-build-with-custom-config](./local-build-with-custom-config/) | Example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes    |
-| [network-with-block-node](./network-with-block-node/)               | Deploy a Solo network that includes a block node                                                                    |
 | [network-with-domain-names](./network-with-domain-names/)           | Setup a network using custom domain names for all components                                                        |
 | [node-create-transaction](./node-create-transaction/)               | Manually write a NodeCreateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [node-delete-transaction](./node-delete-transaction/)               | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
@@ -57,7 +55,7 @@ After downloading, extract the archive and follow the README instructions inside
 
 ## Running the examples with Taskfile
 
-* `cd` into the directory under `examples` that has the `Taskfile.yml`, e.g. (from solo repo root directory) `cd examples/network-with-block-node/`
+* `cd` into the directory under `examples` that has the `Taskfile.yml`, e.g. (from solo repo root directory) `cd examples/address-book/`
 * make sure that your current kubeconfig context is pointing to the cluster that you want to deploy to
 * run `task` which will do the rest and deploy the network and take care of many of the pre-requisites
 

@@ -73,6 +73,9 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
       # Delete existing clusters
       - cmd: echo "🗑️  Cleaning up existing clusters..."
       - cmd: kind delete cluster -n solo-e2e-c1 || true
@@ -268,12 +271,7 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
-      - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 500s $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
-          else
-            $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
-          fi
+      - cmd: $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
       - task: deploy-mirror-external
 
   # ==================== External Database Tasks ====================

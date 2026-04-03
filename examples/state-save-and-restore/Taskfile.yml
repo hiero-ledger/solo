@@ -63,6 +63,8 @@ tasks:
   setup:
     desc: Deploy initial network with external PostgreSQL database
     cmds:
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
       - task: create-cluster
       - task: init-solo
       - task: deploy-external-database
@@ -83,14 +85,19 @@ tasks:
           else
             echo "Using development version of Solo"
           fi
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: |
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .CLUSTER_NAME }}
+          fi
       - cmd: sleep 10  # Wait for control plane
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
   init-solo:
     desc: Initialize Solo and configure cluster
     cmds:
-      - cmd: $SOLO_COMMAND init
       - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }}
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
       - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0

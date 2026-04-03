@@ -99,13 +99,28 @@ tasks:
 
   build-chart-deps:
     desc: Run helm dependency build for all local chart directories
+    vars:
+      # Stable cache directory: chart tarballs are saved here and restored on the next run.
+      # In CI the workflow caches this path with actions/cache, keyed by version.ts hash,
+      # so Docker Hub OCI pulls (registry-1.docker.io/bitnamicharts) are skipped entirely
+      # after the first successful build — avoiding Docker Hub anonymous rate-limit 429s.
+      # helm dependency build skips re-downloading when charts/*.tgz already exist and
+      # match Chart.lock, so pre-populating from the cache is sufficient.
+      HELM_CHART_CACHE: "${HOME}/.solo/helm-chart-cache"
     cmds:
       # Block node chart: <charts>/block-node-server
       - cmd: |
           CHART_PATH="{{.BLOCK_NODE_CHART_DIR}}/block-node-server"
+          CACHE_DIR="{{.HELM_CHART_CACHE}}/block-node-server"
           if [ -d "$CHART_PATH" ]; then
+            if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
+              echo "Restoring cached helm tarballs for block-node-server..."
+              mkdir -p "$CHART_PATH/charts"
+              cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            fi
             echo "Running helm dependency build in $CHART_PATH..."
             helm dependency build "$CHART_PATH"
+            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -113,9 +128,16 @@ tasks:
       # Mirror node chart: <charts>/hedera-mirror
       - cmd: |
           CHART_PATH="{{.MIRROR_NODE_CHART_DIR}}/hedera-mirror"
+          CACHE_DIR="{{.HELM_CHART_CACHE}}/hedera-mirror"
           if [ -d "$CHART_PATH" ]; then
+            if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
+              echo "Restoring cached helm tarballs for hedera-mirror..."
+              mkdir -p "$CHART_PATH/charts"
+              cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            fi
             echo "Running helm dependency build in $CHART_PATH..."
             helm dependency build "$CHART_PATH"
+            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -123,9 +145,16 @@ tasks:
       # Relay chart: <charts>/hedera-json-rpc
       - cmd: |
           CHART_PATH="{{.RELAY_CHART_DIR}}/hedera-json-rpc"
+          CACHE_DIR="{{.HELM_CHART_CACHE}}/hedera-json-rpc"
           if [ -d "$CHART_PATH" ]; then
+            if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
+              echo "Restoring cached helm tarballs for hedera-json-rpc..."
+              mkdir -p "$CHART_PATH/charts"
+              cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            fi
             echo "Running helm dependency build in $CHART_PATH..."
             helm dependency build "$CHART_PATH"
+            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -133,9 +162,16 @@ tasks:
       # Explorer chart: <charts> (directory used directly, no chart name suffix)
       - cmd: |
           CHART_PATH="{{.EXPLORER_CHART_DIR}}"
+          CACHE_DIR="{{.HELM_CHART_CACHE}}/hiero-mirror-node-explorer"
           if [ -d "$CHART_PATH" ]; then
+            if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
+              echo "Restoring cached helm tarballs for hiero-mirror-node-explorer..."
+              mkdir -p "$CHART_PATH/charts"
+              cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            fi
             echo "Running helm dependency build in $CHART_PATH..."
             helm dependency build "$CHART_PATH"
+            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -180,6 +216,9 @@ tasks:
   deploy:
     desc: Deploy a complete Hiero network using one-shot falcon deploy with local builds
     cmds:
+      # Run solo init to install dependencies
+      - cmd: $SOLO_COMMAND init --dev
+
       # Checkout all component repos
       - task: checkout-repos
 
@@ -201,7 +240,13 @@ tasks:
           fi
 
       # Create Kind cluster
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: |
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n {{ .CLUSTER_NAME }} --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n {{ .CLUSTER_NAME }}
+          fi
 
       # Wait for the control plane to come up
       - cmd: sleep 10

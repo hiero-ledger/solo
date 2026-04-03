@@ -5,13 +5,15 @@ import {type PriorityMapping, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
-import {lt} from 'semver';
 import * as versions from '../../version.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 
 type BlockNodeConnectionDataBase = {
   messageSizeSoftLimitBytes?: number;
@@ -42,6 +44,7 @@ interface BlockNodesJsonStructure {
  */
 export class BlockNodesJsonWrapper implements ToJSON {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+  private readonly configProvider: ConfigProvider;
   private readonly blockNodes: BlockNodeStateSchema[];
   private readonly externalBlockNodes: ExternalBlockNodeStateSchema[];
   private readonly tssEnabled: boolean;
@@ -50,8 +53,10 @@ export class BlockNodesJsonWrapper implements ToJSON {
     private readonly blockNodeMap: PriorityMapping[],
     private readonly externalBlockNodeMap: PriorityMapping[],
     @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.ConfigProvider) configProvider?: ConfigProvider,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
     this.blockNodes = this.remoteConfig.configuration.state.blockNodes;
     this.externalBlockNodes = this.remoteConfig.configuration.state.externalBlockNodes;
     this.tssEnabled = this.remoteConfig.configuration.state.tssEnabled ?? false;
@@ -63,8 +68,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
   private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
     // Figure out field name for port
-    const useLegacyPortName: boolean = lt(
-      this.remoteConfig.configuration.versions.consensusNode,
+    const useLegacyPortName: boolean = this.remoteConfig.configuration.versions.consensusNode.lessThan(
       versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
     );
 
@@ -86,17 +90,17 @@ export class BlockNodesJsonWrapper implements ToJSON {
       );
 
       // Figure out the block node port
-      const useLegacyPort: boolean = lt(
-        this.remoteConfig.configuration.versions.blockNodeChart,
+      const useLegacyPort: boolean = this.remoteConfig.configuration.versions.blockNodeChart.lessThan(
         versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
       );
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
+      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
-            messageSizeSoftLimitBytes: constants.MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS,
-            messageSizeHardLimitBytes: constants.MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS,
+            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
+            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
           }
         : {};
 
@@ -115,10 +119,11 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
+      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
         ? {
-            messageSizeSoftLimitBytes: constants.MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS,
-            messageSizeHardLimitBytes: constants.MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS,
+            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
+            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
           }
         : {};
 

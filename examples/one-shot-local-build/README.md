@@ -58,6 +58,7 @@ task
 ```
 
 This will:
+
 1. Clone all component repositories next to the `solo` directory (e.g., `../hiero-consensus-node`)
 2. Run `helm dependency build` for each local chart directory
 3. Build the consensus node from source with Gradle
@@ -117,6 +118,7 @@ task destroy
 ```
 
 This will:
+
 1. Destroy the Solo one-shot deployment
 2. Delete the Kind cluster
 3. Remove the generated runtime values file

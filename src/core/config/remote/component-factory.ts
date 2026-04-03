@@ -24,6 +24,8 @@ import {HaProxyStateSchema} from '../../../data/schema/model/remote/state/ha-pro
 import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {BlockNodeStateSchema} from '../../../data/schema/model/remote/state/block-node-state-schema.js';
+import {PostgresStateSchema} from '../../../data/schema/model/remote/state/postgres-state-schema.js';
+import {RedisStateSchema} from '../../../data/schema/model/remote/state/redis-state-schema.js';
 import {Templates} from '../../templates.js';
 
 @injectable()
@@ -77,6 +79,17 @@ export class ComponentFactory implements ComponentFactoryApi {
     return new BlockNodeStateSchema(this.getMetadata(ComponentTypes.BlockNode, clusterReference, namespace));
   }
 
+  public createNewPostgresComponent(
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): PostgresStateSchema {
+    return new PostgresStateSchema(this.getMetadata(ComponentTypes.Postgres, clusterReference, namespace));
+  }
+
+  public createNewRedisComponent(clusterReference: ClusterReferenceName, namespace: NamespaceName): RedisStateSchema {
+    return new RedisStateSchema(this.getMetadata(ComponentTypes.Redis, clusterReference, namespace));
+  }
+
   public createNewConsensusNodeComponent(
     id: ComponentId,
     clusterReference: ClusterReferenceName,
@@ -121,7 +134,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
   ): ComponentStateMetadataSchema {
     const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(componentType);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const phase: DeploymentPhase = DeploymentPhase.DEPLOYED;
     return new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
   }
 }

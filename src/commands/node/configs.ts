@@ -49,23 +49,22 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
-import {Version} from '../../business/utils/version.js';
-import {eq, SemVer} from 'semver';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 
-const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
-const ADD_CONFIGS_NAME = 'addConfigs';
-const DESTROY_CONFIGS_NAME = 'destroyConfigs';
-const UPDATE_CONFIGS_NAME = 'updateConfigs';
-const UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
-const REFRESH_CONFIGS_NAME = 'refreshConfigs';
-const KEYS_CONFIGS_NAME = 'keyConfigs';
-const SETUP_CONFIGS_NAME = 'setupConfigs';
-const START_CONFIGS_NAME = 'startConfigs';
+const PREPARE_UPGRADE_CONFIGS_NAME: string = 'prepareUpgradeConfig';
+const ADD_CONFIGS_NAME: string = 'addConfigs';
+const DESTROY_CONFIGS_NAME: string = 'destroyConfigs';
+const UPDATE_CONFIGS_NAME: string = 'updateConfigs';
+const UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
+const REFRESH_CONFIGS_NAME: string = 'refreshConfigs';
+const KEYS_CONFIGS_NAME: string = 'keyConfigs';
+const SETUP_CONFIGS_NAME: string = 'setupConfigs';
+const START_CONFIGS_NAME: string = 'startConfigs';
 
 @injectable()
 export class NodeCommandConfigs {
@@ -167,7 +166,7 @@ export class NodeCommandConfigs {
 
     // check if the intended package version exists
     if (context_.config.upgradeVersion) {
-      const semVersion: SemVer = new SemVer(context_.config.upgradeVersion);
+      const semVersion: SemanticVersion<string> = new SemanticVersion<string>(context_.config.upgradeVersion);
       const HEDERA_BUILDS_URL: string = 'https://builds.hedera.com';
       const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/v${semVersion.major}.${semVersion.minor}/build-${context_.config.upgradeVersion}.zip`;
       try {
@@ -242,7 +241,7 @@ export class NodeCommandConfigs {
     }
 
     // check consensus releaseTag to make sure it is a valid semantic version string starting with 'v'
-    context_.config.releaseTag = Version.getValidSemanticVersion(
+    context_.config.releaseTag = SemanticVersion.getValidSemanticVersion(
       context_.config.releaseTag,
       true,
       'Consensus release tag',
@@ -642,9 +641,9 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeSetupConfigClass;
 
-    const savedVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+    const savedVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
     if (
-      !eq(savedVersion, new SemVer(context_.config.releaseTag)) && // allow different versions only for local builds
+      !savedVersion.equals(context_.config.releaseTag) && // allow different versions only for local builds
       !context_.config.localBuildPath
     ) {
       throw new SoloError(

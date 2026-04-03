@@ -10,16 +10,17 @@ import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
-import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
   type NamespaceNameAsString,
+  type NodeAliasToAddressMapping,
   type PriorityMapping,
 } from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConsensusNode} from './model/consensus-node.js';
+import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 
 export class Templates {
@@ -39,6 +40,10 @@ export class Templates {
     return `node${number_}`;
   }
 
+  public static renderPostgresPodName(number_: number): PodName {
+    return PodName.of(`solo-shared-resources-postgres-${number_}`);
+  }
+
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {
     const nodeAliases: NodeAliases = [];
     let nodeNumber: number = existingNodesCount + 1;
@@ -49,6 +54,10 @@ export class Templates {
     }
 
     return nodeAliases;
+  }
+
+  public static renderMirrorNodeDatabaseInitScriptUrl(release: string): string {
+    return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
   }
 
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {
@@ -278,6 +287,56 @@ export class Templates {
     return mapping;
   }
 
+  /**
+   * Parses a comma-separated string into a mapping of node aliases → address/port.
+   *
+   * Accepted input formats:
+   * 1) Explicit alias → address[:port]
+   *    Each entry provides the node alias and the target address, optionally with a port.
+   *    Example: "node1=127.0.0.1:8080,node2=127.0.0.1:8081"
+   *
+   * 2) Explicit alias → address (no port)
+   *    Same as above, but if the port is omitted it defaults to 8080.
+   *    Example: "node1=localhost,node2=localhost:8081"
+   *
+   * 3) Address[:port] only (no aliases)
+   *    Aliases are inferred from the `nodes` array by index order.
+   *    If the port is omitted, it defaults to 8080.
+   *    Example: "localhost,127.0.0.2:8081"
+   *
+   * @param unparsed - Input string describing alias/address[:port] mappings.
+   * @param nodes - Used to infer aliases when not explicitly provided.
+   * @returns Record keyed by NodeAlias with resolved address and port.
+   *
+   * @throws SoloError if an alias cannot be inferred.
+   */
+  public static parseNodeAliasToAddressAndPortMapping(
+    unparsed: string,
+    nodes: ConsensusNode[],
+  ): NodeAliasToAddressMapping {
+    const mapping: NodeAliasToAddressMapping = {};
+
+    if (!unparsed || typeof unparsed !== 'string') {
+      return mapping;
+    }
+
+    for (const [index, data] of unparsed.split(',').entries()) {
+      const [nodeAlias, addressData] = data.includes('=')
+        ? (data.split('=') as [NodeAlias, IP])
+        : [nodes[index]?.name, data];
+
+      if (!nodeAlias) {
+        throw new SoloError(`Node alias for ${addressData} cannot be inferred`);
+      }
+
+      const [address, port] = addressData.includes(':') ? addressData.split(':') : [addressData, '8080'];
+
+      mapping[nodeAlias] = {address, port: +port};
+    }
+
+    return mapping;
+  }
+
   public static parseNodeAliasToDomainNameMapping(unparsed: string): Record<NodeAlias, string> {
     const mapping: Record<NodeAlias, string> = {};
 
@@ -416,6 +475,10 @@ export class Templates {
 
   public static renderNodeLabelsFromNodeAlias(nodeAlias: NodeAlias): string[] {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+  }
+
+  public static renderNodeSvcLabelsFromNodeId(nodeId: NodeId): string[] {
+    return [`solo.hedera.com/node-id=${nodeId},solo.hedera.com/type=network-node-svc`];
   }
 
   /**

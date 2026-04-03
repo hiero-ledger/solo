@@ -6,7 +6,6 @@ import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
@@ -36,12 +35,12 @@ import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
-import {SemVer} from 'semver';
 import {createHash} from 'node:crypto';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -56,8 +55,6 @@ interface ExplorerDeployConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   namespace: NamespaceName;
-  profileFile: string;
-  profileName: string;
   tlsClusterIssuerType: string;
   valuesFile: string;
   valuesArg: string;
@@ -98,8 +95,6 @@ interface ExplorerUpgradeConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   namespace: NamespaceName;
-  profileFile: string;
-  profileName: string;
   tlsClusterIssuerType: string;
   valuesFile: string;
   valuesArg: string;
@@ -139,15 +134,25 @@ interface ExplorerDestroyContext {
   };
 }
 
+interface InferredData {
+  id: ComponentId;
+  releaseName: string;
+  ingressReleaseName: string;
+  isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
+}
+
+enum ExplorerCommandType {
+  ADD = 'add',
+  UPGRADE = 'upgrade',
+  DESTROY = 'destroy',
+}
+
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
-  ) {
+  public constructor(@inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks) {
     super();
 
-    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
@@ -169,8 +174,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.namespace,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.soloChartVersion,
       flags.tlsClusterIssuerType,
@@ -199,8 +202,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.namespace,
-      flags.profileFile,
-      flags.profileName,
       flags.quiet,
       flags.soloChartVersion,
       flags.tlsClusterIssuerType,
@@ -225,12 +226,6 @@ export class ExplorerCommand extends BaseCommand {
     config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
   ): Promise<string> {
     let valuesArgument: string = '';
-
-    const profileName: string = this.configManager.getFlag(flags.profileName);
-    const profileValuesFile: string = await this.profileManager.prepareValuesHederaExplorerChart(profileName);
-    if (profileValuesFile) {
-      valuesArgument += prepareValuesFiles(profileValuesFile);
-    }
 
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
@@ -306,12 +301,16 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private installCertManagerTask(): SoloListrTask<AnyListrContext> {
+  private installCertManagerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install cert manager',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableExplorerTls,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.soloChartVersion = Version.getValidSemanticVersion(config.soloChartVersion, false, 'Solo chart version');
+        config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+          config.soloChartVersion,
+          false,
+          'Solo chart version',
+        );
 
         const {soloChartVersion} = config;
 
@@ -339,6 +338,7 @@ export class ExplorerCommand extends BaseCommand {
             soloChartVersion,
             ' --install --create-namespace --set cert-manager.installCRDs=true',
             config.clusterContext,
+            commandType !== ExplorerCommandType.ADD,
           );
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
         }
@@ -355,7 +355,9 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         // sleep for a few seconds to allow cert-manager to be ready
-        await sleep(Duration.ofSeconds(10));
+        if (commandType === ExplorerCommandType.UPGRADE) {
+          await sleep(Duration.ofSeconds(10));
+        }
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
@@ -371,11 +373,15 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private installExplorerTask(): SoloListrTask<AnyListrContext> {
+  private installExplorerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+        config.explorerVersion = SemanticVersion.getValidSemanticVersion(
+          config.explorerVersion,
+          false,
+          'Explorer version',
+        );
 
         let exploreValuesArgument: string = ' --install ';
         exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
@@ -396,6 +402,17 @@ export class ExplorerCommand extends BaseCommand {
           exploreValuesArgument,
           config.clusterContext,
         );
+
+        if (commandType === ExplorerCommandType.ADD) {
+          this.remoteConfig.configuration.components.changeComponentPhase(
+            (config as ExplorerDeployConfigClass).newExplorerComponent.metadata.id,
+            ComponentTypes.Explorer,
+            DeploymentPhase.DEPLOYED,
+          );
+
+          await this.remoteConfig.persist();
+        }
+
         showVersionBanner(this.logger, config.releaseName, config.explorerVersion);
       },
     };
@@ -515,7 +532,7 @@ export class ExplorerCommand extends BaseCommand {
           config.clusterRef,
           podReference,
           constants.EXPLORER_PORT, // Pod port
-          constants.EXPLORER_PORT, // Local port
+          constants.EXPLORER_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.clusterContext),
           this.logger,
           ComponentTypes.Explorer,
@@ -527,7 +544,7 @@ export class ExplorerCommand extends BaseCommand {
           config.clusterRef,
           podReference,
           constants.EXPLORER_PORT, // Pod port
-          constants.EXPLORER_PORT, // Local port
+          constants.EXPLORER_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.clusterContext),
           this.logger,
           ComponentTypes.Explorer,
@@ -589,44 +606,6 @@ export class ExplorerCommand extends BaseCommand {
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    // In one-shot mode, explorer and relay tasks run concurrently and share the same listr2 context.
-    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
-    // This closure variable preserves the explorer's config independently of the shared context.
-    let deployConfig: ExplorerDeployConfigClass;
-
-    // Wraps a task definition to restore the correct config on the shared context before
-    // the task or skip function executes, preventing context collision in concurrent execution.
-    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
-      taskDefinition: SoloListrTask<AnyListrContext>,
-    ): SoloListrTask<AnyListrContext> => {
-      if (!this.oneShotState.isActive()) {
-        return taskDefinition;
-      }
-      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
-      if (wrapped.task) {
-        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
-        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
-          if (deployConfig) {
-            context_.config = deployConfig;
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (originalTask as (...arguments_: any[]) => any)(context_, task);
-        };
-      }
-      if (typeof wrapped.skip === 'function') {
-        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
-        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
-          if (deployConfig) {
-            context_.config = deployConfig;
-          }
-          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
-            context_,
-          );
-        };
-      }
-      return wrapped;
-    };
-
     const tasks: SoloListr<ExplorerDeployContext> = this.taskList.newTaskList<ExplorerDeployContext>(
       [
         {
@@ -664,7 +643,6 @@ export class ExplorerCommand extends BaseCommand {
             config.isLegacyChartInstalled = false;
 
             context_.config = config;
-            deployConfig = config;
 
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
@@ -686,6 +664,8 @@ export class ExplorerCommand extends BaseCommand {
               config.namespace,
             );
 
+            config.newExplorerComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
             config.id = config.newExplorerComponent.metadata.id;
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
@@ -698,21 +678,21 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newSkippedLockTask(task);
           },
         },
-        restoreConfig(this.loadRemoteConfigTask(argv)),
-        restoreConfig(this.installCertManagerTask()),
-        restoreConfig(this.installExplorerTask()),
-        restoreConfig(this.installExplorerIngressControllerTask()),
-        restoreConfig(this.checkExplorerPodIsReadyTask()),
-        restoreConfig(this.checkExplorerIngressControllerPodIsReadyTask()),
-        restoreConfig(this.addExplorerComponents()),
-        restoreConfig(this.enablePortForwardingTask()),
-        // TODO only show this if we are not running in one-shot mode
-        // {
-        //   title: 'Show user messages',
-        //   task: (): void => {
-        //     this.logger.showAllMessageGroups();
-        //   },
-        // },
+        this.loadRemoteConfigTask(argv),
+        this.addExplorerComponents(),
+        this.installCertManagerTask(ExplorerCommandType.ADD),
+        this.installExplorerTask(ExplorerCommandType.ADD),
+        this.installExplorerIngressControllerTask(),
+        this.checkExplorerPodIsReadyTask(),
+        this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.enablePortForwardingTask(),
+        {
+          title: 'Show user messages',
+          skip: (): boolean => !this.oneShotState.isActive(),
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -806,8 +786,8 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
         this.loadRemoteConfigTask(argv),
-        this.installCertManagerTask(),
-        this.installExplorerTask(),
+        this.installCertManagerTask(ExplorerCommandType.UPGRADE),
+        this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
@@ -842,44 +822,6 @@ export class ExplorerCommand extends BaseCommand {
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
-
-    // In one-shot mode, explorer and relay destroy tasks run concurrently and share the same listr2 context.
-    // Both commands write to context.config in their Initialize tasks, causing the last writer to win.
-    // This closure variable preserves the explorer's config independently of the shared context.
-    let destroyConfig: ExplorerDestroyContext['config'];
-
-    // Wraps a task definition to restore the correct config on the shared context before
-    // the task or skip function executes, preventing context collision in concurrent execution.
-    const restoreConfig: (taskDefinition: SoloListrTask<AnyListrContext>) => SoloListrTask<AnyListrContext> = (
-      taskDefinition: SoloListrTask<AnyListrContext>,
-    ): SoloListrTask<AnyListrContext> => {
-      if (!this.oneShotState.isActive()) {
-        return taskDefinition;
-      }
-      const wrapped: SoloListrTask<AnyListrContext> = {...taskDefinition};
-      if (wrapped.task) {
-        const originalTask: SoloListrTask<AnyListrContext>['task'] = wrapped.task;
-        wrapped.task = async (context_: AnyListrContext, task: unknown): Promise<void> => {
-          if (destroyConfig) {
-            context_.config = destroyConfig;
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (originalTask as (...arguments_: any[]) => any)(context_, task);
-        };
-      }
-      if (typeof wrapped.skip === 'function') {
-        const originalSkip: SoloListrTask<AnyListrContext>['skip'] = wrapped.skip;
-        wrapped.skip = (context_: AnyListrContext): boolean | string | Promise<boolean | string> => {
-          if (destroyConfig) {
-            context_.config = destroyConfig;
-          }
-          return (originalSkip as (context_: AnyListrContext) => boolean | string | Promise<boolean | string>)(
-            context_,
-          );
-        };
-      }
-      return wrapped;
-    };
 
     const tasks: SoloListr<ExplorerDestroyContext> = this.taskList.newTaskList<ExplorerDestroyContext>(
       [
@@ -922,8 +864,6 @@ export class ExplorerCommand extends BaseCommand {
               isLegacyChartInstalled,
             };
 
-            destroyConfig = context_.config;
-
             await this.throwIfNamespaceIsMissing(clusterContext, namespace);
 
             if (!this.oneShotState.isActive()) {
@@ -933,8 +873,8 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
         this.loadRemoteConfigTask(argv, true),
-        restoreConfig(this.loadRemoteConfigTask(argv)),
-        restoreConfig({
+        this.loadRemoteConfigTask(argv),
+        {
           title: 'Destroy explorer',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(
@@ -944,8 +884,8 @@ export class ExplorerCommand extends BaseCommand {
             );
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
-        }),
-        restoreConfig({
+        },
+        {
           title: 'Uninstall explorer ingress controller',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(context_.config.namespace, context_.config.ingressReleaseName);
@@ -963,8 +903,8 @@ export class ExplorerCommand extends BaseCommand {
               }
             });
           },
-        }),
-        restoreConfig(this.disableMirrorNodeExplorerComponents()),
+        },
+        this.disableMirrorNodeExplorerComponents(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1022,14 +962,19 @@ export class ExplorerCommand extends BaseCommand {
   private addExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded() || this.oneShotState.isActive(),
       task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
           config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
+
         // update explorer version in remote config
-        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorer, new SemVer(config.explorerVersion));
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.Explorer,
+          new SemanticVersion<string>(config.explorerVersion),
+        );
+
         await this.remoteConfig.persist();
       },
     };
@@ -1061,16 +1006,7 @@ export class ExplorerCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
   }
 
-  private async inferExplorerData(
-    namespace: NamespaceName,
-    context: Context,
-  ): Promise<{
-    id: ComponentId;
-    releaseName: string;
-    ingressReleaseName: string;
-    isChartInstalled: boolean;
-    isLegacyChartInstalled: boolean;
-  }> {
+  private async inferExplorerData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferExplorerId();
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
