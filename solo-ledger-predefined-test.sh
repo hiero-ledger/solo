@@ -41,6 +41,14 @@ rand() {
   RAND_RESULT=$(( lcg_state % $1 ))
 }
 
+seed_after_start() {
+  # After node start, submit a ledger transaction to drive new consensus activity.
+  # This helps ensure a fresh saved state exists before a later refresh operation.
+  npm run solo-test -- ledger account create \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --hbar-amount 100
+}
+
 # ── bootstrap ──────────────────────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════════════════════════"
@@ -73,6 +81,8 @@ npm run solo-test -- consensus node setup \
   --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 npm run solo-test -- consensus node start \
   --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+echo "▶ [bootstrap] LEDGER CREATE after START"
+seed_after_start
 
 echo ""
 echo "Bootstrap complete — nodes are STARTED."
@@ -85,6 +95,8 @@ op_start() {
   echo "▶ [${STEP}/${TOTAL_OPS}] START  (${STATE} → started)"
   npm run solo-test -- consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+  echo "▶ [${STEP}/${TOTAL_OPS}] LEDGER CREATE after START"
+  seed_after_start
   STATE="started"
 }
 
@@ -111,12 +123,16 @@ op_restart() {
     --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
   npm run solo-test -- consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+  echo "▶ [${STEP}/${TOTAL_OPS}] LEDGER CREATE after RESTART"
+  seed_after_start
   STATE="started"
 }
 
 op_refresh() {
   echo ""
   echo "▶ [${STEP}/${TOTAL_OPS}] REFRESH (${STATE} → started)"
+  echo "▶ [${STEP}/${TOTAL_OPS}] Waiting 60s before REFRESH to allow save state generation"
+  sleep 60
   npm run solo-test -- consensus node refresh \
     --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
   STATE="started"
@@ -125,9 +141,7 @@ op_refresh() {
 op_ledger_create() {
   echo ""
   echo "▶ [${STEP}/${TOTAL_OPS}] LEDGER CREATE account (${STATE} → started)"
-  npm run solo-test -- ledger account create \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --hbar-amount 100
+  seed_after_start
   # STATE stays started
 }
 
@@ -188,6 +202,8 @@ if [ "${STATE}" != "started" ]; then
   echo "▶ [teardown] Bringing nodes back to STARTED"
   npm run solo-test -- consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+  echo "▶ [teardown] LEDGER CREATE after START"
+  seed_after_start
 fi
 
 echo ""
