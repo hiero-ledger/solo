@@ -20,7 +20,7 @@ import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompt
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
-// import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
+import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
 import {MirrorCommandDefinition} from '../command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from '../command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from '../command-definitions/relay-command-definition.js';
@@ -71,7 +71,6 @@ import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {SoloEventBus} from '../../core/events/solo-event-bus.js';
-import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
 import {MirrorNodeDeployedEvent, NodesStartedEvent, SoloEventType} from '../../core/events/event-types.js';
 
 @injectable()
@@ -604,7 +603,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Deploy Solo components',
             task: (_, task): SoloListr<OneShotSingleDeployContext> => {
-              // Network node pipeline: deploy network node, then setup and start consensus node (must be sequential)
+              // Network node pipeline: deploy network node, then setup, start consensus node, and account generation
+              // Must be sequential
               const deployNetworkNodeTask = {
                 title: 'Deploy network node',
                 task: async (_, networkNodeTask): Promise<SoloListr<OneShotSingleDeployContext>> => {
