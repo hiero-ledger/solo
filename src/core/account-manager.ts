@@ -63,6 +63,7 @@ import {Address} from '../business/address/address.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {proto} from '@hiero-ledger/proto';
 import * as crypto from 'node:crypto';
+import {X509Certificate} from 'node:crypto';
 
 const REASON_FAILED_TO_GET_KEYS: string = 'failed to get keys for accountId';
 const REASON_SKIPPED: string = 'skipped since it does not have a genesis key';
@@ -1093,8 +1094,8 @@ export class AccountManager {
       try {
         const pemFilePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(nodeAlias));
         const pemData: string = fs.readFileSync(pemFilePath, 'utf8');
-        const cert = new crypto.X509Certificate(pemData);
-        const derBuffer = cert.publicKey.export({type: 'spki', format: 'der'}) as Buffer;
+        const cert: X509Certificate = new crypto.X509Certificate(pemData);
+        const derBuffer: Buffer = cert.publicKey.export({type: 'spki', format: 'der'}) as Buffer;
         rsaPubKeyHex = derBuffer.toString('hex');
       } catch (error) {
         this.logger.warn(
