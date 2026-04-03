@@ -66,269 +66,100 @@ env:
   STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
-  one-shot-timing:
-    timeout-minutes: 120
-    runs-on: hiero-solo-linux-large
+  longevity-tests-start:
+    name: Start
+    runs-on: hl-cn-sdlt-lin-lg
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-
-      - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          node-version: 22
-          cache: 'npm'
+          ref: ${{ github.ref }}
 
-      - name: Install Dependencies
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
-          max_attempts: 10
-          timeout_minutes: 10
-          command: npm ci
+          version: v1.32.5
+
+      - name: Setup Helm
+        shell: bash
+        run: |
+          sudo ln -s $(find /home/runner/_work/_tool/helm/ -type f -path '*/linux-amd64/*' -name 'helm') /usr/bin/helm
+          which helm
+          helm version
+
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 3.49.1
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: 3.39.2
 
-      - name: Install Solo CLI (released)
-        if: ${{ inputs.use-released-solo == true }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npm i @hashgraph/solo@latest
-
-      - name: Compile Project (from source)
-        if: ${{ inputs.use-released-solo != true }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: task build:compile
-
-      - name: Set Solo Command
-        id: solo-cmd
+      - name: Install Helm
+        shell: bash
         run: |
-          if [ "${{ inputs.use-released-solo }}" = "true" ]; then
-            echo "cmd=npx @hashgraph/solo" >> "$GITHUB_OUTPUT"
-          else
-            echo "cmd=npm run solo --" >> "$GITHUB_OUTPUT"
-          fi
+          set -euo pipefail
+          HELM_VERSION="v4.1.1"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL -o "${ARCHIVE}" \
+            "https://get.helm.sh/${ARCHIVE}"
+          tar xfz "${ARCHIVE}"
+          sudo install -m 0755 linux-amd64/helm /usr/bin/helm
+          which helm
+          helm version
 
-      - name: Solo Init
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          ${{ steps.solo-cmd.outputs.cmd }} init --dev
-          export PATH=~/.solo/bin:${PATH}
 
-      - name: Resolve Versions
-        id: versions
-        run: |
-          # Read defaults from version.ts and allow input overrides
-          DEFAULT_CN=$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_BN=$(awk -F"'" '/^export const BLOCK_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_MN=$(awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_RELAY=$(awk -F"'" '/^export const HEDERA_JSON_RPC_RELAY_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_EXPLORER=$(awk -F"'" '/^export const EXPLORER_VERSION/ {print $(NF-1); exit}' version.ts)
-
-          CN_VERSION="${{ inputs.consensus-node-version }}"
-          BN_VERSION="${{ inputs.block-node-version }}"
-          MN_VERSION="${{ inputs.mirror-node-version }}"
-          RELAY_VERSION="${{ inputs.relay-version }}"
-          EXPLORER_VERSION="${{ inputs.explorer-version }}"
-
-          echo "cn-version=${CN_VERSION:-$DEFAULT_CN}" >> "$GITHUB_OUTPUT"
-          echo "bn-version=${BN_VERSION:-$DEFAULT_BN}" >> "$GITHUB_OUTPUT"
-          echo "mn-version=${MN_VERSION:-$DEFAULT_MN}" >> "$GITHUB_OUTPUT"
-          echo "relay-version=${RELAY_VERSION:-$DEFAULT_RELAY}" >> "$GITHUB_OUTPUT"
-          echo "explorer-version=${EXPLORER_VERSION:-$DEFAULT_EXPLORER}" >> "$GITHUB_OUTPUT"
-
-          echo "### Resolved Versions" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Component | Version |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-----------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Consensus Node | ${CN_VERSION:-$DEFAULT_CN} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Block Node | ${BN_VERSION:-$DEFAULT_BN} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Mirror Node | ${MN_VERSION:-$DEFAULT_MN} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Relay | ${RELAY_VERSION:-$DEFAULT_RELAY} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Explorer | ${EXPLORER_VERSION:-$DEFAULT_EXPLORER} |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Setup Java and Gradle (for local build)
-        if: ${{ inputs.use-local-build == true }}
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          distribution: 'temurin'
-          java-version: '25'
+          node-version: 20.18.0
 
-      - name: Checkout and Build Consensus Node (local build)
-        if: ${{ inputs.use-local-build == true }}
-        timeout-minutes: 30
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.29.0
+          kubectl_version: v1.32.5
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Solo
         run: |
-          CN_VERSION="${{ steps.versions.outputs.cn-version }}"
-          echo "Building consensus node at version: $CN_VERSION"
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
-          CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
+          # verify the installation
+          solo --version
 
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
-            --depth 1 --branch "$CN_VERSION" "$CN_REPO_DIR" 2>/dev/null || \
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
-            --depth 1 --branch "refs/tags/$CN_VERSION" "$CN_REPO_DIR"
-
-          cd "$CN_REPO_DIR"
-          LOG_FILE="/tmp/consensus-node-build.log"
-          ./gradlew assemble --stacktrace --info > "$LOG_FILE" 2>&1 || {
-            echo "Build failed. Last 100 lines:"
-            tail -100 "$LOG_FILE"
-            exit 1
-          }
-          echo "Consensus node build complete."
-
-      - name: Generate Values File
-        id: values-file
+      - name: Start CNs
         run: |
-          VALUES_FILE="/tmp/one-shot-timing-values.yaml"
-          {
-            echo "network:"
-            echo "  --release-tag: \"${{ steps.versions.outputs.cn-version }}\""
-            echo "  --tss: \"true\""
-            echo ""
-            if [ "${{ inputs.use-local-build }}" = "true" ]; then
-              CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
-              echo "setup:"
-              echo "  --local-build-path: \"${CN_REPO_DIR}/hedera-node/data\""
-              echo "  --release-tag: \"${{ steps.versions.outputs.cn-version }}\""
-              echo ""
-            fi
-            echo "blockNode:"
-            echo "  --chart-version: \"${{ steps.versions.outputs.bn-version }}\""
-            echo "  --release-tag: \"${{ steps.versions.outputs.cn-version }}\""
-            echo ""
-            echo "mirrorNode:"
-            echo "  --mirror-node-version: \"${{ steps.versions.outputs.mn-version }}\""
-            echo ""
-            echo "relayNode:"
-            echo "  --relay-release: \"${{ steps.versions.outputs.relay-version }}\""
-            echo ""
-            echo "explorerNode:"
-            echo "  --explorer-version: \"${{ steps.versions.outputs.explorer-version }}\""
-          } > "$VALUES_FILE"
-          echo "Generated values file:"
-          cat "$VALUES_FILE"
-          echo "path=$VALUES_FILE" >> "$GITHUB_OUTPUT"
+          export SOLO_CLUSTER_NAME=solo
+          export SOLO_NAMESPACE=solo
+          export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
+          export SOLO_DEPLOYMENT=solo-deployment
+          export NODE_ALIASES="node1,node2"
+          
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          solo init
+          solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+          solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+          solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+          solo block node add --deployment "${SOLO_DEPLOYMENT}"
+          solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 
-      - name: "Cold Start: Deploy"
-        id: cold-start
-        timeout-minutes: 60
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          VALUES_FILE="${{ steps.values-file.outputs.path }}"
-
-          echo "==== Cold Start: Measuring one-shot single deploy time ===="
-          COLD_START_TIME=$SECONDS
-
-          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
-
-          COLD_ELAPSED=$(( SECONDS - COLD_START_TIME ))
-          COLD_MINUTES=$(( COLD_ELAPSED / 60 ))
-          COLD_SECONDS=$(( COLD_ELAPSED % 60 ))
-          echo "cold-elapsed=${COLD_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Cold start completed in ${COLD_MINUTES}m ${COLD_SECONDS}s ===="
-
-      - name: "Destroy Deployment"
-        timeout-minutes: 15
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-
-          echo "==== Destroying one-shot single deployment ===="
-          $SOLO_CMD one-shot single destroy
-          echo "==== Destroy complete ===="
-
-      - name: "Warm Start: Redeploy"
-        id: warm-start
-        timeout-minutes: 60
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          VALUES_FILE="${{ steps.values-file.outputs.path }}"
-
-          echo "==== Warm Start: Measuring one-shot single deploy time ===="
-          WARM_START_TIME=$SECONDS
-
-          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
-
-          WARM_ELAPSED=$(( SECONDS - WARM_START_TIME ))
-          WARM_MINUTES=$(( WARM_ELAPSED / 60 ))
-          WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
-          echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
-
-      - name: Timing Summary
-        if: ${{ !cancelled() }}
-        run: |
-          COLD="${{ steps.cold-start.outputs.cold-elapsed }}"
-          WARM="${{ steps.warm-start.outputs.warm-elapsed }}"
-
-          echo "### One-Shot Timing Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Metric | Duration |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|--------|----------|" >> "$GITHUB_STEP_SUMMARY"
-
-          if [ -n "$COLD" ]; then
-            echo "| Cold Start | $(( COLD / 60 ))m $(( COLD % 60 ))s (${COLD}s) |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "| Cold Start | Failed |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ -n "$WARM" ]; then
-            echo "| Warm Start | $(( WARM / 60 ))m $(( WARM % 60 ))s (${WARM}s) |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "| Warm Start | Failed or skipped |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ -n "$COLD" ] && [ -n "$WARM" ]; then
-            DIFF=$(( COLD - WARM ))
-            if [ "$DIFF" -gt 0 ]; then
-              echo "| Improvement | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
-            elif [ "$DIFF" -lt 0 ]; then
-              DELTA=$(( -DIFF ))
-              echo "| Improvement | ${DELTA}s slower on warm start |" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "| Improvement | No difference between cold and warm start |" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          fi
-
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Collect Diagnostics on Failure
-        if: ${{ failure() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          $SOLO_CMD deployment diagnostics logs -q --dev || true
-
-      - name: Upload Logs
-        if: ${{ !cancelled() }}
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() && always() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          name: one-shot-timing-logs
+          name: solo-logs
           path: ~/.solo/logs/*
-          overwrite: true
-          if-no-files-found: warn
-
-      - name: Final Cleanup
-        if: always()
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          $SOLO_CMD one-shot single destroy -q || true
+          if-no-files-found: error

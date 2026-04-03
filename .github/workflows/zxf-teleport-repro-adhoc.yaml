@@ -1,0 +1,243 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: Adhoc Teleport Repro"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The git ref (branch or tag) to checkout"
+        required: false
+        default: ""
+      runner:
+        description: "Runner label"
+        required: true
+        default: "hiero-solo-linux-large"
+        type: choice
+        options:
+          - hiero-solo-linux-large
+          - hl-cn-sdpt-lin-lg
+      test-asset:
+        required: true
+        default: "AdHocSD8"
+        description: "Performance test asset used to infer Teleport kube cluster (unless override is provided)"
+        type: choice
+        options:
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
+          - AdHocSD8
+          - AdHocSD9
+      kubernetes-cluster-override:
+        description: "Optional explicit Teleport Kubernetes cluster name"
+        required: false
+        default: ""
+        type: string
+      teleport-proxy:
+        description: "Teleport proxy host:port"
+        required: true
+        default: "hashgraph.teleport.sh:443"
+        type: string
+      teleport-token:
+        description: "Teleport bot token name"
+        required: true
+        default: "gh-citr-performance-svcs-bot"
+        type: string
+      teleport-certificate-ttl:
+        description: "Teleport certificate TTL"
+        required: true
+        default: "24h"
+        type: string
+      solo-version:
+        description: "Solo npm release tag or version (e.g. latest, 0.63.0)"
+        required: true
+        default: "latest"
+        type: string
+      cluster-ref:
+        description: "Solo cluster-ref name to use in this repro"
+        required: true
+        default: "teleport-repro"
+        type: string
+      namespace:
+        description: "Deployment namespace (used only when deployment workflow is enabled)"
+        required: true
+        default: "teleport-repro"
+        type: string
+      deployment:
+        description: "Deployment name (used only when deployment workflow is enabled)"
+        required: true
+        default: "teleport-repro-deployment"
+        type: string
+      run-deployment-workflow:
+        description: "Run deployment config/create+attach+show+diagnostics (can modify remote config)"
+        required: true
+        default: false
+        type: boolean
+      run-deployment-diagnostics:
+        description: "Run deployment diagnostics all (requires deployment workflow)"
+        required: true
+        default: true
+        type: boolean
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  teleport-repro:
+    name: Teleport Repro
+    runs-on: ${{ inputs.runner }}
+    env:
+      SOLO_HOME: ${{ runner.temp }}/solo-teleport-repro
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Resolve Target Kubernetes Cluster
+        id: cluster
+        run: |
+          set -euo pipefail
+          k8s_cluster="${{ inputs.kubernetes-cluster-override }}"
+          if [[ -z "${k8s_cluster}" ]]; then
+            k8s_cluster="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+            if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+              k8s_cluster="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+            fi
+          fi
+          teleport_context="hashgraph.teleport.sh-${k8s_cluster}"
+          echo "kubernetes-cluster=${k8s_cluster}" >> "${GITHUB_OUTPUT}"
+          echo "teleport-context=${teleport_context}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Teleport Repro Inputs"
+            echo "Runner: ${{ inputs.runner }}"
+            echo "Ref: ${{ inputs.ref || github.ref }}"
+            echo "Test asset: ${{ inputs.test-asset }}"
+            echo "Kubernetes cluster: ${k8s_cluster}"
+            echo "Teleport context: ${teleport_context}"
+            echo "Solo version: ${{ inputs.solo-version }}"
+            echo "Cluster ref: ${{ inputs.cluster-ref }}"
+            echo "Run deployment workflow: ${{ inputs.run-deployment-workflow }}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        with:
+          version: v1.33.0
+
+      - name: Setup Kind (install only)
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: "v3.17.1"
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4
+        with:
+          proxy: ${{ inputs.teleport-proxy }}
+          token: ${{ inputs.teleport-token }}
+          certificate-ttl: ${{ inputs.teleport-certificate-ttl }}
+
+      - name: Authorize Teleport K8S Access
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: ${{ inputs.teleport-proxy }}
+          token: ${{ inputs.teleport-token }}
+          kubernetes-cluster: ${{ steps.cluster.outputs.kubernetes-cluster }}
+          certificate-ttl: 168h
+
+      - name: Install Solo CLI
+        run: |
+          set -euo pipefail
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version }}"
+          solo --version
+
+      - name: Validate Teleport Context
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/teleport-repro"
+          kubectl config get-contexts | tee "${RUNNER_TEMP}/teleport-repro/kubectl-contexts.txt"
+          kubectl --context "${{ steps.cluster.outputs.teleport-context }}" get namespaces \
+            | tee "${RUNNER_TEMP}/teleport-repro/namespaces.txt"
+
+      - name: Run Solo Teleport Read-only Repro
+        run: |
+          set -euo pipefail
+          mkdir -p "${SOLO_HOME}" "${RUNNER_TEMP}/teleport-repro"
+          solo init --dev
+          solo cluster-ref config connect \
+            --cluster-ref "${{ inputs.cluster-ref }}" \
+            --context "${{ steps.cluster.outputs.teleport-context }}" \
+            --dev
+          solo deployment config list --cluster-ref "${{ inputs.cluster-ref }}" --dev \
+            | tee "${RUNNER_TEMP}/teleport-repro/deployment-config-list.txt"
+
+      - name: Run Deployment Workflow Repro
+        if: ${{ inputs.run-deployment-workflow }}
+        run: |
+          set -euo pipefail
+          echo "Running deployment workflow repro. This can update remote config for deployment '${{ inputs.deployment }}'."
+          solo deployment config create \
+            --deployment "${{ inputs.deployment }}" \
+            --namespace "${{ inputs.namespace }}" \
+            --dev
+          solo deployment cluster attach \
+            --deployment "${{ inputs.deployment }}" \
+            --cluster-ref "${{ inputs.cluster-ref }}" \
+            --num-consensus-nodes 1 \
+            --dev
+          solo deployment show \
+            --deployment "${{ inputs.deployment }}" \
+            --dev | tee "${RUNNER_TEMP}/teleport-repro/deployment-show.txt"
+
+      - name: Run Deployment Diagnostics All
+        if: ${{ inputs.run-deployment-workflow && inputs.run-deployment-diagnostics }}
+        run: |
+          set -euo pipefail
+          DIAG_DIR="${RUNNER_TEMP}/teleport-repro/deployment-diagnostics"
+          mkdir -p "${DIAG_DIR}"
+          solo deployment diagnostics all \
+            --deployment "${{ inputs.deployment }}" \
+            --output-dir "${DIAG_DIR}" \
+            --quiet-mode \
+            --dev
+
+      - name: Upload Repro Artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: teleport-repro-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/teleport-repro/*
+            ${{ runner.temp }}/solo-teleport-repro/logs/*
+            ~/.solo/logs/*
+          overwrite: true
+          if-no-files-found: warn
