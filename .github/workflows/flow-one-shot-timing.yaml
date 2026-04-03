@@ -76,9 +76,12 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.32.5
+        run: |
+          set -euo pipefail
+          curl -fsSL -o kubectl \
+            "https://dl.k8s.io/release/v1.32.5/bin/linux/amd64/kubectl"
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version --client
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -111,9 +114,11 @@ jobs:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
           version: v0.29.0
-          kubectl_version: v1.32.5
           verbosity: 3
           wait: 120s
+
+      - name: Symlink Kind to standard PATH
+        run: sudo ln -sf "$(which kind)" /usr/local/bin/kind
 
       - name: Install Dependencies
         run: npm ci
