@@ -116,9 +116,13 @@ jobs:
           curl -fsSL -o kubectl \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           sudo install -m 0755 kubectl /usr/local/bin/kubectl
-          echo "/usr/local/bin" >> "${GITHUB_PATH}"
-          which kubectl
-          kubectl version --client
+          # Prepend /usr/local/bin to PATH for subsequent steps so our kubectl
+          # takes priority over the older version installed by helm/kind-action.
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+          # Verify the installed binary directly (which kubectl still shows the
+          # kind-action version in THIS step because GITHUB_PATH is only applied
+          # to subsequent steps by the runner).
+          /usr/local/bin/kubectl version --client
 
       - name: Install Dependencies
         run: npm ci
