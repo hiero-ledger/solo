@@ -85,14 +85,6 @@ jobs:
         with:
           version: v1.32.5
 
-      - name: Setup Helm
-        shell: bash
-        run: |
-          sudo ln -s $(find /home/runner/_work/_tool/helm/ -type f -path '*/linux-amd64/*' -name 'helm') /usr/bin/helm
-          which helm
-          helm version
-
-
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
@@ -115,7 +107,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -142,7 +134,7 @@ jobs:
           export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
           export SOLO_DEPLOYMENT=solo-deployment
           export NODE_ALIASES="node1,node2"
-          
+
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
           solo init
           solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
