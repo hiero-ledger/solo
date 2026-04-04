@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
-import {readFileSync} from 'node:fs';
+
 import chalk from 'chalk';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -13,35 +13,6 @@ import {OperatingSystem} from '../business/utils/operating-system.js';
 export class ShellRunner {
   public constructor(@inject(InjectTokens.SoloLogger) public logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-  }
-
-  /** Returns the PATH for spawned processes, enriched with any directories listed in the
-   * $GITHUB_PATH file when running inside a GitHub Actions environment. */
-  protected effectivePath(): string {
-    const currentPath: string = process.env.PATH ?? '';
-    const githubPathFile: string | undefined = process.env.GITHUB_PATH;
-    if (!githubPathFile) {
-      this.logger.debug(`effectivePath: GITHUB_PATH not set; using inherited PATH: ${currentPath}`);
-      return currentPath;
-    }
-    try {
-      const extraPaths: string = readFileSync(githubPathFile, 'utf8')
-        .split(/\r?\n/)
-        .map((line: string): string => line.trim())
-        .filter((line: string): boolean => line.length > 0)
-        .join(':');
-      const result: string = extraPaths ? `${extraPaths}:${currentPath}` : currentPath;
-      this.logger.debug(
-        `effectivePath: inherited PATH=${currentPath}; GITHUB_PATH file=${githubPathFile}, ` +
-          `extra entries=[${extraPaths || 'none'}]; effective PATH=${result}`,
-      );
-      return result;
-    } catch {
-      this.logger.debug(
-        `effectivePath: failed to read GITHUB_PATH file ${githubPathFile}; using inherited PATH: ${currentPath}`,
-      );
-      return currentPath;
-    }
   }
 
   /** Returns a promise that invokes the shell command */
@@ -59,7 +30,7 @@ export class ShellRunner {
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
-        env: {...process.env, PATH: this.effectivePath(), ...environmentVariablesToAppend},
+        env: {...process.env, ...environmentVariablesToAppend},
         shell: true,
         detached,
         stdio: detached ? 'ignore' : undefined,
