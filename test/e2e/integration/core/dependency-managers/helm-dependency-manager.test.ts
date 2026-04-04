@@ -5,6 +5,7 @@ import {after, before, describe, it} from 'mocha';
 import each from 'mocha-each';
 
 import fs from 'node:fs';
+import path from 'node:path';
 import sinon, {type SinonStub} from 'sinon';
 
 import {HelmDependencyManager} from '../../../../../src/core/dependency-managers/index.js';
@@ -15,7 +16,6 @@ import {OperatingSystem} from '../../../../../src/business/utils/operating-syste
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
 import {platform} from 'node:process';
-import {ShellRunner} from '../../../../../src/core/shell-runner.js';
 import * as constants from '../../../../../src/core/constants.js';
 
 describe('HelmDependencyManager', (): void => {
@@ -122,7 +122,8 @@ describe('HelmDependencyManager', (): void => {
         helmDependencyManager.uninstallLocal();
         expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.HELM}`).alwaysReturned(false);
+        // Stub accessSync so the native PATH scan finds no global helm installation.
+        sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
         expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(helmDependencyManager.isInstalledLocally()).to.be.ok;
 
@@ -154,42 +155,55 @@ describe('HelmDependencyManager', (): void => {
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
-      // Use a temporary directory for the dummy global helm binary
-      const globalBinDirectory: string = PathEx.join(temporaryDirectory, 'global-bin');
-      const globalHelmPath: string = PathEx.join(globalBinDirectory, 'helm');
-      fs.mkdirSync(globalBinDirectory, {recursive: true});
-      fs.writeFileSync(globalHelmPath, '');
+      // Point PATH at a fake directory and stub accessSync to make the native PATH
+      // scan discover a fake global helm binary without creating a real file.
+      const fakeGlobalBinDirectory: string = '/test-solo-global-bin';
+      const fakeGlobalHelmPath: string = `${fakeGlobalBinDirectory}/helm`;
+      const originalPath: string = process.env.PATH ?? '';
+      process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
+      sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
+        if (String(filePath) === fakeGlobalHelmPath) return;
+        throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
+      });
+      runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v4.1.3+gc94d381']);
 
-      runStub.withArgs('which helm').resolves([globalHelmPath]);
-      runStub.withArgs(`"${globalHelmPath}" version --short`).resolves(['v4.1.3+gc94d381']);
+      try {
+        // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
+        const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
+        expect(result).to.be.true;
 
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.true;
-
-      expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      // Should not install locally since global installation meets requirements
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.not.ok;
-      // Should return global path since it meets requirements
-      expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
-
-      // Clean up dummy global helm binary
-      fs.rmSync(globalHelmPath);
-      fs.rmdirSync(globalBinDirectory);
+        expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
+        // Should not install locally since global installation meets requirements
+        expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.not.ok;
+        // Should return global path since it meets requirements
+        expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+      } finally {
+        process.env.PATH = originalPath;
+      }
     });
 
     it('should install helm locally if the global installation does not meet the requirements', async (): Promise<void> => {
-      runStub.withArgs('which helm').resolves(['/usr/local/bin/helm']);
-      runStub.withArgs('"/usr/local/bin/helm" version --short').resolves(['v0.1.0+gabcdef']);
-      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'helm')}" version --short`).resolves(['v0.1.0+gabcdef']);
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.false;
+      const fakeGlobalBinDirectory: string = '/test-solo-global-bin';
+      const fakeGlobalHelmPath: string = `${fakeGlobalBinDirectory}/helm`;
+      const originalPath: string = process.env.PATH ?? '';
+      process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
+      sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
+        if (String(filePath) === fakeGlobalHelmPath) return;
+        throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
+      });
+      runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v0.1.0+gabcdef']);
 
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs('which helm').alwaysReturned(false);
-      expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-      expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+      try {
+        // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
+        const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
+        expect(result).to.be.false;
+
+        expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
+        expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
+        expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+      } finally {
+        process.env.PATH = originalPath;
+      }
     });
   });
 });

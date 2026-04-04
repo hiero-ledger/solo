@@ -5,6 +5,7 @@ import {after, before, describe, it} from 'mocha';
 import each from 'mocha-each';
 
 import fs from 'node:fs';
+import path from 'node:path';
 import {KindDependencyManager} from '../../../../../src/core/dependency-managers/index.js';
 import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-utility.js';
 import * as version from '../../../../../version.js';
@@ -15,7 +16,7 @@ import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-
 import {container} from 'tsyringe-neo';
 import {platform} from 'node:process';
 import * as constants from '../../../../../src/core/constants.js';
-import {ShellRunner} from '../../../../../src/core/shell-runner.js';
+
 
 describe('KindDependencyManager', (): void => {
   const installationDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
@@ -90,27 +91,38 @@ describe('KindDependencyManager', (): void => {
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
+      const fakeGlobalBinDirectory: string = '/test-solo-global-bin';
+      const fakeGlobalKindPath: string = `${fakeGlobalBinDirectory}/kind`;
+      const originalPath: string = process.env.PATH ?? '';
+      process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
+      sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
+        if (String(filePath) === fakeGlobalKindPath) return;
+        throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
+      });
       runStub = sandbox.stub(kindDependencyManager, 'run');
-      runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
-      runStub.withArgs('"/usr/local/bin/kind" --version').resolves([`kind version ${version.KIND_VERSION}`]);
-      runStub.withArgs(`"${installationDirectory}/kind" --version`).resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs(`"${fakeGlobalKindPath}" --version`).resolves([`kind version ${version.KIND_VERSION}`]);
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
       existsSyncStub.withArgs(`${installationDirectory}/kind`).returns(false);
 
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await kindDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.true;
+      try {
+        // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
+        const result: boolean = await kindDependencyManager.isInstalledGloballyAndMeetsRequirements();
+        expect(result).to.be.true;
 
-      expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
+        expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
 
-      // Should return global path since it meets requirements
-      expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
+        // Should return global path since it meets requirements
+        expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
+      } finally {
+        process.env.PATH = originalPath;
+      }
     });
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
       const temporaryDirectory: string = getTemporaryDirectory();
       container.register(InjectTokens.KindInstallationDirectory, {useValue: temporaryDirectory});
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs('which kind').alwaysReturned(false);
+      // Stub accessSync so the native PATH scan finds no global kind installation.
+      sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
       expect(await kindDependencyManager.install(temporaryDirectory)).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, constants.KIND))).to.be.ok;
       expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
@@ -144,7 +156,8 @@ describe('KindDependencyManager', (): void => {
         kindDependencyManager.uninstallLocal();
         expect(kindDependencyManager.isInstalledLocally()).not.to.be.ok;
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KIND}`).alwaysReturned(false);
+        // Stub accessSync so the native PATH scan finds no global kind installation.
+        sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
         expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(kindDependencyManager.isInstalledLocally()).to.be.ok;
 

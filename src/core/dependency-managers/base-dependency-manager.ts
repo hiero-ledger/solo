@@ -121,7 +121,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
       for (const name of executableNames) {
         const candidate: string = path.join(directory, name);
         try {
-          fs.accessSync(candidate, fs.constants.X_OK);
+          // On Windows X_OK is not supported and silently degrades to F_OK;
+          // executability is determined by file extension (.exe/.cmd) already.
+          fs.accessSync(candidate, OperatingSystem.isWin32() ? fs.constants.F_OK : fs.constants.X_OK);
           this.logger.debug(`Found ${this.executableName} at ${candidate}`);
           this.globalExecutablePath = candidate;
           return candidate;

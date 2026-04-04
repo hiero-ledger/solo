@@ -5,6 +5,7 @@ import {after, before, describe, it} from 'mocha';
 import each from 'mocha-each';
 
 import fs from 'node:fs';
+import path from 'node:path';
 import {KubectlDependencyManager} from '../../../../../src/core/dependency-managers/index.js';
 import {getTestCacheDirectory, getTemporaryDirectory} from '../../../../test-utility.js';
 import * as version from '../../../../../version.js';
@@ -15,7 +16,7 @@ import {OperatingSystem} from '../../../../../src/business/utils/operating-syste
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import * as constants from '../../../../../src/core/constants.js';
-import {ShellRunner} from '../../../../../src/core/shell-runner.js';
+
 import {type PackageDownloader} from '../../../../../src/core/package-downloader.js';
 import {resetForTest} from '../../../../test-container.js';
 
@@ -110,70 +111,50 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
-      runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
-      runStub.withArgs('"/usr/local/bin/kubectl" version --client').resolves(mockVersionOutputValid.split('\n'));
-      runStub
-        .withArgs(`"${localInstallationDirectory}/kubectl" version --client`)
-        .resolves(mockVersionOutputValid.split('\n'));
+      const fakeGlobalBinDirectory: string = '/test-solo-global-bin';
+      const fakeGlobalKubectlPath: string = `${fakeGlobalBinDirectory}/kubectl`;
+      const originalPath: string = process.env.PATH ?? '';
+      process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
+      sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
+        if (String(filePath) === fakeGlobalKubectlPath) return;
+        throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
+      });
+      runStub.withArgs(`"${fakeGlobalKubectlPath}" version --client`).resolves(mockVersionOutputValid.split('\n'));
       existsSyncStub.withArgs(`${localInstallationDirectory}/kubectl`).returns(false);
 
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await kubectlDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.true;
+      try {
+        // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
+        const result: boolean = await kubectlDependencyManager.isInstalledGloballyAndMeetsRequirements();
+        expect(result).to.be.true;
 
-      expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      // Should return global path since it meets requirements
-      expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
+        expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
+        // Should return global path since it meets requirements
+        expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
+      } finally {
+        process.env.PATH = originalPath;
+      }
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
-      const originalShellRun: ShellRunner['run'] = ShellRunner.prototype.run;
-      sandbox.stub(ShellRunner.prototype, 'run').callsFake(async function (
-        this: ShellRunner,
-        cmd: string,
-      ): Promise<string[]> {
-        if (cmd === `which ${constants.KUBECTL}`) {
-          throw new Error('kubectl not found');
-        }
-
-        return originalShellRun.call(this, cmd);
-      });
+      // Stub accessSync so the native PATH scan finds no global kubectl installation.
+      sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, constants.KUBECTL))).to.be.ok;
       expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
     });
 
     it('should be able to use local installation on repeated calls without reinstalling given global installation does not meet requirements', async (): Promise<void> => {
-      // remove the runStub override of the original method
+      // Restore all beforeEach stubs so real fs/run operations work for the download.
       runStub.restore();
       existsSyncStub.restore();
       cpSyncStub.restore();
       chmodSyncStub.restore();
       rmSyncStub.restore();
-      const originalShellRun: ShellRunner['run'] = ShellRunner.prototype.run;
-      sandbox.stub(ShellRunner.prototype, 'run').callsFake(async function (
-        this: ShellRunner,
-        cmd: string,
-      ): Promise<string[]> {
-        if (cmd === `which ${constants.KUBECTL}`) {
-          throw new Error('kubectl not found');
-        }
-
-        return originalShellRun.call(this, cmd);
-      });
+      // Stub accessSync so the native PATH scan finds no global kubectl installation.
+      sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
       const kubectlInstallationDirectory: string = getTemporaryDirectory();
       container.register(InjectTokens.KubectlInstallationDirectory, {useValue: kubectlInstallationDirectory});
       kubectlDependencyManager = new KubectlDependencyManager(undefined, undefined, process.arch, undefined);
-      const originalInstallationMeetsRequirements: KubectlDependencyManager['installationMeetsRequirements'] =
-        kubectlDependencyManager.installationMeetsRequirements.bind(kubectlDependencyManager);
-      sandbox
-        .stub(KubectlDependencyManager.prototype, 'installationMeetsRequirements')
-        .callsFake(async (executablePath: string): Promise<boolean> => {
-          if (executablePath === constants.KUBECTL) {
-            return false; // global installation does not meet requirements
-          }
-          return originalInstallationMeetsRequirements(executablePath);
-        });
       expect(await kubectlDependencyManager.install(getTemporaryDirectory())).to.be.true;
       expect(downloaderFetchPackageSpy.calledOnce).to.be.true;
       expect(fs.existsSync(PathEx.join(kubectlInstallationDirectory, constants.KUBECTL))).to.be.ok;
@@ -213,7 +194,8 @@ describe('KubectlDependencyManager', (): void => {
         kubectlDependencyManager.uninstallLocal();
         expect(kubectlDependencyManager.isInstalledLocally()).not.to.be.ok;
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.KUBECTL}`).alwaysReturned(false);
+        // Stub accessSync so the native PATH scan finds no global kubectl installation.
+        sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
         expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(kubectlDependencyManager.isInstalledLocally()).to.be.ok;
 
