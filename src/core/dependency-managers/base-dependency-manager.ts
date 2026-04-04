@@ -114,7 +114,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       ? [`${this.executableName}.exe`, `${this.executableName}.cmd`, this.executableName]
       : [this.executableName];
 
-    const pathDirs: string[] = this.effectivePath().split(path.delimiter).filter(Boolean);
+    const pathDirs: string[] = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
     this.logger.debug(`Searching PATH for ${this.executableName}: [${pathDirs.join(', ')}]`);
 
     for (const directory of pathDirs) {
