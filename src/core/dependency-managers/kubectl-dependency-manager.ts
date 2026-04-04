@@ -7,7 +7,7 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
-import util from 'node:util';
+import {format} from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
@@ -39,7 +39,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    * Get the Kubectl artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(
+    return format(
       OperatingSystem.isWin32() ? KUBECTL_WINDOWS_ARTIFACT_TEMPLATE : KUBECTL_ARTIFACT_TEMPLATE,
       this.getRequiredVersion(),
       OperatingSystem.getFormattedPlatform(),
@@ -75,10 +75,10 @@ export class KubectlDependencyManager extends BaseDependencyManager {
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new SoloError('Failed to check kubectl version', error);
     }
-    throw new SoloError('Failed to check kubectl version');
+    throw new SoloError('Failed to get kubectl version');
   }
 
   protected getDownloadURL(): string {

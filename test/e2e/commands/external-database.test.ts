@@ -121,11 +121,16 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.verifyDeploymentConfigInfo(options);
 
         it('should run smoke tests', async (): Promise<void> => {
+          // Mirror node is deployed to the second cluster in the dual-cluster setup.
+          // Pass its context so solo_smoke_test.sh can issue kubectl commands against
+          // the right cluster (e.g. kubectl wait for mirror-grpc readiness).
+          const mirrorClusterContext: string = contexts[1];
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
             export SHARD_NUM=3; \
             export REALM_NUM=2; \
             export NEW_NODE_ACCOUNT_ID=3.2.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
+            export SOLO_CLUSTER_CONTEXT=${mirrorClusterContext}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
             ${

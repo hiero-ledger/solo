@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  type CoreV1Event,
   type CoreV1Api,
   type KubeConfig,
   Metrics,
@@ -33,6 +34,7 @@ import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
+import {sleep} from '../../../../../core/helpers.js';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -113,6 +115,111 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   }
 
   /**
+   * Poll until the pod identified by `podReference` is returned by the Kubernetes API.
+   *
+   * This guards container operations (copyTo / copyFrom / execContainer) against the
+   * brief window where Kubernetes has marked a pod Ready but `pods.read()` still returns
+   * null — a race that is more common on slower GitHub-hosted runners than on local
+   * kind clusters.
+   *
+   * Use this when the exact pod name is already known (e.g. a StatefulSet replica such
+   * as `postgres-0`).  If the pod name is unknown and must be resolved by label selector,
+   * use {@link waitForStableReadyPod} instead.
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum polling attempts before throwing (default 20 × 3 s = 60 s)
+   * @param delay - milliseconds between attempts (default 3000)
+   */
+  public async waitForPodByReference(
+    podReference: PodReference,
+    maxAttempts: number = 20,
+    delay: number = 3000,
+  ): Promise<void> {
+    const podName: string = podReference.name.toString();
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pod: Pod = await this.read(podReference);
+      if (pod) {
+        return;
+      }
+      this.logger.debug(
+        `waitForPodByReference: pod ${podName} not yet visible in API, attempt ${attempt}/${maxAttempts}`,
+      );
+      await sleep(Duration.ofMillis(delay));
+    }
+    throw new SoloError(`Pod ${podName} not found after ${maxAttempts} attempts`);
+  }
+
+  /**
+   * Wait for a ready pod to become stable enough for follow-up operations such as exec or port-forward.
+   *
+   * Use this when the pod name is not fixed — e.g. after a rolling update the pod
+   * may have a new name or creation timestamp.  The method polls until the same newest
+   * ready pod (identified by name + creation timestamp) is observed for
+   * `consecutiveStableChecks` polls in a row, ensuring the replacement has fully settled
+   * before the caller proceeds.
+   *
+   * This is stricter than {@link waitForReadyStatus}, which returns as soon as any
+   * matching pod reports Ready=True without verifying that the pod identity has settled.
+   *
+   * Use {@link waitForPodByReference} instead when the exact pod name is already known
+   * and you only need to confirm it has appeared in the API (no stability check needed).
+   *
+   * @param namespace - namespace containing the target pod(s)
+   * @param labels - labels used to select the target pod(s)
+   * @param [consecutiveStableChecks] - consecutive checks that must see the same newest ready pod (default 3)
+   * @param [maxAttempts] - maximum polling attempts (default 120)
+   * @param [delay] - delay between poll attempts in milliseconds (default 1000)
+   * @returns the newest stable ready pod
+   */
+  public async waitForStableReadyPod(
+    namespace: NamespaceName,
+    labels: string[],
+    consecutiveStableChecks: number = 3,
+    maxAttempts: number = 120,
+    delay: number = 1000,
+  ): Promise<Pod> {
+    const startTime: number = Date.now();
+    let previousPodIdentity: string = '';
+    let stableChecks: number = 0;
+    let latestPod: Pod | undefined;
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        latestPod = await this.getSingleNewestStableReadyPod(namespace, labels);
+        const podIdentity: string =
+          `${latestPod.podReference?.name.toString() || '<unknown>'}:` +
+          `${latestPod.creationTimestamp?.getTime() || 0}`;
+
+        if (podIdentity === previousPodIdentity) {
+          stableChecks++;
+        } else {
+          previousPodIdentity = podIdentity;
+          stableChecks = 1;
+        }
+
+        if (stableChecks >= consecutiveStableChecks) {
+          const elapsedMs: number = Date.now() - startTime;
+          this.logger.info(
+            `Stable ready pod ${latestPod.podReference?.name.toString() || '<unknown>'} ` +
+              `confirmed in ${elapsedMs} ms [namespace=${namespace.name}, labels=${labels.join(',')}]`,
+          );
+          return latestPod;
+        }
+      } catch {
+        previousPodIdentity = '';
+        stableChecks = 0;
+      }
+
+      await sleep(Duration.ofMillis(delay));
+    }
+
+    throw new SoloError(
+      `Failed to observe a stable ready pod after ${maxAttempts} attempts ` +
+        `[namespace=${namespace.name}, labels=${labels.join(',')}]`,
+    );
+  }
+
+  /**
    * Check pods for conditions
    * @param namespace - namespace
    * @param conditionsMap - a map of conditions and values
@@ -157,6 +264,40 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         return false;
       },
       createdAfter,
+    );
+  }
+
+  private async getSingleNewestStableReadyPod(namespace: NamespaceName, labels: string[]): Promise<Pod> {
+    const pods: Pod[] = await this.list(namespace, labels).then((matchingPods: Pod[]): Pod[] =>
+      matchingPods.filter(
+        (pod: Pod): boolean => !pod.deletionTimestamp && !!pod.podReference && !!pod.podIp && this.isPodReady(pod),
+      ),
+    );
+
+    if (pods.length === 0) {
+      throw new SoloError(`Expected at least one stable ready pod with labels: ${labels.join(',')}`);
+    }
+
+    const newestCreationTime: number = pods[0].creationTimestamp?.getTime() || 0;
+    const newestPods: Pod[] = pods.filter(
+      (pod: Pod): boolean => (pod.creationTimestamp?.getTime() || 0) === newestCreationTime,
+    );
+
+    if (newestPods.length !== 1) {
+      throw new SoloError(
+        `Expected exactly one newest stable pod, found ${newestPods.length} with labels: ${labels.join(',')}`,
+      );
+    }
+
+    return newestPods[0];
+  }
+
+  private isPodReady(pod: Pod): boolean {
+    return (
+      pod.conditions?.some(
+        (condition): boolean =>
+          condition.type === constants.POD_CONDITION_READY && condition.status === constants.POD_CONDITION_STATUS_TRUE,
+      ) ?? false
     );
   }
 
@@ -327,14 +468,31 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
   }
 
+  public async delete(podReference: PodReference): Promise<void> {
+    try {
+      await this.kubeClient.deleteNamespacedPod({
+        namespace: podReference.namespace.toString(),
+        name: podReference.name.toString(),
+      });
+    } catch (error) {
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.DELETE,
+        ResourceType.POD,
+        podReference.namespace,
+        podReference.name.toString(),
+      );
+    }
+  }
+
   public async readLogs(podReference: PodReference, timestamps: boolean = true): Promise<string> {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
     const containerNames: string[] = [
-      ...(pod.spec?.initContainers?.map((container): string => container.name) ?? []),
-      ...(pod.spec?.containers?.map((container): string => container.name) ?? []),
-      ...(pod.spec?.ephemeralContainers?.map((container): string => container.name) ?? []),
+      ...(pod.spec?.initContainers?.map((container: V1Container): string => container.name) ?? []),
+      ...(pod.spec?.containers?.map((container: V1Container): string => container.name) ?? []),
+      ...(pod.spec?.ephemeralContainers?.map((container: V1Container): string => container.name) ?? []),
     ].filter(Boolean);
 
     if (containerNames.length === 0) {
@@ -370,13 +528,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
-    const events: {items?: any[]} = await this.kubeClient.listNamespacedEvent({
+    const events: {items?: CoreV1Event[]} = await this.kubeClient.listNamespacedEvent({
       namespace,
       fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
     });
 
     // eslint-disable-next-line unicorn/no-array-sort
-    const sortedEvents: any[] = [...(events?.items ?? [])].sort((left, right): number => {
+    const sortedEvents: CoreV1Event[] = [...(events?.items ?? [])].sort((left, right): number => {
       const leftTime: number = new Date(
         left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
       ).getTime();

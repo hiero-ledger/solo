@@ -1198,12 +1198,17 @@ export class NodeCommandTasks {
     }
   }
 
-  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
+  public loadConfiguration(
+    argv: ArgvStruct,
+    leaseWrapper: LeaseWrapper,
+    leaseManager: LockManager,
+    validateRemoteConfig: boolean = true,
+  ) {
     return {
       title: 'Load configuration',
       task: async () => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
         if (!this.oneShotState.isActive()) {
           leaseWrapper.lease = await leaseManager.create();
         }
@@ -1211,24 +1216,46 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Resolve the active node aliases and their service map for the given namespace/deployment.
+   * Nodes whose accountId equals {@link constants.IGNORED_NODE_ACCOUNT_ID} are excluded.
+   *
+   * Shared by {@link getExistingNodeAliases} (non-task callers) and
+   * {@link identifyExistingNodes} (Listr task) to avoid duplicating the
+   * `getNodeServiceMap` + filter loop in both places.
+   */
+  private async resolveExistingNodes(
+    namespace: NamespaceName,
+    deployment: DeploymentName,
+  ): Promise<{existingNodeAliases: NodeAliases; serviceMap: NodeServiceMapping}> {
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
+      namespace,
+      clusterReferences,
+      deployment,
+    );
+    const existingNodeAliases: NodeAliases = [];
+    for (const networkNodeServices of serviceMap.values()) {
+      if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+        continue;
+      }
+      existingNodeAliases.push(networkNodeServices.nodeAlias);
+    }
+    return {existingNodeAliases, serviceMap};
+  }
+
+  public async getExistingNodeAliases(namespace: NamespaceName, deployment: DeploymentName): Promise<NodeAliases> {
+    const {existingNodeAliases} = await this.resolveExistingNodes(namespace, deployment);
+    return existingNodeAliases;
+  }
+
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
     return {
       title: 'Identify existing network nodes',
       task: async (context_, task): Promise<any> => {
         const config: CheckedNodesConfigClass = context_.config;
-        config.existingNodeAliases = [];
-        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-        config.serviceMap = await this.accountManager.getNodeServiceMap(
-          config.namespace,
-          clusterReferences,
-          config.deployment,
-        );
-        for (const networkNodeServices of config.serviceMap.values()) {
-          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
-            continue;
-          }
-          config.existingNodeAliases.push(networkNodeServices.nodeAlias);
-        }
+        ({existingNodeAliases: config.existingNodeAliases, serviceMap: config.serviceMap} =
+          await this.resolveExistingNodes(config.namespace, config.deployment));
         config.allNodeAliases = [...config.existingNodeAliases];
         return this.taskCheckNetworkNodePods(context_, task, config.existingNodeAliases);
       },
@@ -1831,22 +1858,16 @@ export class NodeCommandTasks {
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+              await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
+
+              const startCommand: string = this.buildStartNetworkNodeCommand();
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
                 nodeAlias,
               );
-              await (constants.ENABLE_S6_IMAGE
-                ? container.execContainer([
-                    'bash',
-                    '-c',
-                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
-                  ])
-                : container.execContainer([
-                    'bash',
-                    '-c',
-                    'systemctl stop network-node || true && systemctl enable --now network-node',
-                  ]));
+              await container.execContainer(['bash', '-c', startCommand]);
             },
           });
         }
@@ -1855,6 +1876,39 @@ export class NodeCommandTasks {
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
+  }
+
+  /**
+   * Build the command used by `consensus node start` to restart the network-node service.
+   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
+   */
+  private buildStartNetworkNodeCommand(): string {
+    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
+    return [
+      // Persist "enabled" state so the autostart oneshot can bring network-node back
+      // automatically when the pod restarts in later operations.
+      `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+      // Fail fast when the helper is missing so callers immediately know the image
+      // does not satisfy Solo's lifecycle contract.
+      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      `"${lifecycleHelperPath}" start`,
+    ].join('\n');
+  }
+
+  /**
+   * Build the command used by `consensus node stop` to stop the network-node service.
+   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
+   */
+  private buildStopNetworkNodeCommand(): string {
+    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
+    return [
+      // Remove the enabled marker to prevent autostart after pod/container restarts.
+      `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
+      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
+      // solo-container's /command/network-node-lifecycle helper.
+      `"${lifecycleHelperPath}" stop`,
+    ].join('\n');
   }
 
   public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
@@ -2139,15 +2193,7 @@ export class NodeCommandTasks {
               task: async () => {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                if (constants.ENABLE_S6_IMAGE) {
-                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
-
-                  // Wait for graceful shutdown
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-                } else {
-                  // systemd stop (legacy)
-                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
-                }
+                await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
               },
             });
           }
@@ -3347,15 +3393,13 @@ export class NodeCommandTasks {
             ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
             ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
-      if (constants.ENABLE_S6_IMAGE) {
-        valuesArgumentMap[clusterReference] = addRootImageValues(
-          valuesArgumentMap[clusterReference],
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
-      }
+      valuesArgumentMap[clusterReference] = addRootImageValues(
+        valuesArgumentMap[clusterReference],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
@@ -3401,15 +3445,13 @@ export class NodeCommandTasks {
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
-      if (constants.ENABLE_S6_IMAGE) {
-        valuesArgumentMap[node.cluster] = addRootImageValues(
-          valuesArgumentMap[node.cluster],
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
-      }
+      valuesArgumentMap[node.cluster] = addRootImageValues(
+        valuesArgumentMap[node.cluster],
+        `hedera.nodes[${index}]`,
+        constants.S6_NODE_IMAGE_REGISTRY,
+        constants.S6_NODE_IMAGE_REPOSITORY,
+        versions.S6_NODE_IMAGE_VERSION,
+      );
     }
 
     // Add new node
@@ -3419,15 +3461,13 @@ export class NodeCommandTasks {
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
       ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
 
-    if (constants.ENABLE_S6_IMAGE) {
-      valuesArgumentMap[clusterReference] = addRootImageValues(
-        valuesArgumentMap[clusterReference],
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
-    }
+    valuesArgumentMap[clusterReference] = addRootImageValues(
+      valuesArgumentMap[clusterReference],
+      `hedera.nodes[${index}]`,
+      constants.S6_NODE_IMAGE_REGISTRY,
+      constants.S6_NODE_IMAGE_REPOSITORY,
+      versions.S6_NODE_IMAGE_VERSION,
+    );
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3490,15 +3530,13 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].name=${node.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
 
-        if (constants.ENABLE_S6_IMAGE) {
-          valuesArgumentMap[clusterReference] = addRootImageValues(
-            valuesArgumentMap[clusterReference],
-            `hedera.nodes[${index}]`,
-            constants.S6_NODE_IMAGE_REGISTRY,
-            constants.S6_NODE_IMAGE_REPOSITORY,
-            versions.S6_NODE_IMAGE_VERSION,
-          );
-        }
+        valuesArgumentMap[clusterReference] = addRootImageValues(
+          valuesArgumentMap[clusterReference],
+          `hedera.nodes[${index}]`,
+          constants.S6_NODE_IMAGE_REGISTRY,
+          constants.S6_NODE_IMAGE_REPOSITORY,
+          versions.S6_NODE_IMAGE_VERSION,
+        );
         if (this.remoteConfig.configuration.state.wrapsEnabled) {
           valuesArgumentMap[clusterReference] +=
             ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
@@ -3571,6 +3609,26 @@ export class NodeCommandTasks {
           if (!config.allNodeAliases.includes(service.nodeAlias)) {
             continue;
           }
+
+          // Remove the autostart flag file BEFORE killing the pod so that when the
+          // pod restarts the network-node-autostart oneshot does NOT fire prematurely
+          // (i.e. before new config files are staged by later tasks).  startNodes()
+          // will re-create the flag file when it is safe to start the platform.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer(['bash', '-c', `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
@@ -3857,6 +3915,7 @@ export class NodeCommandTasks {
     configInit: ConfigBuilder,
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
+    validateRemoteConfig: boolean = true,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
@@ -3865,7 +3924,7 @@ export class NodeCommandTasks {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
 
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);
