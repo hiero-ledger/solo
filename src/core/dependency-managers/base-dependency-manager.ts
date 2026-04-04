@@ -101,14 +101,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
-   * Find the global executable using 'which' or 'where' command
+   * Find the global executable using 'command -v' (POSIX) or 'where' (Windows).
+   * 'command -v' is a shell builtin — unlike 'which', it cannot be shadowed by a
+   * script in node_modules/.bin and behaves consistently across bash and sh.
    */
   private async getGlobalExecutableWithPath(): Promise<false | string> {
     try {
       if (this.globalExecutablePath) {
         return this.globalExecutablePath;
       }
-      const cmd: string = OperatingSystem.isWin32() ? 'where' : 'which';
+      const cmd: string = OperatingSystem.isWin32() ? 'where' : 'command -v';
       const path: string[] = await this.run(`${cmd} ${this.executableName}`);
       if (path.length === 0) {
         this.logger.warn(`${this.executableName} was not found in PATH (${cmd} returned no results)`);
