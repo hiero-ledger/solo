@@ -48,64 +48,36 @@ export class KubectlDependencyManager extends BaseDependencyManager {
   }
 
   public async getVersion(executableWithPath: string): Promise<string> {
-    // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
-    // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
-    // Using the null device ensures kubectl only reports the client version without any
-    // server or credential-related operations.
-    const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
-
-    // Try with KUBECONFIG overridden to the null device first.  In some environments (e.g.
-    // certain CI runners) an empty KUBECONFIG causes kubectl to exit with a non-zero status even
-    // for --client-only queries.  If that attempt fails, fall back to running without the
-    // override so that a globally-installed, compatible kubectl is still detected correctly.
-    for (const environmentOverride of [{KUBECONFIG: nullDevice}, {}]) {
-      try {
-        const output: string[] = await this.run(
-          `"${executableWithPath}" version --client`,
-          [],
-          false,
-          false,
-          environmentOverride,
-          30_000,
-        );
-        this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
-        if (output.length > 0) {
-          for (const line of output) {
-            if (line.trim().startsWith('Client Version')) {
-              const match: RegExpMatchArray | null = line.trim().match(/(\d+\.\d+\.\d+)/);
-              if (match) {
-                const detectedVersion: string = match[1];
-                this.logger.info(`Kubectl version: ${detectedVersion}`);
-                return detectedVersion;
-              }
+    try {
+      // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
+      // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
+      // Using the null device ensures kubectl only reports the client version without any
+      // server or credential-related operations.
+      const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
+      const output: string[] = await this.run(
+        `"${executableWithPath}" version --client`,
+        [],
+        false,
+        false,
+        {KUBECONFIG: nullDevice},
+        30_000,
+      );
+      this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
+      if (output.length > 0) {
+        for (const line of output) {
+          if (line.trim().startsWith('Client Version')) {
+            const match: RegExpMatchArray | null = line.trim().match(/(\d+\.\d+\.\d+)/);
+            if (match) {
+              const detectedVersion: string = match[1];
+              this.logger.info(`Kubectl version: ${detectedVersion}`);
+              return detectedVersion;
             }
           }
-          // Output is non-empty but contains no parseable version — retrying with a different
-          // KUBECONFIG override will not help, so throw immediately with a descriptive message.
-          throw new SoloError(
-            `Failed to check kubectl version: unexpected output from ${executableWithPath}: ${output.join(' | ')}`,
-          );
-        }
-        // Empty output — the env override may be the cause; let the loop try the fallback.
-        this.logger.debug(`kubectl version check at ${executableWithPath} produced empty output`);
-      } catch (error: unknown) {
-        if (error instanceof SoloError) {
-          throw error; // propagate descriptive errors immediately; don't retry
-        }
-        // Only warn when falling back from the null-device override; if the override was
-        // already empty there is nothing more to try, so we let the final throw report it.
-        if (Object.keys(environmentOverride).length > 0) {
-          this.logger.warn(
-            `kubectl version check with KUBECONFIG=${nullDevice} failed, retrying without override: ${error instanceof Error ? error.message : error}`,
-          );
-        } else {
-          this.logger.debug(
-            `kubectl version check without KUBECONFIG override also failed: ${error instanceof Error ? error.message : error}`,
-          );
         }
       }
+    } catch (error: any) {
+      throw new SoloError('Failed to check kubectl version', error);
     }
-
     throw new SoloError('Failed to check kubectl version');
   }
 

@@ -95,49 +95,26 @@ export class HelmDependencyManager extends BaseDependencyManager {
   }
 
   public async getVersion(executableWithPath: string): Promise<string> {
-    // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
-    // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
-    // Try with the null device first; fall back to no override in environments where an empty
-    // KUBECONFIG causes a non-zero exit (e.g. certain CI runners).
-    const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
-
-    for (const environmentOverride of [{KUBECONFIG: nullDevice}, {}]) {
-      try {
-        const output: string[] = await this.run(
-          `"${executableWithPath}" version --short`,
-          [],
-          false,
-          false,
-          environmentOverride,
-          30_000,
-        );
-        if (output.length > 0) {
-          const parts: string[] = output[0].split('+');
-          // Strip any leading 'v' so callers receive a bare semver string (e.g. "4.1.1" not "v4.1.1")
-          const bareVersion: string = parts[0].replace(/^v/, '');
-          this.logger.info(`Helm version: ${bareVersion}`);
-          this.logger.debug(`Found ${constants.HELM}:${bareVersion}`);
-          return bareVersion;
-        }
-        // Empty output — the env override may be the cause; let the loop try the fallback.
-        this.logger.debug(`helm version check at ${executableWithPath} produced empty output`);
-      } catch (error: unknown) {
-        if (error instanceof SoloError) {
-          throw error; // propagate descriptive errors immediately; don't retry
-        }
-        if (Object.keys(environmentOverride).length > 0) {
-          this.logger.warn(
-            `helm version check with KUBECONFIG=${nullDevice} failed, retrying without override: ${error instanceof Error ? error.message : error}`,
-          );
-        } else {
-          this.logger.debug(
-            `helm version check without KUBECONFIG override also failed: ${error instanceof Error ? error.message : error}`,
-          );
-        }
-      }
+    try {
+      // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
+      // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
+      const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
+      const output: string[] = await this.run(
+        `"${executableWithPath}" version --short`,
+        [],
+        false,
+        false,
+        {KUBECONFIG: nullDevice},
+        30_000,
+      );
+      const parts: string[] = output[0].split('+');
+      const versionOnly: string = parts[0];
+      this.logger.info(`Helm version: ${versionOnly}`);
+      this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
+      return versionOnly;
+    } catch (error) {
+      throw new SoloError('Failed to check helm version', error);
     }
-
-    throw new SoloError('Failed to check helm version');
   }
 
   protected getDownloadURL(): string {
