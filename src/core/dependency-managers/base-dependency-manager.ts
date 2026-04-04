@@ -101,29 +101,38 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
-   * Find the global executable using 'command -v' (POSIX) or 'where' (Windows).
-   * 'command -v' is a shell builtin — unlike 'which', it cannot be shadowed by a
-   * script in node_modules/.bin and behaves consistently across bash and sh.
+   * Find the global executable by scanning PATH directories directly in Node.js.
+   * This avoids spawning a shell subprocess (which, command -v, where) whose
+   * behaviour varies across shells and CI runner environments.
    */
-  private async getGlobalExecutableWithPath(): Promise<false | string> {
-    try {
-      if (this.globalExecutablePath) {
-        return this.globalExecutablePath;
-      }
-      const cmd: string = OperatingSystem.isWin32() ? 'where' : 'command -v';
-      const path: string[] = await this.run(`${cmd} ${this.executableName}`);
-      if (path.length === 0) {
-        this.logger.warn(`${this.executableName} was not found in PATH (${cmd} returned no results)`);
-        return false;
-      }
-      this.globalExecutablePath = path[0];
-      return path[0];
-    } catch (error: unknown) {
-      this.logger.warn(
-        `${this.executableName} was not found in PATH: ${error instanceof Error ? error.message : error}`,
-      );
-      return false;
+  private getGlobalExecutableWithPath(): false | string {
+    if (this.globalExecutablePath) {
+      return this.globalExecutablePath;
     }
+
+    const executableNames: string[] = OperatingSystem.isWin32()
+      ? [`${this.executableName}.exe`, `${this.executableName}.cmd`, this.executableName]
+      : [this.executableName];
+
+    const pathDirs: string[] = this.effectivePath().split(path.delimiter).filter(Boolean);
+    this.logger.debug(`Searching PATH for ${this.executableName}: [${pathDirs.join(', ')}]`);
+
+    for (const directory of pathDirs) {
+      for (const name of executableNames) {
+        const candidate: string = path.join(directory, name);
+        try {
+          fs.accessSync(candidate, fs.constants.X_OK);
+          this.logger.debug(`Found ${this.executableName} at ${candidate}`);
+          this.globalExecutablePath = candidate;
+          return candidate;
+        } catch {
+          // not found or not executable in this directory — continue
+        }
+      }
+    }
+
+    this.logger.warn(`${this.executableName} was not found in PATH`);
+    return false;
   }
 
   /**
@@ -152,7 +161,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the tool is installed globally and meets requirements
    */
   private async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
-    const path: false | string = await this.getGlobalExecutableWithPath();
+    const path: false | string = this.getGlobalExecutableWithPath();
     try {
       if (path && (await this.installationMeetsRequirements(path))) {
         return true;

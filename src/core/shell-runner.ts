@@ -17,7 +17,7 @@ export class ShellRunner {
 
   /** Returns the PATH for spawned processes, enriched with any directories listed in the
    * $GITHUB_PATH file when running inside a GitHub Actions environment. */
-  private effectivePath(): string {
+  protected effectivePath(): string {
     const currentPath: string = process.env.PATH ?? '';
     const githubPathFile: string | undefined = process.env.GITHUB_PATH;
     if (!githubPathFile) {
