@@ -301,6 +301,17 @@ export class Flags {
     },
   };
 
+  public static readonly outputValuesFile: CommandFlag = {
+    constName: 'outputValuesFile',
+    name: 'output-values-file',
+    definition: {
+      describe: 'Output path for the generated falcon values YAML file',
+      defaultValue: './falcon-values.yaml',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly networkDeploymentValuesFile: CommandFlag = {
     constName: 'valuesFile',
     name: 'values-file',
