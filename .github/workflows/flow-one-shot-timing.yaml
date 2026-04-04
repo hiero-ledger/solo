@@ -248,34 +248,6 @@ jobs:
           echo "cold-elapsed=${COLD_ELAPSED}" >> "$GITHUB_OUTPUT"
           echo "==== Cold start completed in ${COLD_MINUTES}m ${COLD_SECONDS}s ===="
 
-      - name: "Destroy Deployment"
-        timeout-minutes: 15
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-
-          echo "==== Destroying one-shot single deployment ===="
-          $SOLO_CMD one-shot single destroy
-          echo "==== Destroy complete ===="
-
-      - name: "Warm Start: Redeploy"
-        id: warm-start
-        timeout-minutes: 60
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          VALUES_FILE="${{ steps.values-file.outputs.path }}"
-
-          echo "==== Warm Start: Measuring one-shot single deploy time ===="
-          WARM_START_TIME=$SECONDS
-
-          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
-
-          WARM_ELAPSED=$(( SECONDS - WARM_START_TIME ))
-          WARM_MINUTES=$(( WARM_ELAPSED / 60 ))
-          WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
-          echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
 
       - name: Build Relay
         timeout-minutes: 15
