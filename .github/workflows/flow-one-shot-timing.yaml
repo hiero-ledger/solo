@@ -67,7 +67,7 @@ env:
 
 jobs:
   one-shot-timing:
-    timeout-minutes: 120
+    timeout-minutes: 180
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
@@ -79,6 +79,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Checkout Relay Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          repository: hiero-ledger/hiero-json-rpc-relay
+          ref: relay-x-solo-haproxy-issue
+          path: relay
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -268,6 +276,34 @@ jobs:
           WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
           echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
           echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
+
+      - name: Build Relay
+        timeout-minutes: 15
+        working-directory: relay
+        run: npm install -f && npm run build
+
+      - name: Configure Relay Environment
+        working-directory: relay
+        run: |
+          cat > .env << 'EOF'
+          CHAIN_ID="0x12a"
+          MIRROR_NODE_URL="http://127.0.0.1:8081"
+          HEDERA_NETWORK='{"127.0.0.1:50211":"0.0.3"}'
+          OPERATOR_ID_MAIN=0.0.2
+          OPERATOR_KEY_MAIN=302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137
+          REDIS_ENABLED=false
+          USE_ASYNC_TX_PROCESSING=false
+          E2E_RELAY_HOST=http://localhost:7546
+          SDK_LOG_LEVEL=trace
+          USE_INTERNAL_RELAY=false
+          EOF
+
+      - name: Run Relay XTS Tests (via HAProxy)
+        id: relay-xts-tests
+        timeout-minutes: 30
+        continue-on-error: true
+        working-directory: relay
+        run: npm run acceptancetest:xts
 
       - name: Timing Summary
         if: ${{ !cancelled() }}
