@@ -37,6 +37,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
@@ -264,10 +265,10 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
     valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
+    // Resolve the operator key without exposing it in Helm release history
+    let resolvedOperatorKey: string;
     if (operatorKey) {
-      // use user provided operatorKey if available
-      valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKey}`;
-      valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
+      resolvedOperatorKey = operatorKey;
     } else {
       try {
         const secrets: Secret[] = await this.k8Factory
@@ -276,18 +277,30 @@ export class RelayCommand extends BaseCommand {
           .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
-          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
+          resolvedOperatorKey = constants.OPERATOR_KEY;
         } else {
           this.logger.info('Using operator key from k8s secret');
-          const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
+          resolvedOperatorKey = Base64.decode(secrets[0].data.privateKey);
         }
       } catch (error) {
         throw new SoloError(`Error getting operator key: ${error.message}`, error);
       }
     }
+
+    // Store the operator key in a k8s Secret so it is never written into Helm
+    // release history (visible via `helm get values`).  The relay chart's
+    // deployment already supports injecting additional secrets via extraEnvFrom;
+    // the key stored here overrides the empty OPERATOR_KEY_MAIN in the
+    // chart-created secret because extraEnvFrom entries are evaluated last.
+    const operatorKeySecretName: string = `${releaseName}-operator-key`;
+    await this.k8Factory
+      .getK8(context)
+      .secrets()
+      .createOrReplace(namespace, operatorKeySecretName, SecretType.OPAQUE, {
+        OPERATOR_KEY_MAIN: Base64.encode(resolvedOperatorKey),
+      });
+    valuesArgument += ` --set 'relay.extraEnvFrom[0].secretRef.name=${operatorKeySecretName}'`;
+    valuesArgument += ` --set 'ws.extraEnvFrom[0].secretRef.name=${operatorKeySecretName}'`;
 
     if (!nodeAliases) {
       throw new MissingArgumentError('Node IDs must be specified');

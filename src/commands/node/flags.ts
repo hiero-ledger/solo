@@ -214,6 +214,11 @@ export const LOGS_FLAGS: CommandFlags = {
   optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
+export const REPORT_FLAGS: CommandFlags = {
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.outputDir],
+};
+
 export const ANALYZE_FLAGS: CommandFlags = {
   required: [],
   optional: [flags.inputDir, flags.quiet],

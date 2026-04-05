@@ -423,6 +423,16 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
     }
 
+    // Sensitive data to write into mirror-passwords-solo (a Solo-managed k8s Secret)
+    // rather than passing as Helm values (which would appear in `helm get values` output).
+    // We use a separate secret from the chart's mirror-passwords to avoid Helm ownership
+    // conflicts: the chart owns mirror-passwords, Solo owns mirror-passwords-solo.
+    // All entries are accumulated here and written in a single merged operation.
+    const mirrorPasswordsSensitiveData: Record<string, string> = {};
+    // Track whether DB passwords are stored in mirror-passwords-solo so we know
+    // which additional components need their extraEnvVarsSecret wired to it.
+    let hasDatabasePasswords: boolean = false;
+
     let storageType: string = '';
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
@@ -441,14 +451,22 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
 
-      const mapping: Record<string, string | boolean | number> = {
+      // Pass non-sensitive storage config as Helm values
+      valuesArgument += helpers.populateHelmArguments({
         [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER`]: storageType,
         [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE`]:
           config.storageEndpoint,
-        [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`]: config.storageReadAccessKey,
-        [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`]: config.storageReadSecrets,
-      };
-      valuesArgument += helpers.populateHelmArguments(mapping);
+      });
+
+      // Store credentials in mirror-passwords-solo (Solo-managed secret) so they
+      // are never stored in Helm release history.  The importer is wired to read
+      // from this secret via extraEnvVarsSecret below.
+      const accessKeyEncoded: string = Base64.encode(config.storageReadAccessKey);
+      const secretKeyEncoded: string = Base64.encode(config.storageReadSecrets);
+      mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] =
+        accessKeyEncoded;
+      mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`] =
+        secretKeyEncoded;
     }
 
     if (config.storageBucketRegion) {
@@ -464,7 +482,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
-    let host: string, ownerPassword: string, ownerUsername: string, readonlyPassword: string, readonlyUsername: string;
+    let host: string, ownerUsername: string, readonlyUsername: string;
     valuesArgument += helpers.populateHelmArguments({
       // Disable default database deployment
       'stackgres.enabled': false,
@@ -474,35 +492,69 @@ export class MirrorNodeCommand extends BaseCommand {
 
     if (config.useExternalDatabase) {
       host = config.externalDatabaseHost;
-      ownerPassword = config.externalDatabaseOwnerPassword;
       ownerUsername = config.externalDatabaseOwnerUsername;
       readonlyUsername = config.externalDatabaseReadonlyUsername;
-      readonlyPassword = config.externalDatabaseReadonlyPassword;
 
+      // Pass non-sensitive connection info as Helm values
       valuesArgument += helpers.populateHelmArguments({
-        // Set the host and name
         'db.host': host,
-
-        // set the usernames
         'db.owner.username': ownerUsername,
         'importer.db.username': ownerUsername,
-
         'grpc.db.username': readonlyUsername,
         'restjava.db.username': readonlyUsername,
         'web3.db.username': readonlyUsername,
-
         // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
         // 'rest.db.username': readonlyUsername,
-
-        // set the passwords
-        'db.owner.password': ownerPassword,
-        'importer.db.password': ownerPassword,
-
-        'grpc.db.password': readonlyPassword,
-        'restjava.db.password': readonlyPassword,
-        'web3.db.password': readonlyPassword,
-        'rest.db.password': readonlyPassword,
       });
+
+      // Store DB passwords in mirror-passwords-solo (Solo-managed secret) so they
+      // are never stored in Helm release history.  Each mirror component is wired
+      // to read from this secret via extraEnvVarsSecret below.
+      const ownerPassword: string = config.externalDatabaseOwnerPassword;
+      const readonlyPassword: string = config.externalDatabaseReadonlyPassword;
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD'] = Base64.encode(ownerPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_PASSWORD'] = Base64.encode(ownerPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_GRPC_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_RESTPASSWORD'] = Base64.encode(readonlyPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_RESTJAVA_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+      mirrorPasswordsSensitiveData['HIERO_MIRROR_WEB3_DB_PASSWORD'] = Base64.encode(readonlyPassword);
+      hasDatabasePasswords = true;
+    }
+
+    // Write all sensitive data into mirror-passwords-solo (Solo-managed secret).
+    // This is a separate secret from the chart's mirror-passwords to avoid Helm
+    // ownership conflicts.  We read-merge-write to preserve any existing keys.
+    if (Object.keys(mirrorPasswordsSensitiveData).length > 0) {
+      let existingSecretData: Record<string, string> = {};
+      try {
+        const existingSecret: Secret = await this.k8Factory
+          .getK8(config.clusterContext)
+          .secrets()
+          .read(config.namespace, 'mirror-passwords-solo');
+        existingSecretData = existingSecret?.data ?? {};
+      } catch {
+        // Secret does not exist yet; will be created on first install
+      }
+      await this.k8Factory
+        .getK8(config.clusterContext)
+        .secrets()
+        .createOrReplace(config.namespace, 'mirror-passwords-solo', SecretType.OPAQUE, {
+          ...existingSecretData,
+          ...mirrorPasswordsSensitiveData,
+        });
+
+      // Wire each affected component to load its env vars from mirror-passwords-solo
+      // so the credentials injected above take effect at runtime.
+      // importer is always wired when any sensitive data exists (storage or db passwords).
+      const extraEnvironmentArguments: Record<string, string> = {
+        'importer.extraEnvVarsSecret': 'mirror-passwords-solo',
+      };
+      if (hasDatabasePasswords) {
+        extraEnvironmentArguments['grpc.extraEnvVarsSecret'] = 'mirror-passwords-solo';
+        extraEnvironmentArguments['restjava.extraEnvVarsSecret'] = 'mirror-passwords-solo';
+        extraEnvironmentArguments['web3.extraEnvVarsSecret'] = 'mirror-passwords-solo';
+      }
+      valuesArgument += helpers.populateHelmArguments(extraEnvironmentArguments);
     }
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
@@ -697,9 +749,16 @@ export class MirrorNodeCommand extends BaseCommand {
                 (secret: Secret): boolean => secret.name === 'solo-shared-resources-redis',
               );
 
-              // Update values
+              // Point the mirror chart at the pre-existing redis secret instead of
+              // passing the password as a Helm value (which would expose it via
+              // `helm get values`).  Only non-sensitive host/port are set inline.
+              // Mirror chart components read Redis credentials from the
+              // `<release>-redis` secret. Keep that password aligned with shared
+              // Redis so readiness checks don't fail with WRONGPASS.
               context_.config.valuesArg += helpers.populateHelmArguments({
                 'redis.enabled': false,
+                'redis.existingSecret': 'solo-shared-resources-redis',
+                'redis.existingSecretPasswordKey': 'SPRING_DATA_REDIS_PASSWORD',
                 'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
                 'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
                 'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
@@ -1201,33 +1260,17 @@ END $grant$;`;
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              if (config.operatorKey) {
-                this.logger.info('Using provided operator key');
-                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
-              } else {
-                try {
-                  const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-                    this.localConfig,
-                    this.configManager,
-                    task,
-                  );
-
-                  const secrets: Secret[] = await this.k8Factory
-                    .getK8(config.clusterContext)
-                    .secrets()
-                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                  if (secrets.length === 0) {
-                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
-                  } else {
-                    this.logger.info('Using operator key from k8s secret');
-                    const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
-                  }
-                } catch (error) {
-                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
-                }
-              }
+              const resolvedNamespace: NamespaceName = await resolveNamespaceFromDeployment(
+                this.localConfig,
+                this.configManager,
+                task,
+              );
+              config.valuesArg += await this.prepareMonitorOperatorKeyValues(
+                operatorId,
+                config.operatorKey,
+                config.clusterContext,
+                resolvedNamespace,
+              );
             } else {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
@@ -1411,33 +1454,17 @@ END $grant$;`;
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              if (config.operatorKey) {
-                this.logger.info('Using provided operator key');
-                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
-              } else {
-                try {
-                  const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-                    this.localConfig,
-                    this.configManager,
-                    task,
-                  );
-
-                  const secrets: Secret[] = await this.k8Factory
-                    .getK8(config.clusterContext)
-                    .secrets()
-                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                  if (secrets.length === 0) {
-                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
-                  } else {
-                    this.logger.info('Using operator key from k8s secret');
-                    const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
-                  }
-                } catch (error) {
-                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
-                }
-              }
+              const resolvedNamespace: NamespaceName = await resolveNamespaceFromDeployment(
+                this.localConfig,
+                this.configManager,
+                task,
+              );
+              config.valuesArg += await this.prepareMonitorOperatorKeyValues(
+                operatorId,
+                config.operatorKey,
+                config.clusterContext,
+                resolvedNamespace,
+              );
             } else {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
@@ -1558,6 +1585,68 @@ END $grant$;`;
         `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
       );
     }
+  }
+
+  /**
+   * Resolve the operator private key for the monitor pinger and store it in the
+   * mirror-passwords-solo k8s Secret (Solo-managed) under HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY.
+   * Returns Helm values arguments that wire monitor.envFrom to that secret so
+   * the key is never stored in Helm release history.
+   */
+  private async prepareMonitorOperatorKeyValues(
+    operatorId: string,
+    operatorKey: string | undefined,
+    clusterContext: string,
+    namespace: NamespaceName,
+  ): Promise<string> {
+    let resolvedKey: string;
+
+    if (operatorKey) {
+      this.logger.info('Using provided operator key for monitor pinger');
+      resolvedKey = operatorKey;
+    } else {
+      try {
+        const secrets: Secret[] = await this.k8Factory
+          .getK8(clusterContext)
+          .secrets()
+          .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+        if (secrets.length === 0) {
+          this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+          resolvedKey = constants.OPERATOR_KEY;
+        } else {
+          this.logger.info('Using operator key from k8s secret');
+          resolvedKey = Base64.decode(secrets[0].data.privateKey);
+        }
+      } catch (error) {
+        throw new SoloError(`Error getting operator key: ${error.message}`, error);
+      }
+    }
+
+    // Merge the key into mirror-passwords-solo (Solo-managed secret) without
+    // overwriting existing keys.  We use a separate secret from the chart's
+    // mirror-passwords to avoid Helm ownership conflicts.
+    let existingData: Record<string, string> = {};
+    try {
+      const existingSecret: Secret = await this.k8Factory
+        .getK8(clusterContext)
+        .secrets()
+        .read(namespace, 'mirror-passwords-solo');
+      existingData = existingSecret?.data ?? {};
+    } catch {
+      // Secret does not exist yet
+    }
+    await this.k8Factory
+      .getK8(clusterContext)
+      .secrets()
+      .createOrReplace(namespace, 'mirror-passwords-solo', SecretType.OPAQUE, {
+        ...existingData,
+        HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY: Base64.encode(resolvedKey),
+      });
+
+    // Tell the monitor to load its env vars from mirror-passwords-solo.
+    // Spring Boot maps HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY →
+    // hiero.mirror.monitor.operator.privateKey at runtime.
+    return " --set 'monitor.envFrom[0].secretRef.name=mirror-passwords-solo'";
   }
 
   private getEnvironmentVariablePrefix(version: string): string {

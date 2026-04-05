@@ -39,6 +39,8 @@ import {Deployment} from '../../business/runtime-state/config/local/deployment.j
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
+import {getSoloVersion} from '../../../version.js';
+import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -68,7 +70,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
 
-  private resolveOutputDirectory(argv: ArgvStruct, fallback = ''): string {
+  private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
   }
@@ -651,12 +653,21 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
         this.tasks.getHelmChartValues(),
+        this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
       null,
+    );
+
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠  Warning: Collected diagnostic data may contain sensitive node configuration\n' +
+          '   (TLS certificates, onboard data). Store it securely and do not share publicly\n' +
+          '   without reviewing the contents first. Private keys under data/keys are NOT included.',
+      ),
     );
 
     return true;
@@ -722,15 +733,17 @@ export class NodeCommandHandlers extends CommandHandler {
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
   }
 
-  public async all(argv: ArgvStruct): Promise<boolean> {
+  public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    await this.resolveDeploymentForLogs(argv);
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeLogsAndConfigs(),
+        this.tasks.getNodeLogsAndConfigs(excludeSensitiveData),
         this.tasks.getHelmChartValues(),
+        this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.getNodeStateFiles(),
@@ -744,9 +757,9 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async debug(argv: ArgvStruct): Promise<boolean> {
+  public async debug(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     // First run all diagnostics
-    await this.all(argv);
+    await this.all(argv, excludeSensitiveData);
 
     // Then create a zip file from the logs directory
     const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
@@ -794,6 +807,32 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.fetchAccountFromExplorer(),
       this.tasks.testRelay(),
     ];
+  }
+
+  /**
+   * Collects a full debug archive for the deployment (logs + configs + zip) and
+   * then creates a GitHub issue using the `gh` CLI with the archive pre-attached.
+   *
+   * Steps:
+   *  1. Collect logs and create a zip via `deployment diagnostics debug`
+   *  2. Verify the `gh` CLI is installed
+   *  3. Prompt the user to confirm issue creation (skipped in quiet mode)
+   *  4. Create a GitHub issue with a pre-filled title and body referencing the zip
+   */
+  public async report(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
+    await DiagnosticsReporter.runDiagnosticsReport({
+      logger: this.logger,
+      deployment: this.resolveDeploymentFlag(argv),
+      outputDirectory: this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR),
+      soloVersion: getSoloVersion(),
+      isQuiet: (argv[flags.quiet.name] as boolean) === true,
+      collectDebug: async (): Promise<void> => {
+        await this.debug(argv, true);
+      },
+    });
+
+    return true;
   }
 
   public async states(argv: ArgvStruct): Promise<boolean> {

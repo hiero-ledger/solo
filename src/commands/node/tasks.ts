@@ -177,6 +177,7 @@ import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.j
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
+import {RemoteConfigCollector} from '../util/remote-config-collector.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2204,13 +2205,15 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeLogsAndConfigs(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
-  > {
+  public getNodeLogsAndConfigs(
+    excludeSensitiveData?: boolean,
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
+        await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getLogs(namespace, contexts, undefined, excludeSensitiveData);
       },
     };
   }
@@ -2442,7 +2445,11 @@ export class NodeCommandTasks {
               try {
                 this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
 
-                const getAllCommand: string = `helm get all ${release.name} -n ${release.namespace} --kube-context ${context}`;
+                // Use "helm get values --all" (user-supplied + chart defaults only).
+                // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
+                // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
+                // and pod specs that may embed plaintext passwords from chart values.
+                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
                 const output: string = execSync(getAllCommand, {
                   encoding: 'utf8',
                   cwd: process.cwd(),
@@ -4079,6 +4086,18 @@ export class NodeCommandTasks {
         }
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
+      },
+    };
+  }
+
+  public getRemoteConfig(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Get solo-remote-config ConfigMaps from all clusters',
+      task: async (): Promise<void> => {
+        const outputDirectory: string = await new RemoteConfigCollector(this.k8Factory, this.logger).collect(
+          customOutputDirectory,
+        );
+        this.logger.showUser(`Remote config saved to ${outputDirectory}`);
       },
     };
   }
