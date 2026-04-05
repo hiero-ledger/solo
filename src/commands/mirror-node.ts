@@ -752,10 +752,14 @@ export class MirrorNodeCommand extends BaseCommand {
               // Point the mirror chart at the pre-existing redis secret instead of
               // passing the password as a Helm value (which would expose it via
               // `helm get values`).  Only non-sensitive host/port are set inline.
+              // Mirror chart components read Redis credentials from the
+              // `<release>-redis` secret. Keep that password aligned with shared
+              // Redis so readiness checks don't fail with WRONGPASS.
               context_.config.valuesArg += helpers.populateHelmArguments({
                 'redis.enabled': false,
                 'redis.existingSecret': 'solo-shared-resources-redis',
                 'redis.existingSecretPasswordKey': 'SPRING_DATA_REDIS_PASSWORD',
+                'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
                 'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
                 'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
               });

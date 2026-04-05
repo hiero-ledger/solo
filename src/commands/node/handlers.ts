@@ -34,7 +34,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {type Zippy} from '../../core/zippy.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {Flags as flags} from '../flags.js';
-import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
+import {select as selectPrompt} from '@inquirer/prompts';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
@@ -821,68 +821,16 @@ export class NodeCommandHandlers extends CommandHandler {
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
-
-    this.logger.showUser(chalk.cyan('\nCollecting diagnostic information...'));
-
-    // Determine the zip search directory before debug() runs so the timestamp
-    // boundary is correct even if outputDir resolves later.
-    const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
-    const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
-    const startTime: number = Date.now();
-
-    await this.debug(argv, true);
-
-    if (!(await DiagnosticsReporter.isGhCliAvailable(this.logger))) {
-      throw new SoloError(
-        'The GitHub CLI (gh) is required for this command but was not found.\n' +
-          'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
-          `Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`,
-      );
-    }
-
-    const deployment: string = this.resolveDeploymentFlag(argv);
-    const zipFilePath: string | undefined = DiagnosticsReporter.findLatestDebugZip(
-      zipSearchDirectory,
-      deployment,
-      startTime,
-    );
-    const soloVersion: string = getSoloVersion();
-    const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
-    const issueTitle: string = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
-    const issueBody: string = DiagnosticsReporter.buildIssueBody({soloVersion, deployment, timestamp, zipFilePath});
-
-    const isQuiet: boolean = (argv[flags.quiet.name] as boolean) === true;
-    if (!isQuiet) {
-      this.logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
-      this.logger.showUser(chalk.cyan(`  Issue title: ${issueTitle}`));
-      if (zipFilePath) {
-        this.logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
-      }
-      this.logger.showUser(
-        chalk.yellow(
-          '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
-            '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
-            '   Private keys under data/keys are NOT included.',
-        ),
-      );
-
-      const confirmed: boolean = await confirmPrompt({
-        message: 'Create a GitHub issue with the diagnostic information?',
-        default: true,
-      });
-
-      if (!confirmed) {
-        this.logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
-        this.logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`));
-        if (zipFilePath) {
-          this.logger.showUser(chalk.cyan(`Debug archive: ${zipFilePath}`));
-        }
-        return true;
-      }
-    }
-
-    this.logger.showUser(chalk.cyan('\nCreating GitHub issue...'));
-    await DiagnosticsReporter.createGitHubIssue(this.logger, issueTitle, issueBody, zipFilePath);
+    await DiagnosticsReporter.runDiagnosticsReport({
+      logger: this.logger,
+      deployment: this.resolveDeploymentFlag(argv),
+      outputDirectory: this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR),
+      soloVersion: getSoloVersion(),
+      isQuiet: (argv[flags.quiet.name] as boolean) === true,
+      collectDebug: async (): Promise<void> => {
+        await this.debug(argv, true);
+      },
+    });
 
     return true;
   }

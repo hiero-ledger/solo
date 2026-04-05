@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import fs from 'node:fs';
 import os from 'node:os';
 import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -19,11 +20,84 @@ export type DiagnosticsIssueBodyOptions = {
   zipFilePath?: string;
 };
 
+export type DiagnosticsReportRunOptions = {
+  logger: SoloLogger;
+  deployment: string;
+  outputDirectory: string;
+  soloVersion: string;
+  isQuiet: boolean;
+  collectDebug: () => Promise<void>;
+};
+
 /**
  * Utility class for the `deployment diagnostics report` command.
  * Handles gh CLI availability checks, issue body assembly, and issue creation.
  */
 export class DiagnosticsReporter {
+  /**
+   * Orchestrates `deployment diagnostics report` flow:
+   * 1) collect debug archive, 2) build issue payload, 3) optionally prompt, 4) create GitHub issue.
+   */
+  public static async runDiagnosticsReport(options: DiagnosticsReportRunOptions): Promise<void> {
+    const {logger, deployment, outputDirectory, soloVersion, isQuiet, collectDebug} = options;
+
+    logger.showUser(chalk.cyan('\nCollecting diagnostic information...'));
+
+    const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
+    const startTime: number = Date.now();
+
+    await collectDebug();
+
+    if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
+      throw new SoloError(
+        'The GitHub CLI (gh) is required for this command but was not found.\n' +
+          'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
+          `Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`,
+      );
+    }
+
+    const zipFilePath: string | undefined = DiagnosticsReporter.findLatestDebugZip(
+      zipSearchDirectory,
+      deployment,
+      startTime,
+    );
+    const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+    const issueTitle: string = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
+    const issueBody: string = DiagnosticsReporter.buildIssueBody({soloVersion, deployment, timestamp, zipFilePath});
+
+    if (!isQuiet) {
+      logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
+      logger.showUser(chalk.cyan(`  Issue title: ${issueTitle}`));
+      if (zipFilePath) {
+        logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
+      }
+      logger.showUser(
+        chalk.yellow(
+          '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
+            '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
+            '   Private keys under data/keys are NOT included.',
+        ),
+      );
+
+      const confirmed: boolean = await confirmPrompt({
+        message: 'Create a GitHub issue with the diagnostic information?',
+        default: true,
+      });
+
+      if (!confirmed) {
+        logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
+        logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`));
+        if (zipFilePath) {
+          logger.showUser(chalk.cyan(`Debug archive: ${zipFilePath}`));
+        }
+        return;
+      }
+    }
+
+    logger.showUser(chalk.cyan('\nCreating GitHub issue...'));
+    await DiagnosticsReporter.createGitHubIssue(logger, issueTitle, issueBody, zipFilePath);
+  }
+
   /**
    * Checks whether the GitHub CLI (`gh`) is available on the system PATH.
    * @returns true if `gh` is installed and reachable, false otherwise
