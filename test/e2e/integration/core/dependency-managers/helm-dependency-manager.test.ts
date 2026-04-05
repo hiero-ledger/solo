@@ -101,7 +101,7 @@ describe('HelmDependencyManager', (): void => {
       [OperatingSystem.OS_WIN32, 'amd64'],
     ]).it(
       'should be able to install helm base on %s and %s',
-      async (osPlatform: any, osArch: string): Promise<void> => {
+      async (osPlatform: string, osArch: string): Promise<void> => {
         container.register(InjectTokens.OsPlatform, {useValue: osPlatform});
         container.register(InjectTokens.HelmInstallationDirectory, {useValue: installationDirectory});
 
@@ -162,7 +162,9 @@ describe('HelmDependencyManager', (): void => {
       const originalPath: string = process.env.PATH ?? '';
       process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
       sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
-        if (String(filePath) === fakeGlobalHelmPath) return;
+        if (String(filePath) === fakeGlobalHelmPath) {
+          return;
+        }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v4.1.3+gc94d381']);
@@ -188,7 +190,9 @@ describe('HelmDependencyManager', (): void => {
       const originalPath: string = process.env.PATH ?? '';
       process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
       sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
-        if (String(filePath) === fakeGlobalHelmPath) return;
+        if (String(filePath) === fakeGlobalHelmPath) {
+          return;
+        }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v0.1.0+gabcdef']);

@@ -116,7 +116,9 @@ describe('KubectlDependencyManager', (): void => {
       const originalPath: string = process.env.PATH ?? '';
       process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
       sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
-        if (String(filePath) === fakeGlobalKubectlPath) return;
+        if (String(filePath) === fakeGlobalKubectlPath) {
+          return;
+        }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub.withArgs(`"${fakeGlobalKubectlPath}" version --client`).resolves(mockVersionOutputValid.split('\n'));

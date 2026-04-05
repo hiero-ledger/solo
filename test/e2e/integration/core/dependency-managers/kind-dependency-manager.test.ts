@@ -17,7 +17,6 @@ import {container} from 'tsyringe-neo';
 import {platform} from 'node:process';
 import * as constants from '../../../../../src/core/constants.js';
 
-
 describe('KindDependencyManager', (): void => {
   const installationDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
   const originalPlatform: NodeJS.Platform = platform;
@@ -96,7 +95,9 @@ describe('KindDependencyManager', (): void => {
       const originalPath: string = process.env.PATH ?? '';
       process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
       sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
-        if (String(filePath) === fakeGlobalKindPath) return;
+        if (String(filePath) === fakeGlobalKindPath) {
+          return;
+        }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub = sandbox.stub(kindDependencyManager, 'run');

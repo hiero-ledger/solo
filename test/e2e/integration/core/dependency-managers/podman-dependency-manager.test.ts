@@ -393,7 +393,9 @@ describe('PodmanDependencyManager', (): void => {
       const originalPath: string = process.env.PATH ?? '';
       process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
       sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
-        if (String(filePath) === fakeGlobalPodmanPath) return;
+        if (String(filePath) === fakeGlobalPodmanPath) {
+          return;
+        }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub.withArgs(`"${fakeGlobalPodmanPath}" --version`).resolves([`podman version ${version.PODMAN_VERSION}`]);
@@ -419,7 +421,9 @@ describe('PodmanDependencyManager', (): void => {
       const originalPath: string = process.env.PATH ?? '';
       process.env.PATH = `${fakeGlobalBinDirectory}${path.delimiter}${originalPath}`;
       sandbox.stub(fs, 'accessSync').callsFake((filePath: Parameters<typeof fs.accessSync>[0]): void => {
-        if (String(filePath) === fakeGlobalPodmanPath) return;
+        if (String(filePath) === fakeGlobalPodmanPath) {
+          return;
+        }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub.withArgs(`"${fakeGlobalPodmanPath}" --version`).resolves([`podman version ${PODMAN_LOW_VERSION}`]);
