@@ -101,23 +101,40 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
-   * Find the global executable using 'which' or 'where' command
+   * Find the global executable by scanning PATH directories directly in Node.js.
+   * This avoids spawning a shell subprocess (which, command -v, where) whose
+   * behaviour varies across shells and CI runner environments.
    */
-  private async getGlobalExecutableWithPath(): Promise<false | string> {
-    try {
-      if (this.globalExecutablePath) {
-        return this.globalExecutablePath;
-      }
-      const cmd: string = OperatingSystem.isWin32() ? 'where' : 'which';
-      const path: string[] = await this.run(`${cmd} ${this.executableName}`);
-      if (path.length === 0) {
-        return false;
-      }
-      this.globalExecutablePath = path[0];
-      return path[0];
-    } catch {
-      return false;
+  private getGlobalExecutableWithPath(): false | string {
+    if (this.globalExecutablePath) {
+      return this.globalExecutablePath;
     }
+
+    const executableNames: string[] = OperatingSystem.isWin32()
+      ? [`${this.executableName}.exe`, `${this.executableName}.cmd`, this.executableName]
+      : [this.executableName];
+
+    const pathDirectories: string[] = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+    this.logger.debug(`Searching PATH for ${this.executableName}: [${pathDirectories.join(', ')}]`);
+
+    for (const directory of pathDirectories) {
+      for (const name of executableNames) {
+        const candidate: string = path.join(directory, name);
+        try {
+          // On Windows X_OK is not supported and silently degrades to F_OK;
+          // executability is determined by file extension (.exe/.cmd) already.
+          fs.accessSync(candidate, OperatingSystem.isWin32() ? fs.constants.F_OK : fs.constants.X_OK);
+          this.logger.debug(`Found ${this.executableName} at ${candidate}`);
+          this.globalExecutablePath = candidate;
+          return candidate;
+        } catch {
+          // not found or not executable in this directory — continue
+        }
+      }
+    }
+
+    this.logger.warn(`${this.executableName} was not found in PATH`);
+    return false;
   }
 
   /**
@@ -146,10 +163,12 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the tool is installed globally and meets requirements
    */
   private async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
-    const path: false | string = await this.getGlobalExecutableWithPath();
+    const path: false | string = this.getGlobalExecutableWithPath();
     try {
       if (path && (await this.installationMeetsRequirements(path))) {
         return true;
+      } else {
+        this.logger.info(`${this.executableName}${path ? ` at ${path}` : ''} is not a compatible global installation`);
       }
     } catch (error) {
       this.logger.debug(
@@ -163,9 +182,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   private async isInstalledLocallyAndMeetsRequirements(): Promise<boolean> {
     try {
-      if (this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutableWithPath))) {
+      if (!this.isInstalledLocally()) {
+        this.logger.info(`${this.executableName} is not installed locally at ${this.localExecutableWithPath}`);
+        return false;
+      }
+      if (await this.installationMeetsRequirements(this.localExecutableWithPath)) {
         return true;
       }
+      this.logger.info(
+        `${this.executableName} at ${this.localExecutableWithPath} is installed locally but does not meet version requirements`,
+      );
     } catch (error) {
       this.logger.debug(
         `Local installation of ${this.executableName} does not meet version requirements: ${error instanceof Error ? error.message : error}`,
@@ -227,15 +253,21 @@ export abstract class BaseDependencyManager extends ShellRunner {
 
     // Check if it is already installed locally
     if (await this.isInstalledLocallyAndMeetsRequirements()) {
-      this.logger.debug(
-        `${this.executableName} is installed at ${this.installationDirectory} and meets version requirements.`,
+      const localVersion: string = await this.getVersion(this.localExecutableWithPath).catch((): string =>
+        this.getRequiredVersion(),
+      );
+      this.logger.showUser(
+        `Compatible ${this.executableName} v${localVersion} found at ${this.localExecutableWithPath}`,
       );
       return true;
     }
 
     // If it is installed globally and meets requirements, use the global installation
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
-      this.logger.debug(`${this.executableName} is installed at globally and meets version requirements.`);
+      const globalVersion: string = await this.getVersion(this.globalExecutablePath).catch((): string =>
+        this.getRequiredVersion(),
+      );
+      this.logger.showUser(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
       return true;
     }
 
