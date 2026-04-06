@@ -23,7 +23,7 @@ export const S6_NODE_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.44.0-alpha.1';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.151.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.0.0';
-export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.75.0';
+export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.76.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.28.1';
@@ -42,6 +42,23 @@ export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
 export const REDIS_IMAGE_VERSION: string = constants.getEnvironmentVariable('REDIS_IMAGE_VERSION') || '8.2.2';
 export const REDIS_SENTINEL_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
+
+// -------------------------------------------------------------------- //
+// Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
+export const SOLO_CHART_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
+export const HEDERA_PLATFORM_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || HEDERA_PLATFORM_VERSION;
+export const MIRROR_NODE_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
+export const EXPLORER_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
+export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || HEDERA_JSON_RPC_RELAY_VERSION;
+export const BLOCK_NODE_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || BLOCK_NODE_VERSION;
+
+// -------------------------------------------------------------------- //
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemanticVersion<string> =
