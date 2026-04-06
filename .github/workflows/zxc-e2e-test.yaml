@@ -251,27 +251,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
-      - name: Check Consensus Version and Skip if Needed
-        id: check_version
-        run: |
-          CONSENSUS_VERSION="${{ inputs.consensus-node-version }}"
-          TEST_SCRIPT="${{ inputs.test-script }}"
-
-          # If no version provided, read from version.ts
-          if [ -z "$CONSENSUS_VERSION" ]; then
-            CONSENSUS_VERSION=$(grep "export const HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)'.*/\1/")
-          fi
-
-          echo "Consensus Version: $CONSENSUS_VERSION"
-          echo "Test Script: $TEST_SCRIPT"
-
-          # Check if version > v0.72.0 AND test-script == test-e2e-dual-cluster-full
-          if [ "$CONSENSUS_VERSION" \> "v0.72.0" ] && [ "$TEST_SCRIPT" = "test-e2e-dual-cluster-full" ]; then
-            echo "Skipping workflow - consensus version ($CONSENSUS_VERSION) > v0.72.0 and test is dual-cluster-full"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
@@ -457,11 +436,35 @@ jobs:
 
       - name: Run E2E Tests
         id: run-e2e-tests
-        if: ${{ steps.check_version.outputs.skip != 'true' && inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
+
+          # Skip test-e2e-dual-cluster-full if consensus version >= v0.72.0
+          if [ "${{ inputs.test-script }}" = "test-e2e-dual-cluster-full" ]; then
+            CONSENSUS_VERSION="${{ inputs.consensus-node-version }}"
+            if [ -z "$CONSENSUS_VERSION" ]; then
+              CONSENSUS_VERSION=$(grep "export const HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)'.*/\1/")
+            fi
+            version_gte() {
+              local IFS=.
+              local v1=($1) v2=($2)
+              for i in 0 1 2; do
+                local a=${v1[$i]:-0} b=${v2[$i]:-0}
+                (( 10#$a > 10#$b )) && return 0
+                (( 10#$a < 10#$b )) && return 1
+              done
+              return 0
+            }
+            CV="${CONSENSUS_VERSION#v}"
+            if version_gte "$CV" "0.72.0"; then
+              echo "Skipping test-e2e-dual-cluster-full: consensus version ${CONSENSUS_VERSION} >= v0.72.0"
+              exit 0
+            fi
+          fi
+
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -686,11 +689,6 @@ jobs:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
 
-      - name: Mark Skipped Workflow as Successful
-        if: ${{ steps.check_version.outputs.skip == 'true' }}
-        run: |
-          echo "Workflow skipped due to consensus version >= v0.72.0"
-          echo "This is expected behavior - marking as successful"
 
       - name: Cleanup Kind Clusters
         if: ${{ always() }}
