@@ -423,12 +423,6 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
     }
 
-    // Sensitive data to write into mirror-passwords-solo (a Solo-managed k8s Secret)
-    // rather than passing as Helm values (which would appear in `helm get values` output).
-    // We use a separate secret from the chart's mirror-passwords to avoid Helm ownership
-    // conflicts: the chart owns mirror-passwords, Solo owns mirror-passwords-solo.
-    // All entries are accumulated here and written in a single merged operation.
-    const mirrorPasswordsSensitiveData: Record<string, string> = {};
     let storageType: string = '';
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
@@ -447,22 +441,14 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
 
-      // Pass non-sensitive storage config as Helm values
-      valuesArgument += helpers.populateHelmArguments({
+      const mapping: Record<string, string | boolean | number> = {
         [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER`]: storageType,
         [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE`]:
           config.storageEndpoint,
-      });
-
-      // Store credentials in mirror-passwords-solo (Solo-managed secret) so they
-      // are never stored in Helm release history.  The importer is wired to read
-      // from this secret via extraEnvVarsSecret below.
-      const accessKeyEncoded: string = Base64.encode(config.storageReadAccessKey);
-      const secretKeyEncoded: string = Base64.encode(config.storageReadSecrets);
-      mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] =
-        accessKeyEncoded;
-      mirrorPasswordsSensitiveData[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`] =
-        secretKeyEncoded;
+        [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`]: config.storageReadAccessKey,
+        [`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`]: config.storageReadSecrets,
+      };
+      valuesArgument += helpers.populateHelmArguments(mapping);
     }
 
     if (config.storageBucketRegion) {
@@ -478,7 +464,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
-    let host: string, ownerUsername: string;
+    let host: string, ownerPassword: string, ownerUsername: string, readonlyPassword: string, readonlyUsername: string;
     valuesArgument += helpers.populateHelmArguments({
       // Disable default database deployment
       'stackgres.enabled': false,
@@ -488,52 +474,35 @@ export class MirrorNodeCommand extends BaseCommand {
 
     if (config.useExternalDatabase) {
       host = config.externalDatabaseHost;
+      ownerPassword = config.externalDatabaseOwnerPassword;
       ownerUsername = config.externalDatabaseOwnerUsername;
+      readonlyUsername = config.externalDatabaseReadonlyUsername;
+      readonlyPassword = config.externalDatabaseReadonlyPassword;
 
-      // Pass non-sensitive connection info as Helm values
       valuesArgument += helpers.populateHelmArguments({
+        // Set the host and name
         'db.host': host,
+
+        // set the usernames
         'db.owner.username': ownerUsername,
         'importer.db.username': ownerUsername,
+
+        'grpc.db.username': readonlyUsername,
+        'restjava.db.username': readonlyUsername,
+        'web3.db.username': readonlyUsername,
+
+        // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
+        // 'rest.db.username': readonlyUsername,
+
+        // set the passwords
+        'db.owner.password': ownerPassword,
+        'importer.db.password': ownerPassword,
+
+        'grpc.db.password': readonlyPassword,
+        'restjava.db.password': readonlyPassword,
+        'web3.db.password': readonlyPassword,
+        'rest.db.password': readonlyPassword,
       });
-
-      // Keep read-only component usernames at chart defaults.
-      // Mirror bootstrap scripts create separate users for grpc/restjava/web3; if all
-      // are forced to the same readonly username, startup can fail with duplicate role
-      // creation when the DB init path creates each component user independently.
-      // DB passwords are patched into chart-owned `mirror-passwords` after Helm
-      // deploy so the chart-managed env mappings stay as source-of-truth.
-    }
-
-    // Write all sensitive data into mirror-passwords-solo (Solo-managed secret).
-    // This is a separate secret from the chart's mirror-passwords to avoid Helm
-    // ownership conflicts.  We read-merge-write to preserve any existing keys.
-    if (Object.keys(mirrorPasswordsSensitiveData).length > 0) {
-      let existingSecretData: Record<string, string> = {};
-      try {
-        const existingSecret: Secret = await this.k8Factory
-          .getK8(config.clusterContext)
-          .secrets()
-          .read(config.namespace, 'mirror-passwords-solo');
-        existingSecretData = existingSecret?.data ?? {};
-      } catch {
-        // Secret does not exist yet; will be created on first install
-      }
-      await this.k8Factory
-        .getK8(config.clusterContext)
-        .secrets()
-        .createOrReplace(config.namespace, 'mirror-passwords-solo', SecretType.OPAQUE, {
-          ...existingSecretData,
-          ...mirrorPasswordsSensitiveData,
-        });
-
-      // Wire each affected component to load its env vars from mirror-passwords-solo
-      // so the credentials injected above take effect at runtime.
-      // importer is always wired when any sensitive data exists (storage or db passwords).
-      const extraEnvironmentArguments: Record<string, string> = {
-        'importer.extraEnvVarsSecret': 'mirror-passwords-solo',
-      };
-      valuesArgument += helpers.populateHelmArguments(extraEnvironmentArguments);
     }
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
@@ -596,7 +565,6 @@ export class MirrorNodeCommand extends BaseCommand {
       config.clusterContext,
       shouldReuseValues,
     );
-    await this.syncExternalDatabasePasswordsAndRestartPods(config, commandType === MirrorNodeCommandType.UPGRADE);
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
@@ -659,70 +627,6 @@ export class MirrorNodeCommand extends BaseCommand {
           constants.MIRROR_INGRESS_CLASS_NAME,
           constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
         );
-    }
-  }
-
-  /**
-   * External DB deployments still source DB credentials from chart-managed
-   * `mirror-passwords`. Update those keys after Helm deploy and restart affected
-   * API pods so they pick up the new secret values.
-   */
-  private async syncExternalDatabasePasswordsAndRestartPods(
-    config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
-    shouldRestartPods: boolean,
-  ): Promise<void> {
-    if (!config.useExternalDatabase) {
-      return;
-    }
-
-    if (!config.externalDatabaseOwnerPassword || !config.externalDatabaseReadonlyPassword) {
-      throw new SoloError('External database owner/readonly credentials were not provided for mirror secret sync');
-    }
-
-    const prefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
-    const ownerPasswordEncoded: string = Base64.encode(config.externalDatabaseOwnerPassword);
-    const readonlyPasswordEncoded: string = Base64.encode(config.externalDatabaseReadonlyPassword);
-    const secretDataOverrides: Record<string, string> = {
-      [`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`]: ownerPasswordEncoded,
-      [`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`]: ownerPasswordEncoded,
-      [`${prefix}_MIRROR_GRPC_DB_PASSWORD`]: readonlyPasswordEncoded,
-      [`${prefix}_MIRROR_RESTJAVA_DB_PASSWORD`]: readonlyPasswordEncoded,
-      [`${prefix}_MIRROR_WEB3_DB_PASSWORD`]: readonlyPasswordEncoded,
-    };
-
-    const k8Client = this.k8Factory.getK8(config.clusterContext);
-    const mirrorPasswordsSecret: Secret = await k8Client.secrets().read(config.namespace, 'mirror-passwords');
-    await k8Client.secrets().replace(config.namespace, 'mirror-passwords', SecretType.OPAQUE, {
-      ...mirrorPasswordsSecret.data,
-      ...secretDataOverrides,
-    });
-
-    if (!shouldRestartPods) {
-      // For first-time deploys, restarting importer immediately can interrupt Flyway
-      // migrations and leave external DB state half-initialized (e.g. role created
-      // but migration rolled back), causing subsequent startup failures.
-      return;
-    }
-
-    const affectedComponents: Set<string> = new Set(['importer', 'grpc', 'rest', 'restjava', 'web3']);
-    const mirrorPods: Pod[] = await k8Client
-      .pods()
-      .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`]);
-    const podsToRestart: Pod[] = mirrorPods.filter((pod: Pod): boolean => {
-      const componentLabel: string | undefined = pod.labels?.['app.kubernetes.io/component'];
-      if (componentLabel && affectedComponents.has(componentLabel)) {
-        return true;
-      }
-
-      const podName: string = pod.podReference?.name.name ?? '';
-      return [...affectedComponents].some((component: string): boolean => podName.includes(`-${component}`));
-    });
-
-    this.logger.info(
-      `Restarting ${podsToRestart.length} mirror pod(s) after external DB password secret sync for release ${config.releaseName}`,
-    );
-    for (const pod of podsToRestart) {
-      await pod.killPod();
     }
   }
 
@@ -793,16 +697,9 @@ export class MirrorNodeCommand extends BaseCommand {
                 (secret: Secret): boolean => secret.name === 'solo-shared-resources-redis',
               );
 
-              // Point the mirror chart at the pre-existing redis secret instead of
-              // passing the password as a Helm value (which would expose it via
-              // `helm get values`).  Only non-sensitive host/port are set inline.
-              // Mirror chart components read Redis credentials from the
-              // `<release>-redis` secret. Keep that password aligned with shared
-              // Redis so readiness checks don't fail with WRONGPASS.
+              // Update values
               context_.config.valuesArg += helpers.populateHelmArguments({
                 'redis.enabled': false,
-                'redis.existingSecret': 'solo-shared-resources-redis',
-                'redis.existingSecretPasswordKey': 'SPRING_DATA_REDIS_PASSWORD',
                 'redis.auth.password': Base64.decode(secret.data['SPRING_DATA_REDIS_PASSWORD']),
                 'redis.host': Base64.decode(secret.data['SPRING_DATA_REDIS_HOST']),
                 'redis.port': Base64.decode(secret.data['SPRING_DATA_REDIS_PORT']),
@@ -1304,17 +1201,33 @@ END $grant$;`;
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              const resolvedNamespace: NamespaceName = await resolveNamespaceFromDeployment(
-                this.localConfig,
-                this.configManager,
-                task,
-              );
-              config.valuesArg += await this.prepareMonitorOperatorKeyValues(
-                operatorId,
-                config.operatorKey,
-                config.clusterContext,
-                resolvedNamespace,
-              );
+              if (config.operatorKey) {
+                this.logger.info('Using provided operator key');
+                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
+              } else {
+                try {
+                  const namespace: NamespaceName = await resolveNamespaceFromDeployment(
+                    this.localConfig,
+                    this.configManager,
+                    task,
+                  );
+
+                  const secrets: Secret[] = await this.k8Factory
+                    .getK8(config.clusterContext)
+                    .secrets()
+                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+                  if (secrets.length === 0) {
+                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                  } else {
+                    this.logger.info('Using operator key from k8s secret');
+                    const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
+                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
+                  }
+                } catch (error) {
+                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
+                }
+              }
             } else {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
@@ -1498,17 +1411,33 @@ END $grant$;`;
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              const resolvedNamespace: NamespaceName = await resolveNamespaceFromDeployment(
-                this.localConfig,
-                this.configManager,
-                task,
-              );
-              config.valuesArg += await this.prepareMonitorOperatorKeyValues(
-                operatorId,
-                config.operatorKey,
-                config.clusterContext,
-                resolvedNamespace,
-              );
+              if (config.operatorKey) {
+                this.logger.info('Using provided operator key');
+                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
+              } else {
+                try {
+                  const namespace: NamespaceName = await resolveNamespaceFromDeployment(
+                    this.localConfig,
+                    this.configManager,
+                    task,
+                  );
+
+                  const secrets: Secret[] = await this.k8Factory
+                    .getK8(config.clusterContext)
+                    .secrets()
+                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+                  if (secrets.length === 0) {
+                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                  } else {
+                    this.logger.info('Using operator key from k8s secret');
+                    const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
+                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
+                  }
+                } catch (error) {
+                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
+                }
+              }
             } else {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
@@ -1629,68 +1558,6 @@ END $grant$;`;
         `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
       );
     }
-  }
-
-  /**
-   * Resolve the operator private key for the monitor pinger and store it in the
-   * mirror-passwords-solo k8s Secret (Solo-managed) under HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY.
-   * Returns Helm values arguments that wire monitor.envFrom to that secret so
-   * the key is never stored in Helm release history.
-   */
-  private async prepareMonitorOperatorKeyValues(
-    operatorId: string,
-    operatorKey: string | undefined,
-    clusterContext: string,
-    namespace: NamespaceName,
-  ): Promise<string> {
-    let resolvedKey: string;
-
-    if (operatorKey) {
-      this.logger.info('Using provided operator key for monitor pinger');
-      resolvedKey = operatorKey;
-    } else {
-      try {
-        const secrets: Secret[] = await this.k8Factory
-          .getK8(clusterContext)
-          .secrets()
-          .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-        if (secrets.length === 0) {
-          this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-          resolvedKey = constants.OPERATOR_KEY;
-        } else {
-          this.logger.info('Using operator key from k8s secret');
-          resolvedKey = Base64.decode(secrets[0].data.privateKey);
-        }
-      } catch (error) {
-        throw new SoloError(`Error getting operator key: ${error.message}`, error);
-      }
-    }
-
-    // Merge the key into mirror-passwords-solo (Solo-managed secret) without
-    // overwriting existing keys.  We use a separate secret from the chart's
-    // mirror-passwords to avoid Helm ownership conflicts.
-    let existingData: Record<string, string> = {};
-    try {
-      const existingSecret: Secret = await this.k8Factory
-        .getK8(clusterContext)
-        .secrets()
-        .read(namespace, 'mirror-passwords-solo');
-      existingData = existingSecret?.data ?? {};
-    } catch {
-      // Secret does not exist yet
-    }
-    await this.k8Factory
-      .getK8(clusterContext)
-      .secrets()
-      .createOrReplace(namespace, 'mirror-passwords-solo', SecretType.OPAQUE, {
-        ...existingData,
-        HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY: Base64.encode(resolvedKey),
-      });
-
-    // Tell the monitor to load its env vars from mirror-passwords-solo.
-    // Spring Boot maps HIERO_MIRROR_MONITOR_OPERATOR_PRIVATEKEY →
-    // hiero.mirror.monitor.operator.privateKey at runtime.
-    return " --set 'monitor.envFrom[0].secretRef.name=mirror-passwords-solo'";
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
