@@ -742,7 +742,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData),
-        this.tasks.getHelmChartValues(),
+        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues()]),
         this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
