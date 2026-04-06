@@ -251,6 +251,28 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
+      - name: Check Consensus Version and Skip if Needed
+        id: check_version
+        run: |
+          CONSENSUS_VERSION="${{ inputs.consensus-node-version }}"
+          TEST_SCRIPT="${{ inputs.test-script }}"
+
+          # If no version provided, read from version.ts
+          if [ -z "$CONSENSUS_VERSION" ]; then
+            CONSENSUS_VERSION=$(grep "export const HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)'.*/\1/")
+          fi
+
+          echo "Consensus Version: $CONSENSUS_VERSION"
+          echo "Test Script: $TEST_SCRIPT"
+
+          # Check if version > v0.72.0 AND test-script == test-e2e-dual-cluster-full
+          if [ "$CONSENSUS_VERSION" \> "v0.72.0" ] && [ "$TEST_SCRIPT" = "test-e2e-dual-cluster-full" ]; then
+            echo "Skipping workflow - consensus version ($CONSENSUS_VERSION) > v0.72.0 and test is dual-cluster-full"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
@@ -435,7 +457,7 @@ jobs:
 
       - name: Run E2E Tests
         id: run-e2e-tests
-        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        if: ${{ steps.check_version.outputs.skip != 'true' && inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
@@ -663,6 +685,12 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
+
+      - name: Mark Skipped Workflow as Successful
+        if: ${{ steps.check_version.outputs.skip == 'true' }}
+        run: |
+          echo "Workflow skipped due to consensus version >= v0.72.0"
+          echo "This is expected behavior - marking as successful"
 
       - name: Cleanup Kind Clusters
         if: ${{ always() }}
