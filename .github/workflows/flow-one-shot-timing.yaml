@@ -374,6 +374,59 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Format Slack Table
+        id: slack-table
+        if: ${{ !cancelled() }}
+        run: |
+          COLD_MEDIAN="${{ steps.timing-cycles.outputs.cold-median }}"
+          COLD_MIN="${{ steps.timing-cycles.outputs.cold-min }}"
+          COLD_MAX="${{ steps.timing-cycles.outputs.cold-max }}"
+          COLD_SAMPLES="${{ steps.timing-cycles.outputs.cold-samples }}"
+          WARM_MEDIAN="${{ steps.timing-cycles.outputs.warm-median }}"
+          WARM_MIN="${{ steps.timing-cycles.outputs.warm-min }}"
+          WARM_MAX="${{ steps.timing-cycles.outputs.warm-max }}"
+          WARM_SAMPLES="${{ steps.timing-cycles.outputs.warm-samples }}"
+          BASELINE="${{ steps.calibration.outputs.baseline }}"
+          IMPROVEMENT_DIFF="${{ steps.timing-summary.outputs.improvement-diff }}"
+          IMPROVEMENT_DIR="${{ steps.timing-summary.outputs.improvement-direction }}"
+
+          TABLE="\`\`\`"
+          TABLE="${TABLE}"$'\n'"Metric                          | Duration"
+          TABLE="${TABLE}"$'\n'"----------------------------------------------------"
+
+          if [ -n "$BASELINE" ]; then
+            TABLE="${TABLE}"$'\n'"Runner Calibration (tar /usr) | ${BASELINE}s"
+          fi
+
+          if [ -n "$COLD_MEDIAN" ]; then
+            TABLE="${TABLE}"$'\n'"Cold Start (median)           | $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s (${COLD_MEDIAN}s)"
+            TABLE="${TABLE}"$'\n'"Cold Start min                | $(( COLD_MIN / 60 ))m $(( COLD_MIN % 60 ))s (${COLD_MIN}s)"
+            TABLE="${TABLE}"$'\n'"Cold Start max                | $(( COLD_MAX / 60 ))m $(( COLD_MAX % 60 ))s (${COLD_MAX}s)"
+            TABLE="${TABLE}"$'\n'"Cold Start samples            | ${COLD_SAMPLES}"
+          else
+            TABLE="${TABLE}"$'\n'"Cold Start | Failed"
+          fi
+
+          if [ -n "$WARM_MEDIAN" ]; then
+            TABLE="${TABLE}"$'\n'"Warm Start (median)           | $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s (${WARM_MEDIAN}s)"
+            TABLE="${TABLE}"$'\n'"Warm Start min                | $(( WARM_MIN / 60 ))m $(( WARM_MIN % 60 ))s (${WARM_MIN}s)"
+            TABLE="${TABLE}"$'\n'"Warm Start max                | $(( WARM_MAX / 60 ))m $(( WARM_MAX % 60 ))s (${WARM_MAX}s)"
+            TABLE="${TABLE}"$'\n'"Warm Start samples            | ${WARM_SAMPLES}"
+          else
+            TABLE="${TABLE}"$'\n'"Warm Start | Failed or skipped"
+          fi
+
+          if [ -n "$IMPROVEMENT_DIFF" ] && [ -n "$IMPROVEMENT_DIR" ]; then
+            TABLE="${TABLE}"$'\n'"Improvement (median)          | ${IMPROVEMENT_DIFF}s ${IMPROVEMENT_DIR} on warm start"
+          fi
+
+          TABLE="${TABLE}"$'\n'"\`\`\`"
+
+          # Output with proper escaping for multiline
+          echo "table<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$TABLE" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Send Slack Notification
         if: ${{ !cancelled() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
@@ -383,12 +436,8 @@ jobs:
           SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
           SLACK_TITLE: One-Shot Timing Results
           SLACK_MESSAGE: |
-            *Cold Start (median):* ${{ steps.timing-cycles.outputs.cold-median && format('{0}s', steps.timing-cycles.outputs.cold-median) || 'Failed' }}
-            *Cold Start (min / max):* ${{ steps.timing-cycles.outputs.cold-min }}s / ${{ steps.timing-cycles.outputs.cold-max }}s
-            *Warm Start (median):* ${{ steps.timing-cycles.outputs.warm-median && format('{0}s', steps.timing-cycles.outputs.warm-median) || 'Failed' }}
-            *Warm Start (min / max):* ${{ steps.timing-cycles.outputs.warm-min }}s / ${{ steps.timing-cycles.outputs.warm-max }}s
-            *Improvement:* ${{ steps.timing-summary.outputs.improvement-diff && format('{0}s {1}', steps.timing-summary.outputs.improvement-diff, steps.timing-summary.outputs.improvement-direction) || 'N/A' }}
-            *Runner Calibration:* ${{ steps.calibration.outputs.baseline }}s
+            ${{ steps.slack-table.outputs.table }}
+
             *Branch:* `${{ github.ref_name }}`
             *Config:* use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}
 
