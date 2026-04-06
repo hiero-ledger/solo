@@ -21,15 +21,16 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'cache';
-  protected static override readonly DESCRIPTION = '';
+  public static override readonly COMMAND_NAME: string = 'cache';
+  protected static override readonly DESCRIPTION: string = '';
 
-  public static readonly IMAGE_SUBCOMMAND_NAME = 'image';
+  public static readonly IMAGE_SUBCOMMAND_NAME: string = 'image';
 
-  public static readonly IMAGE_PULL = 'pull';
-  public static readonly IMAGE_LIST = 'list';
-  public static readonly IMAGE_CLEAR = 'clear';
-  public static readonly IMAGE_STATUS = 'status';
+  public static readonly IMAGE_PULL: string = 'pull';
+  public static readonly IMAGE_LOAD: string = 'load';
+  public static readonly IMAGE_LIST: string = 'list';
+  public static readonly IMAGE_CLEAR: string = 'clear';
+  public static readonly IMAGE_STATUS: string = 'status';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(CacheCommandDefinition.COMMAND_NAME, CacheCommandDefinition.DESCRIPTION, this.logger)
@@ -42,6 +43,16 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.pull,
               CacheCommand.PULL_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              CacheCommandDefinition.IMAGE_LOAD,
+              '',
+              this.cacheCommand,
+              this.cacheCommand.load,
+              CacheCommand.LOAD_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
             ),
           )

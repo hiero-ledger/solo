@@ -10,22 +10,20 @@ type ImageTargetsFile = {
   images?: Array<{
     name: string;
     source?: string;
+    version: string;
   }>;
 };
 
 /**
  * YAML-backed provider for container image cache targets.
  *
- * This provider is intended to be instantiated directly with the path to a YAML file
- * containing image target definitions, and then supplied anywhere a
- * {@link CacheTargetProvider} is required.
- *
  * Expected YAML shape:
  *
  * ```yaml
  * images:
- *   - name: ghcr.io/my-org/my-service:1.2.3
+ *   - name: ghcr.io/my-org/my-service
  *     source: ghcr.io
+ *     version: 1.2.3
  * ```
  */
 export class YamlImageTargetProvider implements CacheTargetProvider {
@@ -36,11 +34,7 @@ export class YamlImageTargetProvider implements CacheTargetProvider {
     const parsed: ImageTargetsFile = parse(raw) as ImageTargetsFile;
 
     return (parsed.images ?? []).map((image): CacheTarget => {
-      return new CacheTarget(
-        CacheArtifactEnum.IMAGE, // or your actual image enum constant
-        image.name,
-        image.source,
-      );
+      return new CacheTarget(CacheArtifactEnum.IMAGE, image.name, image.version, image.source);
     });
   }
 }

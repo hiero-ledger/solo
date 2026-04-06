@@ -56,6 +56,7 @@ export class Commands {
     this.relay = patchInject(relay, InjectTokens.RelayCommandDefinition, this.constructor.name);
     this.oneShot = patchInject(oneShot, InjectTokens.OneShotCommandDefinition, this.constructor.name);
     this.rapidFire = patchInject(rapidFire, InjectTokens.RapidFireCommandDefinition, this.constructor.name);
+    this.cache = patchInject(cache, InjectTokens.CacheCommandDefinition, this.constructor.name);
   }
 
   public getCommandDefinitions(): CommandDefinition[] {

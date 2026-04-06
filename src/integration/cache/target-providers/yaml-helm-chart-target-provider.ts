@@ -37,7 +37,7 @@ export class YamlHelmChartTargetProvider implements CacheTargetProvider {
     const parsed: HelmChartTargetsFile = parse(raw) as HelmChartTargetsFile;
 
     return (parsed.charts ?? []).map((chart): CacheTarget => {
-      return new CacheTarget(CacheArtifactEnum.HELM_CHART, chart.name, chart.source, chart.version);
+      return new CacheTarget(CacheArtifactEnum.HELM_CHART, chart.name, chart.version, chart.source);
     });
   }
 }

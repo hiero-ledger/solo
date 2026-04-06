@@ -98,6 +98,11 @@ import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
 import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
 import {CacheCommand} from '../../commands/cache.js';
+import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
+import {DockerClient} from '../../integration/container-engine/docker-client.js';
+import {DefaultCacheHandlerRegistry} from '../../integration/cache/impl/default-cache-handler-registry.js';
+import {DefaultCacheHealthInspector} from '../../integration/cache/impl/default-cache-health-inspector.js';
+import {FileSystemCacheCatalogStore} from '../../integration/cache/impl/file-system-cache-catalog-store.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -191,6 +196,13 @@ export class Container {
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
       new SingletonContainer(InjectTokens.SharedResourceManager, SharedResourceManager),
+
+      // Cache
+      new SingletonContainer(InjectTokens.CacheHandlerRegistry, DefaultCacheHandlerRegistry),
+      new SingletonContainer(InjectTokens.FileSystemCacheCatalogStore, FileSystemCacheCatalogStore),
+      new SingletonContainer(InjectTokens.CacheHealthInspector, DefaultCacheHealthInspector),
+      new SingletonContainer(InjectTokens.ImageCacheHandlerBuilder, ImageCacheHandlerBuilder),
+      new SingletonContainer(InjectTokens.DockerClient, DockerClient),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),

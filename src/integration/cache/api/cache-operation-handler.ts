@@ -2,8 +2,9 @@
 
 import {type CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
 import {type CacheTargetStructure} from '../models/cache-target-structure.js';
-import {type CachedItemStructure} from '../models/cached-item-structure.js';
 import {type ArtifactHealthResultStructure} from '../models/artifact-health-result-structure.js';
+import {type SoloListrTask} from '../../../types/index.js';
+import {type AnyListrContext} from '../../../types/aliases.js';
 
 /**
  * Strategy contract for handling one cache domain.
@@ -29,7 +30,7 @@ export interface CacheOperationHandler {
    * - writing the local cached artifact
    * - returning the resulting cached items
    */
-  pull(targets: readonly CacheTargetStructure[]): Promise<readonly CachedItemStructure[]>;
+  pull(): Promise<SoloListrTask<AnyListrContext>[]>;
 
   /**
    * Loads cached items into their runtime or consumption environment.
@@ -38,10 +39,9 @@ export interface CacheOperationHandler {
    * - Docker images loaded into the local engine and optionally into a Kind cluster
    * - Helm charts prepared for downstream usage
    *
-   * @param items cached items to load
-   * @param target optional runtime target, such as a cluster name
+   * @param target runtime target, such as a cluster name
    */
-  load(items: readonly CachedItemStructure[], target?: string): Promise<void>;
+  load(target: string): Promise<SoloListrTask<AnyListrContext>[]>;
 
   /**
    * Deletes cached items for this domain.
@@ -49,14 +49,14 @@ export interface CacheOperationHandler {
    * Implementations should remove local cached files and any domain-specific
    * local runtime state when appropriate.
    */
-  clear(items: readonly CachedItemStructure[]): Promise<void>;
+  clear(): Promise<void>;
 
   /**
    * Performs a health check for the provided cached items.
    *
    * Implementations should validate that each cached item is still usable.
    */
-  healthcheck(items: readonly CachedItemStructure[]): Promise<readonly ArtifactHealthResultStructure[]>;
+  healthcheck(): Promise<readonly ArtifactHealthResultStructure[]>;
 
   /**
    *

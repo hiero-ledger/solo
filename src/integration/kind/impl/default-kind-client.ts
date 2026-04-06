@@ -51,6 +51,8 @@ import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import path from 'node:path';
 import {SemanticVersion} from '../../../business/utils/semantic-version.js';
+import {exec} from 'node:child_process';
+import {build} from 'pino-pretty';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -151,10 +153,11 @@ export class DefaultKindClient implements KindClient {
   }
 
   public async loadImageArchive(
-    imageName: string,
+    archivePath: string,
     options?: LoadImageArchiveOptions,
   ): Promise<LoadImageArchiveResponse> {
-    const builder: LoadImageArchiveOptionsBuilder = LoadImageArchiveOptionsBuilder.from(options).name(imageName);
+    const builder: LoadImageArchiveOptionsBuilder =
+      LoadImageArchiveOptionsBuilder.from(options).archivePath(archivePath);
     return this.executeAsync(new LoadImageArchiveRequest(builder.build()), LoadImageArchiveResponse);
   }
 
@@ -170,6 +173,11 @@ export class DefaultKindClient implements KindClient {
     request: T,
     responseClass?: new (...arguments_: any[]) => R,
   ): Promise<R> {
+    console.log({
+      request,
+      responseClass,
+    });
+
     return this.executeInternal(undefined, request, responseClass, async (b): Promise<R> => {
       return await b.responseAs(responseClass);
     });

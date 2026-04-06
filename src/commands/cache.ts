@@ -4,21 +4,45 @@ import {SoloError} from '../core/errors/solo-error.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type ArgvStruct} from '../types/aliases.js';
-import {type SoloListr} from '../types/index.js';
+import {AnyListrContext, type ArgvStruct} from '../types/aliases.js';
+import {
+  type ClusterReferenceName,
+  type Context,
+  type DeploymentName,
+  type SoloListr,
+  type SoloListrTask,
+} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
 import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.js';
-import {ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {DockerClient} from '../integration/container-engine/docker-client.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {CachedItem} from '../integration/cache/models/impl/cached-item.js';
+
+interface CachePullConfigClass {
+  imageCacheHandler: ImageCacheHandler;
+  results: readonly CachedItem[];
+}
 
 interface CachePullContext {
-  config: object;
+  config: CachePullConfigClass;
+}
+
+interface CacheLoadConfigClass {
+  imageCacheHandler: ImageCacheHandler;
+  deployment: DeploymentName;
+  namespace: NamespaceName;
+  clusterReference: ClusterReferenceName;
+  context: Context;
+}
+
+interface CacheLoadContext {
+  config: CacheLoadConfigClass;
 }
 
 @injectable()
@@ -29,12 +53,15 @@ export class CacheCommand extends BaseCommand {
     this.dockerClient = patchInject(dockerClient, InjectTokens.DockerClient, this.constructor.name);
   }
 
-  public async close(): Promise<void> {} // no-op
-
-  private static readonly PULL_CONFIGS_NAME: string = 'deployConfigs';
+  public async close(): Promise<void> {}
 
   public static readonly PULL_FLAGS_LIST: CommandFlags = {
     required: [],
+    optional: [],
+  };
+
+  public static readonly LOAD_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
     optional: [],
   };
 
@@ -59,12 +86,6 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<void> => {
-            await this.localConfig.load();
-            await this.loadRemoteConfigOrWarn(argv);
-
-            // reset nodeAlias
-            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-
             this.configManager.update(argv);
 
             flags.disablePrompts(CacheCommand.PULL_FLAGS_LIST.optional);
@@ -76,16 +97,18 @@ export class CacheCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = {};
+            context_.config = {
+              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
+                .engine(this.dockerClient)
+                .build(),
+              results: [],
+            };
           },
         },
         {
           title: 'Pull and cache container images',
-          task: async (): Promise<void> => {
-            await ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-              .engine(this.dockerClient)
-              .build()
-              .pull();
+          task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
+            return task.newListr(await imageCacheHandler.pull(), constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
           },
         },
         {
@@ -106,6 +129,93 @@ export class CacheCommand extends BaseCommand {
         await tasks.run();
       } catch (error) {
         throw new SoloError(`Error pulling cache: ${error.message}`, error);
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {});
+    }
+
+    return true;
+  }
+
+  public async load(argv: ArgvStruct): Promise<boolean> {
+    const tasks: SoloListr<CacheLoadContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(CacheCommand.LOAD_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...CacheCommand.LOAD_FLAGS_LIST.required,
+              ...CacheCommand.LOAD_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+            const namespace: NamespaceName = await this.getNamespace(task);
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
+            const context: Context = this.getClusterContext(clusterReference);
+
+            context_.config = {
+              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
+                .engine(this.dockerClient)
+                .build(),
+              deployment,
+              namespace,
+              clusterReference,
+              context,
+            };
+          },
+        },
+        {
+          title: 'Load images into cluster',
+          task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<CacheLoadContext>> => {
+            const subTasks: SoloListrTask<CacheLoadContext>[] = [];
+
+            for (const cluster of this.remoteConfig.configuration.clusters) {
+              console.log(this.remoteConfig.configuration.clusters);
+              const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
+                this.prepareClusterName(cluster.name),
+              );
+              subTasks.push(...newTasks);
+            }
+
+            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+          },
+        },
+        {
+          title: 'debug',
+          task: ({config}) => {
+            console.log({
+              // @ts-expect-error
+              errorCounter: config.errorCounter,
+            });
+          },
+        },
+        {
+          title: 'Show user messages',
+          skip: (): boolean => this.oneShotState.isActive(),
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache load',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error loading from cache: ${error.message}`, error);
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {});
@@ -218,5 +328,9 @@ export class CacheCommand extends BaseCommand {
 
     await tasks.run();
     return true;
+  }
+
+  private prepareClusterName(clusterReference: ClusterReferenceName): string {
+    return clusterReference.startsWith('kind-') ? clusterReference.replace('kind-', '') : clusterReference;
   }
 }

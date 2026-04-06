@@ -17,7 +17,8 @@ import {inject, injectable} from 'tsyringe-neo';
 import {CacheTarget} from '../models/impl/cache-target.js';
 
 @injectable()
-export class HelmChartCacheHandler implements CacheOperationHandler {
+// export class HelmChartCacheHandler implements CacheOperationHandler {
+export class HelmChartCacheHandler {
   public constructor(
     private readonly store: CacheCatalogStore,
     private readonly provider: CacheTargetProvider,
