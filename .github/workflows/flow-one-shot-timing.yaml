@@ -313,6 +313,7 @@ jobs:
           echo "==== Warm median: $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s ===="
 
       - name: Timing Summary
+        id: timing-summary
         if: ${{ !cancelled() }}
         run: |
           COLD_MEDIAN="${{ steps.timing-cycles.outputs.cold-median }}"
@@ -352,15 +353,21 @@ jobs:
             echo "| Warm Start | Failed or skipped |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          # Calculate and output improvement
           if [ -n "$COLD_MEDIAN" ] && [ -n "$WARM_MEDIAN" ]; then
             DIFF=$(( COLD_MEDIAN - WARM_MEDIAN ))
+            echo "improvement-diff=${DIFF}" >> "$GITHUB_OUTPUT"
+
             if [ "$DIFF" -gt 0 ]; then
               echo "| Improvement (cold vs warm median) | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "improvement-direction=faster" >> "$GITHUB_OUTPUT"
             elif [ "$DIFF" -lt 0 ]; then
               DELTA=$(( -DIFF ))
               echo "| Improvement (cold vs warm median) | ${DELTA}s slower on warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "improvement-direction=slower" >> "$GITHUB_OUTPUT"
             else
               echo "| Improvement (cold vs warm median) | No difference between cold and warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "improvement-direction=same" >> "$GITHUB_OUTPUT"
             fi
           fi
 
@@ -380,6 +387,7 @@ jobs:
             *Cold Start (min / max):* ${{ steps.timing-cycles.outputs.cold-min }}s / ${{ steps.timing-cycles.outputs.cold-max }}s
             *Warm Start (median):* ${{ steps.timing-cycles.outputs.warm-median && format('{0}s', steps.timing-cycles.outputs.warm-median) || 'Failed' }}
             *Warm Start (min / max):* ${{ steps.timing-cycles.outputs.warm-min }}s / ${{ steps.timing-cycles.outputs.warm-max }}s
+            *Improvement:* ${{ steps.timing-summary.outputs.improvement-diff && format('{0}s {1}', steps.timing-summary.outputs.improvement-diff, steps.timing-summary.outputs.improvement-direction) || 'N/A' }}
             *Runner Calibration:* ${{ steps.calibration.outputs.baseline }}s
             *Branch:* `${{ github.ref_name }}`
             *Config:* use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}
