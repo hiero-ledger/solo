@@ -2903,8 +2903,7 @@ export class Flags {
     constName: 'edgeEnabled',
     name: 'edge',
     definition: {
-      describe:
-        'Use edge component versions (newer than the defaults in version.ts). Intended for testing memory/startup changes.',
+      describe: 'Use edge component versions (newer than the defaults)',
       defaultValue: false,
       type: 'boolean',
     },
