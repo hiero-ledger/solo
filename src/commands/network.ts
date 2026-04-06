@@ -489,19 +489,40 @@ export class NetworkCommand extends BaseCommand {
     if (config.wrapsEnabled) {
       for (const consensusNode of config.consensusNodes) {
         const cluster: ClusterReferenceName = consensusNode.cluster;
-        const index: number = extraEnvironmentIndex;
         const nodeId: NodeId = consensusNode.nodeId;
 
+        // When setting per-node extraEnv, Helm replaces the entire defaults.root.extraEnv array.
+        // To prevent losing default env vars (JAVA_HEAP_MIN, JAVA_HEAP_MAX, JAVA_OPTS),
+        // we must explicitly include them when setting TSS_LIB_WRAPS_ARTIFACTS_PATH.
+        let envIndex: number = 0;
+
+        // Include default env vars
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=JAVA_HEAP_MIN"`;
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=256m"`;
+        envIndex++;
+
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=JAVA_HEAP_MAX"`;
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=6g"`;
+        envIndex++;
+
         valuesArguments[cluster] +=
-          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
+          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=JAVA_OPTS"`;
+        valuesArguments[cluster] +=
+          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"`;
+        envIndex++;
+
+        // Add TSS wraps after defaults
+        valuesArguments[cluster] +=
+          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
         const wraps: Wraps = this.soloConfig.tss.wraps;
         const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
-      }
+        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=${path}"`;
+        envIndex++;
 
-      extraEnvironmentIndex = 2;
+        extraEnvironmentIndex = envIndex;
+      }
     }
 
     // add debug options to the debug node
