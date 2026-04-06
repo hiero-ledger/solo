@@ -214,7 +214,18 @@ export class ProfileManager {
       const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
       this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
-      fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+      // For application.properties, when a user-supplied file differs from the Solo default,
+      // apply it as an additive override: merge user properties onto the existing staging file
+      // rather than replacing it, so Solo's required defaults are always preserved.
+      const isUserSuppliedApplicationProperties: boolean =
+        flag.name === flags.applicationProperties.name &&
+        sourceFilePath !== (flags.applicationProperties.definition.defaultValue as string);
+
+      if (isUserSuppliedApplicationProperties && fs.existsSync(destinationPath)) {
+        await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+      } else {
+        fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+      }
     }
 
     if (configTxtPath) {
@@ -431,6 +442,16 @@ export class ProfileManager {
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n'));
+  }
+
+  /**
+   * Append a user-supplied application.properties onto the existing staging file.
+   * Solo's defaults are preserved; the user's entries are added at the end.
+   */
+  private async mergeApplicationProperties(stagingPath: string, userFilePath: string): Promise<void> {
+    this.logger.debug(`Appending user application.properties '${userFilePath}' onto staging '${stagingPath}'`);
+    const userContent: string = await readFile(userFilePath, 'utf8');
+    await writeFile(stagingPath, `${(await readFile(stagingPath, 'utf8')).trimEnd()}\n${userContent}`);
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {

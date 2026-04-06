@@ -41,6 +41,18 @@ tasks:
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
+  verify:
+    desc: Verify custom application.properties was merged into the consensus node container
+    cmds:
+      - cmd: |
+          echo "=== application.properties inside root-container of node0 ==="
+          kubectl exec -n {{ .DEPLOYMENT }} network-node0-0 -c root-container -- \
+            cat /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
+          echo ""
+          echo "=== Checking for custom override (hedera.recordStream.logPeriod) ==="
+          kubectl exec -n {{ .DEPLOYMENT }} network-node0-0 -c root-container -- \
+            grep "hedera.recordStream.logPeriod" /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
+
   default:
     desc: Run the default deploy task
     cmds:
