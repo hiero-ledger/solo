@@ -312,6 +312,40 @@ jobs:
           echo "==== Cold median: $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s ===="
           echo "==== Warm median: $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s ===="
 
+      - name: Verify Network with Account Creation
+        id: verify-network
+        if: ${{ success() && !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
+
+          echo "==== Verifying network is functional by creating a test account ===="
+
+          # Get the latest deployment (from the timing cycles)
+          DEPLOYMENT=$(ls -t ~/.solo/deployments 2>/dev/null | head -1)
+          if [ -z "$DEPLOYMENT" ]; then
+            echo "⚠ Could not find active deployment for verification"
+            exit 0
+          fi
+
+          # Create a test account to verify the network is working
+          ACCOUNT_OUTPUT=$($SOLO_CMD account create --deployment "$DEPLOYMENT" 2>&1 || true)
+
+          # Extract account ID from output (format: 0.0.XXXXX)
+          ACCOUNT_ID=$(echo "$ACCOUNT_OUTPUT" | grep -oE "0\.0\.[0-9]+" | head -1 || echo "")
+
+          if [ -n "$ACCOUNT_ID" ]; then
+            echo "test-account-id=${ACCOUNT_ID}" >> "$GITHUB_OUTPUT"
+            echo "✓ Network verification successful! Created test account: $ACCOUNT_ID"
+            echo "  You can view this account in the explorer at: http://localhost:38080/account/$ACCOUNT_ID"
+          else
+            echo "⚠ Network verification created account but couldn't parse account ID"
+            if [ -n "$ACCOUNT_OUTPUT" ]; then
+              echo "  Output preview: ${ACCOUNT_OUTPUT:0:200}"
+            fi
+          fi
+
       - name: Timing Summary
         id: timing-summary
         if: ${{ !cancelled() }}
@@ -372,6 +406,15 @@ jobs:
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Add network verification info if account was created
+          TEST_ACCOUNT_ID="${{ steps.verify-network.outputs.test-account-id }}"
+          if [ -n "$TEST_ACCOUNT_ID" ]; then
+            echo "**Network Verification:** Successfully created test account \`$TEST_ACCOUNT_ID\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "View in explorer: [http://localhost:38080/account/$TEST_ACCOUNT_ID](http://localhost:38080/account/$TEST_ACCOUNT_ID)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Format Slack Table
@@ -418,6 +461,13 @@ jobs:
 
           if [ -n "$IMPROVEMENT_DIFF" ] && [ -n "$IMPROVEMENT_DIR" ]; then
             TABLE="${TABLE}"$'\n'"Improvement (median)          | ${IMPROVEMENT_DIFF}s ${IMPROVEMENT_DIR} on warm start"
+          fi
+
+          # Add network verification info if account was created
+          TEST_ACCOUNT_ID="${{ steps.verify-network.outputs.test-account-id }}"
+          if [ -n "$TEST_ACCOUNT_ID" ]; then
+            TABLE="${TABLE}"$'\n'""
+            TABLE="${TABLE}"$'\n'"Network Status                | ✓ Account $TEST_ACCOUNT_ID created"
           fi
 
           TABLE="${TABLE}"$'\n'"\`\`\`"
