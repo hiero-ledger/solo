@@ -19,8 +19,15 @@ const {green, yellow} = chalk;
  *   3. pod-readiness    — pod is not Running or its readiness probe is failing.
  *   4. consensus-active — consensus node did not reach ACTIVE platform status.
  *   5. log-exception    — an exception/stack-trace was found in an application log.
+ *   6. app-error        — an ERROR line was found in a pod's raw container log.
  */
-export type DiagnosticsFindingCategory = 'image-pull' | 'oom' | 'pod-readiness' | 'consensus-active' | 'log-exception';
+export type DiagnosticsFindingCategory =
+  | 'image-pull'
+  | 'oom'
+  | 'pod-readiness'
+  | 'consensus-active'
+  | 'log-exception'
+  | 'app-error';
 
 /** A single detected problem with its supporting evidence lines. */
 export type DiagnosticsFinding = {
@@ -125,6 +132,10 @@ export class DiagnosticsAnalyzer {
       this.analyzeConsensusNodeArchives(consensusArchiveDirectory, findings);
     } else {
       this.logger.showUser(yellow(`  Consensus archive directory not found, skipping: ${consensusArchiveDirectory}`));
+    }
+
+    if (fs.existsSync(hieroOutputDirectory)) {
+      this.analyzePodLogFiles(hieroOutputDirectory, findings);
     }
 
     if (!fs.existsSync(hieroOutputDirectory)) {
@@ -262,6 +273,58 @@ export class DiagnosticsAnalyzer {
           evidence,
         });
       }
+    }
+  }
+
+  /**
+   * Recursively scans `rootDirectory` for `*.log` pod log files and checks each
+   * for application-level ERROR lines (category: `app-error`).
+   *
+   * These are the raw container logs downloaded by `downloadHieroComponentLogs()`
+   * alongside the `*.describe.txt` files. Each file is scanned for lines
+   * containing `ERROR` and the first matching block (up to 8 lines) is captured.
+   */
+  private analyzePodLogFiles(rootDirectory: string, findings: DiagnosticsFinding[]): void {
+    // Only scan logs for non-consensus components. Consensus node logs are
+    // handled separately via the *-log-config.zip archives (which include
+    // swirlds.log and hgcaa.log).  Broad *.log would match those files too
+    // and produce duplicate / noisy findings.
+    const componentLogPattern: RegExp = /[\\/](?:mirror|block|relay|explorer|solo-shared)[^/\\]*\.log$/i;
+    const logFiles: string[] = this.collectFilesRecursively(
+      rootDirectory,
+      (filePath: string): boolean => componentLogPattern.test(filePath),
+    );
+
+    // Strip Docker/containerd timestamp prefix (e.g. "2026-04-06T03:24:32.470558065Z ") before matching.
+    const errorPattern: RegExp = /\b(?:ERROR|FATAL)\b/i;
+
+    this.logger.showUser(`  Found ${logFiles.length} pod log file(s)`);
+
+    for (const logFile of logFiles) {
+      const relativePath: string = path.relative(rootDirectory, logFile);
+      this.logger.showUser(`  Reading: ${relativePath}`);
+      let content: string;
+      try {
+        content = fs.readFileSync(logFile, 'utf8');
+      } catch (error) {
+        this.logger.showUser(yellow(`  Unable to read log file ${relativePath}: ${(error as Error).message}`));
+        continue;
+      }
+
+      // Strip leading container-runtime timestamps so the pattern matches the application log line.
+      const strippedContent: string = content.replaceAll(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+/gm, '');
+      if (!errorPattern.test(strippedContent)) {
+        continue;
+      }
+
+      const podName: string = path.basename(logFile, '.log');
+      const evidence: string[] = this.extractMatchSnippets(strippedContent, errorPattern, 8);
+      this.addDiagnosticsFinding(findings, {
+        category: 'app-error',
+        title: `Application ERROR detected in pod log: ${podName}`,
+        source: relativePath,
+        evidence,
+      });
     }
   }
 
@@ -525,6 +588,7 @@ export class DiagnosticsAnalyzer {
       'pod-readiness': 3,
       'consensus-active': 4,
       'log-exception': 5,
+      'app-error': 6,
     };
     const categoryLabel: Record<DiagnosticsFindingCategory, string> = {
       'image-pull': 'Image Pull',
@@ -532,6 +596,7 @@ export class DiagnosticsAnalyzer {
       'pod-readiness': 'Pod Readiness',
       'consensus-active': 'Consensus Active State',
       'log-exception': 'Exception Stack',
+      'app-error': 'Application Error',
     };
 
     const lines: string[] = ['Solo Diagnostics Analysis Report', `Generated: ${new Date().toISOString()}`, ''];
