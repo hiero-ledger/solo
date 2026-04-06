@@ -61,6 +61,9 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {Address} from '../business/address/address.js';
 import {Numbers} from '../business/utils/numbers.js';
+
+// TODO - revisit and remove once we complete the cutover to BN and no longer need MN to pull from CN.
+// This should remove this dependency on @hiero-ledger/proto
 import {proto} from '@hiero-ledger/proto';
 import * as crypto from 'node:crypto';
 import {X509Certificate} from 'node:crypto';
