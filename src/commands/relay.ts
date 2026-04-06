@@ -40,9 +40,8 @@ import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {SemVer} from 'semver';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 import {Duration} from '../core/time/duration.js';
@@ -235,6 +234,7 @@ export class RelayCommand extends BaseCommand {
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
+    valuesArgument += helpers.prepareValuesFiles(constants.RELAY_VALUES_FILE);
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
@@ -250,7 +250,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (relayReleaseTag) {
-      relayReleaseTag = Version.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
+      relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
       valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
       valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }
@@ -399,7 +399,7 @@ export class RelayCommand extends BaseCommand {
           config.releaseName,
           constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
-          '', // relay.image.tag is used to set the version
+          config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
           config.valuesArg,
           config.context,
         );
@@ -495,7 +495,7 @@ export class RelayCommand extends BaseCommand {
           clusterReference,
           podReference,
           constants.JSON_RPC_RELAY_PORT, // Pod port
-          constants.JSON_RPC_RELAY_PORT, // Local port
+          constants.JSON_RPC_RELAY_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.context),
           this.logger,
           ComponentTypes.RelayNodes,
@@ -561,18 +561,14 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
-            if (this.oneShotState.isActive()) {
-              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
-            } else {
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.context,
-              );
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.context,
+            );
 
-              config.mirrorNodeId = mirrorNodeId;
-              config.mirrorNamespace = mirrorNamespace;
-              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-            }
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,
@@ -845,7 +841,10 @@ export class RelayCommand extends BaseCommand {
         this.remoteConfig.configuration.components.addNewComponent(config.newRelayComponent, ComponentTypes.RelayNodes);
 
         // save relay version in remote config
-        this.remoteConfig.updateComponentVersion(ComponentTypes.RelayNodes, new SemVer(config.relayReleaseTag));
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.RelayNodes,
+          new SemanticVersion<string>(config.relayReleaseTag),
+        );
 
         await this.remoteConfig.persist();
       },

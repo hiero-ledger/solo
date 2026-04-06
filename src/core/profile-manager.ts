@@ -7,7 +7,6 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
@@ -33,7 +32,17 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
-import semver from 'semver/preload.js';
+import {Numbers} from '../business/utils/numbers.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
+
+export interface ProfileManagerStagingOptions {
+  // These values are intentionally passed from the command's resolved config so profile generation
+  // does not depend on mutable global flags that can be changed by concurrently running subcommands.
+  cacheDir: DirectoryPath;
+  releaseTag: string;
+  appName: string;
+  chainId: string;
+}
 
 @injectable()
 export class ProfileManager {
@@ -77,7 +86,7 @@ export class ProfileManager {
     let current: AnyObject = parent;
     let previousItemPath: string | number = '';
     for (const itemPathPart of itemPathParts) {
-      if (helpers.isNumeric(itemPathPart)) {
+      if (Numbers.isNumeric(itemPathPart)) {
         const itemPathIndex: number = Number.parseInt(itemPathPart, 10); // numeric path part can only be array index
         if (!Array.isArray(parent[previousItemPath])) {
           parent[previousItemPath] = [];
@@ -122,7 +131,7 @@ export class ProfileManager {
     for (const key in dotItems) {
       let itemKey: string = key;
 
-      // if it is an array key like extraEnv[0].JAVA_OPTS, convert it into a dot separated key as extraEnv.0.JAVA_OPTS
+      // if it is an array key like extraEnvironment[0].JAVA_OPTS, convert it into a dot separated key as extraEnvironment.0.JAVA_OPTS
       if (key.includes('[')) {
         itemKey = key.replace('[', '.').replace(']', '');
       }
@@ -142,6 +151,7 @@ export class ProfileManager {
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    stagingOptions?: Partial<ProfileManagerStagingOptions>,
   ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
       consensusNodes.map((node): NodeAlias => node.name),
@@ -155,27 +165,29 @@ export class ProfileManager {
       this._setValue(`hedera.nodes.${nodeIndex}.accountId`, accountMap.get(nodeAlias), yamlRoot);
     }
 
+    // Resolve once and keep immutable for this invocation to prevent races from global flag mutation
+    // while a parallel command is generating staging/config artifacts.
+    const resolvedStagingOptions: ProfileManagerStagingOptions = this.resolveStagingOptions(stagingOptions);
     const stagingDirectory: string = Templates.renderStagingDir(
-      this.configManager.getFlag(flags.cacheDir),
-      this.configManager.getFlag(flags.releaseTag),
+      resolvedStagingOptions.cacheDir,
+      resolvedStagingOptions.releaseTag,
     );
 
     if (!fs.existsSync(stagingDirectory)) {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
-    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(releaseTag);
+    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
     let configTxtPath: Optional<string>;
     if (needsConfigTxt) {
       configTxtPath = await this.prepareConfigTxt(
         accountMap,
         consensusNodes,
         stagingDirectory,
-        releaseTag,
+        resolvedStagingOptions.releaseTag,
         domainNamesMapping,
-        this.configManager.getFlag(flags.app),
-        this.configManager.getFlag(flags.chainId),
+        resolvedStagingOptions.appName,
+        resolvedStagingOptions.chainId,
       );
     }
 
@@ -234,9 +246,10 @@ export class ProfileManager {
       yamlRoot,
     );
 
+    const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
     this._setFileContentsAsValue(
       'hedera.configMaps.applicationEnv',
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
+      PathEx.resolve(applicationEnvironmentPath),
       yamlRoot,
     );
 
@@ -275,6 +288,32 @@ export class ProfileManager {
     }
   }
 
+  /**
+   * Parse a KEY=VALUE env file and override defaults.root.extraEnvironment in the Helm values
+   * so that pod-level environment variables match the application.env content.
+   */
+  private applyApplicationEnvToExtraEnv(applicationEnvironmentPath: string, yamlRoot: AnyObject): void {
+    if (!fs.existsSync(applicationEnvironmentPath)) {
+      return;
+    }
+
+    const extraEnvironment: AnyObject[] = [];
+    for (const line of fs.readFileSync(applicationEnvironmentPath, 'utf8').split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        extraEnvironment.push({name: trimmed.slice(0, equalsIndex), value: trimmed.slice(equalsIndex + 1)});
+      }
+    }
+
+    if (extraEnvironment.length > 0) {
+      this._setChartItems('defaults.root', {extraEnv: extraEnvironment}, yamlRoot);
+    }
+  }
+
   public resourcesForNetworkUpgrade(
     itemPath: string,
     fileName: string,
@@ -305,6 +344,7 @@ export class ProfileManager {
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
     jfrFile: string = '',
+    stagingOptions?: Partial<ProfileManagerStagingOptions>,
   ): Promise<Record<ClusterReferenceName, string>> {
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
@@ -323,6 +363,7 @@ export class ProfileManager {
         domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
+        stagingOptions,
       );
 
       // If a JFR settings file is provided, read the defaults from solo-values.yaml,
@@ -350,11 +391,31 @@ export class ProfileManager {
         this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
       }
 
+      // Override defaults.root.extraEnv with values from the staged application.env file.
+      // This must run AFTER the JFR block above, which overwrites defaults.root from solo-values.yaml.
+      const stagingDirectory: string = Templates.renderStagingDir(
+        this.configManager.getFlag(flags.cacheDir),
+        this.configManager.getFlag(flags.releaseTag),
+      );
+      const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+      this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
+
       const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
     }
 
     return filesMapping;
+  }
+
+  private resolveStagingOptions(options?: Partial<ProfileManagerStagingOptions>): ProfileManagerStagingOptions {
+    // Fallbacks preserve compatibility for call sites that do not pass explicit options yet.
+    // Newer call sites should pass command-scoped values to avoid cross-command interference.
+    return {
+      cacheDir: options?.cacheDir ?? this.configManager.getFlag(flags.cacheDir),
+      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.releaseTag),
+      appName: options?.appName ?? this.configManager.getFlag(flags.app),
+      chainId: options?.chainId ?? this.configManager.getFlag(flags.chainId),
+    };
   }
 
   private async bumpHederaConfigVersion(applicationPropertiesPath: string): Promise<void> {
@@ -439,7 +500,7 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    let releaseTag: SemVer = new SemVer(versions.HEDERA_PLATFORM_VERSION);
+    let releaseTag: SemanticVersion<string> = new SemanticVersion<string>(versions.HEDERA_PLATFORM_VERSION);
     try {
       releaseTag = this.remoteConfig.configuration.versions.consensusNode;
     } catch {
@@ -453,8 +514,8 @@ export class ProfileManager {
       // Guard
     }
 
-    if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
-      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
         lines.push('tss.wrapsEnabled=true');
@@ -552,8 +613,7 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion: SemVer = parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];

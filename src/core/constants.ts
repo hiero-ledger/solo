@@ -252,7 +252,12 @@ export const POD_CONDITION_POD_SCHEDULED: string = 'PodScheduled';
 export const POD_CONDITION_STATUS_TRUE: string = 'True';
 
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
+export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const MIRROR_NODE_HIKARI_LIMITS_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-node-hikari-limits.yaml',
+);
 export const MIRROR_NODE_VALUES_FILE_HEDERA: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-values-hedera.yaml',
@@ -401,11 +406,6 @@ export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NOD
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
-export const MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS: number =
-  +getEnvironmentVariable('MESSAGE_SIZE_SOFT_LIMIT_BYTES_TSS') || 4_194_304; // 4 MiB
-export const MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS: number =
-  +getEnvironmentVariable('MESSAGE_SIZE_HARD_LIMIT_BYTES_TSS') || 37_748_736; // 36 MiB, accommodates ~30 MiB genesis WRAPS proof
-
 // Filename suffix used for log/config archive files
 export const LOG_CONFIG_ZIP_SUFFIX: string = '-log-config.zip';
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
@@ -415,10 +415,13 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
+export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
 export const GRPC_WEB_PORT: number = +getEnvironmentVariable('GRPC_WEB_PORT') || 8080;
 export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;
+export const JSON_RPC_RELAY_LOCAL_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_LOCAL_PORT') || 37_546;
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
-export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 8081;
+export const EXPLORER_LOCAL_PORT: number = +getEnvironmentVariable('EXPLORER_LOCAL_PORT') || 38_080;
+export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 38_081;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
@@ -456,25 +459,6 @@ export const CERT_MANAGER_CRDS: string[] = [
   'clusterissuers.cert-manager.io',
   'issuers.cert-manager.io',
 ];
-
-export const TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME: string =
-  getEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME') || 'wraps-v0.2.0';
-
-export const WRAPS_DIRECTORY_NAME: string = getEnvironmentVariable('WRAPS_DIRECTORY_NAME') || 'wraps-v0.2.0';
-
-export const WRAPS_ALLOWED_KEY_FILES: string =
-  getEnvironmentVariable('WRAPS_ALLOWED_KEY_FILES') || 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin';
-
-// TODO: in future define a better strategy to handle versioning
-export const WRAPS_LIB_DOWNLOAD_URL: string =
-  getEnvironmentVariable('WRAPS_ARTIFACT_LIB_DOWNLOAD_URL') ||
-  `https://builds.hedera.com/tss/hiero/wraps/v0.2/${WRAPS_DIRECTORY_NAME}.tar.gz`;
-
-export const TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS: number =
-  +getEnvironmentVariable('TIMEOUT_AFTER_TSS_IS_READY_IN_SECONDS') || 10;
-
-export const TSS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('TSS_READY_MAX_ATTEMPTS') || 60;
-export const TSS_READY_BACKOFF_SECONDS: number = +getEnvironmentVariable('TSS_READY_BACKOFF_SECONDS') || 3;
 
 export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;

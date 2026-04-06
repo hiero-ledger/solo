@@ -49,13 +49,13 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
-import * as semver from 'semver';
-import {SemVer} from 'semver';
 import {Base64} from 'js-base64';
-import {Version} from '../business/utils/version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {PostgresStateSchema} from '../data/schema/model/remote/state/postgres-state-schema.js';
+import {RedisStateSchema} from '../data/schema/model/remote/state/redis-state-schema.js';
 import {Templates} from '../core/templates.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
@@ -313,20 +313,19 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
       shouldConfigureMirrorNodeToPullFromBlockNode = true;
     } else {
-      const isConsensusNodeVersionSupported: boolean = semver.gte(
-        this.remoteConfig.configuration.versions.consensusNode,
-        versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
-      );
+      const isConsensusNodeVersionSupported: boolean =
+        this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
+          versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+        );
 
-      const isBlockNodeChartVersionSupported: boolean = semver.gte(
-        this.remoteConfig.configuration.versions.blockNodeChart,
-        versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
-      );
+      const isBlockNodeChartVersionSupported: boolean =
+        this.remoteConfig.configuration.versions.blockNodeChart.greaterThanOrEqual(
+          versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+        );
 
-      const isMirrorNodeVersionSupported: boolean = semver.gte(
-        new SemVer(config.mirrorNodeVersion),
-        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
-      );
+      const isMirrorNodeVersionSupported: boolean = new SemanticVersion<string>(
+        config.mirrorNodeVersion,
+      ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION);
 
       shouldConfigureMirrorNodeToPullFromBlockNode =
         isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
@@ -407,7 +406,11 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
 
-    config.mirrorNodeVersion = Version.getValidSemanticVersion(config.mirrorNodeVersion, true, 'Mirror node version');
+    config.mirrorNodeVersion = SemanticVersion.getValidSemanticVersion(
+      config.mirrorNodeVersion,
+      true,
+      'Mirror node version',
+    );
 
     const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
@@ -513,7 +516,9 @@ export class MirrorNodeCommand extends BaseCommand {
   ): Promise<void> {
     if (
       config.isChartInstalled &&
-      semver.gte(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+        versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
+      )
     ) {
       // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
       const existingSecrets: Secret = await this.k8Factory
@@ -539,9 +544,11 @@ export class MirrorNodeCommand extends BaseCommand {
     // Determine if we should reuse values based on the currently deployed version from remote config
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
-    const currentVersion: SemVer | null = this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode);
+    const currentVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+      ComponentTypes.MirrorNode,
+    );
     let shouldReuseValues: boolean = currentVersion
-      ? semver.gt(currentVersion, constants.MIRROR_NODE_VERSION_BOUNDARY)
+      ? currentVersion.greaterThan(constants.MIRROR_NODE_VERSION_BOUNDARY)
       : false; // If no current version (first install), don't reuse values
 
     if (commandType === MirrorNodeCommandType.ADD) {
@@ -734,6 +741,25 @@ export class MirrorNodeCommand extends BaseCommand {
               });
             },
             skip: (context_): boolean => context_.config.useExternalDatabase,
+          },
+          {
+            title: 'Add shared resource components to remote config',
+            skip: (context_): boolean => !context_.config.installSharedResources || !this.remoteConfig.isLoaded(),
+            task: async (context_): Promise<void> => {
+              if (!context_.config.useExternalDatabase) {
+                const postgresComponent: PostgresStateSchema = this.componentFactory.createNewPostgresComponent(
+                  context_.config.clusterReference,
+                  context_.config.namespace,
+                );
+                this.remoteConfig.configuration.components.addNewComponent(postgresComponent, ComponentTypes.Postgres);
+              }
+              const redisComponent: RedisStateSchema = this.componentFactory.createNewRedisComponent(
+                context_.config.clusterReference,
+                context_.config.namespace,
+              );
+              this.remoteConfig.configuration.components.addNewComponent(redisComponent, ComponentTypes.Redis);
+              await this.remoteConfig.persist();
+            },
           },
         ];
 
@@ -1138,7 +1164,7 @@ END $grant$;`;
               config.clusterContext,
             );
 
-            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+            context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
@@ -1146,7 +1172,9 @@ END $grant$;`;
 
             // predefined values first
             config.valuesArg = helpers.prepareValuesFiles(
-              semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+              new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
+                versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
+              )
                 ? constants.MIRROR_NODE_VALUES_FILE_HEDERA
                 : constants.MIRROR_NODE_VALUES_FILE,
             );
@@ -1335,7 +1363,7 @@ END $grant$;`;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
 
-            context_.config.soloChartVersion = Version.getValidSemanticVersion(
+            context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
@@ -1348,7 +1376,9 @@ END $grant$;`;
             }
 
             // predefined values first
-            config.valuesArg = semver.lt(config.mirrorNodeVersion, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+            config.valuesArg = new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
+              versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
+            )
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
               : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
@@ -1531,11 +1561,15 @@ END $grant$;`;
   }
 
   private getEnvironmentVariablePrefix(version: string): string {
-    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'HEDERA' : 'HIERO';
+    return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+      ? 'HEDERA'
+      : 'HIERO';
   }
 
   private getChartNamespace(version: string): string {
-    return semver.lt(version, versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION) ? 'hedera' : 'hiero';
+    return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
+      ? 'hedera'
+      : 'hiero';
   }
 
   /**
@@ -1663,6 +1697,7 @@ END $grant$;`;
             }
           },
         },
+        this.disableSharedResourceComponents(),
         {
           title: 'Uninstall mirror ingress controller',
           skip: (context_): boolean => !context_.config.isIngressControllerChartInstalled,
@@ -1747,6 +1782,29 @@ END $grant$;`;
     };
   }
 
+  /** Removes the Postgres and Redis components from remote config when shared resources are destroyed. */
+  public disableSharedResourceComponents(): SoloListrTask<MirrorNodeDestroyContext> {
+    return {
+      title: 'Remove shared resource components from remote config',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async (): Promise<void> => {
+        const postgresComponents: PostgresStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentByType<PostgresStateSchema>(ComponentTypes.Postgres);
+        for (const component of postgresComponents) {
+          this.remoteConfig.configuration.components.removeComponent(component.metadata.id, ComponentTypes.Postgres);
+        }
+
+        const redisComponents: RedisStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentByType<RedisStateSchema>(ComponentTypes.Redis);
+        for (const component of redisComponents) {
+          this.remoteConfig.configuration.components.removeComponent(component.metadata.id, ComponentTypes.Redis);
+        }
+
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
   /** Adds the mirror node components to remote config. */
   public addMirrorNodeComponents(): SoloListrTask<MirrorNodeDeployContext> {
     return {
@@ -1763,7 +1821,7 @@ END $grant$;`;
         // update mirror node version in remote config
         this.remoteConfig.updateComponentVersion(
           ComponentTypes.MirrorNode,
-          new SemVer(context_.config.mirrorNodeVersion),
+          new SemanticVersion<string>(context_.config.mirrorNodeVersion),
         );
 
         await this.remoteConfig.persist();

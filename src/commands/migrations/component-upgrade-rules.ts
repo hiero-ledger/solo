@@ -108,7 +108,6 @@
  */
 
 import fs from 'node:fs';
-import {SemVer, gte, lt} from 'semver';
 import * as constants from '../../core/constants.js';
 import {
   type ComponentUpgradeBoundaryRule,
@@ -116,6 +115,7 @@ import {
   type ComponentUpgradeMigrationConfigFile,
   type ComponentUpgradeMigrationStep,
 } from './component-upgrade-rules-types.js';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 
 export {type ComponentUpgradeMigrationStep} from './component-upgrade-rules-types.js';
 
@@ -207,11 +207,11 @@ export class ComponentUpgradeMigrationRules {
     targetVersion: string,
   ): ComponentUpgradeMigrationStep[] {
     // Normalize version strings to canonical semver (strips 'v' prefix, etc.)
-    const normalizedCurrentVersion: string = new SemVer(currentVersion).version;
-    const normalizedTargetVersion: string = new SemVer(targetVersion).version;
+    const normalizedCurrentVersion: string = new SemanticVersion<string>(currentVersion).toString();
+    const normalizedTargetVersion: string = new SemanticVersion<string>(targetVersion).toString();
 
-    const current: SemVer = new SemVer(normalizedCurrentVersion);
-    const target: SemVer = new SemVer(normalizedTargetVersion);
+    const current: SemanticVersion<string> = new SemanticVersion<string>(normalizedCurrentVersion);
+    const target: SemanticVersion<string> = new SemanticVersion<string>(normalizedTargetVersion);
     const componentConfig: ComponentUpgradeMigrationConfig =
       ComponentUpgradeMigrationRules.getComponentConfig(component);
     const defaultExtraCommandArguments: string[] = componentConfig.defaultExtraCommandArgs || [];
@@ -219,7 +219,7 @@ export class ComponentUpgradeMigrationRules {
     // Case 1: Downgrade or same-version — no boundary analysis needed.
     // Just return the default strategy. The caller may still perform the operation
     // (e.g., for re-applying config), but no special migration handling is required.
-    if (!lt(current, target)) {
+    if (!current.lessThan(target)) {
       return [
         {
           fromVersion: normalizedCurrentVersion,
@@ -255,25 +255,25 @@ export class ComponentUpgradeMigrationRules {
     // Walk through the reduced boundaries in order, creating a step for each one.
     // The `cursor` tracks where we are in the version progression.
     const steps: ComponentUpgradeMigrationStep[] = [];
-    let cursor: SemVer = current;
+    let cursor: SemanticVersion<string> = current;
 
     for (const [index, boundary] of boundaries.entries()) {
       const isLast: boolean = index === boundaries.length - 1;
       // For the last boundary, the step targets the final desired version (not the boundary
       // version itself). This avoids an unnecessary extra step from the last boundary to
       // the target version. For non-last boundaries, we step up to the boundary version.
-      const stepTarget: SemVer = isLast ? target : new SemVer(boundary.version);
+      const stepTarget: SemanticVersion<string> = isLast ? target : new SemanticVersion<string>(boundary.version);
 
       // Skip if the cursor has already reached or passed this step's target.
       // This can happen when boundaries are close together or when the current version
       // is already at a boundary version.
-      if (!lt(cursor, stepTarget)) {
+      if (!cursor.lessThan(stepTarget)) {
         continue;
       }
 
       steps.push({
-        fromVersion: cursor.version,
-        toVersion: stepTarget.version,
+        fromVersion: cursor.toString(),
+        toVersion: stepTarget.toString(),
         strategy: boundary.strategy,
         reason: boundary.reason,
         extraCommandArgs: boundary.extraCommandArgs || [],
@@ -285,10 +285,10 @@ export class ComponentUpgradeMigrationRules {
     // append a final step using the default strategy to cover the remaining distance.
     // This happens when the last boundary's version is before the target, AND the last
     // boundary wasn't the "isLast" boundary (which would have used the target directly).
-    if (lt(cursor, target)) {
+    if (cursor.lessThan(target)) {
       steps.push({
-        fromVersion: cursor.version,
-        toVersion: target.version,
+        fromVersion: cursor.toString(),
+        toVersion: target.toString(),
         strategy: componentConfig.defaultStrategy,
         reason: 'Default in-place upgrade path',
         extraCommandArgs: defaultExtraCommandArguments,
@@ -383,14 +383,14 @@ export class ComponentUpgradeMigrationRules {
    *    to 0.30.0 with a single recreate.
    *
    * @param componentConfig - The component's migration config containing boundary rules.
-   * @param current - The current installed version (parsed SemVer).
-   * @param target - The desired target version (parsed SemVer).
+   * @param current - The current installed version (parsed SemanticVersion<string>).
+   * @param target - The desired target version (parsed SemanticVersion<string>).
    * @returns Sorted and reduced array of crossed boundary rules.
    */
   private static findCrossedBoundaries(
     componentConfig: ComponentUpgradeMigrationConfig,
-    current: SemVer,
-    target: SemVer,
+    current: SemanticVersion<string>,
+    target: SemanticVersion<string>,
   ): ComponentUpgradeBoundaryRule[] {
     // Step 1: Normalize all boundary versions and filter to those crossed during this upgrade.
     // A boundary is crossed when: currentVersion < boundaryVersion AND targetVersion >= boundaryVersion.
@@ -398,15 +398,17 @@ export class ComponentUpgradeMigrationRules {
       .map(
         (boundary): ComponentUpgradeBoundaryRule => ({
           ...boundary,
-          version: new SemVer(boundary.version).version,
+          version: new SemanticVersion<string>(boundary.version).toString(),
         }),
       )
       .filter(
-        (boundary): boolean => lt(current, new SemVer(boundary.version)) && gte(target, new SemVer(boundary.version)),
+        (boundary): boolean =>
+          current.lessThan(new SemanticVersion<string>(boundary.version)) &&
+          target.greaterThanOrEqual(new SemanticVersion<string>(boundary.version)),
       )
       // Step 2: Sort crossed boundaries by version ascending so we process them in order.
       // eslint-disable-next-line unicorn/no-array-sort
-      .sort((a, b): number => new SemVer(a.version).compare(new SemVer(b.version)));
+      .sort((a, b): number => new SemanticVersion<string>(a.version).compare(new SemanticVersion<string>(b.version)));
 
     // Step 3: Reduce (merge) consecutive boundaries with the same strategy.
     // This avoids redundant intermediate steps. For example, if we have:

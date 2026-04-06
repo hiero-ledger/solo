@@ -35,7 +35,7 @@ solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CL
 
 The `--pinger` flag in `solo mirror node add` starts a pinging service that sends transactions to the network at regular intervals. This is needed because the record file is not imported into the mirror node until the next one is created.
 
-Then you can access the Explorer at <http://localhost:8080>
+Then you can access the Explorer at <http://localhost:38080>
 
 Or you can use Task tool to deploy Solo network with Mirror Node with a single command [link](../development/task-tool)
 
@@ -54,7 +54,7 @@ Add SDK.md link here
 
 * [Instructions for using Solo with Hiero JavaScript SDK](javascript-sdk.md)
 
-If you need to access mirror node service directly, use the following command to enable port forwarding, or just use `localhost:8081` as it should have all the mirror node services exposed to this port:
+If you need to access mirror node service directly, use the following command to enable port forwarding, or just use `localhost:38081` as it should have all the mirror node services exposed to this port:
 
 ```bash
 kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &

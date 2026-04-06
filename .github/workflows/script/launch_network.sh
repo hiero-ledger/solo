@@ -21,6 +21,10 @@ collect_failure_diagnostics() {
 on_exit() {
   local rc=$?
 
+  if [[ -n "${RENDERED_KIND_CLUSTER_CONFIG_FILE:-}" && -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}" ]]; then
+    rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+  fi
+
   if [[ ${rc} -ne 0 ]]; then
     collect_failure_diagnostics "${rc}"
   fi
@@ -57,11 +61,21 @@ export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
 
 KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
+KIND_CONFIG_RENDERER=".github/workflows/script/render_kind_config.sh"
+RENDERED_KIND_CLUSTER_CONFIG_FILE=""
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 if [[ -f "${KIND_CLUSTER_CONFIG_FILE}" ]]; then
-  echo "Using kind config file: ${KIND_CLUSTER_CONFIG_FILE}"
-  kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+  if [[ -x "${KIND_CONFIG_RENDERER}" && -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" ]]; then
+    RENDERED_KIND_CLUSTER_CONFIG_FILE="$(mktemp -t kind-config-XXXX.yaml)"
+    "${KIND_CONFIG_RENDERER}" "${KIND_CLUSTER_CONFIG_FILE}" "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+    echo "Using rendered kind config file: ${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+    kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+    rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+  else
+    echo "Using kind config file: ${KIND_CLUSTER_CONFIG_FILE}"
+    kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+  fi
 else
   echo "kind config file not found: ${KIND_CLUSTER_CONFIG_FILE}; creating cluster without custom registry mirror config."
   kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -115,9 +129,9 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
   exit 1
 fi
 
-# check remote-config-after.yaml should contains 'schemaVersion: 4'
-if ! grep -q "schemaVersion: 6" ./remote-config-after.yaml; then
-  echo "schemaVersion: 6 not found in remote-config-after.yaml"
+# check remote-config-after.yaml should contains 'schemaVersion: 7'
+if ! grep -q "schemaVersion: 7" ./remote-config-after.yaml; then
+  echo "schemaVersion: 7 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
@@ -183,20 +197,20 @@ npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirror
 sleep 10
 
 # kill existing port-forward process due to restart of relay pods
-curl http://127.0.0.1:7546 || true
+curl http://127.0.0.1:37546 || true
 
 # find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
 relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
 echo "Relay Pod Name: ${relayPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 7546:7546 &
-echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 7546:7546 &"
+kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 37546:7546 &
+echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 37546:7546 &"
 
 # kill existing port-forward process due to restart of mirror ingress controller
-curl http://127.0.0.1:8081 || true
+curl http://127.0.0.1:38081 || true
 # find the new mirror-ingress-controller pod name then enable port-forwarding to it
 mirrorPodName=$(kubectl get pods -n solo-e2e  | grep mirror-ingress-controller | awk '{print $1}')
 echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 8081:80 &
+kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 38081:80 &
 
 # Test transaction can still be sent and processed
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
