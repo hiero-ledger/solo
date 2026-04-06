@@ -2897,6 +2897,20 @@ export class Flags {
     prompt: undefined,
   };
 
+  // ------------------ Edge ---------------- //
+
+  public static readonly edgeEnabled: CommandFlag = {
+    constName: 'edgeEnabled',
+    name: 'edge',
+    definition: {
+      describe:
+        'Use edge component versions (newer than the defaults in version.ts). Intended for testing memory/startup changes.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3071,6 +3085,7 @@ export class Flags {
     Flags.forceBlockNodeIntegration,
     Flags.rollback,
     Flags.parallelDeploy,
+    Flags.edgeEnabled,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
