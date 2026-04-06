@@ -429,10 +429,6 @@ export class MirrorNodeCommand extends BaseCommand {
     // conflicts: the chart owns mirror-passwords, Solo owns mirror-passwords-solo.
     // All entries are accumulated here and written in a single merged operation.
     const mirrorPasswordsSensitiveData: Record<string, string> = {};
-    // Track whether DB passwords are stored in mirror-passwords-solo so we know
-    // which additional components need their extraEnvVarsSecret wired to it.
-    let hasDatabasePasswords: boolean = false;
-
     let storageType: string = '';
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
@@ -482,7 +478,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
-    let host: string, ownerUsername: string, readonlyUsername: string;
+    let host: string, ownerUsername: string;
     valuesArgument += helpers.populateHelmArguments({
       // Disable default database deployment
       'stackgres.enabled': false,
@@ -493,32 +489,20 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.useExternalDatabase) {
       host = config.externalDatabaseHost;
       ownerUsername = config.externalDatabaseOwnerUsername;
-      readonlyUsername = config.externalDatabaseReadonlyUsername;
 
       // Pass non-sensitive connection info as Helm values
       valuesArgument += helpers.populateHelmArguments({
         'db.host': host,
         'db.owner.username': ownerUsername,
         'importer.db.username': ownerUsername,
-        'grpc.db.username': readonlyUsername,
-        'restjava.db.username': readonlyUsername,
-        'web3.db.username': readonlyUsername,
-        // TODO: Fixes a problem where importer's V1.0__Init.sql migration fails
-        // 'rest.db.username': readonlyUsername,
       });
 
-      // Store DB passwords in mirror-passwords-solo (Solo-managed secret) so they
-      // are never stored in Helm release history.  Each mirror component is wired
-      // to read from this secret via extraEnvVarsSecret below.
-      const ownerPassword: string = config.externalDatabaseOwnerPassword;
-      const readonlyPassword: string = config.externalDatabaseReadonlyPassword;
-      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD'] = Base64.encode(ownerPassword);
-      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_PASSWORD'] = Base64.encode(ownerPassword);
-      mirrorPasswordsSensitiveData['HIERO_MIRROR_GRPC_DB_PASSWORD'] = Base64.encode(readonlyPassword);
-      mirrorPasswordsSensitiveData['HIERO_MIRROR_IMPORTER_DB_RESTPASSWORD'] = Base64.encode(readonlyPassword);
-      mirrorPasswordsSensitiveData['HIERO_MIRROR_RESTJAVA_DB_PASSWORD'] = Base64.encode(readonlyPassword);
-      mirrorPasswordsSensitiveData['HIERO_MIRROR_WEB3_DB_PASSWORD'] = Base64.encode(readonlyPassword);
-      hasDatabasePasswords = true;
+      // Keep read-only component usernames at chart defaults.
+      // Mirror bootstrap scripts create separate users for grpc/restjava/web3; if all
+      // are forced to the same readonly username, startup can fail with duplicate role
+      // creation when the DB init path creates each component user independently.
+      // DB passwords are patched into chart-owned `mirror-passwords` after Helm
+      // deploy so the chart-managed env mappings stay as source-of-truth.
     }
 
     // Write all sensitive data into mirror-passwords-solo (Solo-managed secret).
@@ -549,11 +533,6 @@ export class MirrorNodeCommand extends BaseCommand {
       const extraEnvironmentArguments: Record<string, string> = {
         'importer.extraEnvVarsSecret': 'mirror-passwords-solo',
       };
-      if (hasDatabasePasswords) {
-        extraEnvironmentArguments['grpc.extraEnvVarsSecret'] = 'mirror-passwords-solo';
-        extraEnvironmentArguments['restjava.extraEnvVarsSecret'] = 'mirror-passwords-solo';
-        extraEnvironmentArguments['web3.extraEnvVarsSecret'] = 'mirror-passwords-solo';
-      }
       valuesArgument += helpers.populateHelmArguments(extraEnvironmentArguments);
     }
 
@@ -617,6 +596,7 @@ export class MirrorNodeCommand extends BaseCommand {
       config.clusterContext,
       shouldReuseValues,
     );
+    await this.syncExternalDatabasePasswordsAndRestartPods(config, commandType === MirrorNodeCommandType.UPGRADE);
 
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
@@ -679,6 +659,70 @@ export class MirrorNodeCommand extends BaseCommand {
           constants.MIRROR_INGRESS_CLASS_NAME,
           constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
         );
+    }
+  }
+
+  /**
+   * External DB deployments still source DB credentials from chart-managed
+   * `mirror-passwords`. Update those keys after Helm deploy and restart affected
+   * API pods so they pick up the new secret values.
+   */
+  private async syncExternalDatabasePasswordsAndRestartPods(
+    config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
+    shouldRestartPods: boolean,
+  ): Promise<void> {
+    if (!config.useExternalDatabase) {
+      return;
+    }
+
+    if (!config.externalDatabaseOwnerPassword || !config.externalDatabaseReadonlyPassword) {
+      throw new SoloError('External database owner/readonly credentials were not provided for mirror secret sync');
+    }
+
+    const prefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+    const ownerPasswordEncoded: string = Base64.encode(config.externalDatabaseOwnerPassword);
+    const readonlyPasswordEncoded: string = Base64.encode(config.externalDatabaseReadonlyPassword);
+    const secretDataOverrides: Record<string, string> = {
+      [`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`]: ownerPasswordEncoded,
+      [`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`]: ownerPasswordEncoded,
+      [`${prefix}_MIRROR_GRPC_DB_PASSWORD`]: readonlyPasswordEncoded,
+      [`${prefix}_MIRROR_RESTJAVA_DB_PASSWORD`]: readonlyPasswordEncoded,
+      [`${prefix}_MIRROR_WEB3_DB_PASSWORD`]: readonlyPasswordEncoded,
+    };
+
+    const k8Client = this.k8Factory.getK8(config.clusterContext);
+    const mirrorPasswordsSecret: Secret = await k8Client.secrets().read(config.namespace, 'mirror-passwords');
+    await k8Client.secrets().replace(config.namespace, 'mirror-passwords', SecretType.OPAQUE, {
+      ...mirrorPasswordsSecret.data,
+      ...secretDataOverrides,
+    });
+
+    if (!shouldRestartPods) {
+      // For first-time deploys, restarting importer immediately can interrupt Flyway
+      // migrations and leave external DB state half-initialized (e.g. role created
+      // but migration rolled back), causing subsequent startup failures.
+      return;
+    }
+
+    const affectedComponents: Set<string> = new Set(['importer', 'grpc', 'rest', 'restjava', 'web3']);
+    const mirrorPods: Pod[] = await k8Client
+      .pods()
+      .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`]);
+    const podsToRestart: Pod[] = mirrorPods.filter((pod: Pod): boolean => {
+      const componentLabel: string | undefined = pod.labels?.['app.kubernetes.io/component'];
+      if (componentLabel && affectedComponents.has(componentLabel)) {
+        return true;
+      }
+
+      const podName: string = pod.podReference?.name.name ?? '';
+      return [...affectedComponents].some((component: string): boolean => podName.includes(`-${component}`));
+    });
+
+    this.logger.info(
+      `Restarting ${podsToRestart.length} mirror pod(s) after external DB password secret sync for release ${config.releaseName}`,
+    );
+    for (const pod of podsToRestart) {
+      await pod.killPod();
     }
   }
 

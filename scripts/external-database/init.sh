@@ -30,7 +30,7 @@ psql -d "user=postgres connect_timeout=3" \
   --set "ownerUsername=${HEDERA_MIRROR_IMPORTER_DB_OWNER}" \
   --set "tempSchema=${HEDERA_MIRROR_IMPORTER_DB_TEMPSCHEMA}" \
   --set "readUsername=${HEDERA_MIRROR_READ}" \
-  --set "readPassword=${HEDERA_MIRROR_READ_PASSWORD}" <<__SQL__
+  --set "readPassword=${HEDERA_MIRROR_READ_PASSWORD}" <<'__SQL__'
 -- Create database & owner
 create database :dbName with owner :ownerUsername;
 -- Create roles
@@ -55,9 +55,40 @@ revoke create on schema :dbSchema from public;
 create schema if not exists :tempSchema authorization temporary_admin;
 grant usage on schema :tempSchema to public;
 revoke create on schema :tempSchema from public;
--- Create readonly user with password and grant privileges
-create user :readUsername with password :'readPassword';
-grant readonly to :readUsername;
+-- IMPORTANT:
+-- Do not pre-create a readonly login here.
+-- Mirror's bootstrap/migration flow creates component DB users and can fail when
+-- the same readonly user already exists (for example, when grpc/restjava/web3 are
+-- configured to use a shared readonly username).
+--
+-- External DB mode still needs read-only users for mirror API services. Ensure the
+-- expected service users exist and share the readonly password supplied by tests.
+select set_config('hiero.read_password', :'readPassword', false);
+DO $create_readonly_users$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mirror_grpc') THEN
+    EXECUTE format('ALTER ROLE mirror_grpc WITH LOGIN PASSWORD %L', current_setting('hiero.read_password'));
+  ELSE
+    EXECUTE format('CREATE ROLE mirror_grpc WITH LOGIN PASSWORD %L', current_setting('hiero.read_password'));
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mirror_rest_java') THEN
+    EXECUTE format('ALTER ROLE mirror_rest_java WITH LOGIN PASSWORD %L', current_setting('hiero.read_password'));
+  ELSE
+    EXECUTE format('CREATE ROLE mirror_rest_java WITH LOGIN PASSWORD %L', current_setting('hiero.read_password'));
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mirror_web3') THEN
+    EXECUTE format('ALTER ROLE mirror_web3 WITH LOGIN PASSWORD %L', current_setting('hiero.read_password'));
+  ELSE
+    EXECUTE format('CREATE ROLE mirror_web3 WITH LOGIN PASSWORD %L', current_setting('hiero.read_password'));
+  END IF;
+END
+$create_readonly_users$;
+grant readonly to mirror_grpc;
+grant readonly to mirror_rest_java;
+grant readonly to mirror_web3;
+
 -- Grant readonly privileges
 grant connect on database :dbName to readonly;
 grant select on all tables in schema :dbSchema, :tempSchema to readonly;
