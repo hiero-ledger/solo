@@ -45,7 +45,6 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 // Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
-// These SHOULD be updated intentionally when maintainers want CI/users to test newer component builds.
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
