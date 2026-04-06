@@ -58,7 +58,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
           # allow internal Podman/Kind HTTPS calls between pods/services on the runner (no internet egress)
@@ -157,7 +157,8 @@ jobs:
       - e2e-tests
     if: >-
       ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) &&
-      !cancelled() && !failure() }}
+      !cancelled() && !failure() &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     with:
       custom-job-label: Coverage
       enable-codacy-coverage: true

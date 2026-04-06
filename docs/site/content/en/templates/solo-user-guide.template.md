@@ -230,16 +230,16 @@ After deployment, your network services are automatically available at:
 
 | Service | Endpoint | Description |
 |---------|----------|-------------|
-| Explorer UI | `http://localhost:8080` | Web UI for inspecting network |
-| Consensus Node | `localhost:50211` | gRPC endpoint for transactions |
+| Explorer UI | `http://localhost:38080` | Web UI for inspecting network |
+| Consensus Node | `localhost:35211` | gRPC endpoint for transactions |
 | Mirror Node REST | `http://localhost:5551` | REST API for queries |
-| JSON RPC Relay | `localhost:7546` | Ethereum-compatible JSON RPC |
+| JSON RPC Relay | `localhost:37546` | Ethereum-compatible JSON RPC |
 
 > **Note:** The ports listed above are defaults. Your actual ports may differ based on
 > local port map configurations or if the default ports were already in use during deployment.
 > Review the output of `solo one-shot single deploy` to confirm your active endpoints.
 
-Open http://localhost:8080 in your browser to explore your network.
+Open http://localhost:38080 in your browser to explore your network.
 
 #### Discovering and Verifying Active Ports
 
@@ -264,9 +264,9 @@ Example output:
 ```
 === Port-Forward Status Check ===
 
-✓ ConsensusNode node0: localhost:50211 -> pod:50211 [Running]
+✓ ConsensusNode node0: localhost:35211 -> pod:50211 [Running]
 ✓ MirrorNode mirror-node: localhost:5551 -> pod:5551 [Running]
-⚠ Explorer explorer: localhost:8080 -> pod:8080 [Missing]
+⚠ Explorer explorer: localhost:38080 -> pod:8080 [Missing]
   ↳ Restored port forward for Explorer explorer
 ```
 
