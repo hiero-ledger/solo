@@ -621,16 +621,11 @@ jobs:
           
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
-      - name: Comment PR with Log Metrics
-        if: >-
-          ${{ github.event_name == 'pull_request' && steps.log-metrics-file.conclusion == 'success' &&
-          github.event.pull_request.head.repo.fork == false && !cancelled() && !failure() }}
-        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+      - name: Write Log Metrics to Workflow Summary
+        if: ${{ !cancelled() && steps.log-metrics-file.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          mode: recreate
-          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
-          comment-tag: log-metrics-${{ inputs.test-script }}
+        run: |
+          cat "${{ steps.log-metrics-file.outputs.log_file }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}

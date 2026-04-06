@@ -18,10 +18,12 @@ if [[ ! -f "$METRICS_FILE" ]]; then
   exit 1
 fi
 
-# Extract CPU percentages and memory MB values (portable to macOS Bash 3)
+# Extract CPU percentages, host memory MB values, pod memory MB and pod CPU millicores
 CPU_VALUES=$(jq -r '.cpu_percent // empty' "$METRICS_FILE" 2>/dev/null || echo "")
 MEM_MB_VALUES=$(jq -r '.mem_used_mb // empty' "$METRICS_FILE" 2>/dev/null || echo "")
 MEM_TOTAL_MB=$(jq -r '.mem_total_mb // empty' "$METRICS_FILE" 2>/dev/null | tail -1 || echo "")
+POD_MEM_VALUES=$(jq -r '.pod_mem_mb // empty' "$METRICS_FILE" 2>/dev/null || echo "")
+POD_CPU_VALUES=$(jq -r '.pod_cpu_m // empty' "$METRICS_FILE" 2>/dev/null || echo "")
 # Fall back to percentage if MB data is absent (older metrics files)
 MEM_VALUES=$(jq -r '.mem_percent // empty' "$METRICS_FILE" 2>/dev/null || echo "")
 
@@ -107,56 +109,71 @@ else
       print "";
     }')
 
-  # Memory chart — Y-axis in MB when available, percentage otherwise
-  mem_chart=$(printf '%s\n' "$mem_chart_values" | awk -v height=10 -v width=50 -v max_val="$mem_max" -v unit="$mem_y_unit" '
-    {
-      v = $1+0;
-      if (v < 0) v = 0;
-      if (max_val > 0 && v > max_val) v = max_val;
-      vals[n] = v;
-      n++;
-    }
-    END {
-      if (n == 0) {
-        exit 0;
-      }
-
-      if (max_val <= 0) max_val = 1;
-
-      # Normalize values to chart height
-      for (i = 0; i < n; i++) {
-        norm[i] = int((vals[i] / max_val) * height);
-      }
-
-      w = (n < width ? n : width);
-
-      # Y-axis labels and chart
-      for (y = height; y >= 0; y--) {
-        label = (y / height) * max_val;
-        if (unit == "MB") {
-          printf "%6d MB |", int(label);
-        } else {
-          printf "%5.1f%% |", label;
-        }
-        for (x = 0; x < w; x++) {
-          if (norm[x] >= y) {
-            printf "#";
-          } else if (norm[x] == y - 1) {
-            printf "+";
-          } else {
-            printf " ";
+  # Host memory chart — Y-axis in MB when available, percentage otherwise
+  if [[ "$mem_y_unit" == "MB" ]]; then
+    mem_chart=$(_mb_chart "$mem_chart_values" "${mem_max:-1}" "MB")
+  else
+    mem_chart=$(printf '%s\n' "$mem_chart_values" | awk -v height=10 -v width=50 -v max_val=100 '
+      { v=$1+0; if(v<0)v=0; if(v>max_val)v=max_val; vals[n]=v; n++ }
+      END {
+        if(n==0) exit 0;
+        for(i=0;i<n;i++) norm[i]=int((vals[i]/max_val)*height);
+        w=(n<width?n:width);
+        for(y=height;y>=0;y--) {
+          printf "%5.1f%% |", (y/height)*max_val;
+          for(x=0;x<w;x++) {
+            if(norm[x]>=y) printf "#";
+            else if(norm[x]==y-1) printf "+";
+            else printf " ";
           }
+          print "";
         }
+        printf "       +";
+        for(x=0;x<w;x++) printf "-";
         print "";
-      }
+      }')
+  fi
 
-      # X-axis
-      printf "          +";
-      for (x = 0; x < w; x++) {
-        printf "-";
-      }
-      print "";
-    }')
+  # Reusable awk program for a dynamic-Y MB chart
+  _mb_chart() {
+    local values="$1" max_val="$2" label="$3"
+    printf '%s\n' "$values" | awk -v height=10 -v width=50 -v max_val="$max_val" -v lbl="$label" '
+      { v=$1+0; if(v<0)v=0; vals[n]=v; n++ }
+      END {
+        if(n==0) exit 0;
+        if(max_val<=0) max_val=1;
+        for(i=0;i<n;i++) norm[i]=int((vals[i]/max_val)*height);
+        w=(n<width?n:width);
+        for(y=height;y>=0;y--) {
+          printf "%6d %s |", int((y/height)*max_val), lbl;
+          for(x=0;x<w;x++) {
+            if(norm[x]>=y) printf "#";
+            else if(norm[x]==y-1) printf "+";
+            else printf " ";
+          }
+          print "";
+        }
+        printf "            +";
+        for(x=0;x<w;x++) printf "-";
+        print "";
+      }'
+  }
+
+  # Pod memory chart — dynamic Y-axis capped at peak pod memory
+  pod_mem_chart=""
+  peak_pod_mem_mb=""
+  if [[ -n "$POD_MEM_VALUES" ]] && printf '%s\n' "$POD_MEM_VALUES" | grep -qE '^[0-9]+'; then
+    peak_pod_mem_mb=$(printf '%s\n' "$POD_MEM_VALUES" | sort -nr | head -1)
+    pod_mem_chart=$(_mb_chart "$POD_MEM_VALUES" "${peak_pod_mem_mb:-1}" "MB")
+  fi
+
+  # Pod CPU chart — Y-axis in millicores, capped at peak pod CPU
+  pod_cpu_chart=""
+  peak_pod_cpu_m=""
+  if [[ -n "$POD_CPU_VALUES" ]] && printf '%s\n' "$POD_CPU_VALUES" | grep -qE '^[0-9]+'; then
+    peak_pod_cpu_m=$(printf '%s\n' "$POD_CPU_VALUES" | sort -nr | head -1)
+    pod_cpu_chart=$(_mb_chart "$POD_CPU_VALUES" "${peak_pod_cpu_m:-1}" " m")
+  fi
 
   # Threshold checks (CPU only; memory uses absolute MB threshold if available)
   OVER_95=$(awk -v c="$peak_cpu" -v m="$peak_mem_pct" 'BEGIN{max=c+0; if(m+0>max)max=m+0; if(max>95)print 1; else print 0}')
@@ -172,19 +189,35 @@ else
   ASCII+="📉 CPU Usage"$'\n'
   ASCII+="$cpu_chart"$'\n'
   ASCII+=$'\n'
-  ASCII+="📉 Memory Usage (MB)"$'\n'
+  ASCII+="📉 Host Memory Usage (MB)"$'\n'
   ASCII+="$mem_chart"$'\n'
   ASCII+=$'\n'
+  if [[ -n "$pod_cpu_chart" ]]; then
+    ASCII+="⚙️  Pod CPU Usage — sum of all containers (millicores)"$'\n'
+    ASCII+="$pod_cpu_chart"$'\n'
+    ASCII+=$'\n'
+  fi
+  if [[ -n "$pod_mem_chart" ]]; then
+    ASCII+="📦 Pod Memory Usage — sum of all containers (MB)"$'\n'
+    ASCII+="$pod_mem_chart"$'\n'
+    ASCII+=$'\n'
+  fi
 
   if [[ "$OVER_95" -eq 1 ]]; then
     ASCII+="⚠️  WARNING: Resource usage exceeded 95% threshold!"$'\n'
-    ASCII+="    CPU Peak: ${peak_cpu}%  |  Memory Peak: ${mem_label}"$'\n'
+    ASCII+="    Host CPU Peak: ${peak_cpu}%  |  Host Memory Peak: ${mem_label}"$'\n'
   elif [[ "$OVER_80" -eq 1 ]]; then
     ASCII+="⚡ NOTICE: Resource usage exceeded 80% threshold"$'\n'
-    ASCII+="    CPU Peak: ${peak_cpu}%  |  Memory Peak: ${mem_label}"$'\n'
+    ASCII+="    Host CPU Peak: ${peak_cpu}%  |  Host Memory Peak: ${mem_label}"$'\n'
   else
     ASCII+="✅ Resource usage within normal limits"$'\n'
-    ASCII+="    CPU Peak: ${peak_cpu}%  |  Memory Peak: ${mem_label}"$'\n'
+    ASCII+="    Host CPU Peak: ${peak_cpu}%  |  Host Memory Peak: ${mem_label}"$'\n'
+  fi
+  if [[ -n "$peak_pod_cpu_m" ]]; then
+    ASCII+="    Pod CPU Peak: ${peak_pod_cpu_m}m (sum of all containers)"$'\n'
+  fi
+  if [[ -n "$peak_pod_mem_mb" ]]; then
+    ASCII+="    Pod Memory Peak: ${peak_pod_mem_mb} MB (sum of all containers)"$'\n'
   fi
   ASCII+=$'\n'
 fi

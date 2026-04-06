@@ -40,7 +40,28 @@ start_monitoring() {
       MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
       MEM_PERCENT=$(echo "$MEM_INFO" | awk '{if ($2 > 0) printf "%.1f", ($3/$2)*100; else print "0.0"}')
 
-      echo "{\"timestamp\":\"$TIMESTAMP\",\"cpu_percent\":$CPU_PERCENT,\"mem_used_mb\":$MEM_USED,\"mem_total_mb\":$MEM_TOTAL,\"mem_percent\":$MEM_PERCENT}" >> "$METRICS_FILE"
+      # Sum CPU (millicores) and memory (MB) of all running pods across all namespaces
+      POD_MEM_MB=0
+      POD_CPU_M=0
+      if command -v kubectl >/dev/null 2>&1; then
+        read -r POD_CPU_M POD_MEM_MB < <(kubectl top pods --all-namespaces --no-headers 2>/dev/null \
+          | awk '
+            {
+              # CPU column ($3): strip "m" suffix (millicores); no suffix means cores → multiply by 1000
+              cpu=$3; sub(/m$/,"",cpu);
+              if ($3 !~ /m$/) cpu=cpu*1000;
+              cpu_total += cpu+0;
+              # Memory column ($4): strip Mi/Gi suffix
+              mem=$4;
+              if (mem ~ /Gi$/) { sub(/Gi$/,"",mem); mem=mem*1024; }
+              else { sub(/Mi$/,"",mem); }
+              mem_total += mem+0;
+            }
+            END { printf "%d %d", cpu_total, mem_total }
+          ' || echo "0 0")
+      fi
+
+      echo "{\"timestamp\":\"$TIMESTAMP\",\"cpu_percent\":$CPU_PERCENT,\"mem_used_mb\":$MEM_USED,\"mem_total_mb\":$MEM_TOTAL,\"mem_percent\":$MEM_PERCENT,\"pod_mem_mb\":${POD_MEM_MB:-0},\"pod_cpu_m\":${POD_CPU_M:-0}}" >> "$METRICS_FILE"
       sleep "$interval"
     done
   ) &
@@ -75,23 +96,35 @@ stop_monitoring() {
     PEAK_MEM_MB=$(jq -r '.mem_used_mb' "$METRICS_FILE" 2>/dev/null | sort -rn | head -1 || echo "")
     PEAK_MEM_PCT=$(jq -r '.mem_percent' "$METRICS_FILE" 2>/dev/null | sort -rn | head -1 || echo "")
     MEM_TOTAL_MB=$(jq -r '.mem_total_mb' "$METRICS_FILE" 2>/dev/null | tail -1 || echo "")
+    PEAK_POD_MEM_MB=$(jq -r '.pod_mem_mb // 0' "$METRICS_FILE" 2>/dev/null | sort -rn | head -1 || echo "")
+    PEAK_POD_CPU_M=$(jq -r '.pod_cpu_m // 0' "$METRICS_FILE" 2>/dev/null | sort -rn | head -1 || echo "")
     if [[ -n "$PEAK_CPU" ]]; then
-      echo "Peak CPU: ${PEAK_CPU}%"
+      echo "Peak Host CPU: ${PEAK_CPU}%"
     else
-      echo "Peak CPU: N/A"
+      echo "Peak Host CPU: N/A"
     fi
     if [[ -n "$PEAK_MEM_MB" ]]; then
-      echo "Peak Memory: ${PEAK_MEM_MB} MB / ${MEM_TOTAL_MB} MB (${PEAK_MEM_PCT}%)"
+      echo "Peak Host Memory: ${PEAK_MEM_MB} MB / ${MEM_TOTAL_MB} MB (${PEAK_MEM_PCT}%)"
     else
-      echo "Peak Memory: N/A"
+      echo "Peak Host Memory: N/A"
+    fi
+    if [[ -n "$PEAK_POD_CPU_M" && "$PEAK_POD_CPU_M" != "0" ]]; then
+      echo "Peak Pod CPU (sum all pods): ${PEAK_POD_CPU_M}m ($(awk "BEGIN{printf \"%.1f\", ${PEAK_POD_CPU_M}/10}") cores)"
+    else
+      echo "Peak Pod CPU: N/A (kubectl top may not be available)"
+    fi
+    if [[ -n "$PEAK_POD_MEM_MB" && "$PEAK_POD_MEM_MB" != "0" ]]; then
+      echo "Peak Pod Memory (sum all pods): ${PEAK_POD_MEM_MB} MB"
+    else
+      echo "Peak Pod Memory: N/A (kubectl top may not be available)"
     fi
     echo ""
     echo "Last 10 measurements:"
     if command -v column >/dev/null 2>&1; then
-      tail -10 "$METRICS_FILE" | jq -r '"\(.timestamp)\t\(.cpu_percent)%\t\(.mem_used_mb) MB / \(.mem_total_mb) MB (\(.mem_percent)%)"' | column -t -s$'\t'
+      tail -10 "$METRICS_FILE" | jq -r '"\(.timestamp)\t\(.cpu_percent)%\t\(.mem_used_mb)/\(.mem_total_mb)MB(\(.mem_percent)%)\tpods CPU:\(.pod_cpu_m // 0)m  MEM:\(.pod_mem_mb // 0)MB"' | column -t -s$'\t'
     else
       echo "(Install 'column' to view table formatting)"
-      tail -10 "$METRICS_FILE" | jq -r '"\(.timestamp) CPU=\(.cpu_percent)% MEM=\(.mem_used_mb)/\(.mem_total_mb)MB (\(.mem_percent)%)"'
+      tail -10 "$METRICS_FILE" | jq -r '"\(.timestamp) HOST_CPU=\(.cpu_percent)% HOST_MEM=\(.mem_used_mb)/\(.mem_total_mb)MB POD_CPU=\(.pod_cpu_m // 0)m POD_MEM=\(.pod_mem_mb // 0)MB"'
     fi
     echo "::endgroup::"
   else

@@ -31,6 +31,9 @@ tasks:
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --quiet-mode --dev
+        
+      # Run verification task to check application.properties in the deployed consensus node
+      - task: verify
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
