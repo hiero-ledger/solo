@@ -17,6 +17,8 @@
 name: "One-Shot Timing Test"
 
 on:
+  schedule:
+    - cron: '1 6 * * *'
   workflow_dispatch:
     inputs:
       use-released-solo:
@@ -54,6 +56,11 @@ on:
         type: string
         required: false
         default: ""
+      cycles:
+        description: "Number of cold/warm cycles to run"
+        type: number
+        required: false
+        default: 3
 
 defaults:
   run:
@@ -67,7 +74,7 @@ env:
 
 jobs:
   one-shot-timing:
-    timeout-minutes: 120
+    timeout-minutes: 420
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
@@ -221,91 +228,172 @@ jobs:
           cat "$VALUES_FILE"
           echo "path=$VALUES_FILE" >> "$GITHUB_OUTPUT"
 
-      - name: "Cold Start: Deploy"
-        id: cold-start
-        timeout-minutes: 60
+      - name: System Calibration
+        id: calibration
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "==== System Calibration ===="
+          CALIBRATION_START=$SECONDS
+          tar -czf /dev/null /usr 2>/dev/null
+          BASELINE=$(( SECONDS - CALIBRATION_START ))
+          echo "baseline=${BASELINE}" >> "$GITHUB_OUTPUT"
+          echo "Runner calibration (tar /usr): ${BASELINE}s"
+          if [ "$BASELINE" -gt 20 ]; then
+            echo "::warning::Runner appears slow (calibration=${BASELINE}s). Timing results may be unreliable."
+          fi
+
+      - name: "Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)"
+        id: timing-cycles
+        timeout-minutes: 360
         run: |
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
           VALUES_FILE="${{ steps.values-file.outputs.path }}"
 
-          echo "==== Cold Start: Measuring one-shot single deploy time ===="
-          COLD_START_TIME=$SECONDS
+          delete_clusters() {
+            for cluster in $(kind get clusters 2>/dev/null); do
+              kind delete cluster -n "$cluster"
+            done
+          }
 
-          $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+          CYCLES=${{ inputs.cycles || 3 }}
+          COLD_SAMPLES=()
+          WARM_SAMPLES=()
 
-          COLD_ELAPSED=$(( SECONDS - COLD_START_TIME ))
-          COLD_MINUTES=$(( COLD_ELAPSED / 60 ))
-          COLD_SECONDS=$(( COLD_ELAPSED % 60 ))
-          echo "cold-elapsed=${COLD_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Cold start completed in ${COLD_MINUTES}m ${COLD_SECONDS}s ===="
+          for i in $(seq 1 "$CYCLES"); do
+            echo "==== Cycle ${i}/${CYCLES} ===="
 
-      - name: "Destroy Deployment"
-        timeout-minutes: 15
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
+            echo "-- Cold start --"
+            COLD_SAMPLE_START=$SECONDS
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+            COLD_ELAPSED=$(( SECONDS - COLD_SAMPLE_START ))
+            COLD_SAMPLES+=("$COLD_ELAPSED")
+            echo "Cold ${i}: $(( COLD_ELAPSED / 60 ))m $(( COLD_ELAPSED % 60 ))s (${COLD_ELAPSED}s)"
 
-          echo "==== Destroying one-shot single deployment ===="
-          $SOLO_CMD one-shot falcon destroy
-          echo "==== Destroy complete ===="
+            $SOLO_CMD one-shot falcon destroy -q
 
-      - name: "Warm Start: Redeploy"
-        id: warm-start
-        timeout-minutes: 60
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          VALUES_FILE="${{ steps.values-file.outputs.path }}"
+            echo "-- Warm start --"
+            WARM_SAMPLE_START=$SECONDS
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+            WARM_ELAPSED=$(( SECONDS - WARM_SAMPLE_START ))
+            WARM_SAMPLES+=("$WARM_ELAPSED")
+            echo "Warm ${i}: $(( WARM_ELAPSED / 60 ))m $(( WARM_ELAPSED % 60 ))s (${WARM_ELAPSED}s)"
 
-          echo "==== Warm Start: Measuring one-shot single deploy time ===="
-          WARM_START_TIME=$SECONDS
+            if [ "$i" -lt "$CYCLES" ]; then
+              $SOLO_CMD one-shot falcon destroy -q
+              delete_clusters
+            fi
+          done
 
-          $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+          MEDIAN_IDX=$(( (CYCLES - 1) / 2 ))
 
-          WARM_ELAPSED=$(( SECONDS - WARM_START_TIME ))
-          WARM_MINUTES=$(( WARM_ELAPSED / 60 ))
-          WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
-          echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
+          IFS=$'\n' COLD_SORTED=($(printf '%s\n' "${COLD_SAMPLES[@]}" | sort -n)); unset IFS
+          COLD_MIN=${COLD_SORTED[0]}
+          COLD_MEDIAN=${COLD_SORTED[$MEDIAN_IDX]}
+          COLD_MAX=${COLD_SORTED[$CYCLES - 1]}
+
+          IFS=$'\n' WARM_SORTED=($(printf '%s\n' "${WARM_SAMPLES[@]}" | sort -n)); unset IFS
+          WARM_MIN=${WARM_SORTED[0]}
+          WARM_MEDIAN=${WARM_SORTED[$MEDIAN_IDX]}
+          WARM_MAX=${WARM_SORTED[$CYCLES - 1]}
+
+          echo "cold-elapsed=${COLD_MEDIAN}" >> "$GITHUB_OUTPUT"
+          echo "cold-min=${COLD_MIN}" >> "$GITHUB_OUTPUT"
+          echo "cold-median=${COLD_MEDIAN}" >> "$GITHUB_OUTPUT"
+          echo "cold-max=${COLD_MAX}" >> "$GITHUB_OUTPUT"
+          echo "cold-samples=${COLD_SAMPLES[*]}" >> "$GITHUB_OUTPUT"
+
+          echo "warm-elapsed=${WARM_MEDIAN}" >> "$GITHUB_OUTPUT"
+          echo "warm-min=${WARM_MIN}" >> "$GITHUB_OUTPUT"
+          echo "warm-median=${WARM_MEDIAN}" >> "$GITHUB_OUTPUT"
+          echo "warm-max=${WARM_MAX}" >> "$GITHUB_OUTPUT"
+          echo "warm-samples=${WARM_SAMPLES[*]}" >> "$GITHUB_OUTPUT"
+
+          echo "==== Cold median: $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s ===="
+          echo "==== Warm median: $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s ===="
 
       - name: Timing Summary
+        id: timing-summary
         if: ${{ !cancelled() }}
         run: |
-          COLD="${{ steps.cold-start.outputs.cold-elapsed }}"
-          WARM="${{ steps.warm-start.outputs.warm-elapsed }}"
+          COLD_MEDIAN="${{ steps.timing-cycles.outputs.cold-median }}"
+          COLD_MIN="${{ steps.timing-cycles.outputs.cold-min }}"
+          COLD_MAX="${{ steps.timing-cycles.outputs.cold-max }}"
+          COLD_SAMPLES="${{ steps.timing-cycles.outputs.cold-samples }}"
+          WARM_MEDIAN="${{ steps.timing-cycles.outputs.warm-median }}"
+          WARM_MIN="${{ steps.timing-cycles.outputs.warm-min }}"
+          WARM_MAX="${{ steps.timing-cycles.outputs.warm-max }}"
+          WARM_SAMPLES="${{ steps.timing-cycles.outputs.warm-samples }}"
+          BASELINE="${{ steps.calibration.outputs.baseline }}"
 
-          echo "### One-Shot Timing Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "### One-Shot Timing Results (${{ inputs.cycles || 3 }} cycles)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Metric | Duration |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|----------|" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ -n "$COLD" ]; then
-            echo "| Cold Start | $(( COLD / 60 ))m $(( COLD % 60 ))s (${COLD}s) |" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$BASELINE" ]; then
+            echo "| Runner Calibration (tar /usr) | ${BASELINE}s |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "$COLD_MEDIAN" ]; then
+            echo "| Cold Start (median) | $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s (${COLD_MEDIAN}s) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Cold Start min | $(( COLD_MIN / 60 ))m $(( COLD_MIN % 60 ))s (${COLD_MIN}s) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Cold Start max | $(( COLD_MAX / 60 ))m $(( COLD_MAX % 60 ))s (${COLD_MAX}s) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Cold Start samples | ${COLD_SAMPLES} |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Cold Start | Failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          if [ -n "$WARM" ]; then
-            echo "| Warm Start | $(( WARM / 60 ))m $(( WARM % 60 ))s (${WARM}s) |" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$WARM_MEDIAN" ]; then
+            echo "| Warm Start (median) | $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s (${WARM_MEDIAN}s) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Warm Start min | $(( WARM_MIN / 60 ))m $(( WARM_MIN % 60 ))s (${WARM_MIN}s) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Warm Start max | $(( WARM_MAX / 60 ))m $(( WARM_MAX % 60 ))s (${WARM_MAX}s) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Warm Start samples | ${WARM_SAMPLES} |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Warm Start | Failed or skipped |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          if [ -n "$COLD" ] && [ -n "$WARM" ]; then
-            DIFF=$(( COLD - WARM ))
+          # Calculate and output improvement
+          if [ -n "$COLD_MEDIAN" ] && [ -n "$WARM_MEDIAN" ]; then
+            DIFF=$(( COLD_MEDIAN - WARM_MEDIAN ))
+            echo "improvement-diff=${DIFF}" >> "$GITHUB_OUTPUT"
+
             if [ "$DIFF" -gt 0 ]; then
-              echo "| Improvement | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Improvement (cold vs warm median) | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "improvement-direction=faster" >> "$GITHUB_OUTPUT"
             elif [ "$DIFF" -lt 0 ]; then
               DELTA=$(( -DIFF ))
-              echo "| Improvement | ${DELTA}s slower on warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Improvement (cold vs warm median) | ${DELTA}s slower on warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "improvement-direction=slower" >> "$GITHUB_OUTPUT"
             else
-              echo "| Improvement | No difference between cold and warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Improvement (cold vs warm median) | No difference between cold and warm start |" >> "$GITHUB_STEP_SUMMARY"
+              echo "improvement-direction=same" >> "$GITHUB_OUTPUT"
             fi
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send Slack Notification
+        if: ${{ !cancelled() }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: One-Shot Timing Results
+          SLACK_MESSAGE: |
+            *Cold Start (median):* ${{ steps.timing-cycles.outputs.cold-median && format('{0}s', steps.timing-cycles.outputs.cold-median) || 'Failed' }}
+            *Cold Start (min / max):* ${{ steps.timing-cycles.outputs.cold-min }}s / ${{ steps.timing-cycles.outputs.cold-max }}s
+            *Warm Start (median):* ${{ steps.timing-cycles.outputs.warm-median && format('{0}s', steps.timing-cycles.outputs.warm-median) || 'Failed' }}
+            *Warm Start (min / max):* ${{ steps.timing-cycles.outputs.warm-min }}s / ${{ steps.timing-cycles.outputs.warm-max }}s
+            *Improvement:* ${{ steps.timing-summary.outputs.improvement-diff && format('{0}s {1}', steps.timing-summary.outputs.improvement-diff, steps.timing-summary.outputs.improvement-direction) || 'N/A' }}
+            *Runner Calibration:* ${{ steps.calibration.outputs.baseline }}s
+            *Branch:* `${{ github.ref_name }}`
+            *Config:* use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
