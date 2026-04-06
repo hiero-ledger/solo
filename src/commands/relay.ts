@@ -234,6 +234,7 @@ export class RelayCommand extends BaseCommand {
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
+    valuesArgument += helpers.prepareValuesFiles(constants.RELAY_VALUES_FILE);
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
@@ -398,7 +399,7 @@ export class RelayCommand extends BaseCommand {
           config.releaseName,
           constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
-          '', // relay.image.tag is used to set the version
+          config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
           config.valuesArg,
           config.context,
         );
@@ -494,7 +495,7 @@ export class RelayCommand extends BaseCommand {
           clusterReference,
           podReference,
           constants.JSON_RPC_RELAY_PORT, // Pod port
-          constants.JSON_RPC_RELAY_PORT, // Local port
+          constants.JSON_RPC_RELAY_LOCAL_PORT, // Local port
           this.k8Factory.getK8(config.context),
           this.logger,
           ComponentTypes.RelayNodes,
@@ -560,18 +561,14 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
-            if (this.oneShotState.isActive()) {
-              config.mirrorNodeReleaseName = Templates.renderMirrorNodeName(config.mirrorNodeId);
-            } else {
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.context,
-              );
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.context,
+            );
 
-              config.mirrorNodeId = mirrorNodeId;
-              config.mirrorNamespace = mirrorNamespace;
-              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-            }
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,

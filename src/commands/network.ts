@@ -24,7 +24,6 @@ import {
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
@@ -79,10 +78,12 @@ import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
+import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
   applicationEnv: string;
+  chainId: string;
   cacheDir: string;
   chartDirectory: string;
   loadBalancerEnabled: boolean;
@@ -427,6 +428,14 @@ export class NetworkCommand extends BaseCommand {
       deploymentName,
       applicationPropertiesPath,
       jfrFile,
+      {
+        // Pass command-scoped values explicitly so profile/staging generation is isolated
+        // from mutable global flags when one-shot runs parallel subcommands.
+        cacheDir: config.cacheDir,
+        releaseTag: config.releaseTag,
+        appName: config.app,
+        chainId: config.chainId,
+      },
     );
 
     const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
@@ -486,7 +495,8 @@ export class NetworkCommand extends BaseCommand {
         valuesArguments[cluster] +=
           ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME}`;
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
 
         valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
       }
@@ -988,7 +998,20 @@ export class NetworkCommand extends BaseCommand {
    */
   private async ensurePodLogsCrd({contexts}: NetworkDeployConfigClass): Promise<void> {
     const PODLOGS_CRD: string = 'podlogs.monitoring.grafana.com';
-    const CRD_URL: string = `https://raw.githubusercontent.com/grafana/alloy/${versions.GRAFANA_PODLOGS_CRD_VERSION}/operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml`;
+    const CRD_FILE_PATH: string = 'operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml';
+
+    // Use the GitHub Contents API (api.github.com) instead of raw.githubusercontent.com.
+    //
+    // Why: raw.githubusercontent.com is served by the Fastly CDN and its rate-limiting
+    // behaviour for unauthenticated requests is undocumented — adding a token there may
+    // have no effect.  The Contents API, on the other hand, is part of the GitHub REST API
+    // (api.github.com) whose rate limits are well-documented: 60 req/hour unauthenticated
+    // vs 5 000 req/hour when a valid token is supplied.  Since GITHUB_TOKEN is injected
+    // automatically into every GitHub Actions job, CI runs always get the higher limit,
+    // making 429s far less likely in the first place.
+    const CRD_URL: string =
+      `https://api.github.com/repos/grafana/alloy/contents/${CRD_FILE_PATH}` +
+      `?ref=${versions.GRAFANA_PODLOGS_CRD_VERSION}`;
 
     for (const context of contexts as string[]) {
       const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
@@ -999,17 +1022,36 @@ export class NetworkCommand extends BaseCommand {
 
       this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
 
-      const temporaryFile: string = PathEx.join(os.tmpdir(), 'podlogs-crd.yaml');
+      const temporaryFile: string = PathEx.join(
+        constants.SOLO_CACHE_DIR,
+        `podlogs-crd-${versions.GRAFANA_PODLOGS_CRD_VERSION}.yaml`,
+      );
 
-      // download YAML from GitHub
+      // Download and cache the CRD YAML.  The cache file is keyed by the CRD version so
+      // it is automatically invalidated when GRAFANA_PODLOGS_CRD_VERSION is bumped.
+      // SOLO_CACHE_DIR persists across job steps (unlike os.tmpdir() which is ephemeral),
+      // ensuring we only make one network request per job even if multiple contexts need
+      // the CRD installed.
       if (!fs.existsSync(temporaryFile)) {
-        const response: Response = await fetch(CRD_URL);
+        // The GitHub Contents API returns a JSON envelope; the file content is base64-encoded
+        // inside the "content" field.  We request application/vnd.github.v3+json so the
+        // response is always the metadata+content JSON object rather than the raw bytes
+        // (the raw media type bypasses the API rate-limit accounting we want).
+        const headers: Record<string, string> = {Accept: 'application/vnd.github.v3+json'};
+        if (process.env.GITHUB_TOKEN) {
+          headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+        }
+        const response: Response = await fetch(CRD_URL, {headers});
 
         if (!response.ok) {
           throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
         }
 
-        const yamlContent: string = await response.text();
+        // The "content" field contains the file's base64 content with newline characters
+        // inserted every 60 characters by GitHub.  Strip all whitespace before decoding
+        // so Buffer.from() receives a clean base64 string.
+        const json: {content: string} = (await response.json()) as {content: string};
+        const yamlContent: string = Buffer.from(json.content.replaceAll(/\s/g, ''), 'base64').toString('utf8');
         fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
       }
 
@@ -1495,7 +1537,8 @@ export class NetworkCommand extends BaseCommand {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
           task: async ({config}): Promise<void> => {
-            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+            const wraps: Wraps = this.soloConfig.tss.wraps;
+            const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
             if (config.wrapsKeyPath) {
               // Use user-provided local directory containing WRAPs proving key files
@@ -1509,7 +1552,7 @@ export class NetworkCommand extends BaseCommand {
                 fs.mkdirSync(extractedDirectory, {recursive: true});
               }
 
-              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(config.wrapsKeyPath)) {
                 if (allowedFiles.has(file)) {
@@ -1521,7 +1564,7 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.debug('Wraps library already installed');
               } else {
                 await this.downloader.fetchPackage(
-                  constants.WRAPS_LIB_DOWNLOAD_URL,
+                  wraps.libraryDownloadUrl,
                   'unusued',
                   constants.SOLO_CACHE_DIR,
                   false,
@@ -1529,10 +1572,7 @@ export class NetworkCommand extends BaseCommand {
                   false,
                 );
 
-                const tarFilePath: string = PathEx.join(
-                  constants.SOLO_CACHE_DIR,
-                  `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`,
-                );
+                const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
 
                 // Create extraction dir
                 fs.mkdirSync(extractedDirectory);
@@ -1542,7 +1582,7 @@ export class NetworkCommand extends BaseCommand {
               }
 
               // Having any files except for those inside the folder causes an error in CN
-              const allowedFiles: Set<string> = new Set(constants.WRAPS_ALLOWED_KEY_FILES.split(','));
+              const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
 
               for (const file of fs.readdirSync(extractedDirectory)) {
                 if (!allowedFiles.has(file)) {

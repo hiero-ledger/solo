@@ -266,6 +266,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     label: string,
     reuse: boolean = false,
     nodeId?: number,
+    persist: boolean = false,
   ): Promise<number> {
     // found component by cluster reference or nodeId
     let component: BaseStateSchema;
@@ -288,8 +289,19 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     } else if (component.metadata.portForwardConfigs) {
       for (const portForwardConfig of component.metadata.portForwardConfigs) {
         if (reuse === true && portForwardConfig.podPort === podPort) {
-          logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
-          return portForwardConfig.localPort;
+          if (portForwardConfig.localPort === localPort) {
+            logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
+            return portForwardConfig.localPort;
+          }
+          // localPort changed (migration) — kill the old process so portForward() reuse logic
+          // does not find it and return the stale port, then remove the stale config.
+          logger.showUser(`${label} Port forward migrating from ${portForwardConfig.localPort} to ${localPort}`);
+          // eslint-disable-next-line unicorn/no-null
+          await k8Client.pods().readByReference(null).stopPortForward(portForwardConfig.localPort);
+          component.metadata.portForwardConfigs = component.metadata.portForwardConfigs.filter(
+            (c): boolean => !(c.podPort === podPort && c.localPort === portForwardConfig.localPort),
+          );
+          break;
         }
       }
     }
@@ -298,7 +310,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     const portForwardPortNumber: number = await k8Client
       .pods()
       .readByReference(podReference)
-      .portForward(localPort, podPort, reuse);
+      .portForward(localPort, podPort, reuse, persist);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
     logger.addMessageGroupMessage(
@@ -380,7 +392,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       return;
     }
 
-    // Stop the port forward - use null pod reference since stopping should work regardless of pod
+    // Stop the port forward - use any pod reference since stopping should work regardless of pod
+    // eslint-disable-next-line unicorn/no-null
     await k8Client.pods().readByReference(null).stopPortForward(localPort);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding stopped');

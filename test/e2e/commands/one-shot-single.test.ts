@@ -97,7 +97,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         const operatorId: AccountId = AccountId.fromString('0.0.2');
         const operatorKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
         const recipientId: AccountId = AccountId.fromString('0.0.3');
-        const client: Client = Client.forNetwork({'localhost:50211': '0.0.3'}).setOperator(operatorId, operatorKey);
+        const client: Client = Client.forNetwork({'localhost:35211': '0.0.3'}).setOperator(operatorId, operatorKey);
 
         const tx: TransactionResponse = await new TransferTransaction()
           .addHbarTransfer(operatorId, new Hbar(-1))
@@ -151,11 +151,14 @@ export function soloOneShotDestroy(testName: string): string[] {
   return argv;
 }
 
-export function soloOneShotShowDeployment(testName: string, _deployment: string): string[] {
-  const {newArgv, argvPushGlobalFlags, optionFromFlag: _optionFromFlag} = BaseCommandTest;
+export function soloOneShotShowDeployment(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.INFO_COMMAND_NAME, 'deployment');
+  if (deployment) {
+    argv.push(optionFromFlag(Flags.deployment), deployment);
+  }
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

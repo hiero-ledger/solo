@@ -96,6 +96,7 @@ import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
+import {ROOT_DIR} from '../constants.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -250,15 +251,28 @@ export class Container {
         (container: DependencyContainer): ConfigProvider => {
           const objectMapper: ClassToObjectMapper = container.resolve<ClassToObjectMapper>(InjectTokens.ObjectMapper);
 
-          const defaultConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
-            'solo-config.yaml',
-            PathEx.join('resources', 'config'),
+          const helmChartConfigSource: DefaultConfigSource<SoloConfigSchema> =
+            new DefaultConfigSource<SoloConfigSchema>(
+              'helm-chart-config.yaml',
+              PathEx.joinWithRealPath(ROOT_DIR, 'resources', 'config'),
+              new SoloConfigSchemaDefinition(objectMapper),
+              objectMapper,
+            );
+
+          const tssConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
+            'tss-config.yaml',
+            PathEx.joinWithRealPath(ROOT_DIR, 'resources', 'config'),
             new SoloConfigSchemaDefinition(objectMapper),
             objectMapper,
           );
 
           const provider: ConfigProvider = new LayeredConfigProvider(objectMapper);
-          provider.builder().withDefaultSources().withSources(defaultConfigSource).withMergeSourceValues(true).build();
+          provider
+            .builder()
+            .withDefaultSources()
+            .withSources(helmChartConfigSource, tssConfigSource)
+            .withMergeSourceValues(true)
+            .build();
           return provider;
         },
       ),
