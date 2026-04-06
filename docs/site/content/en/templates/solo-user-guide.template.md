@@ -312,6 +312,34 @@ kubectl get pods -A | grep -v kube-system
 
 > **💡 Tip**: The Solo testing team recommends [k9s](https://k9scli.io/) for managing Kubernetes clusters. It provides a terminal-based UI that makes it easy to view pods, logs, and cluster status. Install it with `brew install k9s` and run `k9s` to launch.
 
+### Verify Network is Working
+
+To confirm your Hedera network is fully operational, create a test account using the Ledger account creation command:
+
+```bash
+solo account create --deployment <deployment-name>
+```
+
+Example output:
+
+```
+✓ Account created: 0.0.1001
+  Alias: myaccount
+  Balance: 1000 ℏ
+```
+
+Once the account is created, verify it in the web-based Explorer UI:
+
+1. Open your browser to **http://localhost:38080**
+2. In the search bar, enter the account ID (e.g., `0.0.1001`)
+3. View the account details, balance, and transaction history
+
+This confirms that:
+- ✓ The network is processing transactions
+- ✓ The consensus node is responding correctly
+- ✓ The mirror node is indexing transactions
+- ✓ The explorer is displaying data properly
+
 ## Managing Your Network
 
 ### Stopping and Starting Nodes
