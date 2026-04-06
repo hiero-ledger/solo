@@ -290,9 +290,8 @@ export class DiagnosticsAnalyzer {
     // swirlds.log and hgcaa.log).  Broad *.log would match those files too
     // and produce duplicate / noisy findings.
     const componentLogPattern: RegExp = /[\\/](?:mirror|block|relay|explorer|solo-shared)[^/\\]*\.log$/i;
-    const logFiles: string[] = this.collectFilesRecursively(
-      rootDirectory,
-      (filePath: string): boolean => componentLogPattern.test(filePath),
+    const logFiles: string[] = this.collectFilesRecursively(rootDirectory, (filePath: string): boolean =>
+      componentLogPattern.test(filePath),
     );
 
     // Strip Docker/containerd timestamp prefix (e.g. "2026-04-06T03:24:32.470558065Z ") before matching.
