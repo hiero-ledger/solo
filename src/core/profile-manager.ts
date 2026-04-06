@@ -214,14 +214,20 @@ export class ProfileManager {
       const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
       this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
-      // For application.properties, when a user-supplied file differs from the Solo default,
-      // apply it as an additive override: merge user properties onto the existing staging file
-      // rather than replacing it, so Solo's required defaults are always preserved.
+      // For application.properties: when the user provides a custom file (flag value differs
+      // from the default relative path), apply it as an additive override by:
+      //   1. Copying the already-updated Solo default (applicationPropertiesPath) to staging.
+      //   2. Appending the user's properties onto that staging file.
+      // This preserves all required Solo defaults while allowing user overrides.
+      const flagValue: string | undefined = this.configManager.getFlag<string>(flags.applicationProperties);
       const isUserSuppliedApplicationProperties: boolean =
         flag.name === flags.applicationProperties.name &&
-        sourceFilePath !== (flags.applicationProperties.definition.defaultValue as string);
+        !!flagValue &&
+        flagValue !== (flags.applicationProperties.definition.defaultValue as string);
 
-      if (isUserSuppliedApplicationProperties && fs.existsSync(destinationPath)) {
+      if (isUserSuppliedApplicationProperties) {
+        // Base: Solo's updated default (realm/shard/block-node settings already applied)
+        fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
         await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});

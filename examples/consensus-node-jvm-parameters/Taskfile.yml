@@ -45,13 +45,41 @@ tasks:
     desc: Verify custom application.properties was merged into the consensus node container
     cmds:
       - cmd: |
-          echo "=== application.properties inside root-container of node0 ==="
-          kubectl exec -n {{ .DEPLOYMENT }} network-node0-0 -c root-container -- \
-            cat /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
+          # Resolve namespace from the last one-shot deployment (falls back to DEPLOYMENT var)
+          NAMESPACE=$(cat ~/.solo/cache/last-one-shot-deployment.txt 2>/dev/null || echo "{{ .DEPLOYMENT }}")
+          # Find the first network-node pod in that namespace
+          POD=$(kubectl get pods -n "$NAMESPACE" -l "solo.hedera.com/type=network-node" \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [[ -z "$POD" ]]; then
+            echo "No consensus node pod found in namespace $NAMESPACE"
+            exit 1
+          fi
+          APP_PROPS="/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties"
+          echo "=== application.properties inside $POD (namespace: $NAMESPACE) ==="
+          kubectl exec -n "$NAMESPACE" "$POD" -c root-container -- cat "$APP_PROPS"
           echo ""
           echo "=== Checking for custom override (hedera.recordStream.logPeriod) ==="
-          kubectl exec -n {{ .DEPLOYMENT }} network-node0-0 -c root-container -- \
-            grep "hedera.recordStream.logPeriod" /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
+          ACTUAL=$(kubectl exec -n "$NAMESPACE" "$POD" -c root-container -- \
+            grep "^hedera.recordStream.logPeriod=" "$APP_PROPS" | tail -1 | cut -d= -f2 | tr -d '[:space:]')
+          EXPECTED="2"
+          if [[ "$ACTUAL" == "$EXPECTED" ]]; then
+            echo "✅ PASS: hedera.recordStream.logPeriod=${ACTUAL} (expected: ${EXPECTED})"
+          else
+            echo "❌ FAIL: hedera.recordStream.logPeriod=${ACTUAL} (expected: ${EXPECTED})"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Checking new property (fake.property) was appended ==="
+          FAKE=$(kubectl exec -n "$NAMESPACE" "$POD" -c root-container -- \
+            grep "^fake.property=" "$APP_PROPS" | cut -d= -f2 | tr -d '[:space:]')
+          FAKE_EXPECTED="example"
+          if [[ "$FAKE" == "$FAKE_EXPECTED" ]]; then
+            echo "✅ PASS: fake.property=${FAKE} (expected: ${FAKE_EXPECTED})"
+          else
+            echo "❌ FAIL: fake.property=${FAKE} (expected: ${FAKE_EXPECTED})"
+            exit 1
+          fi
 
   default:
     desc: Run the default deploy task
