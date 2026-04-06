@@ -116,6 +116,7 @@ jobs:
             ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
+        id: run-e2e-tests
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -126,6 +127,9 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
+
+          # Start resource monitoring in background (30s interval for finer granularity)
+          ./.github/workflows/script/monitor-resources.sh start 30
 
           TASK_PID=""
           TASK_PGID=""
@@ -147,6 +151,7 @@ jobs:
               wait "${TASK_PID}" 2>/dev/null || true
             fi
             [[ -n "${CANCEL_POLLER_PID}" ]] && kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
+            ./.github/workflows/script/monitor-resources.sh stop || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
@@ -204,6 +209,9 @@ jobs:
           TASK_PGID=""
           trap - SIGTERM SIGINT
 
+          # Stop resource monitoring and display summary
+          ./.github/workflows/script/monitor-resources.sh stop
+
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
             npm run solo-test -- deployment diagnostics logs -q --dev || true
@@ -231,6 +239,48 @@ jobs:
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
+      - name: Generate ASCII Resource Chart
+        id: generate-chart
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
+          CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
+
+          if [[ -f "$METRICS_FILE" ]]; then
+            echo "Generating ASCII chart from metrics..."
+            ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
+
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "chart_generated=true" >> $GITHUB_OUTPUT
+              echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+              echo "✅ ASCII chart generated successfully"
+            else
+              echo "chart_generated=false" >> $GITHUB_OUTPUT
+              echo "⚠️  ASCII chart generation failed"
+            fi
+          else
+            echo "chart_generated=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No metrics file found, skipping chart generation"
+          fi
+
+      - name: Write Runner Resource Usage to Workflow Summary
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "## Runner Resource Usage — Performance Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              cat "$CHART_FILE" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "_No resource metrics collected._" >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Write Log Metrics Message File
         id: log-metrics-file
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
@@ -241,6 +291,23 @@ jobs:
         run: |
           echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
+
+          # Add ASCII resource chart if available
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "<details>" >> $LOG_FILE
+              echo "<summary>📊 Runner Resource Usage</summary>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              cat "$CHART_FILE" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo "</details>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+            fi
+          fi
+
           echo "<details>" >> $LOG_FILE
           echo "<summary>" >> $LOG_FILE
           echo "JSON Log Metrics" >> $LOG_FILE
