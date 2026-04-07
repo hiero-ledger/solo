@@ -219,6 +219,7 @@ export function renameAndCopyFile(
 
 /**
  * Add debug options to valuesArg used by helm chart
+ * @deprecated Use generateExtraEnvValuesFile() with debugNodeAlias option instead
  * @param valuesArgument the valuesArg to update
  * @param debugNodeAlias the node ID to attach the debugger to
  * @param index the index of extraEnv to add the debug options to
@@ -875,26 +876,101 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 }
 
 /**
- * Validate that all required default JVM environment variables are present in Helm values command.
- * This prevents accidental loss of JAVA_* env vars when setting per-node environment overrides.
+ * Build comprehensive per-node environment variables structure for Helm values file.
+ * This unified function handles all extraEnv scenarios to avoid duplication and Helm --set issues.
  *
- * @param helmValuesCommand - The complete helm command with --set flags
- * @throws Error if any required JVM env var is missing
+ * @param consensusNodes - list of consensus nodes
+ * @param options - configuration options for different extraEnv scenarios
+ * @returns Object suitable for YAML serialization with hedera.nodes[X].root.extraEnv
  */
-export function validateHelmJavaEnvVars(helmValuesCommand: string): void {
-  const missingVars: string[] = [];
+export function buildPerNodeExtraEnvValuesStructure(
+  consensusNodes: ConsensusNode[],
+  options: {
+    wrapsEnabled?: boolean;
+    tss?: {wraps: {artifactsFolderName: string}};
+    debugNodeAlias?: NodeAlias;
+    useJavaMainClass?: boolean; // for tools/local builds
+    additionalEnvVars?: Record<NodeAlias, Array<{name: string; value: string}>>;
+  } = {}
+): AnyObject {
+  const hedera: AnyObject = {nodes: []};
 
-  for (const jvmVar of constants.DEFAULT_JVM_ENV_VARS) {
-    if (!helmValuesCommand.includes(`extraEnv`) || !helmValuesCommand.includes(`name=${jvmVar.name}`)) {
-      missingVars.push(jvmVar.name);
+  for (const consensusNode of consensusNodes) {
+    const nodeIndex: number = consensusNode.nodeId;
+    const extraEnv: Array<{name: string; value: string}> = [];
+
+    // Always start with default JVM vars
+    for (const jvmVar of constants.DEFAULT_JVM_ENV_VARS) {
+      extraEnv.push({name: jvmVar.name, value: jvmVar.value});
     }
+
+    // Add JAVA_MAIN_CLASS for tools/local builds
+    if (options.useJavaMainClass) {
+      extraEnv.push({name: 'JAVA_MAIN_CLASS', value: 'com.swirlds.platform.Browser'});
+    }
+
+    // Add TSS wraps if enabled
+    if (options.wrapsEnabled && options.tss) {
+      const wrapPath: string = `${constants.HEDERA_HAPI_PATH}/${options.tss.wraps.artifactsFolderName}`;
+      extraEnv.push({name: 'TSS_LIB_WRAPS_ARTIFACTS_PATH', value: wrapPath});
+    }
+
+    // Override JAVA_OPTS for debug mode if this is the debug node
+    if (options.debugNodeAlias === consensusNode.name) {
+      const javaOptsIndex: number = extraEnv.findIndex(env => env.name === 'JAVA_OPTS');
+      if (javaOptsIndex >= 0) {
+        extraEnv[javaOptsIndex].value = `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
+      } else {
+        extraEnv.push({
+          name: 'JAVA_OPTS',
+          value: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`
+        });
+      }
+    }
+
+    // Add any additional env vars for this specific node
+    if (options.additionalEnvVars && options.additionalEnvVars[consensusNode.name]) {
+      extraEnv.push(...options.additionalEnvVars[consensusNode.name]);
+    }
+
+    // Ensure the hedera.nodes array has enough elements
+    while (hedera.nodes.length <= nodeIndex) {
+      hedera.nodes.push({});
+    }
+
+    hedera.nodes[nodeIndex].root = {extraEnv};
   }
 
-  if (missingVars.length > 0) {
-    throw new SoloError(
-      `Critical JVM environment variables missing from Helm command: ${missingVars.join(', ')}. ` +
-        `This typically indicates that per-node environment overrides (wraps, debug, etc.) were set without including default vars. ` +
-        `Always use constants.DEFAULT_JVM_ENV_VARS when setting hedera.nodes[X].root.extraEnv.`
-    );
-  }
+  return {hedera};
+}
+
+/**
+ * Generate a temporary YAML values file for per-node extraEnv configuration.
+ * Returns the file path to be used with helm --values.
+ *
+ * @param consensusNodes - list of consensus nodes
+ * @param options - extraEnv configuration options
+ * @param cacheDir - directory to write the temporary file
+ * @returns path to the generated YAML file
+ */
+export function generateExtraEnvValuesFile(
+  consensusNodes: ConsensusNode[],
+  options: {
+    wrapsEnabled?: boolean;
+    tss?: {wraps: {artifactsFolderName: string}};
+    debugNodeAlias?: NodeAlias;
+    useJavaMainClass?: boolean;
+    additionalEnvVars?: Record<NodeAlias, Array<{name: string; value: string}>>;
+  } = {},
+  cacheDir: string
+): string {
+  const perNodeExtraEnvValues: AnyObject = buildPerNodeExtraEnvValuesStructure(consensusNodes, options);
+
+  const filename: string = `per-node-extra-env-${Date.now()}-${Math.random().toString(36).slice(2)}.yaml`;
+  const filePath: string = PathEx.join(cacheDir, filename);
+
+  const yamlContent: string = yaml.stringify(perNodeExtraEnvValues, {indent: 2});
+  fs.writeFileSync(filePath, yamlContent);
+
+  return filePath;
 }

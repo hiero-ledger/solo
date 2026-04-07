@@ -85,10 +85,8 @@ export const S6_NODE_IMAGE_REPOSITORY: string =
   getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java25';
 
 // Default JVM environment variables for consensus nodes
-// IMPORTANT: When setting per-node environment variables via Helm --set flags,
-// Helm replaces the entire hedera.nodes[X].root.extraEnv array instead of merging with defaults.
-// Any code that overrides per-node env vars (debug mode, TSS wraps, application.env) MUST
-// explicitly include these defaults to prevent them from being lost.
+// IMPORTANT: When setting per-node environment variables via Helm --values files,
+// ensure these defaults are always included to prevent silent loss of JAVA_OPTS
 export const DEFAULT_JVM_ENV_VARS: Array<{name: string; value: string}> = [
   {name: 'JAVA_HEAP_MIN', value: '256m'},
   {name: 'JAVA_HEAP_MAX', value: '6g'},

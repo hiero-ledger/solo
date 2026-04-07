@@ -12,19 +12,20 @@ import * as constants from '../core/constants.js';
 import {getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
-  addDebugOptions,
   addRootImageValues,
+  buildPerNodeExtraEnvValuesStructure,
   createAndCopyBlockNodeJsonFileForConsensusNode,
+  generateExtraEnvValuesFile,
   parseNodeAliases,
   prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
-  validateHelmJavaEnvVars,
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import yaml from 'yaml';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
@@ -32,6 +33,7 @@ import {type CertificateManager} from '../core/certificate-manager.js';
 import {
   type AnyListrContext,
   type ArgvStruct,
+  type AnyObject,
   type IP,
   type NodeAlias,
   type NodeAliases,
@@ -447,16 +449,37 @@ export class NetworkCommand extends BaseCommand {
       [constants.SOLO_DEPLOYMENT_VALUES_FILE],
     );
 
-    for (const clusterReference of Object.keys(valuesFiles)) {
-      valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
+    // Generate per-node extraEnv values file if any extraEnv customizations are needed
+    let perNodeExtraEnvValuesFile: string = '';
+    const needsExtraEnvironment: boolean =
+      config.wrapsEnabled || !!config.debugNodeAlias || config.app !== constants.HEDERA_APP_NAME; // JAVA_MAIN_CLASS for tools/local builds
 
-      // Validate that all required JVM env vars are present when wraps are enabled
-      if (config.wrapsEnabled) {
-        validateHelmJavaEnvVars(valuesArgumentMap[clusterReference]);
+    if (needsExtraEnvironment) {
+      perNodeExtraEnvValuesFile = generateExtraEnvValuesFile(
+        config.consensusNodes,
+        {
+          wrapsEnabled: config.wrapsEnabled,
+          tss: this.soloConfig.tss,
+          debugNodeAlias: config.debugNodeAlias,
+          useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+        },
+        config.cacheDir,
+      );
+
+      this.logger.debug(`Created per-node extraEnv values file: ${perNodeExtraEnvValuesFile}`);
+    }
+
+    for (const clusterReference of Object.keys(valuesFiles)) {
+      let valuesArgument: string = valuesArguments[clusterReference] + valuesFiles[clusterReference];
+
+      // Add per-node extraEnv values file if wraps are enabled (replaces --set approach)
+      if (perNodeExtraEnvValuesFile) {
+        valuesArgument += ` --values ${perNodeExtraEnvValuesFile}`;
       }
 
+      valuesArgumentMap[clusterReference] = valuesArgument;
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
-        valuesArg: valuesArgumentMap,
+        valuesArgument: valuesArgumentMap[clusterReference],
       });
     }
 
@@ -470,7 +493,6 @@ export class NetworkCommand extends BaseCommand {
   private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReferenceName, string> {
     const valuesArguments: Record<ClusterReferenceName, string> = {};
     const clusterReferences: ClusterReferenceName[] = [];
-    let extraEnvironmentIndex: number = 0;
 
     // initialize the valueArgs
     for (const consensusNode of config.consensusNodes) {
@@ -479,63 +501,15 @@ export class NetworkCommand extends BaseCommand {
         clusterReferences.push(consensusNode.cluster);
       }
 
-      // set the extraEnv settings on the nodes for running with a local build or tool
-      if (config.app === constants.HEDERA_APP_NAME) {
-        // make sure each cluster has an empty string for the valuesArg
+      // Initialize empty valuesArg for each cluster
+      // All extraEnv logic (JAVA_MAIN_CLASS, TSS wraps, debug) is now handled via values files
+      if (!valuesArguments[consensusNode.cluster]) {
         valuesArguments[consensusNode.cluster] = '';
-      } else {
-        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
-        valuesArguments[consensusNode.cluster] = valuesArgument;
-
-        extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
       }
     }
 
-    if (config.wrapsEnabled) {
-      for (const consensusNode of config.consensusNodes) {
-        const cluster: ClusterReferenceName = consensusNode.cluster;
-        const nodeId: NodeId = consensusNode.nodeId;
-
-        // When setting per-node extraEnv, Helm replaces the entire defaults.root.extraEnv array.
-        // To prevent losing default env vars, we must explicitly include DEFAULT_JVM_ENV_VARS
-        // before adding TSS_LIB_WRAPS_ARTIFACTS_PATH.
-        let envIndex: number = 0;
-
-        // Include default JVM env vars using the constant
-        for (const jvmVar of constants.DEFAULT_JVM_ENV_VARS) {
-          valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=${jvmVar.name}"`;
-          valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=${jvmVar.value}"`;
-          envIndex++;
-        }
-
-        // Add TSS wraps after defaults
-        valuesArguments[cluster] +=
-          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-        const wraps: Wraps = this.soloConfig.tss.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=${path}"`;
-        envIndex++;
-
-        extraEnvironmentIndex = envIndex;
-      }
-    }
-
-    // add debug options to the debug node
-    for (const consensusNode of config.consensusNodes) {
-      if (consensusNode.name !== config.debugNodeAlias) {
-        continue;
-      }
-
-      valuesArguments[consensusNode.cluster] = addDebugOptions(
-        valuesArguments[consensusNode.cluster],
-        config.debugNodeAlias,
-        extraEnvironmentIndex,
-      );
-    }
+    // All extraEnv customizations (wraps, debug, JAVA_MAIN_CLASS) are now handled
+    // via generateExtraEnvValuesFile() in prepareValuesArgMap() to avoid Helm --set replacement issues
 
     if (
       config.storageType === constants.StorageType.AWS_AND_GCS ||

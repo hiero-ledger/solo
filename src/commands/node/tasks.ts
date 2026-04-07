@@ -49,7 +49,6 @@ import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
 import * as helpers from '../../core/helpers.js';
 import {
-  addDebugOptions,
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
@@ -3273,19 +3272,29 @@ export class NodeCommandTasks {
             });
           }
         }
-        // Add Debug options
-        const consensusNode: ConsensusNode = consensusNodes.find(
-          (node): boolean => node.name === config.debugNodeAlias,
-        );
-        const clusterReference: string = consensusNode
-          ? consensusNode.cluster
-          : this.k8Factory.default().clusters().readCurrent();
 
-        valuesArgumentMap[clusterReference] = addDebugOptions(
-          valuesArgumentMap[clusterReference],
-          config.debugNodeAlias,
-          this.remoteConfig.configuration.state.wrapsEnabled ? 1 : 0,
-        );
+        // Generate extraEnv values file for wraps, debug, and custom environment variables
+        // This replaces the old --set extraEnv approach to prevent Helm replacement issues
+        const needsExtraEnvironment: boolean =
+          this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
+
+        if (needsExtraEnvironment) {
+          const extraEnvValuesFile: string = helpers.generateExtraEnvValuesFile(
+            consensusNodes,
+            {
+              wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+              tss: this.soloConfig.tss,
+              debugNodeAlias: config.debugNodeAlias,
+              useJavaMainClass: false,
+            },
+            constants.SOLO_CACHE_DIR,
+          );
+
+          // Add the extraEnv values file to all cluster references
+          for (const [clusterReference] of clusterReferences) {
+            valuesArgumentMap[clusterReference] += ` --values "${extraEnvValuesFile}"`;
+          }
+        }
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
@@ -3356,15 +3365,7 @@ export class NodeCommandTasks {
           versions.S6_NODE_IMAGE_VERSION,
         );
       }
-      if (this.remoteConfig.configuration.state.wrapsEnabled) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-        const wraps: Wraps = this.soloConfig.tss.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-      }
+      // TSS wraps extraEnv is now handled via generateExtraEnvValuesFile()
     }
   }
 
@@ -3447,15 +3448,7 @@ export class NodeCommandTasks {
       }
     }
 
-    if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      valuesArgumentMap[clusterReference] +=
-        ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-      const wraps: Wraps = this.soloConfig.tss.wraps;
-      const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-    }
+    // TSS wraps extraEnv is now handled via generateExtraEnvValuesFile()
   }
 
   /**
@@ -3499,15 +3492,7 @@ export class NodeCommandTasks {
             versions.S6_NODE_IMAGE_VERSION,
           );
         }
-        if (this.remoteConfig.configuration.state.wrapsEnabled) {
-          valuesArgumentMap[clusterReference] +=
-            ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-          const wraps: Wraps = this.soloConfig.tss.wraps;
-          const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-          valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-        }
+        // TSS wraps extraEnv is now handled via generateExtraEnvValuesFile()
 
         index++;
       }
