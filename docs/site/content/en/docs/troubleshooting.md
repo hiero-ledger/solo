@@ -124,6 +124,70 @@ solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
 ```
 
+### JSON-RPC Relay Out of Memory
+
+If the relay or relay-ws pods are being killed (OOMKilled) or restarting due to memory pressure:
+
+#### Understanding the Default Memory Configuration
+
+Solo ships with a default memory limit of **88Mi** and an explicit V8 old-space cap of **66MB** (`--max-old-space-size=66`) for both the relay and WebSocket services. These values are tuned for the one-shot development profile and may not be sufficient for heavy workloads.
+
+#### How Node.js Memory Works in Containers
+
+Since [Node.js 12.7.0](https://nodejs.org/en/blog/release/v12.7.0), Node.js reads the Linux cgroup memory limit set by Kubernetes to determine the V8 old-space heap size, rather than using the host's physical memory. Based on V8's internal heap sizing heuristics, this tends to be roughly **~50% of the container memory limit** on 64-bit systems, though the exact value depends on V8 internals and varies at both ends of the memory spectrum.
+
+A couple of things to be aware of:
+
+- **cgroup v2 environments**: many modern Linux distributions enable cgroup v2 by default, and [Kubernetes 1.25 brought cgroup v2 support to GA](https://kubernetes.io/blog/2022/08/31/cgroupv2-ga-1-25/). Older Node.js versions may not correctly detect the container limit under cgroup v2 and could silently fall back to the host's physical memory, allocating a much larger heap than intended. This was improved in at least **Node.js 20.3.0**, which upgraded libuv to 1.45.0.
+- When `--max-old-space-size` is explicitly set (as in Solo's default config), it **overrides** the auto-sizing entirely — the cgroup-based detection only kicks in when no explicit value is provided.
+
+This means:
+
+- If you increase only the pod memory limit (e.g., to 256Mi) but leave `NODE_OPTIONS` unchanged, old space stays at 66 MB
+- If you remove `NODE_OPTIONS`, Node.js will attempt to auto-size old space based on the container limit (roughly ~128 MB for a 256Mi pod on a modern Node.js version)
+
+#### Adjusting Memory for Heavier Workloads
+
+Create a custom values file (e.g., `custom-relay-values.yaml`) and pass it when deploying:
+
+```yaml
+# Option 1: Explicit old-space control (recommended for precise tuning)
+relay:
+  resources:
+    limits:
+      memory: 256Mi
+  config:
+    NODE_OPTIONS: "--max-old-space-size=192"
+ws:
+  resources:
+    limits:
+      memory: 256Mi
+  config:
+    NODE_OPTIONS: "--max-old-space-size=192"
+
+# Option 2: Let Node.js auto-detect (simpler, old space ≈ 50% of limit)
+# relay:
+#   resources:
+#     limits:
+#       memory: 256Mi
+#   config:
+#     NODE_OPTIONS: ""
+# ws:
+#   resources:
+#     limits:
+#       memory: 256Mi
+#   config:
+#     NODE_OPTIONS: ""
+```
+
+Then deploy or upgrade with:
+
+```bash
+solo relay node add --deployment "${SOLO_DEPLOYMENT}" --values-file custom-relay-values.yaml
+# or
+solo relay node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file custom-relay-values.yaml
+```
+
 ### Helm Repository Errors
 
 If you see errors like `repository name already exists`:
