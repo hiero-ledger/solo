@@ -939,9 +939,20 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
       }
     }
 
-    // Add any additional env vars for this specific node
+    // Add any additional env vars for this specific node (overwrite duplicates)
     if (options.additionalEnvironmentVariables && options.additionalEnvironmentVariables[consensusNode.name]) {
-      extraEnvironmentVariables.push(...options.additionalEnvironmentVariables[consensusNode.name]);
+      for (const additionalEnvironmentVariable of options.additionalEnvironmentVariables[consensusNode.name]) {
+        const existingIndex: number = extraEnvironmentVariables.findIndex(
+          (environmentVariable): boolean => environmentVariable.name === additionalEnvironmentVariable.name,
+        );
+        if (existingIndex >= 0) {
+          // Overwrite existing environment variable
+          extraEnvironmentVariables[existingIndex] = additionalEnvironmentVariable;
+        } else {
+          // Add new environment variable
+          extraEnvironmentVariables.push(additionalEnvironmentVariable);
+        }
+      }
     }
 
     // Ensure the hedera.nodes array has enough elements
