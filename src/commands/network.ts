@@ -445,6 +445,18 @@ export class NetworkCommand extends BaseCommand {
       config.wrapsEnabled || !!config.debugNodeAlias || config.app !== constants.HEDERA_APP_NAME; // JAVA_MAIN_CLASS for tools/local builds
 
     if (needsExtraEnvironment) {
+      const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+      const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
+      const additionalNodeValues: Record<NodeAlias, {name: NodeAlias; nodeId: number; accountId: string}> = {};
+
+      for (const consensusNode of config.consensusNodes) {
+        additionalNodeValues[consensusNode.name] = {
+          name: consensusNode.name,
+          nodeId: consensusNode.nodeId,
+          accountId: `${shard}.${realm}.${constants.DEFAULT_START_ID_NUMBER + consensusNode.nodeId}`,
+        };
+      }
+
       perNodeExtraEnvironmentValuesFile = generateExtraEnvironmentValuesFile(
         config.consensusNodes,
         {
@@ -452,6 +464,7 @@ export class NetworkCommand extends BaseCommand {
           tss: this.soloConfig.tss,
           debugNodeAlias: config.debugNodeAlias,
           useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+          additionalNodeValues,
         },
         config.cacheDir,
       );
@@ -460,12 +473,17 @@ export class NetworkCommand extends BaseCommand {
     }
 
     for (const clusterReference of Object.keys(valuesFiles)) {
-      let valuesArgument: string = valuesArguments[clusterReference] + valuesFiles[clusterReference];
+      // Keep --set flags last so they override values files. This is critical when we also
+      // provide per-node extraEnv via a values file (e.g. --debug-node-alias), because a later
+      // values file can replace array elements and drop fields like node labels/account IDs.
+      let valuesArgument: string = valuesFiles[clusterReference];
 
       // Add per-node extraEnv values file if wraps are enabled (replaces --set approach)
       if (perNodeExtraEnvironmentValuesFile) {
         valuesArgument += ` --values ${perNodeExtraEnvironmentValuesFile}`;
       }
+
+      valuesArgument += valuesArguments[clusterReference];
 
       valuesArgumentMap[clusterReference] = valuesArgument;
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {

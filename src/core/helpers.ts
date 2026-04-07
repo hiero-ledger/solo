@@ -14,6 +14,7 @@ import {
   type AnyListrContext,
   type NodeAlias,
   type NodeAliases,
+  type NodeId,
 } from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -873,9 +874,24 @@ type PerNodeExtraEnvironmentOptions = {
   debugNodeAlias?: NodeAlias;
   useJavaMainClass?: boolean; // for tools/local builds
   additionalEnvironmentVariables?: Record<NodeAlias, EnvironmentVariable[]>;
+  additionalNodeValues?: Record<
+    NodeAlias,
+    {
+      name?: NodeAlias;
+      nodeId?: NodeId;
+      accountId?: string;
+    }
+  >;
 };
 type PerNodeExtraEnvironmentValues = {
-  hedera: {nodes: Array<{root?: {extraEnv: EnvironmentVariable[]}}>};
+  hedera: {
+    nodes: Array<{
+      root?: {extraEnv: EnvironmentVariable[]};
+      name?: NodeAlias;
+      nodeId?: NodeId;
+      accountId?: string;
+    }>;
+  };
 };
 
 export function buildPerNodeExtraEnvironmentValuesStructure(
@@ -933,7 +949,22 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
       hedera.nodes.push({});
     }
 
-    hedera.nodes[nodeIndex].root = {extraEnv: extraEnvironmentVariables};
+    const nodeValues = {
+      root: {extraEnv: extraEnvironmentVariables},
+    };
+
+    const additionalNodeValues = options.additionalNodeValues?.[consensusNode.name];
+    if (additionalNodeValues?.name) {
+      nodeValues['name'] = additionalNodeValues.name;
+    }
+    if (typeof additionalNodeValues?.nodeId === 'number') {
+      nodeValues['nodeId'] = additionalNodeValues.nodeId;
+    }
+    if (additionalNodeValues?.accountId) {
+      nodeValues['accountId'] = additionalNodeValues.accountId;
+    }
+
+    hedera.nodes[nodeIndex] = nodeValues;
   }
 
   return {hedera};
