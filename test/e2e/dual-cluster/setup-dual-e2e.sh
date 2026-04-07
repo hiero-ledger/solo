@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-
 task build:compile
 # install dependencies in case they haven't been installed yet, and cache args for subsequent commands
 npm run solo -- init || exit 1
@@ -46,13 +45,26 @@ echo "Using Node version: ${NODE_VERSION}"
 NPM_VERSION=$(npm --version)
 echo "Using NPM version: ${NPM_VERSION}"
 
+##### Pre-cleanup Diagnostics (proves stale state from prior runs on self-hosted runners) #####
+echo "=== Existing kind clusters ==="
+kind get clusters 2>/dev/null || true
+echo "=== Existing Docker networks ==="
+docker network ls 2>/dev/null || true
+echo "=== Docker containers (all) ==="
+docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Networks}}' 2>/dev/null || true
+
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   timeout 60 kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" 2>/dev/null || true
 done
 
-docker network rm -f kind || true
-docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
-docker info | grep -i cgroup
+# On Windows (Docker Desktop), the bridge network plugin is not available via the v1
+# plugin registry. Kind manages its own Docker network automatically on Windows, so
+# manual network creation is not needed and will fail. Skip it on Windows (msys/Git Bash).
+if [[ "$OSTYPE" != msys* ]]; then
+  docker network rm -f kind 2>/dev/null || true
+  timeout 60 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+fi
+docker info | grep -i cgroup || true
 
 # Setup Helm Repos
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
