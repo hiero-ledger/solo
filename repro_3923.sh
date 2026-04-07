@@ -126,6 +126,7 @@ echo ""
 
 npm run solo-test -- consensus network upgrade \
   --deployment "${SOLO_DEPLOYMENT}" \
+  --upgrade-version v0.73.0-rc.1 \
   -i "${NODE_ALIASES}" \
   --local-build-path "${CN_LOCAL_BUILD_PATH}" \
   2>&1 | tee /tmp/repro_3923_upgrade.log
