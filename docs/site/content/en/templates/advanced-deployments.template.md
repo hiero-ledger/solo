@@ -53,6 +53,17 @@ To specify a custom output path:
 solo one-shot falcon prepare --output-values-file ./my-values.yaml
 ```
 
+#### Output file location
+
+- By default, the generated file is written to the **current working directory** as
+  `./falcon-values.yaml` — *not* the Solo installation directory. Run the command
+  from the directory where you want the file to land.
+- The success message always prints the fully resolved absolute path so you can
+  copy it directly into the subsequent `falcon deploy` command.
+- Pass an absolute path (e.g. `--output-values-file /tmp/falcon-values.yaml`) when
+  you want to generate the file in a specific location regardless of where the
+  command was invoked.
+
 The generated file is ready to use with `solo one-shot falcon deploy --values-file`.
 
 ### Basic Falcon Deployment
