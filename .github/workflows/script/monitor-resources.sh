@@ -37,28 +37,26 @@ start_monitoring() {
     while true; do
       TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
 
-      # CPU: try /proc/stat first (reliable on Linux), fall back to top
+      # CPU: /proc/stat is reliable on Linux (no grep, no pipefail risk)
       CPU_PERCENT=0
       if [[ -f /proc/stat ]]; then
         CPU_PERCENT=$(awk '/^cpu / {
           idle=$5; total=$2+$3+$4+$5+$6+$7+$8;
-          if (total>0) printf "%.1f", 100-(idle/total*100); else print "0.0"
-        }' /proc/stat 2>/dev/null || echo "0")
-      else
-        CPU_PERCENT=$(top -bn2 | grep "Cpu(s)" | tail -1 \
-          | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100-$1}' 2>/dev/null || echo "0")
+          if (total>0) printf "%.1f", 100-(idle/total*100); else printf "0.0"
+        }' /proc/stat 2>/dev/null)
+        CPU_PERCENT=$(printf '%s' "${CPU_PERCENT:-0}" | tr -d '[:space:]')
       fi
 
-      MEM_INFO=$(free -m 2>/dev/null | grep "^Mem")
-      MEM_TOTAL=$(echo "$MEM_INFO" | awk '{print $2}')
-      MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
-      MEM_PERCENT=$(echo "$MEM_INFO" | awk '{if ($2>0) printf "%.1f",($3/$2)*100; else print "0.0"}')
+      MEM_INFO=$(free -m 2>/dev/null | grep "^Mem" || true)
+      MEM_TOTAL=$(printf '%s' "$(echo "$MEM_INFO" | awk '{print $2}')" | tr -d '[:space:]')
+      MEM_USED=$(printf '%s' "$(echo "$MEM_INFO" | awk '{print $3}')" | tr -d '[:space:]')
+      MEM_PERCENT=$(printf '%s' "$(echo "$MEM_INFO" | awk '{if ($2>0) printf "%.1f",($3/$2)*100; else printf "0.0"}')" | tr -d '[:space:]')
 
       # Sum CPU (millicores) and memory (MB) of all running pods across all namespaces
-      POD_MEM_MB=0
       POD_CPU_M=0
+      POD_MEM_MB=0
       if command -v kubectl >/dev/null 2>&1; then
-        read -r POD_CPU_M POD_MEM_MB < <(kubectl top pods --all-namespaces --no-headers 2>/dev/null \
+        _pod_stats=$(kubectl top pods --all-namespaces --no-headers 2>/dev/null \
           | awk '
             {
               cpu=$3; sub(/m$/,"",cpu);
@@ -70,10 +68,16 @@ start_monitoring() {
               mem_total += mem+0;
             }
             END { printf "%d %d", cpu_total, mem_total }
-          ' 2>/dev/null || echo "0 0")
+          ' 2>/dev/null || true)
+        POD_CPU_M=$(printf '%s' "${_pod_stats%% *}" | tr -d '[:space:]')
+        POD_MEM_MB=$(printf '%s' "${_pod_stats##* }" | tr -d '[:space:]')
       fi
 
-      echo "{\"timestamp\":\"$TIMESTAMP\",\"cpu_percent\":${CPU_PERCENT:-0},\"mem_used_mb\":${MEM_USED:-0},\"mem_total_mb\":${MEM_TOTAL:-0},\"mem_percent\":${MEM_PERCENT:-0},\"pod_mem_mb\":${POD_MEM_MB:-0},\"pod_cpu_m\":${POD_CPU_M:-0}}" >> "$METRICS_FILE"
+      printf '{"timestamp":"%s","cpu_percent":%s,"mem_used_mb":%s,"mem_total_mb":%s,"mem_percent":%s,"pod_mem_mb":%s,"pod_cpu_m":%s}\n' \
+        "$TIMESTAMP" \
+        "${CPU_PERCENT:-0}" "${MEM_USED:-0}" "${MEM_TOTAL:-0}" "${MEM_PERCENT:-0}" \
+        "${POD_MEM_MB:-0}" "${POD_CPU_M:-0}" \
+        >> "$METRICS_FILE"
       sleep "$interval"
     done
   ) &
