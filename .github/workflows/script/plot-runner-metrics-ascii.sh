@@ -30,7 +30,8 @@ MEM_VALUES=$(jq -r '.mem_percent // empty' "$METRICS_FILE" 2>/dev/null || echo "
 NUM_POINTS=$(printf '%s\n' "$CPU_VALUES" | awk 'NF' | wc -l | tr -d ' ')
 
 if [[ -z "$CPU_VALUES" || "$NUM_POINTS" -eq 0 ]]; then
-  ASCII="Error: No valid data found in metrics file"
+  echo "Warning: No valid data found in metrics file (file may be empty or not yet written)" >&2
+  exit 0
 else
   # Approximate duration using actual timestamps when possible; fall back to
   # interval-based calculation if jq timestamp parsing is unavailable.

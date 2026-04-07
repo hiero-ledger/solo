@@ -457,7 +457,8 @@ export class ProfileManager {
   private async mergeApplicationProperties(stagingPath: string, userFilePath: string): Promise<void> {
     this.logger.debug(`Appending user application.properties '${userFilePath}' onto staging '${stagingPath}'`);
     const userContent: string = await readFile(userFilePath, 'utf8');
-    await writeFile(stagingPath, `${(await readFile(stagingPath, 'utf8')).trimEnd()}\n${userContent}`);
+    const stagingContent: string = await readFile(stagingPath, 'utf8');
+    await writeFile(stagingPath, `${stagingContent.trimEnd()}\n${userContent}`);
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
