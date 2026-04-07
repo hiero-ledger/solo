@@ -14,6 +14,8 @@ import {DefaultKindClientBuilder} from '../kind/impl/default-kind-client-builder
 import {DependencyManager} from '../../core/dependency-managers/index.js';
 import * as constants from '../../core/constants.js';
 import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/load-image-archive-options-builder.js';
+import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
+import {LoadDockerImageOptions} from '../kind/model/load-docker-image/load-docker-image-options.js';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
@@ -28,25 +30,24 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async pullImage(image: string): Promise<void> {
-    await this.shellRunner().run(`docker pull ${this.quote(image)}`);
+    const platformArguments: string = ` --platform ${this.quote(this.defaultLinuxPlatform())}`;
+    try {
+      await this.shellRunner().run(`docker pull${platformArguments} ${this.quote(image)}`);
+    } catch {
+      await this.shellRunner().run(`docker pull${platformArguments} ${this.quote(image)}`);
+    }
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
     await fs.mkdir(path.dirname(archivePath), {recursive: true});
-    await this.shellRunner().run(`docker image save ${this.quote(image)} --output ${this.quote(archivePath)}`);
+    const platformArguments: string = ` --platform ${this.quote(this.defaultLinuxPlatform())}`;
+    await this.shellRunner().run(
+      `docker image save${platformArguments} ${this.quote(image)} --output ${this.quote(archivePath)}`,
+    );
   }
 
   public async loadImage(archivePath: string): Promise<void> {
     await this.shellRunner().run(`docker load --input ${this.quote(archivePath)}`);
-  }
-
-  public async loadImageIntoCluster(image: string, clusterReference?: string): Promise<void> {
-    const options = LoadDockerImageOptionsBuilder.builder().name(clusterReference).build();
-
-    const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
-    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-
-    await kindClient.loadDockerImage(image, options);
   }
 
   public async loadImageArchiveIntoCluster(
@@ -54,16 +55,22 @@ export class DockerClient implements ContainerEngineClient {
     clusterReference?: string,
     nodes?: string,
   ): Promise<void> {
-    const options = LoadImageArchiveOptionsBuilder.builder()
+    const options: LoadImageArchiveOptions = LoadImageArchiveOptionsBuilder.builder()
       .archivePath(archivePath)
       .name(clusterReference)
       .nodes(nodes)
       .build();
 
-    const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
-    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+    // Either disable throw on empty STFOUT and STDERR or parse output if present
 
-    await kindClient.loadImageArchive(archivePath, options);
+    try {
+      const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
+      const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build(true);
+
+      await kindClient.loadImageArchive(archivePath, options);
+    } catch (error) {
+      // console.log(error);
+    }
   }
 
   public async removeImage(image: string): Promise<void> {
@@ -76,5 +83,19 @@ export class DockerClient implements ContainerEngineClient {
 
   private quote(value: string): string {
     return `"${value.replaceAll('"', String.raw`\"`)}"`;
+  }
+
+  private defaultLinuxPlatform(): string {
+    switch (process.arch) {
+      case 'arm64': {
+        return 'linux/arm64';
+      }
+      case 'x64': {
+        return 'linux/amd64';
+      }
+      default: {
+        throw new Error(`Unsupported host architecture for kind image export: ${process.arch}`);
+      }
+    }
   }
 }

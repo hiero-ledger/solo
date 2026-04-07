@@ -23,11 +23,6 @@ export interface ContainerEngineClient {
   loadImage(archivePath: string): Promise<void>;
 
   /**
-   * Loads an image into a cluster runtime, such as Kind.
-   */
-  loadImageIntoCluster(image: string, clusterName?: string): Promise<void>;
-
-  /**
    * Loads an image archive into a cluster runtime, such as Kind.
    */
   loadImageArchiveIntoCluster(archivePath: string, clusterName?: string, nodes?: string): Promise<void>;

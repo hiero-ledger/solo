@@ -179,23 +179,14 @@ export class CacheCommand extends BaseCommand {
             const subTasks: SoloListrTask<CacheLoadContext>[] = [];
 
             for (const cluster of this.remoteConfig.configuration.clusters) {
-              console.log(this.remoteConfig.configuration.clusters);
               const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
                 this.prepareClusterName(cluster.name),
               );
               subTasks.push(...newTasks);
             }
 
-            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
-          },
-        },
-        {
-          title: 'debug',
-          task: ({config}) => {
-            console.log({
-              // @ts-expect-error
-              errorCounter: config.errorCounter,
-            });
+            // return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY); // TODO ENABLE
+            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
           },
         },
         {

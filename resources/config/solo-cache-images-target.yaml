@@ -111,9 +111,10 @@ images:
     version: v7.1.1
     source: quay.io
 
-  - name: registry.k8s.io/coredns/coredns
-    version: v1.11.3
-    source: registry.k8s.io
+#    Comaptible version not found
+#  - name: registry.k8s.io/coredns/coredns
+#    version: v1.11.3
+#    source: registry.k8s.io
 
   - name: registry.k8s.io/etcd
     version: 3.5.15-0

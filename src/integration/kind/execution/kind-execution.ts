@@ -43,6 +43,8 @@ export class KindExecution {
       shell: true,
       env: {...process.env, ...environmentVariables},
     });
+
+    console.log(command.join(' '));
   }
 
   /**
@@ -150,29 +152,29 @@ export class KindExecution {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new KindParserException(KindExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = this.standardOutput();
-      const stdError = this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new KindExecutionException(exitCode, `Process exited with code ${exitCode}`, stdOut, stdError);
     }
     if (responseClass === undefined) {
       return null;
     }
 
-    const stdOut = this.standardOutput();
+    const stdOut: string = this.standardOutput();
 
     // Kind outputs to stdErr, so when the exit code is 0, we can assume stdErr is the expected output logs.
     const stdLogs: string = this.standardError();
 
     // If both stdOut and stdLogs are empty, we throw an error.
-    const output = stdOut || stdLogs;
+    const output: string = stdOut || stdLogs;
     if (!output) {
       throw new KindParserException(KindExecution.MSG_READ_OUTPUT_ERROR);
     }

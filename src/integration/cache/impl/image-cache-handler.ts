@@ -60,8 +60,25 @@ export class ImageCacheHandler implements CacheOperationHandler {
           const archiveExists: boolean = await this.inspector.exists(archivePath);
 
           if (!archiveExists) {
-            await this.engine.pullImage(image);
-            await this.engine.saveImage(image, archivePath);
+            try {
+              await this.engine.pullImage(image);
+            } catch (error) {
+              config.imagePullErrors ||= [];
+              config.imagePullErrors.push({image, error});
+              console.log('-----------------------------------');
+              console.log('Error pulling image:', image);
+              console.log('-----------------------------------');
+            }
+
+            try {
+              await this.engine.saveImage(image, archivePath);
+            } catch (error) {
+              config.imageSaveErrors ||= [];
+              config.imageSaveErrors.push({image, error});
+              console.log('-----------------------------------');
+              console.log('Error saving image:', image);
+              console.log('-----------------------------------');
+            }
           }
 
           config.results.push(new CachedItem(target, archivePath, new Date().toISOString()));
@@ -79,20 +96,15 @@ export class ImageCacheHandler implements CacheOperationHandler {
     for (const item of items) {
       subTasks.push({
         title: `Loading ${item.target.name}:${item.target.version} into ${target}`,
-        task: async ({config}): Promise<void> => {
-          config.errorCounter ||= 0;
+        task: async (): Promise<void> => {
           const exists: boolean = await this.inspector.exists(item.localPath);
 
           if (!exists) {
             return;
           }
 
-          console.log(`Loading ${item.localPath} into ${target}`);
-          try {
-            await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
-          } catch {
-            config.errorCounter++;
-          }
+          console.log(`Loading ${item.target.name}:${item.target.version} into ${target}`);
+          await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
         },
       });
     }
