@@ -65,6 +65,31 @@ else
     mem_y_unit="%"
   fi
 
+  # Reusable awk program for a dynamic-Y MB chart
+  _mb_chart() {
+    local values="$1" max_val="$2" label="$3"
+    printf '%s\n' "$values" | awk -v height=10 -v width=50 -v max_val="$max_val" -v lbl="$label" '
+      { v=$1+0; if(v<0)v=0; vals[n]=v; n++ }
+      END {
+        if(n==0) exit 0;
+        if(max_val<=0) max_val=1;
+        for(i=0;i<n;i++) norm[i]=int((vals[i]/max_val)*height);
+        w=(n<width?n:width);
+        for(y=height;y>=0;y--) {
+          printf "%6d %s |", int((y/height)*max_val), lbl;
+          for(x=0;x<w;x++) {
+            if(norm[x]>=y) printf "#";
+            else if(norm[x]==y-1) printf "+";
+            else printf " ";
+          }
+          print "";
+        }
+        printf "            +";
+        for(x=0;x<w;x++) printf "-";
+        print "";
+      }'
+  }
+
   # Build detailed ASCII charts for CPU and Memory (similar to Python version)
   cpu_chart=$(printf '%s\n' "$CPU_VALUES" | awk -v height=10 -v width=50 -v max_val=100 '
     {
@@ -134,31 +159,6 @@ else
         print "";
       }')
   fi
-
-  # Reusable awk program for a dynamic-Y MB chart
-  _mb_chart() {
-    local values="$1" max_val="$2" label="$3"
-    printf '%s\n' "$values" | awk -v height=10 -v width=50 -v max_val="$max_val" -v lbl="$label" '
-      { v=$1+0; if(v<0)v=0; vals[n]=v; n++ }
-      END {
-        if(n==0) exit 0;
-        if(max_val<=0) max_val=1;
-        for(i=0;i<n;i++) norm[i]=int((vals[i]/max_val)*height);
-        w=(n<width?n:width);
-        for(y=height;y>=0;y--) {
-          printf "%6d %s |", int((y/height)*max_val), lbl;
-          for(x=0;x<w;x++) {
-            if(norm[x]>=y) printf "#";
-            else if(norm[x]==y-1) printf "+";
-            else printf " ";
-          }
-          print "";
-        }
-        printf "            +";
-        for(x=0;x<w;x++) printf "-";
-        print "";
-      }'
-  }
 
   # Pod memory chart — dynamic Y-axis capped at peak pod memory
   pod_mem_chart=""
