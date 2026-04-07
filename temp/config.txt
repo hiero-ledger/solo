@@ -1,5 +1,0 @@
-swirld, 298
-app, PlatformTestingTool.jar
-address, 0, 0, node1, 500, 127.0.0.1, 50111, network-node1-svc.local-ptt-app.svc.cluster.local, 50111, 0.0.3
-address, 1, 1, node2, 500, 127.0.0.1, 50111, network-node2-svc.local-ptt-app.svc.cluster.local, 50111, 0.0.4
-address, 2, 2, node3, 500, 127.0.0.1, 50111, network-node3-svc.local-ptt-app.svc.cluster.local, 50111, 0.0.5
