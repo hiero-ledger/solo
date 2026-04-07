@@ -461,9 +461,11 @@ jobs:
             CV="${CONSENSUS_VERSION#v}"
             if version_gte "$CV" "0.72.0"; then
               echo "Skipping test-e2e-dual-cluster-full: consensus version ${CONSENSUS_VERSION} >= v0.72.0"
+              echo "skipped=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
 
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
@@ -671,6 +673,7 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
+          steps.run-e2e-tests.outputs.skipped != 'true' &&
           steps.npm-deps.conclusion == 'success' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -683,6 +686,7 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
+          steps.run-e2e-tests.outputs.skipped != 'true' &&
           !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
