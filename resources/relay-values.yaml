@@ -11,7 +11,7 @@ relay:
     requests:
       memory: 0
     limits:
-      memory: 88Mi
+      memory: 100Mi
   config:
     WORKERS_POOL_ENABLED: "false"
     LOG_LEVEL: "error"
@@ -25,7 +25,7 @@ ws:
     requests:
       memory: 0
     limits:
-      memory: 88Mi
+      memory: 100Mi
   config:
     WORKERS_POOL_ENABLED: "false"
     LOG_LEVEL: "error"
