@@ -894,6 +894,23 @@ type PerNodeExtraEnvironmentValues = {
   };
 };
 
+/**
+ * Ensures JAVA_OPTS doesn't conflict with JAVA_HEAP_MIN/MAX by removing any
+ * existing -Xms/-Xmx arguments to prevent dual heap size specifications.
+ *
+ * @param javaOpts - The current JAVA_OPTS value
+ * @returns Cleaned JAVA_OPTS without heap size arguments
+ */
+export function sanitizeJavaOptsForHeapSettings(javaOpts: string): string {
+  // Remove any existing -Xms or -Xmx arguments to prevent conflicts
+  // with JAVA_HEAP_MIN and JAVA_HEAP_MAX environment variables
+  return javaOpts
+    .replace(/-Xms\S+/g, '')  // Remove -Xms arguments
+    .replace(/-Xmx\S+/g, '')  // Remove -Xmx arguments
+    .replace(/\s+/g, ' ')     // Normalize whitespace
+    .trim();
+}
+
 export function buildPerNodeExtraEnvironmentValuesStructure(
   consensusNodes: ConsensusNode[],
   options: PerNodeExtraEnvironmentOptions = {},
@@ -906,9 +923,16 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
     // Always start with default JVM vars
     for (const jvmEnvironmentVariable of constants.DEFAULT_JVM_ENV_VARS) {
+      let environmentVariableValue = jvmEnvironmentVariable.value;
+
+      // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
+      if (jvmEnvironmentVariable.name === 'JAVA_OPTS') {
+        environmentVariableValue = sanitizeJavaOptsForHeapSettings(environmentVariableValue);
+      }
+
       extraEnvironmentVariables.push({
         name: jvmEnvironmentVariable.name,
-        value: jvmEnvironmentVariable.value,
+        value: environmentVariableValue,
       });
     }
 
@@ -945,12 +969,25 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
         const existingIndex: number = extraEnvironmentVariables.findIndex(
           (environmentVariable): boolean => environmentVariable.name === additionalEnvironmentVariable.name,
         );
-        if (existingIndex >= 0) {
-          // Overwrite existing environment variable
-          extraEnvironmentVariables[existingIndex] = additionalEnvironmentVariable;
-        } else {
+
+        let environmentVariableValue = additionalEnvironmentVariable.value;
+
+        // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
+        if (additionalEnvironmentVariable.name === 'JAVA_OPTS') {
+          environmentVariableValue = sanitizeJavaOptsForHeapSettings(environmentVariableValue);
+        }
+
+        const sanitizedEnvironmentVariable = {
+          name: additionalEnvironmentVariable.name,
+          value: environmentVariableValue,
+        };
+
+        if (existingIndex === -1) {
           // Add new environment variable
-          extraEnvironmentVariables.push(additionalEnvironmentVariable);
+          extraEnvironmentVariables.push(sanitizedEnvironmentVariable);
+        } else {
+          // Overwrite existing environment variable
+          extraEnvironmentVariables[existingIndex] = sanitizedEnvironmentVariable;
         }
       }
     }
