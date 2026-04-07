@@ -15,7 +15,7 @@
 ##
 
 # Night test checks some non critical functions or features not captured by PR tests
-# or Example tests.
+# or Example tests, such as JVM Debugger
 
 name: "Nightly Extended Tests"
 
