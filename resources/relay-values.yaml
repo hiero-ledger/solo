@@ -11,7 +11,7 @@ relay:
     requests:
       memory: 0
     limits:
-      memory: 140Mi
+      memory: 200Mi
   config:
     WORKERS_POOL_ENABLED: "false"
     LOG_LEVEL: "error"
