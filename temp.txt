@@ -1,3 +1,0 @@
-npm run solo-test -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo-test -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}"
