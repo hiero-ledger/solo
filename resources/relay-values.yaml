@@ -11,7 +11,7 @@ relay:
     requests:
       memory: 0
     limits:
-      memory: 120Mi
+      memory: 88Mi
   config:
     WORKERS_POOL_ENABLED: "false"
     LOG_LEVEL: "error"
@@ -19,7 +19,7 @@ relay:
     REDIS_ENABLED: "false"
     CACHE_MAX: "50"
     CACHE_TTL: "300"
-    NODE_OPTIONS: "--max-old-space-size=66"
+    NODE_OPTIONS: "--max-old-space-size=50"
 ws:
   resources:
     requests:
@@ -33,4 +33,4 @@ ws:
     REDIS_ENABLED: "false"
     CACHE_MAX: "50"
     CACHE_TTL: "300"
-    NODE_OPTIONS: "--max-old-space-size=66"
+    NODE_OPTIONS: "--max-old-space-size=50"
