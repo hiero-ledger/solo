@@ -3279,7 +3279,7 @@ export class NodeCommandTasks {
           this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
 
         if (needsExtraEnvironment) {
-          const extraEnvValuesFile: string = helpers.generateExtraEnvValuesFile(
+          const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
             consensusNodes,
             {
               wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
@@ -3292,7 +3292,7 @@ export class NodeCommandTasks {
 
           // Add the extraEnv values file to all cluster references
           for (const [clusterReference] of clusterReferences) {
-            valuesArgumentMap[clusterReference] += ` --values "${extraEnvValuesFile}"`;
+            valuesArgumentMap[clusterReference] += ` --values "${extraEnvironmentValuesFile}"`;
           }
         }
 
@@ -3365,7 +3365,7 @@ export class NodeCommandTasks {
           versions.S6_NODE_IMAGE_VERSION,
         );
       }
-      // TSS wraps extraEnv is now handled via generateExtraEnvValuesFile()
+      // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
     }
   }
 
@@ -3448,7 +3448,7 @@ export class NodeCommandTasks {
       }
     }
 
-    // TSS wraps extraEnv is now handled via generateExtraEnvValuesFile()
+    // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
   }
 
   /**
@@ -3492,7 +3492,7 @@ export class NodeCommandTasks {
             versions.S6_NODE_IMAGE_VERSION,
           );
         }
-        // TSS wraps extraEnv is now handled via generateExtraEnvValuesFile()
+        // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
 
         index++;
       }

@@ -92,8 +92,9 @@ export const DEFAULT_JVM_ENV_VARS: Array<{name: string; value: string}> = [
   {name: 'JAVA_HEAP_MAX', value: '6g'},
   {
     name: 'JAVA_OPTS',
-    value: '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true'
-  }
+    value:
+      '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true',
+  },
 ];
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics

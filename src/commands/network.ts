@@ -13,9 +13,8 @@ import {getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addRootImageValues,
-  buildPerNodeExtraEnvValuesStructure,
   createAndCopyBlockNodeJsonFileForConsensusNode,
-  generateExtraEnvValuesFile,
+  generateExtraEnvironmentValuesFile,
   parseNodeAliases,
   prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
@@ -25,20 +24,11 @@ import {
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {
-  type AnyListrContext,
-  type ArgvStruct,
-  type AnyObject,
-  type IP,
-  type NodeAlias,
-  type NodeAliases,
-  type NodeId,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -450,12 +440,12 @@ export class NetworkCommand extends BaseCommand {
     );
 
     // Generate per-node extraEnv values file if any extraEnv customizations are needed
-    let perNodeExtraEnvValuesFile: string = '';
+    let perNodeExtraEnvironmentValuesFile: string = '';
     const needsExtraEnvironment: boolean =
       config.wrapsEnabled || !!config.debugNodeAlias || config.app !== constants.HEDERA_APP_NAME; // JAVA_MAIN_CLASS for tools/local builds
 
     if (needsExtraEnvironment) {
-      perNodeExtraEnvValuesFile = generateExtraEnvValuesFile(
+      perNodeExtraEnvironmentValuesFile = generateExtraEnvironmentValuesFile(
         config.consensusNodes,
         {
           wrapsEnabled: config.wrapsEnabled,
@@ -466,15 +456,15 @@ export class NetworkCommand extends BaseCommand {
         config.cacheDir,
       );
 
-      this.logger.debug(`Created per-node extraEnv values file: ${perNodeExtraEnvValuesFile}`);
+      this.logger.debug(`Created per-node extraEnv values file: ${perNodeExtraEnvironmentValuesFile}`);
     }
 
     for (const clusterReference of Object.keys(valuesFiles)) {
       let valuesArgument: string = valuesArguments[clusterReference] + valuesFiles[clusterReference];
 
       // Add per-node extraEnv values file if wraps are enabled (replaces --set approach)
-      if (perNodeExtraEnvValuesFile) {
-        valuesArgument += ` --values ${perNodeExtraEnvValuesFile}`;
+      if (perNodeExtraEnvironmentValuesFile) {
+        valuesArgument += ` --values ${perNodeExtraEnvironmentValuesFile}`;
       }
 
       valuesArgumentMap[clusterReference] = valuesArgument;
@@ -509,7 +499,7 @@ export class NetworkCommand extends BaseCommand {
     }
 
     // All extraEnv customizations (wraps, debug, JAVA_MAIN_CLASS) are now handled
-    // via generateExtraEnvValuesFile() in prepareValuesArgMap() to avoid Helm --set replacement issues
+    // via generateExtraEnvironmentValuesFile() in prepareValuesArgMap() to avoid Helm --set replacement issues
 
     if (
       config.storageType === constants.StorageType.AWS_AND_GCS ||

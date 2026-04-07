@@ -218,23 +218,6 @@ export function renameAndCopyFile(
 }
 
 /**
- * Add debug options to valuesArg used by helm chart
- * @deprecated Use generateExtraEnvValuesFile() with debugNodeAlias option instead
- * @param valuesArgument the valuesArg to update
- * @param debugNodeAlias the node ID to attach the debugger to
- * @param index the index of extraEnv to add the debug options to
- * @returns updated valuesArg
- */
-export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlias, index: number = 0): string {
-  if (debugNodeAlias) {
-    const nodeId: number = Templates.nodeIdFromNodeAlias(debugNodeAlias);
-    valuesArgument += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=JAVA_OPTS"`;
-    valuesArgument += String.raw` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=-agentlib:jdwp=transport=dt_socket\,server=y\,suspend=y\,address=*:${constants.JVM_DEBUG_PORT}"`;
-  }
-  return valuesArgument;
-}
-
-/**
  * Append root.image registry/repository/tag settings for a given node path to a Helm values argument string.
  * @param valuesArgument - existing values argument string (may be empty)
  * @param nodePath - base node path, e.g. `hedera.nodes[0]`
@@ -883,54 +866,66 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
  * @param options - configuration options for different extraEnv scenarios
  * @returns Object suitable for YAML serialization with hedera.nodes[X].root.extraEnv
  */
-export function buildPerNodeExtraEnvValuesStructure(
+type EnvironmentVariable = {name: string; value: string};
+type PerNodeExtraEnvironmentOptions = {
+  wrapsEnabled?: boolean;
+  tss?: {wraps: {artifactsFolderName: string}};
+  debugNodeAlias?: NodeAlias;
+  useJavaMainClass?: boolean; // for tools/local builds
+  additionalEnvironmentVariables?: Record<NodeAlias, EnvironmentVariable[]>;
+};
+type PerNodeExtraEnvironmentValues = {
+  hedera: {nodes: Array<{root?: {extraEnv: EnvironmentVariable[]}}>};
+};
+
+export function buildPerNodeExtraEnvironmentValuesStructure(
   consensusNodes: ConsensusNode[],
-  options: {
-    wrapsEnabled?: boolean;
-    tss?: {wraps: {artifactsFolderName: string}};
-    debugNodeAlias?: NodeAlias;
-    useJavaMainClass?: boolean; // for tools/local builds
-    additionalEnvVars?: Record<NodeAlias, Array<{name: string; value: string}>>;
-  } = {}
-): AnyObject {
-  const hedera: AnyObject = {nodes: []};
+  options: PerNodeExtraEnvironmentOptions = {},
+): PerNodeExtraEnvironmentValues {
+  const hedera: PerNodeExtraEnvironmentValues['hedera'] = {nodes: []};
 
   for (const consensusNode of consensusNodes) {
     const nodeIndex: number = consensusNode.nodeId;
-    const extraEnv: Array<{name: string; value: string}> = [];
+    const extraEnvironmentVariables: EnvironmentVariable[] = [];
 
     // Always start with default JVM vars
-    for (const jvmVar of constants.DEFAULT_JVM_ENV_VARS) {
-      extraEnv.push({name: jvmVar.name, value: jvmVar.value});
+    for (const jvmEnvironmentVariable of constants.DEFAULT_JVM_ENV_VARS) {
+      extraEnvironmentVariables.push({
+        name: jvmEnvironmentVariable.name,
+        value: jvmEnvironmentVariable.value,
+      });
     }
 
     // Add JAVA_MAIN_CLASS for tools/local builds
     if (options.useJavaMainClass) {
-      extraEnv.push({name: 'JAVA_MAIN_CLASS', value: 'com.swirlds.platform.Browser'});
+      extraEnvironmentVariables.push({name: 'JAVA_MAIN_CLASS', value: 'com.swirlds.platform.Browser'});
     }
 
     // Add TSS wraps if enabled
     if (options.wrapsEnabled && options.tss) {
       const wrapPath: string = `${constants.HEDERA_HAPI_PATH}/${options.tss.wraps.artifactsFolderName}`;
-      extraEnv.push({name: 'TSS_LIB_WRAPS_ARTIFACTS_PATH', value: wrapPath});
+      extraEnvironmentVariables.push({name: 'TSS_LIB_WRAPS_ARTIFACTS_PATH', value: wrapPath});
     }
 
     // Override JAVA_OPTS for debug mode if this is the debug node
     if (options.debugNodeAlias === consensusNode.name) {
-      const javaOptsIndex: number = extraEnv.findIndex(env => env.name === 'JAVA_OPTS');
-      if (javaOptsIndex >= 0) {
-        extraEnv[javaOptsIndex].value = `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
-      } else {
-        extraEnv.push({
+      const javaOptionsIndex: number = extraEnvironmentVariables.findIndex(
+        (environmentVariable): boolean => environmentVariable.name === 'JAVA_OPTS',
+      );
+      if (javaOptionsIndex === -1) {
+        extraEnvironmentVariables.push({
           name: 'JAVA_OPTS',
-          value: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`
+          value: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`,
         });
+      } else {
+        extraEnvironmentVariables[javaOptionsIndex].value =
+          `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
       }
     }
 
     // Add any additional env vars for this specific node
-    if (options.additionalEnvVars && options.additionalEnvVars[consensusNode.name]) {
-      extraEnv.push(...options.additionalEnvVars[consensusNode.name]);
+    if (options.additionalEnvironmentVariables && options.additionalEnvironmentVariables[consensusNode.name]) {
+      extraEnvironmentVariables.push(...options.additionalEnvironmentVariables[consensusNode.name]);
     }
 
     // Ensure the hedera.nodes array has enough elements
@@ -938,7 +933,7 @@ export function buildPerNodeExtraEnvValuesStructure(
       hedera.nodes.push({});
     }
 
-    hedera.nodes[nodeIndex].root = {extraEnv};
+    hedera.nodes[nodeIndex].root = {extraEnv: extraEnvironmentVariables};
   }
 
   return {hedera};
@@ -950,26 +945,23 @@ export function buildPerNodeExtraEnvValuesStructure(
  *
  * @param consensusNodes - list of consensus nodes
  * @param options - extraEnv configuration options
- * @param cacheDir - directory to write the temporary file
+ * @param cacheDirectory - directory to write the temporary file
  * @returns path to the generated YAML file
  */
-export function generateExtraEnvValuesFile(
+export function generateExtraEnvironmentValuesFile(
   consensusNodes: ConsensusNode[],
-  options: {
-    wrapsEnabled?: boolean;
-    tss?: {wraps: {artifactsFolderName: string}};
-    debugNodeAlias?: NodeAlias;
-    useJavaMainClass?: boolean;
-    additionalEnvVars?: Record<NodeAlias, Array<{name: string; value: string}>>;
-  } = {},
-  cacheDir: string
+  options: PerNodeExtraEnvironmentOptions = {},
+  cacheDirectory: string,
 ): string {
-  const perNodeExtraEnvValues: AnyObject = buildPerNodeExtraEnvValuesStructure(consensusNodes, options);
+  const perNodeExtraEnvironmentValues: PerNodeExtraEnvironmentValues = buildPerNodeExtraEnvironmentValuesStructure(
+    consensusNodes,
+    options,
+  );
 
   const filename: string = `per-node-extra-env-${Date.now()}-${Math.random().toString(36).slice(2)}.yaml`;
-  const filePath: string = PathEx.join(cacheDir, filename);
+  const filePath: string = PathEx.join(cacheDirectory, filename);
 
-  const yamlContent: string = yaml.stringify(perNodeExtraEnvValues, {indent: 2});
+  const yamlContent: string = yaml.stringify(perNodeExtraEnvironmentValues, {indent: 2});
   fs.writeFileSync(filePath, yamlContent);
 
   return filePath;
