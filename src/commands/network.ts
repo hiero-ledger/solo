@@ -20,6 +20,7 @@ import {
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
+  validateHelmJavaEnvVars,
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
@@ -448,6 +449,12 @@ export class NetworkCommand extends BaseCommand {
 
     for (const clusterReference of Object.keys(valuesFiles)) {
       valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
+
+      // Validate that all required JVM env vars are present when wraps are enabled
+      if (config.wrapsEnabled) {
+        validateHelmJavaEnvVars(valuesArgumentMap[clusterReference]);
+      }
+
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
         valuesArg: valuesArgumentMap,
       });
@@ -492,24 +499,16 @@ export class NetworkCommand extends BaseCommand {
         const nodeId: NodeId = consensusNode.nodeId;
 
         // When setting per-node extraEnv, Helm replaces the entire defaults.root.extraEnv array.
-        // To prevent losing default env vars (JAVA_HEAP_MIN, JAVA_HEAP_MAX, JAVA_OPTS),
-        // we must explicitly include them when setting TSS_LIB_WRAPS_ARTIFACTS_PATH.
+        // To prevent losing default env vars, we must explicitly include DEFAULT_JVM_ENV_VARS
+        // before adding TSS_LIB_WRAPS_ARTIFACTS_PATH.
         let envIndex: number = 0;
 
-        // Include default env vars
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=JAVA_HEAP_MIN"`;
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=256m"`;
-        envIndex++;
-
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=JAVA_HEAP_MAX"`;
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=6g"`;
-        envIndex++;
-
-        valuesArguments[cluster] +=
-          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=JAVA_OPTS"`;
-        valuesArguments[cluster] +=
-          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"`;
-        envIndex++;
+        // Include default JVM env vars using the constant
+        for (const jvmVar of constants.DEFAULT_JVM_ENV_VARS) {
+          valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].name=${jvmVar.name}"`;
+          valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${envIndex}].value=${jvmVar.value}"`;
+          envIndex++;
+        }
 
         // Add TSS wraps after defaults
         valuesArguments[cluster] +=

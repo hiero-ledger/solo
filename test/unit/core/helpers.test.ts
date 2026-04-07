@@ -43,4 +43,52 @@ describe('Helpers', (): void => {
     const byteString: string = helpers.ipV4ToBase64(ipV4Address);
     expect(byteString).to.equal('wKgAAQ==');
   });
+
+  describe('Helm Java Environment Variables Validation', (): void => {
+    it('should pass validation when all default JVM env vars are present', (): void => {
+      const helmCommand: string =
+        '--set "hedera.nodes[0].root.extraEnv[0].name=JAVA_HEAP_MIN" ' +
+        '--set "hedera.nodes[0].root.extraEnv[0].value=256m" ' +
+        '--set "hedera.nodes[0].root.extraEnv[1].name=JAVA_HEAP_MAX" ' +
+        '--set "hedera.nodes[0].root.extraEnv[1].value=6g" ' +
+        '--set "hedera.nodes[0].root.extraEnv[2].name=JAVA_OPTS" ' +
+        '--set "hedera.nodes[0].root.extraEnv[2].value=-XX:+UseG1GC"';
+
+      expect((): void => {
+        helpers.validateHelmJavaEnvVars(helmCommand);
+      }).to.not.throw();
+    });
+
+    it('should fail validation when JAVA_OPTS is missing', (): void => {
+      const helmCommand: string =
+        '--set "hedera.nodes[0].root.extraEnv[0].name=JAVA_HEAP_MIN" ' +
+        '--set "hedera.nodes[0].root.extraEnv[0].value=256m" ' +
+        '--set "hedera.nodes[0].root.extraEnv[1].name=TSS_LIB_WRAPS_ARTIFACTS_PATH" ' +
+        '--set "hedera.nodes[0].root.extraEnv[1].value=/some/path"';
+
+      expect((): void => {
+        helpers.validateHelmJavaEnvVars(helmCommand);
+      }).to.throw(/JAVA_OPTS/);
+    });
+
+    it('should fail validation when JAVA_HEAP_MAX is missing', (): void => {
+      const helmCommand: string =
+        '--set "hedera.nodes[0].root.extraEnv[0].name=JAVA_HEAP_MIN" ' +
+        '--set "hedera.nodes[0].root.extraEnv[0].value=256m" ' +
+        '--set "hedera.nodes[0].root.extraEnv[1].name=JAVA_OPTS" ' +
+        '--set "hedera.nodes[0].root.extraEnv[1].value=-XX:+UseG1GC"';
+
+      expect((): void => {
+        helpers.validateHelmJavaEnvVars(helmCommand);
+      }).to.throw(/JAVA_HEAP_MAX/);
+    });
+
+    it('should fail validation when multiple vars are missing', (): void => {
+      const helmCommand: string = '--set "hedera.nodes[0].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"';
+
+      expect((): void => {
+        helpers.validateHelmJavaEnvVars(helmCommand);
+      }).to.throw(/Critical JVM environment variables missing/);
+    });
+  });
 });

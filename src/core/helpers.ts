@@ -873,3 +873,28 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
   await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
 }
+
+/**
+ * Validate that all required default JVM environment variables are present in Helm values command.
+ * This prevents accidental loss of JAVA_* env vars when setting per-node environment overrides.
+ *
+ * @param helmValuesCommand - The complete helm command with --set flags
+ * @throws Error if any required JVM env var is missing
+ */
+export function validateHelmJavaEnvVars(helmValuesCommand: string): void {
+  const missingVars: string[] = [];
+
+  for (const jvmVar of constants.DEFAULT_JVM_ENV_VARS) {
+    if (!helmValuesCommand.includes(`extraEnv`) || !helmValuesCommand.includes(`name=${jvmVar.name}`)) {
+      missingVars.push(jvmVar.name);
+    }
+  }
+
+  if (missingVars.length > 0) {
+    throw new SoloError(
+      `Critical JVM environment variables missing from Helm command: ${missingVars.join(', ')}. ` +
+        `This typically indicates that per-node environment overrides (wraps, debug, etc.) were set without including default vars. ` +
+        `Always use constants.DEFAULT_JVM_ENV_VARS when setting hedera.nodes[X].root.extraEnv.`
+    );
+  }
+}
