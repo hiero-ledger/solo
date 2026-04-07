@@ -898,16 +898,16 @@ type PerNodeExtraEnvironmentValues = {
  * Ensures JAVA_OPTS doesn't conflict with JAVA_HEAP_MIN/MAX by removing any
  * existing -Xms/-Xmx arguments to prevent dual heap size specifications.
  *
- * @param javaOpts - The current JAVA_OPTS value
+ * @param javaOptions - The current JAVA_OPTS value
  * @returns Cleaned JAVA_OPTS without heap size arguments
  */
-export function sanitizeJavaOptsForHeapSettings(javaOpts: string): string {
+export function sanitizeJavaOptionsForHeapSettings(javaOptions: string): string {
   // Remove any existing -Xms or -Xmx arguments to prevent conflicts
   // with JAVA_HEAP_MIN and JAVA_HEAP_MAX environment variables
-  return javaOpts
-    .replace(/-Xms\S+/g, '')  // Remove -Xms arguments
-    .replace(/-Xmx\S+/g, '')  // Remove -Xmx arguments
-    .replace(/\s+/g, ' ')     // Normalize whitespace
+  return javaOptions
+    .replaceAll(/-Xms\S+/g, '')
+    .replaceAll(/-Xmx\S+/g, '')
+    .replaceAll(/\s+/g, ' ')
     .trim();
 }
 
@@ -927,7 +927,7 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
       // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
       if (jvmEnvironmentVariable.name === 'JAVA_OPTS') {
-        environmentVariableValue = sanitizeJavaOptsForHeapSettings(environmentVariableValue);
+        environmentVariableValue = sanitizeJavaOptionsForHeapSettings(environmentVariableValue);
       }
 
       extraEnvironmentVariables.push({
@@ -974,7 +974,7 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
         // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
         if (additionalEnvironmentVariable.name === 'JAVA_OPTS') {
-          environmentVariableValue = sanitizeJavaOptsForHeapSettings(environmentVariableValue);
+          environmentVariableValue = sanitizeJavaOptionsForHeapSettings(environmentVariableValue);
         }
 
         const sanitizedEnvironmentVariable = {
