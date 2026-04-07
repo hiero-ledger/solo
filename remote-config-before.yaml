@@ -1,0 +1,159 @@
+remote-config-data: |
+  clusters:
+    - deployment: solo-e2e
+      dnsBaseDomain: cluster.local
+      dnsConsensusNodePattern: network-{nodeAlias}-svc.{namespace}.svc
+      name: solo-e2e
+      namespace: solo-e2e
+  history:
+    commands:
+      - deployment cluster attach
+      - "Executed by jeffrey: keys consensus generate --gossip-keys --tls-keys
+        --deployment solo-e2e --dev --namespace solo-e2e"
+      - "Executed by jeffrey: block node add --deployment solo-e2e --chart-version
+        v0.28.0 --namespace solo-e2e"
+      - "Executed by jeffrey: consensus network deploy --deployment solo-e2e
+        --pvcs --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: consensus node setup --deployment solo-e2e
+        --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: consensus node setup --deployment solo-e2e
+        --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: consensus node start --deployment solo-e2e
+        --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: consensus node start --deployment solo-e2e
+        --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: ledger account create --deployment solo-e2e --dev
+        --namespace solo-e2e"
+      - "Executed by jeffrey: mirror node add --deployment solo-e2e --cluster-ref
+        solo-e2e --enable-ingress --pinger --quiet-mode --mirror-node-version
+        v0.139.0 --dev --namespace solo-e2e"
+      - "Executed by jeffrey: explorer node add --deployment solo-e2e
+        --cluster-ref solo-e2e --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: explorer node add --deployment solo-e2e
+        --cluster-ref solo-e2e --quiet-mode --dev --namespace solo-e2e"
+      - "Executed by jeffrey: relay node add --node-aliases node1,node2
+        --deployment solo-e2e --cluster-ref solo-e2e --dev --namespace solo-e2e"
+    lastExecutedCommand: "Executed by jeffrey: relay node add --node-aliases
+      node1,node2 --deployment solo-e2e --cluster-ref solo-e2e --dev --namespace
+      solo-e2e"
+  metadata:
+    lastUpdatedAt: 2026-04-01T20:32:28.215Z
+    lastUpdatedBy:
+      hostname: FH94F2WPWX
+      name: jeffrey
+  schemaVersion: 7
+  state:
+    blockNodes:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+    componentIds:
+      blockNodes: 2
+      consensusNodes: 3
+      envoyProxies: 3
+      explorers: 2
+      haProxies: 3
+      mirrorNodes: 2
+      postgres: 2
+      redis: 2
+      relayNodes: 2
+    consensusNodes:
+      - blockNodeMap:
+          - - 1
+            - 1
+        externalBlockNodeMap: []
+        metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: started
+      - blockNodeMap:
+          - - 1
+            - 1
+        externalBlockNodeMap: []
+        metadata:
+          cluster: solo-e2e
+          id: 2
+          namespace: solo-e2e
+          phase: started
+    envoyProxies:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+      - metadata:
+          cluster: solo-e2e
+          id: 2
+          namespace: solo-e2e
+          phase: deployed
+    explorers:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+          portForwardConfigs:
+            - localPort: 8080
+              podPort: 8080
+    externalBlockNodes: []
+    haProxies:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+          portForwardConfigs:
+            - localPort: 50211
+              podPort: 50211
+      - metadata:
+          cluster: solo-e2e
+          id: 2
+          namespace: solo-e2e
+          phase: deployed
+    ledgerPhase: initialized
+    mirrorNodes:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+          portForwardConfigs:
+            - localPort: 8081
+              podPort: 80
+    postgres:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+    redis:
+      - metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+    relayNodes:
+      - consensusNodeIds:
+          - 0
+          - 1
+        metadata:
+          cluster: solo-e2e
+          id: 1
+          namespace: solo-e2e
+          phase: deployed
+          portForwardConfigs:
+            - localPort: 7546
+              podPort: 7546
+    tssEnabled: false
+    wrapsEnabled: false
+  versions:
+    blockNodeChart: 0.28.0
+    chart: 0.63.2
+    cli: 0.65.0
+    consensusNode: 0.70.0
+    explorerChart: 26.0.0
+    jsonRpcRelayChart: 0.75.0
+    mirrorNodeChart: 0.139.0
