@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
-import {DockerClient} from '../../integration/container-engine/docker-client.js';
-
 /**
  * Dependency injection tokens
  */

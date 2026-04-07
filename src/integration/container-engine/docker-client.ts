@@ -6,7 +6,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {ContainerEngineClient} from './container-engine-client.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {LoadDockerImageOptionsBuilder} from '../kind/model/load-docker-image/load-docker-image-options-builder.js';
 import {KindClient} from '../kind/kind-client.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -15,7 +14,6 @@ import {DependencyManager} from '../../core/dependency-managers/index.js';
 import * as constants from '../../core/constants.js';
 import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/load-image-archive-options-builder.js';
 import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
-import {LoadDockerImageOptions} from '../kind/model/load-docker-image/load-docker-image-options.js';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {

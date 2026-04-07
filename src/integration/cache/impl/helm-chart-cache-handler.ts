@@ -5,7 +5,6 @@ import path from 'node:path';
 import {CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
 import {CachedItem} from '../models/impl/cached-item.js';
 import {ArtifactHealthResult} from '../models/impl/artifact-health-result.js';
-import {type CacheOperationHandler} from '../api/cache-operation-handler.js';
 import {type CacheCatalogStore} from '../api/cache-catalog-store.js';
 import {type CacheTargetProvider} from '../target-providers/cache-target-provider.js';
 import {type CacheHealthInspector} from '../api/cache-health-inspector.js';
