@@ -30,7 +30,13 @@ import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
-import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
+import {
+  confirm as confirmPrompt,
+  input as inputPrompt,
+  number as numberPrompt,
+  select as selectPrompt,
+} from '@inquirer/prompts';
+import {type FalconPrepareConfig} from './falcon-prepare-config.js';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
@@ -150,6 +156,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public static readonly INFO_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
+  };
+
+  public static readonly FALCON_PREPARE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.outputValuesFile],
   };
 
   public constructor(
@@ -1887,6 +1898,286 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     return true;
+  }
+
+  public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
+    const config: FalconPrepareConfig = {
+      numberOfConsensusNodes: 1,
+      releaseTag: version.HEDERA_PLATFORM_VERSION,
+      mirrorNodeVersion: version.MIRROR_NODE_VERSION,
+      relayRelease: version.HEDERA_JSON_RPC_RELAY_VERSION,
+      blockNodeChartVersion: version.BLOCK_NODE_VERSION,
+      explorerVersion: version.EXPLORER_VERSION,
+      soloChartVersion: version.SOLO_CHART_VERSION,
+      loadBalancer: false,
+      enableMirrorIngress: true,
+      localBuildPath: '',
+      debugNodeAlias: '',
+      devMode: false,
+      forcePortForward: true,
+      outputPath: (argv.outputValuesFile as string) || './falcon-values.yaml',
+    };
+
+    this.configManager.update(argv);
+    const isQuiet: boolean = argv.quiet === true || argv.quietMode === true;
+
+    const tasks: Listr<AnyListrContext, ListrRendererValue, ListrRendererValue> = new Listr(
+      [
+        {
+          title: 'Configure deployment options',
+          skip: (): boolean => isQuiet,
+          task: async (_context: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
+            // Number of consensus nodes
+            config.numberOfConsensusNodes =
+              (await task
+                .prompt(ListrInquirerPromptAdapter)
+                .run(numberPrompt, {message: 'Number of consensus nodes:', default: 1})) ?? 1;
+
+            // Component versions
+            config.releaseTag = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+              message: 'Consensus node version (release tag):',
+              default: version.HEDERA_PLATFORM_VERSION,
+            });
+
+            config.mirrorNodeVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+              message: 'Mirror node version:',
+              default: version.MIRROR_NODE_VERSION,
+            });
+
+            config.relayRelease = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+              message: 'Relay version:',
+              default: version.HEDERA_JSON_RPC_RELAY_VERSION,
+            });
+
+            config.blockNodeChartVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+              message: 'Block node chart version:',
+              default: version.BLOCK_NODE_VERSION,
+            });
+
+            config.explorerVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+              message: 'Explorer version:',
+              default: version.EXPLORER_VERSION,
+            });
+
+            config.soloChartVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+              message: 'Solo chart version:',
+              default: version.SOLO_CHART_VERSION,
+            });
+
+            // Network config
+            config.loadBalancer = await task
+              .prompt(ListrInquirerPromptAdapter)
+              .run(confirmPrompt, {message: 'Enable load balancer?', default: false});
+
+            // Ingress
+            config.enableMirrorIngress = await task
+              .prompt(ListrInquirerPromptAdapter)
+              .run(confirmPrompt, {message: 'Enable ingress for mirror node?', default: true});
+
+            // Developer options
+            config.devMode = await task
+              .prompt(ListrInquirerPromptAdapter)
+              .run(confirmPrompt, {message: 'Enable developer mode?', default: false});
+
+            if (config.devMode) {
+              config.localBuildPath = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+                message: 'Local build path:',
+                default: '',
+              });
+
+              config.debugNodeAlias = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+                message: 'Debug node alias:',
+                default: '',
+              });
+            }
+
+            // Port forwarding
+            config.forcePortForward = await task
+              .prompt(ListrInquirerPromptAdapter)
+              .run(confirmPrompt, {message: 'Force port forwarding?', default: true});
+          },
+        },
+        {
+          title: 'Generate values file',
+          task: async (): Promise<void> => {
+            const yamlContent: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
+            fs.writeFileSync(config.outputPath, yamlContent);
+            this.logger.showUser(chalk.green(`\nFalcon values file generated: ${config.outputPath}`));
+            this.logger.showUser(`\nTo deploy, run:\n  solo one-shot falcon deploy --values-file ${config.outputPath}`);
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error preparing falcon values file: ${error.message}`, error);
+    }
+
+    return true;
+  }
+
+  public static generateFalconValuesYaml(config: FalconPrepareConfig): string {
+    const valuesObject: Record<string, Record<string, string | number | boolean | null>> = {
+      network: {
+        '--api-permission-properties': '',
+        '--app': '',
+        '--application-env': '',
+        '--application-properties': '',
+        '--bootstrap-properties': '',
+        '--genesis-throttles-file': '',
+        '--cache-dir': '',
+        '--chain-id': '',
+        '--chart-dir': '',
+        '--solo-chart-version': config.soloChartVersion,
+        '--debug-node-alias': config.debugNodeAlias,
+        '--load-balancer': config.loadBalancer,
+        '--log4j2-xml': '',
+        '--pvcs': false,
+        '--quiet-mode': false,
+        '--release-tag': config.releaseTag,
+        '--settings-txt': '',
+        '--values-file': '',
+        '--grpc-tls-certificate-path': '',
+        '--grpc-web-tls-certificate-path': '',
+        '--grpc-tls-key-path': '',
+        '--grpc-web-tls-key-path': '',
+        '--haproxy-ips': '',
+        '--envoy-ips': '',
+        '--storage-type': '',
+        '--gcs-write-access-key': '',
+        '--gcs-write-secrets': '',
+        '--gcs-endpoint': '',
+        '--gcs-bucket': '',
+        '--gcs-bucket-prefix': '',
+        '--aws-write-access-key': '',
+        '--aws-write-secrets': '',
+        '--aws-endpoint': '',
+        '--aws-bucket': '',
+        '--aws-bucket-region': '',
+        '--aws-bucket-prefix': '',
+        '--backup-bucket': '',
+        '--backup-write-access-key': '',
+        '--backup-write-secrets': '',
+        '--backup-endpoint': '',
+        '--backup-region': '',
+        '--backup-provider': '',
+        '--domain-names': '',
+        '--service-monitor': false,
+        '--pod-log': false,
+      },
+      setup: {
+        '--cache-dir': '',
+        '--release-tag': config.releaseTag,
+        '--app': '',
+        '--app-config': '',
+        '--quiet-mode': false,
+        '--dev': config.devMode,
+        '--local-build-path': config.localBuildPath,
+        '--admin-public-keys': '',
+        '--domain-names': '',
+      },
+      consensusNode: {
+        '--app': '',
+        '--quiet-mode': false,
+        '--debug-node-alias': config.debugNodeAlias,
+        '--state-file': '',
+        '--stake-amounts': '',
+        '--force-port-forward': config.forcePortForward,
+      },
+      mirrorNode: {
+        '--cache-dir': '',
+        '--chart-dir': '',
+        '--mirror-node-version': config.mirrorNodeVersion,
+        '--values-file': '',
+        '--enable-ingress': config.enableMirrorIngress,
+        '--ingress-controller-value-file': '',
+        '--mirror-static-ip': '',
+        '--domain-name': '',
+        '--force-port-forward': config.forcePortForward,
+        '--quiet-mode': false,
+        '--pinger': true,
+        '--operator-id': '',
+        '--operator-key': '',
+        '--use-external-database': false,
+        '--external-database-host': '',
+        '--external-database-owner-username': '',
+        '--external-database-owner-password': '',
+        '--external-database-readonly-username': '',
+        '--external-database-readonly-password': '',
+        '--storage-type': '',
+        '--storage-read-access-key': '',
+        '--storage-read-secrets': '',
+        '--storage-endpoint': '',
+        '--storage-bucket': '',
+        '--storage-bucket-prefix': '',
+        '--storage-bucket-region': '',
+      },
+      relayNode: {
+        '--cache-dir': '',
+        '--chart-dir': '',
+        '--relay-release': config.relayRelease,
+        '--values-file': '',
+        '--node-aliases': '',
+        '--replica-count': 1,
+        '--chain-id': '',
+        '--domain-name': '',
+        '--operator-id': '',
+        '--operator-key': '',
+        '--force-port-forward': config.forcePortForward,
+        '--quiet-mode': false,
+        // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
+        '--mirror-node-id': null,
+        '--mirror-namespace': '',
+      },
+      blockNode: {
+        '--chart-dir': '',
+        '--block-node-chart-version': config.blockNodeChartVersion,
+        '--release-tag': '',
+        '--image-tag': '',
+        '--values-file': '',
+        '--enable-ingress': false,
+        '--domain-name': '',
+        '--dev': config.devMode,
+        '--quiet-mode': false,
+      },
+      explorerNode: {
+        '--cache-dir': '',
+        '--chart-dir': '',
+        '--solo-chart-version': config.soloChartVersion,
+        '--explorer-version': config.explorerVersion,
+        '--values-file': '',
+        '--enable-ingress': true,
+        '--ingress-controller-value-file': '',
+        '--domain-name': '',
+        '--enable-explorer-tls': false,
+        '--explorer-tls-host-name': 'explorer.solo.local',
+        '--tls-cluster-issuer-type': 'self-signed',
+        '--explorer-static-ip': '',
+        '--cluster-setup-namespace': '',
+        '--force-port-forward': config.forcePortForward,
+        '--quiet-mode': false,
+        // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
+        '--mirror-node-id': null,
+        '--mirror-namespace': '',
+      },
+    };
+
+    const header: string =
+      '# One-Shot Falcon Deployment Configuration\n' +
+      '# Generated by: solo one-shot falcon prepare\n' +
+      '# This file configures all components of the Hiero network deployment\n' +
+      `#\n# Consensus nodes: ${config.numberOfConsensusNodes}\n` +
+      '#\n# Usage:\n' +
+      '#   solo one-shot falcon deploy --values-file ./falcon-values.yaml\n' +
+      '#\n# To disable optional components, pass CLI flags:\n' +
+      '#   --deploy-mirror-node false\n' +
+      '#   --deploy-explorer false\n' +
+      '#   --deploy-relay false\n\n';
+
+    return header + yaml.stringify(valuesObject, {lineWidth: 0});
   }
 
   public async close(): Promise<void> {} // no-op
