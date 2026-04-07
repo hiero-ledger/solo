@@ -63,14 +63,10 @@ export class DockerClient implements ContainerEngineClient {
 
     // Either disable throw on empty STFOUT and STDERR or parse output if present
 
-    try {
-      const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
-      const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build(true);
+    const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
+    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build(true);
 
-      await kindClient.loadImageArchive(archivePath, options);
-    } catch (error) {
-      // console.log(error);
-    }
+    await kindClient.loadImageArchive(archivePath, options);
   }
 
   public async removeImage(image: string): Promise<void> {

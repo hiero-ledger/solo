@@ -185,8 +185,7 @@ export class CacheCommand extends BaseCommand {
               subTasks.push(...newTasks);
             }
 
-            // return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY); // TODO ENABLE
-            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
           },
         },
         {

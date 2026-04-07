@@ -15,6 +15,8 @@ import {type CacheHealthInspector} from '../api/cache-health-inspector.js';
 import {type CacheTarget} from '../models/impl/cache-target.js';
 import {type SoloListrTask} from '../../../types/index.js';
 import {type AnyListrContext} from '../../../types/aliases.js';
+import chalk from 'chalk';
+import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 
 export class ImageCacheHandler implements CacheOperationHandler {
   public constructor(
@@ -22,9 +24,11 @@ export class ImageCacheHandler implements CacheOperationHandler {
     private readonly provider: CacheTargetProvider,
     @inject(InjectTokens.FileSystemCacheCatalogStore) private readonly store?: CacheCatalogStore,
     @inject(InjectTokens.CacheHealthInspector) private readonly inspector?: CacheHealthInspector,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
     this.store = patchInject(store, InjectTokens.FileSystemCacheCatalogStore, this.constructor.name);
     this.inspector = patchInject(inspector, InjectTokens.CacheHealthInspector, this.constructor.name);
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   public getType(): CacheArtifactEnum {
@@ -53,7 +57,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
     for (const target of targets) {
       subTasks.push({
         title: `Caching ${target.name}:${target.version}`,
-        task: async ({config}): Promise<void> => {
+        task: async ({config}, task): Promise<void> => {
           const image: string = `${target.name}:${target.version}`;
           const archivePath: string = this.store.resolvePath(target);
 
@@ -63,21 +67,17 @@ export class ImageCacheHandler implements CacheOperationHandler {
             try {
               await this.engine.pullImage(image);
             } catch (error) {
-              config.imagePullErrors ||= [];
-              config.imagePullErrors.push({image, error});
-              console.log('-----------------------------------');
-              console.log('Error pulling image:', image);
-              console.log('-----------------------------------');
+              task.title += ' - ' + chalk.red(`failed to PULL image: ${image}`);
+              this.logger.error('Failed to pull image:', error);
+              return;
             }
 
             try {
               await this.engine.saveImage(image, archivePath);
             } catch (error) {
-              config.imageSaveErrors ||= [];
-              config.imageSaveErrors.push({image, error});
-              console.log('-----------------------------------');
-              console.log('Error saving image:', image);
-              console.log('-----------------------------------');
+              task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
+              this.logger.error('Failed to save image archive:', error);
+              return;
             }
           }
 
@@ -103,7 +103,6 @@ export class ImageCacheHandler implements CacheOperationHandler {
             return;
           }
 
-          console.log(`Loading ${item.target.name}:${item.target.version} into ${target}`);
           await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
         },
       });

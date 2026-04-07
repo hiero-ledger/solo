@@ -43,8 +43,6 @@ export class KindExecution {
       shell: true,
       env: {...process.env, ...environmentVariables},
     });
-
-    console.log(command.join(' '));
   }
 
   /**
