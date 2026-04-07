@@ -1,0 +1,154 @@
+[test-e2e-node-add-local] ❯ Load configuration
+[test-e2e-node-add-local] ✔ Load configuration 
+[test-e2e-node-add-local] ❯ Initialize
+[test-e2e-node-add-local] Using requested port 30212
+[test-e2e-node-add-local] Using requested port 30213
+[test-e2e-node-add-local] ✔ Initialize [1s]
+[test-e2e-node-add-local] ❯ Check that PVCs are enabled
+[test-e2e-node-add-local] ✔ Check that PVCs are enabled 
+[test-e2e-node-add-local] ❯ Identify existing network nodes
+[test-e2e-node-add-local] ❯ Check network pod: node1
+[test-e2e-node-add-local] ❯ Check network pod: node2
+[test-e2e-node-add-local] ✔ Check network pod: node1 
+[test-e2e-node-add-local] ✔ Check network pod: node2 
+[test-e2e-node-add-local] ✔ Identify existing network nodes 
+[test-e2e-node-add-local] ❯ Determine new node account number
+[test-e2e-node-add-local] ✔ Determine new node account number 
+[test-e2e-node-add-local] ❯ Copy gRPC TLS Certificates
+[test-e2e-node-add-local] ↓ Copy gRPC TLS Certificates [SKIPPED: Copy gRPC TLS Certificates]
+[test-e2e-node-add-local] ❯ Generate gossip keys
+[test-e2e-node-add-local] ❯ Backup old files
+[test-e2e-node-add-local] ✔ Backup old files 
+[test-e2e-node-add-local] ❯ Gossip key for node: node3
+[test-e2e-node-add-local] ✔ Gossip key for node: node3 
+[test-e2e-node-add-local] ✔ Generate gossip keys 
+[test-e2e-node-add-local] ❯ Generate gRPC TLS Keys
+[test-e2e-node-add-local] ❯ Backup old files
+[test-e2e-node-add-local] ❯ TLS key for node: node3
+[test-e2e-node-add-local] ✔ Backup old files 
+[test-e2e-node-add-local] ✔ TLS key for node: node3 [0.3s]
+[test-e2e-node-add-local] ✔ Generate gRPC TLS Keys [0.3s]
+[test-e2e-node-add-local] ❯ Load signing key certificate
+[test-e2e-node-add-local] ✔ Load signing key certificate 
+[test-e2e-node-add-local] ❯ Compute mTLS certificate hash
+[test-e2e-node-add-local] ✔ Compute mTLS certificate hash 
+[test-e2e-node-add-local] ❯ Prepare gossip endpoints
+[test-e2e-node-add-local] ✔ Prepare gossip endpoints 
+[test-e2e-node-add-local] ❯ Prepare grpc service endpoints
+[test-e2e-node-add-local] ✔ Prepare grpc service endpoints 
+[test-e2e-node-add-local] ❯ Prepare upgrade zip file for node upgrade process
+[test-e2e-node-add-local] ✔ Prepare upgrade zip file for node upgrade process [2s]
+[test-e2e-node-add-local] ❯ Check existing nodes staked amount
+[test-e2e-node-add-local] ✔ Check existing nodes staked amount [4s]
+[test-e2e-node-add-local] ❯ Save context data
+[test-e2e-node-add-local] ✔ Save context data 
+[test-e2e-node-add-local] Stopping port-forwarder for port [30212]
+[test-e2e-node-add-local] Stopping port-forwarder for port [30213]
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local] ******************************* Solo *********************************************
+[test-e2e-node-add-local] Version			: 0.54.0
+[test-e2e-node-add-local] Kubernetes Context	: kind-solo-cluster
+[test-e2e-node-add-local] Kubernetes Cluster	: kind-solo-cluster
+[test-e2e-node-add-local] Current Command		: consensus dev-node-add submit-transactions --deployment node-addnode1-deployment --input-dir contextDir --cluster-ref kind-solo-cluster
+[test-e2e-node-add-local] Kubernetes Namespace	: node-addnode1
+[test-e2e-node-add-local] **********************************************************************************
+[test-e2e-node-add-local] ❯ Load configuration
+[test-e2e-node-add-local] ✔ Load configuration 
+[test-e2e-node-add-local] ❯ Initialize
+[test-e2e-node-add-local] Using requested port 30212
+[test-e2e-node-add-local] Using requested port 30213
+[test-e2e-node-add-local] ✔ Initialize [1s]
+[test-e2e-node-add-local] ❯ Load context data
+[test-e2e-node-add-local] ✔ Load context data 
+[test-e2e-node-add-local] ❯ Send node create transaction
+[test-e2e-node-add-local] ✔ Send node create transaction [2s]
+[test-e2e-node-add-local] ❯ Send prepare upgrade transaction
+[test-e2e-node-add-local] ✔ Send prepare upgrade transaction [4s]
+[test-e2e-node-add-local] ❯ Send freeze upgrade transaction
+[test-e2e-node-add-local] ✔ Send freeze upgrade transaction [2s]
+[test-e2e-node-add-local] Stopping port-forwarder for port [30212]
+[test-e2e-node-add-local] Stopping port-forwarder for port [30213]
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local] ******************************* Solo *********************************************
+[test-e2e-node-add-local] Version			: 0.54.0
+[test-e2e-node-add-local] Kubernetes Context	: kind-solo-cluster
+[test-e2e-node-add-local] Kubernetes Cluster	: kind-solo-cluster
+[test-e2e-node-add-local] Current Command		: consensus dev-node-add execute --deployment node-addnode1-deployment --input-dir contextDir --cluster-ref kind-solo-cluster
+[test-e2e-node-add-local] Kubernetes Namespace	: node-addnode1
+[test-e2e-node-add-local] **********************************************************************************
+[test-e2e-node-add-local] ❯ Load configuration
+[test-e2e-node-add-local] ✔ Load configuration 
+[test-e2e-node-add-local] ❯ Initialize
+[test-e2e-node-add-local] ✔ Initialize [0.1s]
+[test-e2e-node-add-local] ❯ Identify existing network nodes
+[test-e2e-node-add-local] ❯ Check network pod: node1
+[test-e2e-node-add-local] ❯ Check network pod: node2
+[test-e2e-node-add-local] ✔ Check network pod: node1 
+[test-e2e-node-add-local] ✔ Check network pod: node2 
+[test-e2e-node-add-local] ✔ Identify existing network nodes 
+[test-e2e-node-add-local] ❯ Load context data
+[test-e2e-node-add-local] ✔ Load context data 
+[test-e2e-node-add-local] ❯ Check all nodes are FROZEN
+[test-e2e-node-add-local] ❯ Check network pod: node1 
+[test-e2e-node-add-local] ❯ Check network pod: node2 
+[test-e2e-node-add-local] ✔ Check network pod: node1  - status FREEZE_COMPLETE, attempt: 2/300 [4s]
+[test-e2e-node-add-local] ✔ Check network pod: node2  - status FREEZE_COMPLETE, attempt: 2/300 [4s]
+[test-e2e-node-add-local] ✔ Check all nodes are FROZEN [4s]
+[test-e2e-node-add-local] ❯ Download generated files from an existing node
+[test-e2e-node-add-local] ✔ Download generated files from an existing node [0.9s]
+[test-e2e-node-add-local] ❯ Prepare staging directory
+[test-e2e-node-add-local] ❯ Create and populate staging directory
+[test-e2e-node-add-local] ✔ Create and populate staging directory 
+[test-e2e-node-add-local] ❯ Copy Gossip keys to staging
+[test-e2e-node-add-local] ✖ Copy Gossip keys to staging [FAILED: file (/Users/jeffrey/.solo/cache/keys/s-private-node1.pem) is missing]
+[test-e2e-node-add-local] ✖ Prepare staging directory [FAILED: file (/Users/jeffrey/.solo/cache/keys/s-private-node1.pem) is missing]
+[test-e2e-node-add-local]           1) should add a new node to the network successfully
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local] ******************************* Solo *********************************************
+[test-e2e-node-add-local] Version			: 0.54.0
+[test-e2e-node-add-local] Kubernetes Context	: kind-solo-cluster
+[test-e2e-node-add-local] Kubernetes Cluster	: kind-solo-cluster
+[test-e2e-node-add-local] Current Command		: consensus network destroy --deployment node-addnode1-deployment --delete-pvcs --delete-secrets
+[test-e2e-node-add-local] Kubernetes Namespace	: node-addnode1
+[test-e2e-node-add-local] **********************************************************************************
+[test-e2e-node-add-local] ❯ Check dependencies
+[test-e2e-node-add-local] ❯ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64]
+[test-e2e-node-add-local] ❯ Check dependency: kubectl [OS: darwin, Release: 23.6.0, Arch: arm64]
+[test-e2e-node-add-local] ✔ Check dependency: kubectl [OS: darwin, Release: 23.6.0, Arch: arm64] 
+[test-e2e-node-add-local] ✔ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64] [0.1s]
+[test-e2e-node-add-local] ✔ Check dependencies [0.1s]
+[test-e2e-node-add-local] ❯ Setup chart manager
+[test-e2e-node-add-local] ✔ Setup chart manager 
+[test-e2e-node-add-local] ❯ Initialize
+[test-e2e-node-add-local] ❯ Acquire lock
+[test-e2e-node-add-local] ✔ Acquire lock - lock acquired successfully, attempt: 1/10 
+[test-e2e-node-add-local] ✔ Initialize 
+[test-e2e-node-add-local] ❯ Running sub-tasks to destroy network
+[test-e2e-node-add-local] ✔ Deleting Secrets in namespace node-addnode1 [11s]
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local]   12 passing (4m)
+[test-e2e-node-add-local]   1 failing
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local]   1) Node add with hedera local build
+[test-e2e-node-add-local]        E2E Test Suite for 'node-addnode1'
+[test-e2e-node-add-local]          node-addnode1
+[test-e2e-node-add-local]            Node add via separated commands should success
+[test-e2e-node-add-local]              should add a new node to the network successfully:
+[test-e2e-node-add-local]      SoloError: Error in adding node: file (/Users/jeffrey/.solo/cache/keys/s-private-node1.pem) is missing
+[test-e2e-node-add-local]       at NodeCommandHandlers.commandAction (/Users/jeffrey/solo/src/core/command-handler.ts:49:15)
+[test-e2e-node-add-local]       at async NodeCommandHandlers.addExecute (/Users/jeffrey/solo/src/commands/node/handlers.ts:590:5)
+[test-e2e-node-add-local]       at async Object.handler (/Users/jeffrey/solo/src/core/command-path-builders/command-builder.ts:119:47)
+[test-e2e-node-add-local]   Caused by: SoloError: file (/Users/jeffrey/.solo/cache/keys/s-private-node1.pem) is missing
+[test-e2e-node-add-local]       at KeyManager.copyNodeKeysToStaging (/Users/jeffrey/solo/src/core/key-manager.ts:444:15)
+[test-e2e-node-add-local]       at KeyManager.copyGossipKeysToStaging (/Users/jeffrey/solo/src/core/key-manager.ts:456:12)
+[test-e2e-node-add-local]       at Task.task (/Users/jeffrey/solo/src/commands/node/tasks.ts:1651:31)
+[test-e2e-node-add-local]       at Task.run (/Users/jeffrey/solo/node_modules/listr2/dist/index.mjs:1906:29)
+[test-e2e-node-add-local]      Caused by: SoloError: file (/Users/jeffrey/.solo/cache/keys/s-private-node1.pem) is missing
+[test-e2e-node-add-local]       at KeyManager.copyNodeKeysToStaging (/Users/jeffrey/solo/src/core/key-manager.ts:444:15)
+[test-e2e-node-add-local]       at KeyManager.copyGossipKeysToStaging (/Users/jeffrey/solo/src/core/key-manager.ts:456:12)
+[test-e2e-node-add-local]       at Task.task (/Users/jeffrey/solo/src/commands/node/tasks.ts:1651:31)
+[test-e2e-node-add-local]       at Task.run (/Users/jeffrey/solo/node_modules/listr2/dist/index.mjs:1906:29)
+[test-e2e-node-add-local]      Caused by: 
+[test-e2e-node-add-local] 
+[test-e2e-node-add-local] 

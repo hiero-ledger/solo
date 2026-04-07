@@ -1,0 +1,493 @@
+NAME: block-node-1
+LAST DEPLOYED: Fri Feb  6 09:46:05 2026
+NAMESPACE: solo-e2e
+STATUS: deployed
+REVISION: 1
+CHART: block-node-server
+VERSION: 0.26.1
+APP_VERSION: 0.26.1
+TEST SUITE: None
+USER-SUPPLIED VALUES:
+blockNode:
+  backfill:
+    filename: block-node-sources.json
+    path: /opt/hiero/block-node/backfill
+  config:
+    BACKFILL_BLOCK_NODE_SOURCES_PATH: /opt/hiero/block-node/backfill/block-node-sources.json
+    BACKFILL_FETCH_BATCH_SIZE: "5"
+    JAVA_OPTS: -Xms1G -Xmx1G  -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
+    MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
+  persistence:
+    archive:
+      size: 1Gi
+    live:
+      size: 1Gi
+    logging:
+      size: 1Gi
+kubepromstack:
+  enabled: false
+loki:
+  enabled: false
+nameOverride: block-node-1
+promtail:
+  enabled: false
+resources:
+  limits:
+    cpu: "1"
+    memory: 1.5Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+COMPUTED VALUES:
+affinity: {}
+blockNode:
+  backfill:
+    filename: block-node-sources.json
+    path: /opt/hiero/block-node/backfill
+  config:
+    BACKFILL_BLOCK_NODE_SOURCES_PATH: /opt/hiero/block-node/backfill/block-node-sources.json
+    BACKFILL_FETCH_BATCH_SIZE: "5"
+    JAVA_OPTS: -Xms1G -Xmx1G  -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"
+    JAVA_TOOL_OPTIONS: -Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
+    MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
+    PROMETHEUS_ENDPOINT_ENABLED: true
+    PROMETHEUS_ENDPOINT_PORT_NUMBER: "16007"
+    SERVER_PORT: "40840"
+  health:
+    liveness:
+      endpoint: /healthz/livez
+    metrics:
+      port: 16007
+    readiness:
+      endpoint: /healthz/readyz
+  hostPorts: {}
+  initContainers:
+  - command:
+    - sh
+    - -c
+    - |
+      mkdir -p /live-pvc/live-data && \
+      chown 2000:2000 /live-pvc/live-data && \
+      chmod 700 /live-pvc/live-data && \
+      mkdir -p /archive-pvc/archive-data && \
+      chown 2000:2000 /archive-pvc/archive-data && \
+      chmod 700 /archive-pvc/archive-data && \
+      chown 2000:2000 /verification-pvc && \
+      chmod 700 /verification-pvc
+    image: busybox
+    name: init-storage-dirs
+    volumeMounts:
+    - mountPath: /live-pvc
+      name: live-storage
+    - mountPath: /archive-pvc
+      name: archive-storage
+    - mountPath: /verification-pvc
+      name: verification-storage
+  logs:
+    configMountPath: /opt/hiero/block-node/logs/config
+    level: INFO
+    loggingProperties:
+      com.sun.net.httpserver.ExchangeImpl.level: WARNING
+      com.sun.net.httpserver.ServerImpl.level: WARNING
+      com.sun.net.httpserver.level: WARNING
+      handlers: java.util.logging.ConsoleHandler, java.util.logging.FileHandler
+      io.helidon.common.level: INFO
+      io.helidon.config.level: SEVERE
+      io.helidon.level: INFO
+      io.helidon.security.level: INFO
+      io.helidon.webserver.access.level: INFO
+      io.helidon.webserver.level: INFO
+      java.util.logging.ConsoleHandler.formatter: java.util.logging.SimpleFormatter
+      java.util.logging.ConsoleHandler.level: FINEST
+      java.util.logging.FileHandler.append: "true"
+      java.util.logging.FileHandler.count: "5"
+      java.util.logging.FileHandler.formatter: java.util.logging.SimpleFormatter
+      java.util.logging.FileHandler.level: FINEST
+      java.util.logging.FileHandler.limit: "5000000"
+      java.util.logging.FileHandler.pattern: /opt/hiero/block-node/logs/blocknode-%g.log
+      java.util.logging.SimpleFormatter.format: '%TF %<TT.%<TL%<Tz %4$-7s [%2$s] %5$s%6$s%n'
+      org.hiero.block.level: FINEST
+  persistence:
+    archive:
+      mountPath: /opt/hiero/block-node/data/historic
+      size: 1Gi
+      subPath: archive-data
+      volumeName: archive-storage
+    live:
+      mountPath: /opt/hiero/block-node/data/live
+      size: 1Gi
+      subPath: live-data
+      volumeName: live-storage
+    logging:
+      mountPath: /opt/hiero/block-node/logs
+      size: 1Gi
+      volumeName: logging-storage
+    verification:
+      mountPath: /opt/hiero/block-node/verification
+      size: 1Gi
+      volumeName: verification-storage
+  version: ""
+dnsPolicy: ""
+fullnameOverride: ""
+hostNetwork: false
+image:
+  pullPolicy: IfNotPresent
+  repository: ghcr.io/hiero-ledger/hiero-block-node
+  tag: ""
+imagePullSecrets: []
+ingress:
+  annotations: {}
+  className: ""
+  enabled: false
+  hosts:
+  - host: chart-example.local
+    paths:
+    - path: /
+      pathType: ImplementationSpecific
+  tls: []
+kubepromstack:
+  enabled: false
+  grafana:
+    adminPassword: admin
+    datasources:
+      datasources.yaml: {}
+    defaultDashboardsEnabled: false
+    enabled: true
+    persistence:
+      enabled: true
+      size: 10Gi
+      type: pvc
+    replicas: 1
+    sidecar:
+      dashboards:
+        enabled: true
+        label: grafana_dashboard
+        provider:
+          allowUiUpdates: true
+      datasources:
+        enabled: true
+        label: grafana_datasource
+  nodeExporter:
+    enabled: true
+  prometheus:
+    prometheusSpec:
+      retention: 90d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+  prometheusOperator:
+    namespaces:
+      releaseNamespace: true
+loadBalancer:
+  annotations: {}
+  enabled: false
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  nameOverride: ""
+  port: ""
+  portName: grpc
+  protocol: TCP
+  targetPort: http
+loki:
+  datasource:
+    jsonData: '{}'
+    uid: ""
+  enabled: false
+  isDefault: true
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  persistence:
+    enabled: true
+    size: 20Gi
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  url: http://{{(include "loki.serviceName" .)}}:{{ .Values.loki.service.port }}
+nameOverride: block-node-1
+nodeSelector: {}
+podAnnotations: {}
+podSecurityContext: {}
+promtail:
+  config:
+    clients:
+    - url: http://{{ .Release.Name }}-loki:3100/loki/api/v1/push
+    logLevel: info
+    serverPort: 3101
+    snippets:
+      pipelineStages:
+      - docker:
+          label_fields:
+            stream: stream
+      - multiline:
+          firstline: ^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}
+          max_wait_time: 3s
+          separator: ""
+      - replace:
+          expression: (\n){2,}
+          replace: ""
+  enabled: false
+resources:
+  limits:
+    cpu: "1"
+    memory: 1.5Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+securityContext: {}
+service:
+  annotations: {}
+  port: 40840
+  type: ClusterIP
+serviceAccount:
+  annotations: {}
+  create: true
+  name: ""
+tolerations: []
+
+HOOKS:
+MANIFEST:
+---
+# Source: block-node-server/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: block-node-1
+  labels:
+    helm.sh/chart: block-node-server-0.26.1
+    app.kubernetes.io/name: block-node-1
+    app.kubernetes.io/instance: block-node-1
+    app.kubernetes.io/version: "0.26.1"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: block-node-server/templates/configmap-logging.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: block-node-1-logging-config
+data:
+  logging.properties: |
+    # Log properties
+    .level= INFO
+    com.sun.net.httpserver.ExchangeImpl.level=WARNING
+    com.sun.net.httpserver.ServerImpl.level=WARNING
+    com.sun.net.httpserver.level=WARNING
+    handlers=java.util.logging.ConsoleHandler, java.util.logging.FileHandler
+    io.helidon.common.level=INFO
+    io.helidon.config.level=SEVERE
+    io.helidon.level=INFO
+    io.helidon.security.level=INFO
+    io.helidon.webserver.access.level=INFO
+    io.helidon.webserver.level=INFO
+    java.util.logging.ConsoleHandler.formatter=java.util.logging.SimpleFormatter
+    java.util.logging.ConsoleHandler.level=FINEST
+    java.util.logging.FileHandler.append=true
+    java.util.logging.FileHandler.count=5
+    java.util.logging.FileHandler.formatter=java.util.logging.SimpleFormatter
+    java.util.logging.FileHandler.level=FINEST
+    java.util.logging.FileHandler.limit=5000000
+    java.util.logging.FileHandler.pattern=/opt/hiero/block-node/logs/blocknode-%g.log
+    java.util.logging.SimpleFormatter.format=%TF %<TT.%<TL%<Tz %4$-7s [%2$s] %5$s%6$s%n
+    org.hiero.block.level=FINEST
+---
+# Source: block-node-server/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: block-node-1-config
+data:
+  VERSION: "0.26.1"
+  BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+  BACKFILL_FETCH_BATCH_SIZE: "5"
+  JAVA_OPTS: "-Xms1G -Xmx1G  -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=\"/tmp/dump.hprof\""
+  JAVA_TOOL_OPTIONS: "-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties"
+  MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
+  MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
+  PROMETHEUS_ENDPOINT_ENABLED: "true"
+  PROMETHEUS_ENDPOINT_PORT_NUMBER: "16007"
+  SERVER_PORT: "40840"
+---
+# Source: block-node-server/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: block-node-1
+  labels:
+    app: block-node-1
+    helm.sh/chart: block-node-server-0.26.1
+    app.kubernetes.io/name: block-node-1
+    app.kubernetes.io/instance: block-node-1
+    app.kubernetes.io/version: "0.26.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 40840
+      targetPort: http
+      protocol: TCP
+      name: http
+    - name: metrics
+      port: 16007
+      targetPort: metrics
+  selector:
+    app.kubernetes.io/name: block-node-1
+    app.kubernetes.io/instance: block-node-1
+---
+# Source: block-node-server/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: block-node-1
+  labels:
+    helm.sh/chart: block-node-server-0.26.1
+    app.kubernetes.io/name: block-node-1
+    app.kubernetes.io/instance: block-node-1
+    app.kubernetes.io/version: "0.26.1"
+    app.kubernetes.io/managed-by: Helm
+    block-node.hiero.com/type: block-node
+spec:
+  replicas: 1
+  serviceName: block-node-1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: block-node-1
+      app.kubernetes.io/instance: block-node-1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: block-node-1
+        app.kubernetes.io/instance: block-node-1
+        block-node.hiero.com/type: block-node
+    spec:
+      serviceAccountName: block-node-1
+      securityContext:
+        {}
+      volumes:
+        - name: logging-config
+          configMap:
+            name: block-node-1-logging-config
+      initContainers:
+        - command:
+          - sh
+          - -c
+          - |
+            mkdir -p /live-pvc/live-data && \
+            chown 2000:2000 /live-pvc/live-data && \
+            chmod 700 /live-pvc/live-data && \
+            mkdir -p /archive-pvc/archive-data && \
+            chown 2000:2000 /archive-pvc/archive-data && \
+            chmod 700 /archive-pvc/archive-data && \
+            chown 2000:2000 /verification-pvc && \
+            chmod 700 /verification-pvc
+          image: busybox
+          name: init-storage-dirs
+          volumeMounts:
+          - mountPath: /live-pvc
+            name: live-storage
+          - mountPath: /archive-pvc
+            name: archive-storage
+          - mountPath: /verification-pvc
+            name: verification-storage
+      containers:
+      - name: block-node-server
+        securityContext:
+            {}
+        image: "ghcr.io/hiero-ledger/hiero-block-node:0.26.1"
+        imagePullPolicy: IfNotPresent
+        ports:
+          - name: http
+            containerPort: 40840
+            protocol: TCP
+          - name: metrics
+            containerPort: 16007
+            protocol: TCP
+        envFrom:
+          - configMapRef:
+              name: block-node-1-config
+        volumeMounts:
+          - name: logging-config
+            mountPath: /opt/hiero/block-node/logs/config
+            readOnly: true
+          - name: logging-storage
+            mountPath: /opt/hiero/block-node/logs
+          - name: archive-storage
+            mountPath: /opt/hiero/block-node/data/historic
+            subPath: archive-data
+          - name: live-storage
+            mountPath: /opt/hiero/block-node/data/live
+            subPath: live-data
+          - name: verification-storage
+            mountPath: /opt/hiero/block-node/verification
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1.5Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz/livez
+            port: 40840
+          initialDelaySeconds: 50
+          periodSeconds: 10
+          timeoutSeconds: 2
+        readinessProbe:
+          httpGet:
+            path: /healthz/readyz
+            port: 40840
+          initialDelaySeconds: 40
+          timeoutSeconds: 2
+  volumeClaimTemplates:
+    - metadata:
+        name: logging-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: archive-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: live-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: verification-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+
+NOTES:
+1. **Get the application URL** by running the following commands:
+
+```bash
+kubectl port-forward --namespace solo-e2e svc/block-node-1-block-node-server 40840:40840
+echo "Visit http://127.0.0.1:40840 to use your application"
+```

@@ -1,0 +1,171 @@
+##
+# Copyright (C) 2023-2025 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "One-Shot Timing Test"
+
+on:
+  workflow_dispatch:
+    inputs:
+      use-local-build:
+        description: "Build consensus node from source using --local-build-path"
+        type: boolean
+        required: false
+        default: false
+      consensus-node-version:
+        description: "Consensus node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      block-node-version:
+        description: "Block node chart version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      mirror-node-version:
+        description: "Mirror node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      relay-version:
+        description: "JSON RPC Relay version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      explorer-version:
+        description: "Explorer version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
+jobs:
+  longevity-tests-start:
+    name: Start
+    runs-on: hiero-solo-linux-large
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+
+      - name: Install Helm
+        shell: bash
+        run: |
+          set -euo pipefail
+          HELM_VERSION="v4.1.1"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL -o "${ARCHIVE}" \
+            "https://get.helm.sh/${ARCHIVE}"
+          tar xfz "${ARCHIVE}"
+          sudo install -m 0755 linux-amd64/helm /usr/bin/helm
+          which helm
+          helm version
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f
+          version: v0.29.0
+          verbosity: 3
+          wait: 120s
+
+      - name: Install kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION="v1.33.1"
+          curl -fsSL -o kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          sudo install -m 0755 kubectl /usr/local/bin/kubectl
+          # Prepend /usr/local/bin to PATH for subsequent steps so our kubectl
+          # takes priority over the older version installed by helm/kind-action.
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+          # Verify the installed binary directly (which kubectl still shows the
+          # kind-action version in THIS step because GITHUB_PATH is only applied
+          # to subsequent steps by the runner).
+          /usr/local/bin/kubectl version --client
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Application
+        run: task build:compile
+
+      - name: Start CNs
+        run: |
+          export SOLO_CLUSTER_NAME=solo
+          export SOLO_NAMESPACE=solo
+          export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
+          export SOLO_DEPLOYMENT=solo-deployment
+          export NODE_ALIASES="node1,node2"
+          export SOLO_LOG_LEVEL=debug
+          which kind && kind version
+          which kubectl && kubectl version --client
+          which helm && helm version
+
+          echo "--- GITHUB_PATH file contents ---"
+          cat "${GITHUB_PATH}"
+          echo "---------------------------------"
+          echo "--- PATH ---"
+          echo "$PATH"
+          echo "------------"
+
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          npm run solo-test -- init
+          npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+          npm run solo-test -- deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+          npm run solo-test -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+          npm run solo-test -- block node add --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+          npm run solo-test -- consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() && always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-logs
+          path: ~/.solo/logs/*
+          if-no-files-found: error
