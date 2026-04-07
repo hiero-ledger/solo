@@ -18,6 +18,16 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+wait_for_consensus_pods_ready() {
+  local timeout_secs="${1:-600}"
+  local nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    echo "  Waiting for network-${node}-0 to be Ready..."
+    kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/network-${node}-0" --timeout="${timeout_secs}s"
+  done
+}
+
 CN_LOCAL_BUILD_PATH="${1:-${SCRIPT_DIR}/../hiero-consensus-node/hedera-node/data}"
 
 if [ ! -d "${CN_LOCAL_BUILD_PATH}" ]; then
@@ -79,7 +89,11 @@ npm run solo-test -- deployment cluster attach \
   --num-consensus-nodes "${NUM_NODES}"
 
 npm run solo-test -- cluster-ref config setup \
-  -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+  --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+  --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" \
+  --minio true \
+  --prometheus-stack false \
+  --quiet-mode
 
 # ── Key generation ────────────────────────────────────────────────────────────
 echo ""
@@ -95,7 +109,8 @@ echo ""
 echo ">>> [5/8] Deploying consensus network at initial version ${INITIAL_RELEASE_TAG} (released)..."
 npm run solo-test -- consensus network deploy \
   --deployment "${SOLO_DEPLOYMENT}" \
-  -i "${NODE_ALIASES}" --tss \
+  -i "${NODE_ALIASES}" \
+  --pvcs true \
   --release-tag "${INITIAL_RELEASE_TAG}"
 
 # ── Node setup (released version, no local build) ─────────────────────────────
@@ -111,11 +126,12 @@ echo ""
 echo ">>> [7/8] Starting consensus nodes..."
 npm run solo-test -- consensus node start \
   --deployment "${SOLO_DEPLOYMENT}" \
-  -i "${NODE_ALIASES}"
+  -i "${NODE_ALIASES}" \
+  --force-port-forward false
 
 echo ""
-echo "Waiting 30s for nodes to stabilize before triggering upgrade..."
-# sleep 30
+echo ">>> Waiting for consensus pods to be Ready before upgrade..."
+wait_for_consensus_pods_ready 600
 
 # ── Upgrade with local build path (triggers race condition) ───────────────────
 echo ""
