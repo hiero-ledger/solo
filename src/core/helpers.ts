@@ -963,14 +963,14 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
           (environmentVariable): boolean => environmentVariable.name === additionalEnvironmentVariable.name,
         );
 
-        let environmentVariableValue = additionalEnvironmentVariable.value;
+        let environmentVariableValue: string = additionalEnvironmentVariable.value;
 
         // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
         if (additionalEnvironmentVariable.name === 'JAVA_OPTS') {
           environmentVariableValue = sanitizeJavaOptionsForHeapSettings(environmentVariableValue);
         }
 
-        const sanitizedEnvironmentVariable = {
+        const sanitizedEnvironmentVariable: EnvironmentVariable = {
           name: additionalEnvironmentVariable.name,
           value: environmentVariableValue,
         };
@@ -990,11 +990,12 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
       hedera.nodes.push({});
     }
 
-    const nodeValues = {
+    const nodeValues: PerNodeExtraEnvironmentValues['hedera']['nodes'][number] = {
       root: {extraEnv: extraEnvironmentVariables},
     };
 
-    const additionalNodeValues = options.additionalNodeValues?.[consensusNode.name];
+    const additionalNodeValues: {name?: NodeAlias; nodeId?: NodeId; accountId?: string} | undefined =
+      options.additionalNodeValues?.[consensusNode.name];
     if (additionalNodeValues?.name) {
       nodeValues['name'] = additionalNodeValues.name;
     }
