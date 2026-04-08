@@ -160,12 +160,6 @@ export interface Pods {
   readDescribe(podReference: PodReference): Promise<string>;
 
   /**
-   * Delete a pod by reference
-   * @param podReference - the reference to the pod
-   */
-  delete(podReference: PodReference): Promise<void>;
-
-  /**
    * Get CPU and memory usage for pods via the Kubernetes Metrics API (equivalent to `kubectl top pod`)
    * @param namespace - if provided, only get metrics for pods in this namespace; otherwise get metrics for all namespaces
    * @param labelSelector - if provided, only get metrics for pods matching this label selector
