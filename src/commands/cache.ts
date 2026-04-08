@@ -14,7 +14,6 @@ import {
 } from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {PathEx} from '../business/utils/path-ex.js';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
 import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -36,8 +35,8 @@ interface CachePullContext {
 
 interface CacheLoadConfigClass {
   imageCacheHandler: ImageCacheHandler;
-  deployment: DeploymentName;
-  namespace: NamespaceName;
+  // deployment: DeploymentName;
+  // namespace: NamespaceName;
   clusterReference: ClusterReferenceName;
   context: Context;
 }
@@ -82,27 +81,27 @@ export class CacheCommand extends BaseCommand {
 
   public static readonly PULL_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
   };
 
   public static readonly LOAD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
   };
 
   public static readonly LIST_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
   };
 
   public static readonly CLEAR_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
   };
 
   public static readonly STATUS_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
   };
 
   // ----- Handlers ------- //
@@ -160,7 +159,7 @@ export class CacheCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            // await this.remoteConfig.loadAndValidate(argv);
 
             this.configManager.update(argv);
 
@@ -173,8 +172,8 @@ export class CacheCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-            const namespace: NamespaceName = await this.getNamespace(task);
+            // const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+            // const namespace: NamespaceName = await this.getNamespace(task);
             const clusterReference: ClusterReferenceName = this.getClusterReference();
             const context: Context = this.getClusterContext(clusterReference);
 
@@ -182,8 +181,8 @@ export class CacheCommand extends BaseCommand {
               imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
                 .engine(this.dockerClient)
                 .build(),
-              deployment,
-              namespace,
+              // deployment,
+              // namespace,
               clusterReference,
               context,
             };
@@ -345,15 +344,13 @@ export class CacheCommand extends BaseCommand {
   private loadImagesIntoCluster(): SoloListrTask<CacheLoadContext> {
     return {
       title: 'Load images into cluster',
-      task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<CacheLoadContext>> => {
+      task: async ({config: {imageCacheHandler, context}}, task): Promise<SoloListr<CacheLoadContext>> => {
         const subTasks: SoloListrTask<CacheLoadContext>[] = [];
 
-        for (const cluster of this.remoteConfig.configuration.clusters) {
-          const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
-            this.prepareClusterName(cluster.name),
-          );
-          subTasks.push(...newTasks);
-        }
+        const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
+          this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent()),
+        );
+        subTasks.push(...newTasks);
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },

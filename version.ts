@@ -12,7 +12,7 @@ import {SemanticVersion} from './src/business/utils/semantic-version.js';
  * This file should only contain versions for dependencies and the function to get the Solo version.
  */
 export const HELM_VERSION: string = 'v3.14.2';
-export const KIND_VERSION: string = 'v0.29.0';
+export const KIND_VERSION: string = 'v0.31.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';

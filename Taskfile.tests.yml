@@ -190,3 +190,11 @@ tasks:
     cmds:
       - task
       - task destroy
+
+  test-e2e-cache:
+    desc: "Runs E2E Image Cache tests with coverage and generates reports in coverage/e2e-cache"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Cache Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-cache'
+        {{ .mocha_bin }} 'test/e2e/commands/cache-command.test.ts'
+        {{ .reporter_options_prefix }}-e2e-cache.xml"
