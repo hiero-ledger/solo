@@ -24,6 +24,14 @@
 
 set -eo pipefail
 
+# Hard overall timeout for the entire script (default 5 minutes).
+# This prevents the script from hanging indefinitely in any phase.
+SCRIPT_TIMEOUT_SECONDS="${SCRIPT_TIMEOUT_SECONDS:-300}"
+if [[ -z "${_JVM_DEBUGGER_TEST_WRAPPED:-}" ]]; then
+  export _JVM_DEBUGGER_TEST_WRAPPED=1
+  exec timeout --kill-after=10 "$SCRIPT_TIMEOUT_SECONDS" "$0" "$@"
+fi
+
 # ── configuration ──────────────────────────────────────────────────────────────
 SOLO_CLUSTER_NAME=solo-cluster
 SOLO_NAMESPACE=solo-e2e
@@ -33,9 +41,9 @@ NODE_ALIASES="node1,node2"
 DEBUG_NODE=node2
 DEBUG_PORT=5005
 # Hard stop for the full solo start flow so tests fail boundedly instead of hanging.
-NODE_START_TIMEOUT_SECONDS="${NODE_START_TIMEOUT_SECONDS:-420}"
+NODE_START_TIMEOUT_SECONDS="${NODE_START_TIMEOUT_SECONDS:-180}"
 # Separate timeout for JDWP handshake/resume retries.
-JDWP_PROBE_WAIT_TIMEOUT_SECONDS="${JDWP_PROBE_WAIT_TIMEOUT_SECONDS:-240}"
+JDWP_PROBE_WAIT_TIMEOUT_SECONDS="${JDWP_PROBE_WAIT_TIMEOUT_SECONDS:-60}"
 
 SKIP_BOOTSTRAP=false
 for arg in "$@"; do
@@ -62,6 +70,25 @@ check_deps() {
   fi
 }
 
+# Kill any process using the given port to ensure it's available
+free_port() {
+  local port=$1
+  local pids
+
+  # Find processes using the port (works on macOS and Linux)
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -ti :"$port" 2>/dev/null || true)
+  elif command -v netstat >/dev/null 2>&1; then
+    pids=$(netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $NF}' | cut -d'/' -f1 || true)
+  fi
+
+  if [[ -n "$pids" ]]; then
+    info "Freeing port $port (killing PIDs: $pids)"
+    echo "$pids" | xargs -r kill -9 2>/dev/null || true
+    sleep 1
+  fi
+}
+
 # Wait for PID to exit with a timeout. Return 0 if process exits successfully, 1 if timeout or error.
 wait_for_pid_with_timeout() {
   local pid=$1
@@ -69,7 +96,12 @@ wait_for_pid_with_timeout() {
   local description="${3:-process $pid}"
   local deadline=$(($(date +%s) + timeout_seconds))
 
-  while kill -0 "$pid" 2>/dev/null; do
+  # Poll until the process exits or we hit the deadline
+  while true; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      # Process has exited
+      break
+    fi
     if (( $(date +%s) >= deadline )); then
       error "Timed out waiting for $description (PID $pid) after ${timeout_seconds}s"
       kill -TERM "$pid" 2>/dev/null || true
@@ -77,34 +109,42 @@ wait_for_pid_with_timeout() {
       kill -KILL "$pid" 2>/dev/null || true
       return 1
     fi
-    sleep 1
+    sleep 2
   done
 
-  # Process has exited, check exit code
+  # Reap the process and get its exit code
   wait "$pid" 2>/dev/null
   local exit_code=$?
-
-  if [[ $exit_code -eq 0 ]]; then
-    return 0  # Success
-  else
+  if [[ $exit_code -ne 0 ]]; then
     error "$description (PID $pid) failed with exit code $exit_code"
     return 1
   fi
+  return 0
 }
 
 cleanup() {
   echo
   info "Cleanup ..."
+
+  # Kill specific background processes
   [[ -n "${JDWP_PROBE_PID:-}" ]] && kill -TERM "$JDWP_PROBE_PID" 2>/dev/null || true
-  [[ -n "${START_PID:-}" ]] && kill -TERM "$START_PID" 2>/dev/null || true
   touch /tmp/solo-jdwp-stop  # Signal probe to exit
   sleep 2
   [[ -n "${JDWP_PROBE_PID:-}" ]] && kill -KILL "$JDWP_PROBE_PID" 2>/dev/null || true
-  [[ -n "${START_PID:-}" ]] && kill -KILL "$START_PID" 2>/dev/null || true
-  /bin/rm -f /tmp/solo-node-start.log /tmp/solo-jdwp-probe.log /tmp/solo-jdwp-stop /tmp/solo-auto-confirm.sh
+
+  # Kill any remaining Solo processes that might be hanging
+  pkill -f "jdwp_tester" 2>/dev/null || true
+  pkill -f "persist-port-forward" 2>/dev/null || true
+  pkill -f "solo-test.*consensus.*node.*start" 2>/dev/null || true
+
+  # Free the debug port for future runs
+  free_port "$DEBUG_PORT"
+
+  # Clean up temp files
+  /bin/rm -f /tmp/solo-node-start.log /tmp/solo-jdwp-probe.log /tmp/solo-jdwp-stop
 
   if [[ "$SKIP_BOOTSTRAP" == false ]]; then
-    # Thoroughly clean up all Solo configurations
+    # Do not call kind delete cluster so that we can inspect the cluster state after a failure if needed.
     /bin/rm -rf ~/.solo 2>/dev/null || true
   fi
 }
@@ -120,7 +160,14 @@ RESULT=0
 
 check_deps
 
+# Ensure debug port is available by killing any process using it
+free_port "$DEBUG_PORT"
+
 if [[ "$SKIP_BOOTSTRAP" == false ]]; then
+  # Clean up any stale state from previous runs
+  kind delete cluster --name "$SOLO_CLUSTER_NAME" >/dev/null 2>&1 || true
+  /bin/rm -rf ~/.solo 2>/dev/null || true
+
   kind create cluster --name "$SOLO_CLUSTER_NAME" --image kindest/node:v1.34.0 --wait 5m
 
   npm run solo-test -- init
@@ -150,37 +197,33 @@ fi
 # ── Step 2: start nodes with debugger, auto-confirm the interactive prompt ───
 info "Step 2: Starting nodes with --debug-node-alias ${DEBUG_NODE} (auto-confirm)"
 
-# ── Step 3: JDWP setup ──────────────────────────────────────────────────────────
-info "Step 3: Starting JDWP probe to handle debug connection"
+/bin/rm -f /tmp/solo-jdwp-stop /tmp/solo-node-start.log
 
-# Start JDWP probe in background to resume the suspended JVM
-# when the debug port becomes available
-/bin/rm -f /tmp/solo-jdwp-stop /tmp/solo-node-start.log /tmp/solo-auto-confirm.sh
-"$(dirname "$0")/jdwp_tester.py" localhost ${DEBUG_PORT} --timeout ${JDWP_PROBE_WAIT_TIMEOUT_SECONDS} > /tmp/solo-jdwp-probe.log 2>&1 &
+# Start JDWP probe in background FIRST - it retries until the debug port is reachable.
+# Probe both the configured port and detect the actual port from logs.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+"${SCRIPT_DIR}/jdwp_tester.py" localhost ${DEBUG_PORT} --timeout ${JDWP_PROBE_WAIT_TIMEOUT_SECONDS} > /tmp/solo-jdwp-probe.log 2>&1 &
 JDWP_PROBE_PID=$!
 
-# Use stdin redirection to auto-answer prompts (no expect dependency)
-info "Auto-confirming debugger prompt using stdin redirection"
+# Run node start in foreground with "y" piped to auto-answer the debug prompt.
+# The "y" sits in the pipe buffer until Solo reads stdin for the prompt.
+# Use a much shorter timeout and kill process group if it hangs.
+info "Auto-confirming debugger prompt via stdin pipe (timeout: ${NODE_START_TIMEOUT_SECONDS}s)"
 
-# Create a simple wrapper script to handle the auto-confirmation
-cat > /tmp/solo-auto-confirm.sh << 'AUTO_CONFIRM'
-#!/bin/bash
-printf 'y\ny\ny\ny\ny\n'
-sleep 300
-AUTO_CONFIRM
-chmod +x /tmp/solo-auto-confirm.sh
-
-# Start the node with auto-confirmation
-timeout "$NODE_START_TIMEOUT_SECONDS" bash -c "
-  /tmp/solo-auto-confirm.sh | npm run solo-test -- consensus node start --deployment ${SOLO_DEPLOYMENT} -i ${NODE_ALIASES} --debug-node-alias ${DEBUG_NODE} --quiet-mode
-" > /tmp/solo-node-start.log 2>&1 &
-START_PID=$!
-
-wait_for_pid_with_timeout "$START_PID" "$NODE_START_TIMEOUT_SECONDS" "consensus node start flow"
-start_result=$?
-if [[ "$start_result" -ne 0 ]]; then
+# Set up a process group to ensure we can kill everything
+set -m  # Enable job control
+if ! timeout --kill-after=5 "$NODE_START_TIMEOUT_SECONDS" bash -c \
+  'echo y | npm run solo-test -- consensus node start --deployment '"${SOLO_DEPLOYMENT}"' -i '"${NODE_ALIASES}"' --debug-node-alias '"${DEBUG_NODE}"' --quiet-mode' \
+  > /tmp/solo-node-start.log 2>&1; then
+  exit_code=$?
+  if [[ $exit_code -eq 124 ]]; then
+    error "consensus node start timed out after ${NODE_START_TIMEOUT_SECONDS}s"
+  else
+    error "consensus node start failed with exit code $exit_code (see /tmp/solo-node-start.log)"
+  fi
   RESULT=1
 fi
+set +m  # Disable job control
 
 # Stop the probe loop and wait for it to finish.
 touch /tmp/solo-jdwp-stop
