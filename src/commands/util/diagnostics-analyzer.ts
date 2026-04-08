@@ -52,7 +52,13 @@ type ConsensusLogDefinition = {
  *
  * ## Input sources
  *
- * ### 1. Pod describe files  (`*.describe.txt`)
+ * ### 1. Solo CLI log  (`solo.log`)
+ * The Solo CLI's own Pino log file (`~/.solo/logs/solo.log` by default, or
+ * `solo.log` found recursively under `customOutputDirectory`).  Lines
+ * matching `] ERROR:` are captured as `app-error` findings.  ANSI escape
+ * codes and `[traceId="..."]` suffixes are stripped before matching.
+ *
+ * ### 2. Pod describe files  (`*.describe.txt`)
  * Written by `downloadHieroComponentLogs()` for every pod across all clusters.
  * These are the output of `kubectl describe pod <name> -n <namespace>` and
  * contain the pod's status, container states, events, and resource usage.
@@ -137,6 +143,8 @@ export class DiagnosticsAnalyzer {
     if (fs.existsSync(hieroOutputDirectory)) {
       this.analyzePodLogFiles(hieroOutputDirectory, findings);
     }
+
+    this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, findings);
 
     if (!fs.existsSync(hieroOutputDirectory)) {
       fs.mkdirSync(hieroOutputDirectory, {recursive: true});
@@ -328,6 +336,70 @@ export class DiagnosticsAnalyzer {
   }
 
   /**
+   * Searches for `solo.log` in `hieroOutputDirectory` (recursively) and, when
+   * no custom output directory was specified, also checks the standard
+   * `~/.solo/logs/solo.log` location.  ERROR lines are extracted and reported
+   * as `app-error` findings.
+   *
+   * solo.log uses the format:
+   *   `[HH:MM:SS.mmm] LEVEL: message [traceId="..."]`
+   *
+   * ANSI escape codes and traceId suffixes are stripped before matching so
+   * that evidence lines are human-readable.
+   */
+  private analyzeSoloLogFiles(
+    hieroOutputDirectory: string,
+    customOutputDirectory: string,
+    findings: DiagnosticsFinding[],
+  ): void {
+    const soloLogFiles: string[] = this.collectFilesRecursively(
+      hieroOutputDirectory,
+      (filePath: string): boolean => path.basename(filePath) === 'solo.log',
+    );
+
+    // When using the default output path, the solo.log lives one level up at
+    // ~/.solo/logs/solo.log — outside hieroOutputDirectory, so check it separately.
+    if (!customOutputDirectory) {
+      const defaultSoloLog: string = PathEx.join(constants.SOLO_LOGS_DIR, 'solo.log');
+      if (fs.existsSync(defaultSoloLog) && !soloLogFiles.includes(defaultSoloLog)) {
+        soloLogFiles.push(defaultSoloLog);
+      }
+    }
+
+    this.logger.showUser(`  Found ${soloLogFiles.length} solo log file(s)`);
+
+    const errorPattern: RegExp = /\]\s+ERROR:/;
+    const ansiPattern: RegExp = /\x1b\[[0-9;]*m/g;
+    const traceIdPattern: RegExp = /\s+\[traceId="[^"]*"\]/g;
+
+    for (const soloLogFile of soloLogFiles) {
+      const relativePath: string = path.relative(hieroOutputDirectory, soloLogFile);
+      const sourceLabel: string = relativePath || path.basename(soloLogFile);
+      this.logger.showUser(`  Reading: ${sourceLabel}`);
+      let content: string;
+      try {
+        content = fs.readFileSync(soloLogFile, 'utf8');
+      } catch (error) {
+        this.logger.showUser(yellow(`  Unable to read solo log ${sourceLabel}: ${(error as Error).message}`));
+        continue;
+      }
+
+      const cleanedContent: string = content.replaceAll(ansiPattern, '').replaceAll(traceIdPattern, '');
+      if (!errorPattern.test(cleanedContent)) {
+        continue;
+      }
+
+      const evidence: string[] = this.extractSoloLogErrorBlocks(cleanedContent, 3, 14);
+      this.addDiagnosticsFinding(findings, {
+        category: 'app-error',
+        title: 'ERROR detected in solo.log',
+        source: sourceLabel,
+        evidence,
+      });
+    }
+  }
+
+  /**
    * Recursively scans `archiveRootDirectory` for `*-log-config.zip` archives
    * produced by `getNodeLogsAndConfigs()` and inspects two log files inside
    * each archive:
@@ -482,6 +554,53 @@ export class DiagnosticsAnalyzer {
 
     visit(rootDirectory);
     return files;
+  }
+
+  /**
+   * Extracts up to `maxBlocks` ERROR blocks from a solo.log file.
+   *
+   * Each block starts on a line matching `] ERROR:` and continues while
+   * subsequent lines are indented (part of the Pino `err:` object dump).
+   * A new log entry — any line starting with `[HH:MM:SS` — terminates the
+   * current block.  Each block is capped at `maxLinesPerBlock` lines.
+   *
+   * Evidence lines are returned flat (one string per line) in
+   * `"line <N>: <content>"` format so they render consistently with other
+   * findings.
+   */
+  private extractSoloLogErrorBlocks(content: string, maxBlocks: number, maxLinesPerBlock: number): string[] {
+    const lines: string[] = content.split(/\r?\n/);
+    const errorPattern: RegExp = /\]\s+ERROR:/;
+    // New Pino log entries start with a bracketed timestamp, e.g. "[17:25:23.788]"
+    const newEntryPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]/;
+    const evidence: string[] = [];
+    let blocksCollected: number = 0;
+
+    for (let index: number = 0; index < lines.length && blocksCollected < maxBlocks; index++) {
+      if (!errorPattern.test(lines[index])) {
+        continue;
+      }
+
+      const blockLines: string[] = [`line ${index + 1}: ${lines[index].trim()}`];
+      let next: number = index + 1;
+      while (next < lines.length && blockLines.length < maxLinesPerBlock) {
+        const nextLine: string = lines[next];
+        // Stop at the next log entry or a blank line that precedes one
+        if (newEntryPattern.test(nextLine)) {
+          break;
+        }
+        if (nextLine.trim().length > 0) {
+          blockLines.push(`line ${next + 1}: ${nextLine.trim()}`);
+        }
+        next++;
+      }
+
+      evidence.push(...blockLines);
+      blocksCollected++;
+      index = next - 1;
+    }
+
+    return evidence;
   }
 
   /**

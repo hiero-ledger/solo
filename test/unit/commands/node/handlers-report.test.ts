@@ -16,6 +16,7 @@ import {type NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {type NodeCommandConfigs} from '../../../../src/commands/node/configs.js';
 import {type ArgvStruct} from '../../../../src/types/aliases.js';
 import {Flags as flags} from '../../../../src/commands/flags.js';
+import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 
 /**
  * Creates a minimal stub for SoloLogger sufficient for NodeCommandHandlers construction.
@@ -68,6 +69,7 @@ describe('NodeCommandHandlers - report', (): void => {
     const remoteConfigStub: RemoteConfigRuntimeStateApi = sinon.stub() as unknown as RemoteConfigRuntimeStateApi;
     const tasksStub: NodeCommandTasks = sinon.stub() as unknown as NodeCommandTasks;
     const configsStub: NodeCommandConfigs = sinon.stub() as unknown as NodeCommandConfigs;
+    const k8FactoryStub: K8Factory = sinon.stub() as unknown as K8Factory;
 
     handlers = new NodeCommandHandlers(
       leaseManagerStub,
@@ -76,6 +78,7 @@ describe('NodeCommandHandlers - report', (): void => {
       remoteConfigStub,
       tasksStub,
       configsStub,
+      k8FactoryStub,
     );
 
     // Inject the logger stub

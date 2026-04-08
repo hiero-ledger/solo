@@ -84,7 +84,7 @@ export class NetworkNodes {
   ): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
-    const targetDirectory: string = PathEx.join(baseDirectory, namespace.toString());
+    const targetDirectory: string = PathEx.join(baseDirectory, namespace.name);
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
@@ -156,7 +156,7 @@ export class NetworkNodes {
   private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
-    const targetDirectory: string = PathEx.join(baseDirectory, namespace.toString());
+    const targetDirectory: string = PathEx.join(baseDirectory, namespace.name);
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
