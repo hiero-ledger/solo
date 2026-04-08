@@ -19,8 +19,11 @@ describe('DefaultKindClient.loadImageArchive', (): void => {
   let builderSubcommands: string[];
   let builderPositionals: string[];
   let buildStub: SinonStub;
+  // eslint-disable-next-line unused-imports/no-unused-vars
   let subcommandsStub: SinonStub;
+  // eslint-disable-next-line unused-imports/no-unused-vars
   let argumentStub: SinonStub;
+  // eslint-disable-next-line unused-imports/no-unused-vars
   let positionalStub: SinonStub;
   let callStub: SinonStub;
 
