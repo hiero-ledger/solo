@@ -5,14 +5,28 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
-import {type AnyListrContext, AnyObject, type ArgvStruct, NodeId} from '../../types/aliases.js';
-import {type Realm, type Shard, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {
+  type AnyListrContext,
+  type AnyObject,
+  type ArgvStruct,
+  type NodeAlias,
+  type NodeId,
+} from '../../types/aliases.js';
+import {
+  type DeploymentName,
+  type Optional,
+  type Realm,
+  type Shard,
+  type SoloListr,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
-import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
+import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-single-deploy-config-class.js';
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
@@ -70,6 +84,13 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
+import {OneShotInfoContext} from './one-shot-info-context.js';
+import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -263,12 +284,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.configManager.update(argv);
               this.oneShotState.activate();
 
+              const edgeEnabled: boolean = this.configManager.getFlag(Flags.edgeEnabled);
+              const versions: OneShotVersionsObject = this.resolveOneShotComponentVersions(edgeEnabled);
+
               // Pre-set component version flags in configManager so they are available
               // for all sub-commands during concurrent execution
-              this.configManager.setFlag(Flags.explorerVersion, version.EXPLORER_VERSION);
-              this.configManager.setFlag(Flags.mirrorNodeVersion, version.MIRROR_NODE_VERSION);
-              this.configManager.setFlag(Flags.relayReleaseTag, version.HEDERA_JSON_RPC_RELAY_VERSION);
-              this.configManager.setFlag(Flags.soloChartVersion, version.SOLO_CHART_VERSION);
+              this.configManager.setFlag(Flags.releaseTag, versions.consensus);
+              this.configManager.setFlag(Flags.blockNodeChartVersion, versions.blockNode);
+              this.configManager.setFlag(Flags.mirrorNodeVersion, versions.mirror);
+              this.configManager.setFlag(Flags.relayReleaseTag, versions.relay);
+              this.configManager.setFlag(Flags.explorerVersion, versions.explorer);
+              this.configManager.setFlag(Flags.soloChartVersion, versions.soloChart);
 
               flags.disablePrompts(flagsList.optional);
 
@@ -290,6 +316,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.relayNodeConfiguration = {};
               config.networkConfiguration = {};
               config.setupConfiguration = {};
+              config.versions = versions;
 
               config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
@@ -336,7 +363,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
               const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
-              const cnVersion: SemanticVersion<string> = new SemanticVersion(version.HEDERA_PLATFORM_VERSION);
+              const cnVersion: SemanticVersion<string> = new SemanticVersion(versions.consensus);
               if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
                 const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
                 const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
@@ -760,7 +787,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                                 config.clusterRef,
                                               );
                                               this.appendConfigToArgv(argv, {
-                                                [optionFromFlag(Flags.explorerVersion)]: version.EXPLORER_VERSION,
+                                                [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
                                                 [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                                                 [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
                                                 ...config.explorerNodeConfiguration,
@@ -910,7 +937,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
               this.logger.info(`Output directory: ${outputDirectory}`);
               this.showOneShotUserNotes(context_, false, PathEx.join(outputDirectory, 'notes'));
-              this.showVersions(PathEx.join(outputDirectory, 'versions'));
+              this.showVersions(PathEx.join(outputDirectory, 'versions'), config);
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
               this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
               this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
@@ -992,16 +1019,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
   }
 
-  private showVersions(outputFile?: string): void {
+  private showVersions(outputFile: string, config: OneShotSingleDeployConfigClass): void {
     const messageGroupKey: string = 'versions-used';
     this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
 
     const data: string[] = [
-      `Solo Chart Version: ${version.SOLO_CHART_VERSION}`,
-      `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`,
-      `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`,
-      `Explorer Version: ${version.EXPLORER_VERSION}`,
-      `JSON RPC Relay Version: ${version.HEDERA_JSON_RPC_RELAY_VERSION}`,
+      `Solo Chart Version: ${config.versions.soloChart}`,
+      `Consensus Node Version: ${config.versions.consensus}`,
+      `Mirror Node Version: ${config.versions.mirror}`,
+      `Explorer Version: ${config.versions.explorer}`,
+      `JSON RPC Relay Version: ${config.versions.relay}`,
     ];
 
     for (const line of data) {
@@ -1588,12 +1615,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async info(_argv: ArgvStruct): Promise<boolean> {
-    const tasks: any = new Listr(
+    const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {
           title: 'Check for cached deployment',
-          task: async (context_, _task): Promise<void> => {
-            const deploymentFromFlag: string = this.configManager.getFlag(flags.deployment);
+          task: async (context_): Promise<void> => {
+            const deploymentFromFlag: DeploymentName = this.configManager.getFlag(flags.deployment);
             if (deploymentFromFlag) {
               context_.deploymentName = deploymentFromFlag;
               this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentFromFlag)} (from flag)`));
@@ -1612,7 +1639,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             await this.localConfig.load();
-            const deployments: any = this.localConfig.configuration.deployments;
+            const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
+              this.localConfig.configuration.deployments;
             if (deployments.length === 1) {
               context_.deploymentName = deployments.get(0).name;
               this.logger.showUser(
@@ -1622,7 +1650,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             if (deployments.length > 1) {
-              const deploymentNames: string = deployments.map((d: any): string => d.name).join(', ');
+              const deploymentNames: string = deployments.map((d): string => d.name).join(', ');
               throw new SoloError(
                 'No cached deployment found and multiple local deployments exist.\n' +
                   `Please specify ${optionFromFlag(flags.deployment)}.\n` +
@@ -1639,11 +1667,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         {
           title: 'Load local configuration',
-          task: async (context_, _task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             await this.localConfig.load();
 
-            const deployment: any = this.localConfig.configuration.deployments.find(
-              (d: any): boolean => d.name === context_.deploymentName,
+            const deployment: Deployment = this.localConfig.configuration.deployments.find(
+              (d): boolean => d.name === context_.deploymentName,
             );
 
             if (!deployment) {
@@ -1660,7 +1688,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.showUser(chalk.cyan(`\nNamespace: ${chalk.bold(deployment.namespace)}`));
 
             if (deployment.clusters && deployment.clusters.length > 0) {
-              const clusterNames: string = deployment.clusters.map((c: any): string => c.toString()).join(', ');
+              const clusterNames: string = deployment.clusters.map((c): string => c.toString()).join(', ');
               this.logger.showUser(chalk.cyan(`Clusters: ${chalk.bold(clusterNames)}`));
             }
           },
@@ -1673,14 +1701,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const deployment: any = context_.deployment;
+            const deployment: Deployment = context_.deployment;
             if (!deployment.clusters || deployment.clusters.length === 0) {
               this.logger.showUser(chalk.yellow('\n⚠️  No clusters attached to this deployment.'));
               return;
             }
 
             const clusterReference: string = deployment.clusters.get(0).toString();
-            const clusterContext: any = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            const clusterContext: StringFacade | undefined =
+              this.localConfig.configuration.clusterRefs.get(clusterReference);
 
             if (!clusterContext) {
               this.logger.showUser(
@@ -1691,8 +1720,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             try {
               this.k8Factory.default().contexts().updateCurrent(clusterContext.toString());
-              const namespaces: any[] = await this.k8Factory.default().namespaces().list();
-              const targetNamespace: any = namespaces.find((ns: any): boolean => ns.name === deployment.namespace);
+              const namespaces: NamespaceName[] = await this.k8Factory.default().namespaces().list();
+              const targetNamespace: NamespaceName = namespaces.find((ns): boolean => ns.name === deployment.namespace);
 
               if (!targetNamespace) {
                 this.logger.showUser(
@@ -1720,14 +1749,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const deployment: any = context_.deployment;
+            const deployment: Deployment = context_.deployment;
 
             try {
               const namespaceName: NamespaceName = NamespaceName.of(deployment.namespace);
-              const configMaps: any[] = await this.k8Factory.default().configMaps().list(namespaceName, []);
+              const configMaps: ConfigMap[] = await this.k8Factory.default().configMaps().list(namespaceName, []);
 
-              const remoteConfigMap: any = configMaps.find(
-                (cm: any): boolean => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME,
+              const remoteConfigMap: Optional<ConfigMap> = configMaps.find(
+                (cm): boolean => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME,
               );
 
               if (!remoteConfigMap) {
@@ -1740,8 +1769,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return;
               }
 
-              const remoteConfigData: any = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
-              context_.remoteConfig = remoteConfigData;
+              context_.remoteConfig = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
             } catch (error) {
               this.logger.showUser(chalk.yellow(`\n⚠️  Unable to fetch remote configuration: ${error.message}`));
             }
@@ -1752,23 +1780,28 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           task: async (context_): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
+            const versions: ApplicationVersionsSchema = context_.remoteConfig.versions;
+
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(version.SOLO_CHART_VERSION)}`);
-            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(version.HEDERA_PLATFORM_VERSION)}`);
-            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(version.MIRROR_NODE_VERSION)}`);
-            this.logger.showUser(`  Explorer Version: ${chalk.bold(version.EXPLORER_VERSION)}`);
-            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(version.HEDERA_JSON_RPC_RELAY_VERSION)}`);
-            this.logger.showUser(`  Block Node Version: ${chalk.bold(version.BLOCK_NODE_VERSION)}`);
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold()}`);
+            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(versions.consensusNode?.toString())}`);
+            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(versions.mirrorNodeChart?.toString())}`);
+            this.logger.showUser(`  Explorer Version: ${chalk.bold(versions.explorerChart?.toString())}`);
+            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(versions.jsonRpcRelayChart?.toString())}`);
+            this.logger.showUser(`  Block Node Version: ${chalk.bold(versions.blockNodeChart?.toString())}`);
 
             if (context_.remoteConfig) {
-              const components: any = context_.remoteConfig.components?.state;
+              const components: DeploymentStateSchema = context_.remoteConfig.state;
 
               if (components) {
                 this.logger.showUser(chalk.cyan('\nDeployed Components:'));
 
                 if (components.consensusNodes && components.consensusNodes.length > 0) {
-                  const nodeNames: string = components.consensusNodes.map((n: any): string => n.name).join(', ');
+                  const nodeNames: string = components.consensusNodes
+                    .map((n): NodeAlias => Templates.renderNodeAliasFromNumber(n.metadata.id))
+                    .join(', ');
+
                   this.logger.showUser(
                     `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`,
                   );
@@ -1856,4 +1889,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async close(): Promise<void> {} // no-op
+
+  private resolveOneShotComponentVersions(useEdge: boolean): OneShotVersionsObject {
+    return useEdge
+      ? {
+          soloChart: version.SOLO_CHART_EDGE_VERSION,
+          consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
+          mirror: version.MIRROR_NODE_EDGE_VERSION,
+          explorer: version.EXPLORER_EDGE_VERSION,
+          relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
+          blockNode: version.BLOCK_NODE_EDGE_VERSION,
+        }
+      : {
+          soloChart: version.SOLO_CHART_VERSION,
+          consensus: version.HEDERA_PLATFORM_VERSION,
+          mirror: version.MIRROR_NODE_VERSION,
+          explorer: version.EXPLORER_VERSION,
+          relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
+          blockNode: version.BLOCK_NODE_VERSION,
+        };
+  }
 }
