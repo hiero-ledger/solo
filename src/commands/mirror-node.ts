@@ -107,6 +107,7 @@ interface MirrorNodeDeployConfigClass {
   deployment: DeploymentName;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
   installSharedResources: boolean;
+  parallelDeploy: boolean;
 }
 
 interface MirrorNodeDeployContext {
@@ -252,6 +253,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.forcePortForward,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
+      flags.parallelDeploy,
     ],
   };
 
@@ -1144,7 +1146,7 @@ export class MirrorNodeCommand extends BaseCommand {
             ];
 
             return parentTask.newListr(subTasks, {
-              concurrent: true,
+              concurrent: _.config.parallelDeploy,
               rendererOptions: {
                 collapseSubtasks: false,
               },

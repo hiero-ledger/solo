@@ -841,6 +841,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.clusterRef,
                         optionFromFlag(Flags.pinger),
                         optionFromFlag(Flags.enableIngress),
+                        optionFromFlag(Flags.parallelDeploy),
+                        config.parallelDeploy.toString(),
                       );
                       this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
                       return argvPushGlobalFlags(argv, config.cacheDir);
