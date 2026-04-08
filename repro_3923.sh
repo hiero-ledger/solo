@@ -111,6 +111,7 @@ npm run solo-test -- consensus network deploy \
   --deployment "${SOLO_DEPLOYMENT}" \
   -i "${NODE_ALIASES}" \
   --pvcs true \
+  --application-properties application.properties \
   --release-tag "${INITIAL_RELEASE_TAG}"
 
 # ── Node setup (released version, no local build) ─────────────────────────────
