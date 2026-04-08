@@ -1054,15 +1054,65 @@ export function parseValuesFilePaths(valuesArgument: string): string[] {
 }
 
 /**
- * Read YAML helm values files and extract any `hedera.nodes[i].root.extraEnv` entries,
- * keyed by node alias. Later files in the list take precedence over earlier ones for
- * duplicate variable names (same semantics as `helm --values` ordering).
+ * Read YAML helm values files and extract extraEnv entries, keyed by node alias.
+ *
+ * Two sources are read per file (in priority order, lower → higher):
+ *  1. `defaults.root.extraEnv` — applied to every node as a baseline
+ *  2. `hedera.nodes[i].root.extraEnv` — per-node overrides
+ *
+ * Later files in the list take precedence over earlier ones for duplicate variable names,
+ * matching the same semantics as `helm --values` ordering.
  */
 export function extractExtraEnvironmentFromValuesFiles(
   filePaths: string[],
   consensusNodes: ConsensusNode[],
 ): Record<NodeAlias, EnvironmentVariable[]> {
   const result: Record<NodeAlias, EnvironmentVariable[]> = {};
+
+  /**
+   * Merge a list of env vars into the accumulated result for a node alias.
+   * Later calls (later files) override earlier ones for the same variable name.
+   */
+  function mergeIntoResult(nodeAlias: NodeAlias, environmentVariables: EnvironmentVariable[]): void {
+    if (!result[nodeAlias]) {
+      result[nodeAlias] = [];
+    }
+    for (const environmentVariable of environmentVariables) {
+      const existingIndex: number = result[nodeAlias].findIndex(
+        (variable: EnvironmentVariable): boolean => variable.name === environmentVariable.name,
+      );
+      if (existingIndex === -1) {
+        result[nodeAlias].push(environmentVariable);
+      } else {
+        result[nodeAlias][existingIndex] = environmentVariable;
+      }
+    }
+  }
+
+  /**
+   * Safely extract a `root.extraEnv` array from a parsed YAML object section.
+   */
+  function extractExtraEnvironmentArray(rootSection: unknown): EnvironmentVariable[] {
+    if (!rootSection || typeof rootSection !== 'object') {
+      return [];
+    }
+    const extraEnvironmentArray: unknown = (rootSection as Record<string, unknown>)['extraEnv'];
+    if (!Array.isArray(extraEnvironmentArray)) {
+      return [];
+    }
+    const environmentVariables: EnvironmentVariable[] = [];
+    for (const entry of extraEnvironmentArray) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+      const entryRecord: Record<string, unknown> = entry as Record<string, unknown>;
+      if (typeof entryRecord['name'] !== 'string' || typeof entryRecord['value'] !== 'string') {
+        continue;
+      }
+      environmentVariables.push({name: entryRecord['name'], value: entryRecord['value']});
+    }
+    return environmentVariables;
+  }
 
   for (const filePath of filePaths) {
     let content: string;
@@ -1083,7 +1133,22 @@ export function extractExtraEnvironmentFromValuesFiles(
       continue;
     }
 
-    const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+    const parsedRecord: Record<string, unknown> = parsedValues as Record<string, unknown>;
+
+    // 1. Extract defaults.root.extraEnv — applies to all nodes (lowest priority within this file).
+    const defaultsSection: unknown = parsedRecord['defaults'];
+    if (defaultsSection && typeof defaultsSection === 'object') {
+      const defaultsRootSection: unknown = (defaultsSection as Record<string, unknown>)['root'];
+      const defaultsEnvironmentVariables: EnvironmentVariable[] = extractExtraEnvironmentArray(defaultsRootSection);
+      if (defaultsEnvironmentVariables.length > 0) {
+        for (const consensusNode of consensusNodes) {
+          mergeIntoResult(consensusNode.name, defaultsEnvironmentVariables);
+        }
+      }
+    }
+
+    // 2. Extract hedera.nodes[i].root.extraEnv — per-node overrides (higher priority).
+    const hederaSection: unknown = parsedRecord['hedera'];
     if (!hederaSection || typeof hederaSection !== 'object') {
       continue;
     }
@@ -1098,41 +1163,10 @@ export function extractExtraEnvironmentFromValuesFiles(
       if (!nodeEntry || typeof nodeEntry !== 'object') {
         continue;
       }
-
-      const rootSection: unknown = (nodeEntry as Record<string, unknown>)['root'];
-      if (!rootSection || typeof rootSection !== 'object') {
-        continue;
-      }
-
-      const extraEnvironmentArray: unknown = (rootSection as Record<string, unknown>)['extraEnv'];
-      if (!Array.isArray(extraEnvironmentArray)) {
-        continue;
-      }
-
-      if (!result[consensusNode.name]) {
-        result[consensusNode.name] = [];
-      }
-
-      for (const entry of extraEnvironmentArray) {
-        if (!entry || typeof entry !== 'object') {
-          continue;
-        }
-        const entryRecord: Record<string, unknown> = entry as Record<string, unknown>;
-        if (typeof entryRecord['name'] !== 'string' || typeof entryRecord['value'] !== 'string') {
-          continue;
-        }
-
-        const variableName: string = entryRecord['name'];
-        const variableValue: string = entryRecord['value'];
-        const existingIndex: number = result[consensusNode.name].findIndex(
-          (variable: EnvironmentVariable): boolean => variable.name === variableName,
-        );
-
-        if (existingIndex === -1) {
-          result[consensusNode.name].push({name: variableName, value: variableValue});
-        } else {
-          result[consensusNode.name][existingIndex] = {name: variableName, value: variableValue};
-        }
+      const nodeRootSection: unknown = (nodeEntry as Record<string, unknown>)['root'];
+      const nodeEnvironmentVariables: EnvironmentVariable[] = extractExtraEnvironmentArray(nodeRootSection);
+      if (nodeEnvironmentVariables.length > 0) {
+        mergeIntoResult(consensusNode.name, nodeEnvironmentVariables);
       }
     }
   }
