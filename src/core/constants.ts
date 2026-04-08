@@ -84,19 +84,6 @@ export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NO
 export const S6_NODE_IMAGE_REPOSITORY: string =
   getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java25';
 
-// Default JVM environment variables for consensus nodes
-// IMPORTANT: When setting per-node environment variables via Helm --values files,
-// ensure these defaults are always included to prevent silent loss of JAVA_OPTS
-export const DEFAULT_JVM_ENV_VARS: Array<{name: string; value: string}> = [
-  {name: 'JAVA_HEAP_MIN', value: '256m'},
-  {name: 'JAVA_HEAP_MAX', value: '6g'},
-  {
-    name: 'JAVA_OPTS',
-    value:
-      '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true',
-  },
-];
-
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment

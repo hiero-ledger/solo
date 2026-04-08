@@ -921,20 +921,17 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     const nodeIndex: number = consensusNode.nodeId;
     const extraEnvironmentVariables: EnvironmentVariable[] = [];
 
-    // Always start with default JVM vars
-    for (const jvmEnvironmentVariable of constants.DEFAULT_JVM_ENV_VARS) {
-      let environmentVariableValue = jvmEnvironmentVariable.value;
-
-      // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
-      if (jvmEnvironmentVariable.name === 'JAVA_OPTS') {
-        environmentVariableValue = sanitizeJavaOptionsForHeapSettings(environmentVariableValue);
-      }
-
-      extraEnvironmentVariables.push({
-        name: jvmEnvironmentVariable.name,
-        value: environmentVariableValue,
-      });
-    }
+    // Add default JVM environment variables
+    extraEnvironmentVariables.push(
+      {name: 'JAVA_HEAP_MIN', value: '256m'},
+      {name: 'JAVA_HEAP_MAX', value: '6g'},
+      {
+        name: 'JAVA_OPTS',
+        value: sanitizeJavaOptionsForHeapSettings(
+          '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true',
+        ),
+      },
+    );
 
     // Add JAVA_MAIN_CLASS for tools/local builds
     if (options.useJavaMainClass) {

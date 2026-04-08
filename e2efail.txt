@@ -1,0 +1,11 @@
+online workflow 
+
+
+node upgrade: address already in use, could not bind
+
+local ptt
+
+Caused by: org.hiero.base.constructable.ConstructableRegistryException: Two classes ('com.swirlds.demo.migration.virtual.AccountVirtualMapKey' and 'com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey') have the same classId:-29917391195398950 (hex:ff95b64a8d311cda). ClassId must be unique!
+
+
+
