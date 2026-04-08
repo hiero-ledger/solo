@@ -20,6 +20,7 @@ relay:
     CACHE_MAX: "50"
     CACHE_TTL: "300"
     NODE_OPTIONS: "--max-old-space-size=66"
+    USE_ASYNC_TX_PROCESSING: "false"    
 ws:
   resources:
     requests:
