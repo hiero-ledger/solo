@@ -3279,6 +3279,18 @@ export class NodeCommandTasks {
           this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
 
         if (needsExtraEnvironment) {
+          // Collect extraEnv entries already present in the values files applied so far,
+          // so that the generated file can include them and avoid Helm array replacement
+          // silently dropping env vars set by user-provided values files.
+          const existingValuesFilePaths: string[] = [];
+          for (const [clusterReference] of clusterReferences) {
+            for (const filePath of helpers.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
+              if (!existingValuesFilePaths.includes(filePath)) {
+                existingValuesFilePaths.push(filePath);
+              }
+            }
+          }
+
           const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
             consensusNodes,
             {
@@ -3286,6 +3298,10 @@ export class NodeCommandTasks {
               tss: this.soloConfig.tss,
               debugNodeAlias: config.debugNodeAlias,
               useJavaMainClass: false,
+              baseExtraEnvironmentVariables: helpers.extractExtraEnvironmentFromValuesFiles(
+                existingValuesFilePaths,
+                consensusNodes,
+              ),
             },
             constants.SOLO_CACHE_DIR,
           );

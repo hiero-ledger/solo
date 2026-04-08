@@ -874,6 +874,10 @@ type PerNodeExtraEnvironmentOptions = {
   debugNodeAlias?: NodeAlias;
   useJavaMainClass?: boolean; // for tools/local builds
   additionalEnvironmentVariables?: Record<NodeAlias, EnvironmentVariable[]>;
+  /** Existing extraEnv entries read from previously-applied values files. These are used as the
+   * base so they are not lost when Helm replaces array fields. Solo-generated entries
+   * (wraps, debug, etc.) are layered on top and will override conflicts. */
+  baseExtraEnvironmentVariables?: Record<NodeAlias, EnvironmentVariable[]>;
   additionalNodeValues?: Record<
     NodeAlias,
     {
@@ -919,7 +923,11 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
   for (const consensusNode of consensusNodes) {
     const nodeIndex: number = consensusNode.nodeId;
-    const extraEnvironmentVariables: EnvironmentVariable[] = [];
+    // Start with env vars from existing values files so Helm array replacement doesn't drop them.
+    // Solo-generated entries below will override any conflicts.
+    const extraEnvironmentVariables: EnvironmentVariable[] = [
+      ...(options.baseExtraEnvironmentVariables?.[consensusNode.name] ?? []),
+    ];
 
     // Add JAVA_MAIN_CLASS for tools/local builds
     if (options.useJavaMainClass) {
@@ -1029,4 +1037,105 @@ export function generateExtraEnvironmentValuesFile(
   fs.writeFileSync(filePath, yamlContent);
 
   return filePath;
+}
+
+/**
+ * Parse `--values <path>` entries from a helm values argument string.
+ * Handles both quoted and unquoted paths.
+ */
+export function parseValuesFilePaths(valuesArgument: string): string[] {
+  const filePaths: string[] = [];
+  const regex: RegExp = /--values\s+"([^"]+)"|--values\s+(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(valuesArgument)) !== null) {
+    filePaths.push(match[1] ?? match[2]);
+  }
+  return filePaths;
+}
+
+/**
+ * Read YAML helm values files and extract any `hedera.nodes[i].root.extraEnv` entries,
+ * keyed by node alias. Later files in the list take precedence over earlier ones for
+ * duplicate variable names (same semantics as `helm --values` ordering).
+ */
+export function extractExtraEnvironmentFromValuesFiles(
+  filePaths: string[],
+  consensusNodes: ConsensusNode[],
+): Record<NodeAlias, EnvironmentVariable[]> {
+  const result: Record<NodeAlias, EnvironmentVariable[]> = {};
+
+  for (const filePath of filePaths) {
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      continue; // file may not exist yet; skip silently
+    }
+
+    let parsedValues: unknown;
+    try {
+      parsedValues = yaml.parse(content);
+    } catch {
+      continue;
+    }
+
+    if (!parsedValues || typeof parsedValues !== 'object') {
+      continue;
+    }
+
+    const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+    if (!hederaSection || typeof hederaSection !== 'object') {
+      continue;
+    }
+
+    const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+    if (!Array.isArray(nodesArray)) {
+      continue;
+    }
+
+    for (const consensusNode of consensusNodes) {
+      const nodeEntry: unknown = nodesArray[consensusNode.nodeId];
+      if (!nodeEntry || typeof nodeEntry !== 'object') {
+        continue;
+      }
+
+      const rootSection: unknown = (nodeEntry as Record<string, unknown>)['root'];
+      if (!rootSection || typeof rootSection !== 'object') {
+        continue;
+      }
+
+      const extraEnvironmentArray: unknown = (rootSection as Record<string, unknown>)['extraEnv'];
+      if (!Array.isArray(extraEnvironmentArray)) {
+        continue;
+      }
+
+      if (!result[consensusNode.name]) {
+        result[consensusNode.name] = [];
+      }
+
+      for (const entry of extraEnvironmentArray) {
+        if (!entry || typeof entry !== 'object') {
+          continue;
+        }
+        const entryRecord: Record<string, unknown> = entry as Record<string, unknown>;
+        if (typeof entryRecord['name'] !== 'string' || typeof entryRecord['value'] !== 'string') {
+          continue;
+        }
+
+        const variableName: string = entryRecord['name'];
+        const variableValue: string = entryRecord['value'];
+        const existingIndex: number = result[consensusNode.name].findIndex(
+          (variable: EnvironmentVariable): boolean => variable.name === variableName,
+        );
+
+        if (existingIndex === -1) {
+          result[consensusNode.name].push({name: variableName, value: variableValue});
+        } else {
+          result[consensusNode.name][existingIndex] = {name: variableName, value: variableValue};
+        }
+      }
+    }
+  }
+
+  return result;
 }

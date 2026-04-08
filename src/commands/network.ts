@@ -14,8 +14,10 @@ import {Templates} from '../core/templates.js';
 import {
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
+  extractExtraEnvironmentFromValuesFiles,
   generateExtraEnvironmentValuesFile,
   parseNodeAliases,
+  parseValuesFilePaths,
   prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
@@ -457,6 +459,18 @@ export class NetworkCommand extends BaseCommand {
         };
       }
 
+      // Collect extraEnv entries already present in the values files applied so far,
+      // so that the generated file can include them and avoid Helm array replacement
+      // silently dropping env vars set by user-provided values files.
+      const existingValuesFilePaths: string[] = [];
+      for (const clusterValuesArgument of Object.values(valuesFiles)) {
+        for (const filePath of parseValuesFilePaths(clusterValuesArgument)) {
+          if (!existingValuesFilePaths.includes(filePath)) {
+            existingValuesFilePaths.push(filePath);
+          }
+        }
+      }
+
       perNodeExtraEnvironmentValuesFile = generateExtraEnvironmentValuesFile(
         config.consensusNodes,
         {
@@ -465,6 +479,10 @@ export class NetworkCommand extends BaseCommand {
           debugNodeAlias: config.debugNodeAlias,
           useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
           additionalNodeValues,
+          baseExtraEnvironmentVariables: extractExtraEnvironmentFromValuesFiles(
+            existingValuesFilePaths,
+            config.consensusNodes,
+          ),
         },
         config.cacheDir,
       );
