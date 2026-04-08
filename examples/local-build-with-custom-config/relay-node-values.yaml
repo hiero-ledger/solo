@@ -1,1 +1,28 @@
-nameOverride: hedera-relay
+relay:
+  resources:
+    requests:
+      memory: 0
+    limits:
+      memory: 88Mi
+  config:
+    WORKERS_POOL_ENABLED: "false"
+    LOG_LEVEL: "error"
+    PRETTY_LOGS_ENABLED: "false"
+    REDIS_ENABLED: "false"
+    CACHE_MAX: "50"
+    CACHE_TTL: "300"
+    NODE_OPTIONS: "--max-old-space-size=50"
+ws:
+  resources:
+    requests:
+      memory: 0
+    limits:
+      memory: 88Mi
+  config:
+    WORKERS_POOL_ENABLED: "false"
+    LOG_LEVEL: "error"
+    PRETTY_LOGS_ENABLED: "false"
+    REDIS_ENABLED: "false"
+    CACHE_MAX: "50"
+    CACHE_TTL: "300"
+    NODE_OPTIONS: "--max-old-space-size=50"
