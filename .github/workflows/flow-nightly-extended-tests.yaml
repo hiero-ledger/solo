@@ -112,13 +112,6 @@ jobs:
           timeout_minutes: 10
           command: npm ci
 
-      - name: Install expect
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          if ! command -v expect &>/dev/null; then
-            sudo apt-get update -y && sudo apt-get install -y expect
-          fi
-
       - name: Run JVM Debugger Test
         timeout-minutes: 50
         env:
