@@ -17,6 +17,8 @@ import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-ima
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
+  private readonly sh: ShellRunner;
+
   public constructor(
     @inject(InjectTokens.KindBuilder) private readonly kindBuilder?: DefaultKindClientBuilder,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -25,41 +27,34 @@ export class DockerClient implements ContainerEngineClient {
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.dependencyManager = patchInject(dependencyManager, InjectTokens.DependencyManager, this.constructor.name);
+    this.sh = new ShellRunner(this.logger);
   }
 
   public async pullImage(image: string): Promise<void> {
-    const platformArguments: string = ` --platform ${this.quote(this.defaultLinuxPlatform())}`;
-    try {
-      await this.shellRunner().run(`docker pull${platformArguments} ${this.quote(image)}`);
-    } catch {
-      await this.shellRunner().run(`docker pull${platformArguments} ${this.quote(image)}`);
-    }
+    const platformArguments: string = `--platform ${this.quote(this.defaultLinuxPlatform())}`;
+
+    await this.sh.run(`docker pull ${platformArguments} ${this.quote(image)}`);
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
     await fs.mkdir(path.dirname(archivePath), {recursive: true});
-    const platformArguments: string = ` --platform ${this.quote(this.defaultLinuxPlatform())}`;
-    await this.shellRunner().run(
-      `docker image save${platformArguments} ${this.quote(image)} --output ${this.quote(archivePath)}`,
+
+    const platformArguments: string = `--platform ${this.quote(this.defaultLinuxPlatform())}`;
+
+    await this.sh.run(
+      `docker image save ${platformArguments} ${this.quote(image)} --output ${this.quote(archivePath)}`,
     );
   }
 
   public async loadImage(archivePath: string): Promise<void> {
-    await this.shellRunner().run(`docker load --input ${this.quote(archivePath)}`);
+    await this.sh.run(`docker load --input ${this.quote(archivePath)}`);
   }
 
-  public async loadImageArchiveIntoCluster(
-    archivePath: string,
-    clusterReference?: string,
-    nodes?: string,
-  ): Promise<void> {
+  public async loadImageArchiveIntoCluster(archivePath: string, clusterReference?: string): Promise<void> {
     const options: LoadImageArchiveOptions = LoadImageArchiveOptionsBuilder.builder()
       .archivePath(archivePath)
       .name(clusterReference)
-      .nodes(nodes)
       .build();
-
-    // Either disable throw on empty STFOUT and STDERR or parse output if present
 
     const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
     const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build(true);
@@ -68,11 +63,7 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async removeImage(image: string): Promise<void> {
-    await this.shellRunner().run(`docker image rm ${this.quote(image)}`);
-  }
-
-  private shellRunner(): ShellRunner {
-    return new ShellRunner(this.logger);
+    await this.sh.run(`docker image rm ${this.quote(image)}`);
   }
 
   private quote(value: string): string {

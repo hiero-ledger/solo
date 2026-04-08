@@ -4,6 +4,7 @@ import {ImageCacheHandler} from './image-cache-handler.js';
 import {YamlImageTargetProvider} from '../target-providers/yaml-image-target-provider.js';
 import {type CacheTargetProvider} from '../target-providers/cache-target-provider.js';
 import {type ContainerEngineClient} from '../../container-engine/container-engine-client.js';
+import {SoloError} from '../../../core/errors/solo-error.js';
 
 /**
  * Builder for {@link ImageCacheHandler}.
@@ -15,6 +16,10 @@ import {type ContainerEngineClient} from '../../container-engine/container-engin
 export class ImageCacheHandlerBuilder {
   private _provider?: CacheTargetProvider;
   private _engine?: ContainerEngineClient;
+
+  private get name(): string {
+    return this.constructor.name;
+  }
 
   /**
    * Creates a new builder preconfigured with a YAML-backed image target provider.
@@ -67,10 +72,10 @@ export class ImageCacheHandlerBuilder {
    */
   public build(): ImageCacheHandler {
     if (!this._provider) {
-      throw new Error(`${this.constructor.name}: provider must be set`);
+      throw new SoloError(`${this.name}: provider must be set`);
     }
     if (!this._engine) {
-      throw new Error(`${this.constructor.name}: engine must be set`);
+      throw new SoloError(`${this.name}: engine must be set`);
     }
 
     return new ImageCacheHandler(this._engine, this._provider);

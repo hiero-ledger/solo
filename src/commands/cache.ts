@@ -15,7 +15,6 @@ import {
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import fs from 'node:fs/promises';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
 import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -23,6 +22,8 @@ import {DockerClient} from '../integration/container-engine/docker-client.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {CachedItem} from '../integration/cache/models/impl/cached-item.js';
+import {ArtifactHealthResult} from '../integration/cache/models/impl/artifact-health-result.js';
+import fs from 'node:fs/promises';
 
 interface CachePullConfigClass {
   imageCacheHandler: ImageCacheHandler;
@@ -45,6 +46,30 @@ interface CacheLoadContext {
   config: CacheLoadConfigClass;
 }
 
+interface CacheClearConfigClass {
+  imageCacheHandler: ImageCacheHandler;
+}
+
+interface CacheClearContext {
+  config: CacheClearConfigClass;
+}
+
+interface CacheStatusConfigClass {
+  imageCacheHandler: ImageCacheHandler;
+}
+
+interface CacheStatusContext {
+  config: CacheStatusConfigClass;
+}
+
+interface CacheListConfigClass {
+  imageCacheHandler: ImageCacheHandler;
+}
+
+interface CacheListContext {
+  config: CacheListConfigClass;
+}
+
 @injectable()
 export class CacheCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.DockerClient) private dockerClient?: DockerClient) {
@@ -53,7 +78,7 @@ export class CacheCommand extends BaseCommand {
     this.dockerClient = patchInject(dockerClient, InjectTokens.DockerClient, this.constructor.name);
   }
 
-  public async close(): Promise<void> {}
+  // ------ Flags ------ //
 
   public static readonly PULL_FLAGS_LIST: CommandFlags = {
     required: [],
@@ -80,6 +105,8 @@ export class CacheCommand extends BaseCommand {
     optional: [],
   };
 
+  // ----- Handlers ------- //
+
   public async pull(argv: ArgvStruct): Promise<boolean> {
     const tasks: SoloListr<CachePullContext> = this.taskList.newTaskList(
       [
@@ -105,23 +132,12 @@ export class CacheCommand extends BaseCommand {
             };
           },
         },
-        {
-          title: 'Pull and cache container images',
-          task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
-            return task.newListr(await imageCacheHandler.pull(), constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
-          },
-        },
-        {
-          title: 'Show user messages',
-          skip: (): boolean => this.oneShotState.isActive(),
-          task: (): void => {
-            this.logger.showAllMessageGroups();
-          },
-        },
+        this.pullAndCacheContainerImages(),
+        this.showUserMessages(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
-      'cache pull',
+      'cache image pull',
     );
 
     if (tasks.isRoot()) {
@@ -173,32 +189,12 @@ export class CacheCommand extends BaseCommand {
             };
           },
         },
-        {
-          title: 'Load images into cluster',
-          task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<CacheLoadContext>> => {
-            const subTasks: SoloListrTask<CacheLoadContext>[] = [];
-
-            for (const cluster of this.remoteConfig.configuration.clusters) {
-              const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
-                this.prepareClusterName(cluster.name),
-              );
-              subTasks.push(...newTasks);
-            }
-
-            return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
-          },
-        },
-        {
-          title: 'Show user messages',
-          skip: (): boolean => this.oneShotState.isActive(),
-          task: (): void => {
-            this.logger.showAllMessageGroups();
-          },
-        },
+        this.loadImagesIntoCluster(),
+        this.showUserMessages(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
-      'cache load',
+      'cache image load',
     );
 
     if (tasks.isRoot()) {
@@ -215,23 +211,25 @@ export class CacheCommand extends BaseCommand {
   }
 
   public async list(): Promise<boolean> {
-    const tasks: SoloListr<any> = this.taskList.newTaskList(
+    const tasks: SoloListr<CacheListContext> = this.taskList.newTaskList(
       [
         {
           title: 'List cached images',
-          task: async (): Promise<void> => {
-            const cacheDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'images');
-            const manifestPath: string = PathEx.join(cacheDirectory, 'manifest.json');
+          task: async (context_): Promise<void> => {
+            const config: CacheListConfigClass = {
+              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
+                .engine(this.dockerClient)
+                .build(),
+            };
+
+            context_.config = config;
+
+            const cachedItems: readonly CachedItem[] = await config.imageCacheHandler.list();
 
             try {
-              const raw: string = await fs.readFile(manifestPath, 'utf-8');
-              const manifest: {
-                images: {image: string; archive: string}[];
-              } = JSON.parse(raw);
-
               this.logger.showList(
-                `Cached images: [${manifest.images.length}]`,
-                manifest.images.map((image): string => image.image),
+                `Cached images: [${cachedItems.length}]`,
+                cachedItems.map((item): string => `${item.target.name}:${item.target.version}`),
               );
             } catch {
               this.logger.warn('No cache manifest found');
@@ -249,16 +247,20 @@ export class CacheCommand extends BaseCommand {
   }
 
   public async clear(): Promise<boolean> {
-    const tasks: SoloListr<any> = this.taskList.newTaskList(
+    const tasks: SoloListr<CacheClearContext> = this.taskList.newTaskList(
       [
         {
           title: 'Clear image cache',
-          task: async (): Promise<void> => {
-            const cacheDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'images');
+          task: async (context_): Promise<void> => {
+            const config: CacheClearConfigClass = {
+              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
+                .engine(this.dockerClient)
+                .build(),
+            };
 
-            await fs.rm(cacheDirectory, {recursive: true, force: true});
+            context_.config = config;
 
-            this.logger.info('Image cache cleared');
+            await config.imageCacheHandler.clear();
           },
         },
       ],
@@ -272,38 +274,46 @@ export class CacheCommand extends BaseCommand {
   }
 
   public async status(): Promise<boolean> {
-    const tasks: SoloListr<any> = this.taskList.newTaskList(
+    const tasks: SoloListr<CacheStatusContext> = this.taskList.newTaskList(
       [
         {
           title: 'Check cache status',
-          task: async (): Promise<void> => {
-            const cacheDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'images');
-            const manifestPath: string = PathEx.join(cacheDirectory, 'manifest.json');
+          task: async (context_): Promise<void> => {
+            const config: CacheStatusConfigClass = {
+              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
+                .engine(this.dockerClient)
+                .build(),
+            };
+
+            context_.config = config;
+
+            const items: readonly ArtifactHealthResult[] = await config.imageCacheHandler.healthcheck();
+            const cachedItems: readonly CachedItem[] = await config.imageCacheHandler.list();
+
+            const missingImages: string[] = items
+              .filter((item): boolean => !item.healthy)
+              .map((item): string => `${item.target.name}:${item.target.version}`);
+
+            let totalBytes: number = 0;
+
+            for (const item of cachedItems) {
+              try {
+                const stat = await fs.stat(item.localPath);
+                totalBytes += stat.size;
+              } catch {
+                // missing files are already reflected by healthcheck
+              }
+            }
+
+            const totalSizeMb: string = (totalBytes / (1024 * 1024)).toFixed(2);
 
             try {
-              const raw: string = await fs.readFile(manifestPath, 'utf-8');
-              const manifest: {
-                images: {image: string; archive: string}[];
-              } = JSON.parse(raw);
-
-              let totalSizeBytes: number = 0;
-              const missingImages: string[] = [];
-
-              for (const img of manifest.images) {
-                try {
-                  const stat = await fs.stat(img.archive);
-                  totalSizeBytes += stat.size;
-                } catch {
-                  missingImages.push(img.image);
-                }
-              }
-
-              this.logger.showUser(`Cached images: ${manifest.images.length}`);
-              this.logger.showUser(`Total size: ${(totalSizeBytes / 1024 / 1024).toFixed(2)} MB`);
+              this.logger.showUser(`Cached images: ${items.length}`);
+              this.logger.showUser(`Total size: ${totalSizeMb} MB`);
               this.logger.showUser(`Healthy: ${missingImages.length === 0}`);
 
               if (missingImages.length > 0) {
-                this.logger.showUser(`Missing images: ${missingImages.join(', ')}`);
+                this.logger.showList('Missing images', missingImages);
               }
             } catch {
               this.logger.showUser('No cache found');
@@ -317,10 +327,54 @@ export class CacheCommand extends BaseCommand {
     );
 
     await tasks.run();
+
     return true;
   }
+
+  // ------ Tasks ------ //
+
+  private pullAndCacheContainerImages(): SoloListrTask<CachePullContext> {
+    return {
+      title: 'Pull and cache container images',
+      task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
+        return task.newListr(await imageCacheHandler.pull(), constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
+
+  private loadImagesIntoCluster(): SoloListrTask<CacheLoadContext> {
+    return {
+      title: 'Load images into cluster',
+      task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<CacheLoadContext>> => {
+        const subTasks: SoloListrTask<CacheLoadContext>[] = [];
+
+        for (const cluster of this.remoteConfig.configuration.clusters) {
+          const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
+            this.prepareClusterName(cluster.name),
+          );
+          subTasks.push(...newTasks);
+        }
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
+
+  private showUserMessages(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Show user messages',
+      skip: (): boolean => this.oneShotState.isActive(),
+      task: (): void => {
+        this.logger.showAllMessageGroups();
+      },
+    };
+  }
+
+  // ------ Helpers ------ //
 
   private prepareClusterName(clusterReference: ClusterReferenceName): string {
     return clusterReference.startsWith('kind-') ? clusterReference.replace('kind-', '') : clusterReference;
   }
+
+  public async close(): Promise<void> {}
 }

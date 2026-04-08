@@ -10,6 +10,6 @@
  *   Helm chart artifacts pulled from OCI registries or chart repositories.
  */
 export enum CacheArtifactEnum {
-  IMAGE = 'IMAGE',
-  HELM_CHART = 'HELM_CHART',
+  IMAGE = 'images',
+  HELM_CHART = 'charts',
 }

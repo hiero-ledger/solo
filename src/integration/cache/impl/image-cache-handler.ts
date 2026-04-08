@@ -9,7 +9,6 @@ import {CachedItem} from '../models/impl/cached-item.js';
 import {ArtifactHealthResult} from '../models/impl/artifact-health-result.js';
 import {type CacheOperationHandler} from '../api/cache-operation-handler.js';
 import {type ContainerEngineClient} from '../../container-engine/container-engine-client.js';
-import {type CacheCatalogStore} from '../api/cache-catalog-store.js';
 import {type CacheTargetProvider} from '../target-providers/cache-target-provider.js';
 import {type CacheHealthInspector} from '../api/cache-health-inspector.js';
 import {type CacheTarget} from '../models/impl/cache-target.js';
@@ -17,12 +16,13 @@ import {type SoloListrTask} from '../../../types/index.js';
 import {type AnyListrContext} from '../../../types/aliases.js';
 import chalk from 'chalk';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
+import {type FileSystemCacheCatalogStore} from './file-system-cache-catalog-store.js';
 
 export class ImageCacheHandler implements CacheOperationHandler {
   public constructor(
     private readonly engine: ContainerEngineClient,
     private readonly provider: CacheTargetProvider,
-    @inject(InjectTokens.FileSystemCacheCatalogStore) private readonly store?: CacheCatalogStore,
+    @inject(InjectTokens.FileSystemCacheCatalogStore) public readonly store?: FileSystemCacheCatalogStore,
     @inject(InjectTokens.CacheHealthInspector) private readonly inspector?: CacheHealthInspector,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
@@ -45,7 +45,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
     const now: string = new Date().toISOString();
 
     return targets.map((target): CachedItem => {
-      const localPath: string = this.store.resolvePath(target);
+      const localPath: string = this.store.resolvePath(target, CacheArtifactEnum.IMAGE);
       return new CachedItem(target, localPath, now);
     });
   }
@@ -59,7 +59,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
         title: `Caching ${target.name}:${target.version}`,
         task: async ({config}, task): Promise<void> => {
           const image: string = `${target.name}:${target.version}`;
-          const archivePath: string = this.store.resolvePath(target);
+          const archivePath: string = this.store.resolvePath(target, CacheArtifactEnum.IMAGE);
 
           const archiveExists: boolean = await this.inspector.exists(archivePath);
 
@@ -123,8 +123,9 @@ export class ImageCacheHandler implements CacheOperationHandler {
   }
 
   public async healthcheck(): Promise<readonly ArtifactHealthResult[]> {
-    const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
     const results: ArtifactHealthResult[] = [];
+
+    const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
 
     for (const item of items) {
       const exists: boolean = await this.inspector.exists(item.localPath);
@@ -134,5 +135,18 @@ export class ImageCacheHandler implements CacheOperationHandler {
     }
 
     return results;
+  }
+
+  public async list(): Promise<readonly CachedItem[]> {
+    const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
+    const existingItems: CachedItem[] = [];
+
+    for (const item of items) {
+      if (await this.inspector.exists(item.localPath)) {
+        existingItems.push(item);
+      }
+    }
+
+    return existingItems;
   }
 }

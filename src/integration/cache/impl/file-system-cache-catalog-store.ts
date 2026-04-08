@@ -8,6 +8,7 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type CacheCatalog} from '../models/impl/cache-catalog.js';
 import {type CacheTarget} from '../models/impl/cache-target.js';
+import {CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
 
 @injectable()
 export class FileSystemCacheCatalogStore implements CacheCatalogStore {
@@ -35,10 +36,8 @@ export class FileSystemCacheCatalogStore implements CacheCatalogStore {
   }
 
   public async exists(): Promise<boolean> {
-    const path: string = this.getCatalogPath();
-
     return fs
-      .access(path)
+      .access(this.getCatalogPath())
       .then((): boolean => true)
       .catch((): boolean => false);
   }
@@ -47,10 +46,10 @@ export class FileSystemCacheCatalogStore implements CacheCatalogStore {
     await fs.rm(this.baseDirectory, {recursive: true, force: true});
   }
 
-  public resolvePath(target: CacheTarget): string {
+  public resolvePath(target: CacheTarget, directoryPath: CacheArtifactEnum): string {
     const safeName: string = `${target.name}__${target.version}`.replaceAll('/', '__').replaceAll(':', '__');
 
-    return PathEx.join(this.baseDirectory, `${safeName}.tar`);
+    return PathEx.join(this.baseDirectory, directoryPath, `${safeName}.tar`);
   }
 
   private getCatalogPath(): string {

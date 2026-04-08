@@ -2,6 +2,7 @@
 
 import {type CacheCatalogStructure} from '../models/cache-catalog-structure.js';
 import {type CacheTargetStructure} from '../models/cache-target-structure.js';
+import {type CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
 
 /**
  * Persistence contract for storing and retrieving cache metadata.
@@ -33,5 +34,5 @@ export interface CacheCatalogStore {
   /**
    * Resolves the canonical local file path for the provided target.
    */
-  resolvePath(target: CacheTargetStructure): string;
+  resolvePath(target: CacheTargetStructure, directoryPath: CacheArtifactEnum): string;
 }

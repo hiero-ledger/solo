@@ -40,7 +40,7 @@ export class HelmChartCacheHandler {
     const results: CachedItem[] = [];
 
     for (const target of targets) {
-      const localPath: string = this.store.resolvePath(target);
+      const localPath: string = this.store.resolvePath(target, CacheArtifactEnum.IMAGE);
       const destinationDirectory: string = path.dirname(localPath);
 
       await fs.mkdir(destinationDirectory, {recursive: true});
