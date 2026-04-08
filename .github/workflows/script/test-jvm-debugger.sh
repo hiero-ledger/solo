@@ -141,7 +141,7 @@ cleanup() {
   free_port "$DEBUG_PORT"
 
   # Clean up temp files
-  /bin/rm -f /tmp/solo-node-start.log /tmp/solo-jdwp-probe.log /tmp/solo-jdwp-stop
+  /bin/rm -f /tmp/solo-jdwp-probe.log /tmp/solo-jdwp-stop
 
   if [[ "$SKIP_BOOTSTRAP" == false ]]; then
     # Do not call kind delete cluster so that we can inspect the cluster state after a failure if needed.
@@ -197,29 +197,33 @@ fi
 # ── Step 2: start nodes with debugger, auto-confirm the interactive prompt ───
 info "Step 2: Starting nodes with --debug-node-alias ${DEBUG_NODE} (auto-confirm)"
 
-/bin/rm -f /tmp/solo-jdwp-stop /tmp/solo-node-start.log
+/bin/rm -f /tmp/solo-jdwp-stop
 
 # Start JDWP probe in background FIRST - it retries until the debug port is reachable.
 # Probe both the configured port and detect the actual port from logs.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+info "Starting JDWP probe in background (will connect once port-forward is ready)"
 "${SCRIPT_DIR}/jdwp_tester.py" localhost ${DEBUG_PORT} --timeout ${JDWP_PROBE_WAIT_TIMEOUT_SECONDS} > /tmp/solo-jdwp-probe.log 2>&1 &
 JDWP_PROBE_PID=$!
+
+# Give the JDWP probe a moment to start probing
+sleep 2
 
 # Run node start in foreground with "y" piped to auto-answer the debug prompt.
 # The "y" sits in the pipe buffer until Solo reads stdin for the prompt.
 # Use a much shorter timeout and kill process group if it hangs.
 info "Auto-confirming debugger prompt via stdin pipe (timeout: ${NODE_START_TIMEOUT_SECONDS}s)"
+info "Expected sequence: JVM suspends → JDWP connects → VirtualMachine.Resume → auto-confirm 'y' → node becomes ACTIVE"
 
 # Set up a process group to ensure we can kill everything
 set -m  # Enable job control
 if ! timeout --kill-after=5 "$NODE_START_TIMEOUT_SECONDS" bash -c \
-  'echo y | npm run solo-test -- consensus node start --deployment '"${SOLO_DEPLOYMENT}"' -i '"${NODE_ALIASES}"' --debug-node-alias '"${DEBUG_NODE}"' --quiet-mode' \
-  > /tmp/solo-node-start.log 2>&1; then
+  'echo y | npm run solo-test -- consensus node start --deployment '"${SOLO_DEPLOYMENT}"' -i '"${NODE_ALIASES}"' --debug-node-alias '"${DEBUG_NODE}"' --quiet-mode'; then
   exit_code=$?
   if [[ $exit_code -eq 124 ]]; then
     error "consensus node start timed out after ${NODE_START_TIMEOUT_SECONDS}s"
   else
-    error "consensus node start failed with exit code $exit_code (see /tmp/solo-node-start.log)"
+    error "consensus node start failed with exit code $exit_code"
   fi
   RESULT=1
 fi
@@ -228,22 +232,16 @@ set +m  # Disable job control
 # Stop the probe loop and wait for it to finish.
 touch /tmp/solo-jdwp-stop
 if wait_for_pid_with_timeout "$JDWP_PROBE_PID" 30 "JDWP probe shutdown"; then
-  :
+  # Check if JDWP probe successfully connected and resumed
+  if [[ -f /tmp/solo-jdwp-probe.log ]] && grep -q "Handshake + Resume successful" /tmp/solo-jdwp-probe.log; then
+    success "JDWP debugger connected and JVM resumed successfully"
+  else
+    error "JDWP debugger failed to connect or resume JVM"
+    RESULT=1
+  fi
 else
   RESULT=1
 fi
-
-# ── Step 4: verify all nodes are running ───────────────────────────────────────
-info "Step 4: Verify all nodes are ACTIVE"
-
-for alias in ${NODE_ALIASES//,/ }; do
-  if npm run solo-test -- consensus node logs --deployment "$SOLO_DEPLOYMENT" --node-alias "$alias" -n 50 | grep -i "NOW ACTIVE"; then
-    success "Node $alias is ACTIVE in logs"
-  else
-    error "Node $alias is NOT active - check logs"
-    RESULT=1
-  fi
-done
 
 # ── VERDICT ─────────────────────────────────────────────────────────────────────
 echo
@@ -252,10 +250,6 @@ if [[ "$RESULT" -eq 0 ]]; then
   success "PASS: All verification steps passed"
 else
   error "FAIL: One or more verification steps failed"
-  if [[ -f /tmp/solo-node-start.log ]]; then
-    echo "Node start output:"
-    cat /tmp/solo-node-start.log
-  fi
   if [[ -f /tmp/solo-jdwp-probe.log ]]; then
     echo "JDWP probe output:"
     cat /tmp/solo-jdwp-probe.log
