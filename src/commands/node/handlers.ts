@@ -807,7 +807,6 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
-        this.tasks.getNodeStateFiles(),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

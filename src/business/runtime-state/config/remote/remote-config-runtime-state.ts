@@ -500,7 +500,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       deploymentName = deploymentFromArgv;
     }
 
-    if (!namespaceFromConfig && namespaceFromArgv) {
+    // Keep config manager in sync when namespace is resolved directly in argv by caller logic.
+    // argv takes precedence over the default namespace that middleware may have set from kubectl context.
+    if (namespaceFromArgv) {
       this.configManager.setFlag(flags.namespace, namespaceFromArgv);
       namespaceFromConfig = namespaceFromArgv;
     }
