@@ -351,7 +351,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       // Deployment not in local config — fall back to namespace/context already resolved from remote config scan.
       const namespaceFromConfig: NamespaceName = this.configManager.getFlag<NamespaceName>(flags.namespace);
       if (namespaceFromConfig) {
-        this.namespace = namespaceFromConfig instanceof NamespaceName ? namespaceFromConfig : NamespaceName.of(namespaceFromConfig);
+        this.namespace =
+          namespaceFromConfig instanceof NamespaceName ? namespaceFromConfig : NamespaceName.of(namespaceFromConfig);
       }
       return this.configManager.getFlag<Context>(flags.context);
     }
