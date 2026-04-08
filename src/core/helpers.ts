@@ -921,18 +921,6 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     const nodeIndex: number = consensusNode.nodeId;
     const extraEnvironmentVariables: EnvironmentVariable[] = [];
 
-    // Add default JVM environment variables
-    extraEnvironmentVariables.push(
-      {name: 'JAVA_HEAP_MIN', value: '256m'},
-      {name: 'JAVA_HEAP_MAX', value: '6g'},
-      {
-        name: 'JAVA_OPTS',
-        value: sanitizeJavaOptionsForHeapSettings(
-          '-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true',
-        ),
-      },
-    );
-
     // Add JAVA_MAIN_CLASS for tools/local builds
     if (options.useJavaMainClass) {
       extraEnvironmentVariables.push({name: 'JAVA_MAIN_CLASS', value: 'com.swirlds.platform.Browser'});
