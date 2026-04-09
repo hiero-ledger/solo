@@ -472,20 +472,34 @@ jobs:
           $workspaceWsl = (wsl wslpath -a "$env:GITHUB_WORKSPACE").Trim()
           $windowsKubeconfig = Join-Path $env:GITHUB_WORKSPACE ".kube\${{ inputs.cluster-name }}-config"
           $windowsKubeconfigWsl = (wsl wslpath -a "$windowsKubeconfig").Trim()
+          $scriptPath = Join-Path $env:RUNNER_TEMP "setup-e2e-wsl.sh"
 
           New-Item -ItemType Directory -Force (Split-Path $windowsKubeconfig) | Out-Null
 
-          wsl bash -lc @"
-            set -euo pipefail
-            cd '$workspaceWsl'
-            chmod +x ./test/e2e/dual-cluster/setup-dual-e2e.sh
-            export SOLO_TEST_CLUSTER='${{ inputs.cluster-name }}'
-            export SOLO_KUBECONFIG_PATH='$windowsKubeconfigWsl'
-            export SOLO_CLUSTER_CREATE_ONLY='true'
-            ./test/e2e/dual-cluster/setup-dual-e2e.sh
-          "@
+          @'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd "__WORKSPACE_WSL__"
+          chmod +x ./test/e2e/dual-cluster/setup-dual-e2e.sh
+          export SOLO_TEST_CLUSTER="__CLUSTER_NAME__"
+          export SOLO_KUBECONFIG_PATH="__KUBECONFIG_WSL__"
+          export SOLO_CLUSTER_CREATE_ONLY="true"
+          ./test/e2e/dual-cluster/setup-dual-e2e.sh
+          '@ | Set-Content -Path $scriptPath -NoNewline
+
+          $content = Get-Content $scriptPath -Raw
+          $content = $content.Replace("__WORKSPACE_WSL__", $workspaceWsl)
+          $content = $content.Replace("__CLUSTER_NAME__", "${{ inputs.cluster-name }}")
+          $content = $content.Replace("__KUBECONFIG_WSL__", $windowsKubeconfigWsl)
+          $content = $content -replace "`r`n", "`n"
+          [System.IO.File]::WriteAllText($scriptPath, $content, [System.Text.UTF8Encoding]::new($false))
+
+          $scriptPathWsl = (wsl wslpath -a "$scriptPath").Trim()
+          wsl chmod +x "$scriptPathWsl"
+          wsl bash "$scriptPathWsl"
 
           "KUBECONFIG=$windowsKubeconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $env:KUBECONFIG = $windowsKubeconfig
 
           Write-Host "Using Windows kubeconfig: $windowsKubeconfig"
           Write-Host "KUBECONFIG=$env:KUBECONFIG"
