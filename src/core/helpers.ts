@@ -973,30 +973,20 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     // Add any additional env vars for this specific node (overwrite duplicates)
     if (options.additionalEnvironmentVariables && options.additionalEnvironmentVariables[consensusNode.name]) {
       for (const additionalEnvironmentVariable of options.additionalEnvironmentVariables[consensusNode.name]) {
-        const existingIndex: number = extraEnvironmentVariables.findIndex(
-          (environmentVariable): boolean => environmentVariable.name === additionalEnvironmentVariable.name,
-        );
-
-        let environmentVariableValue: string = additionalEnvironmentVariable.value;
-
-        // Sanitize JAVA_OPTS to remove any heap settings that conflict with JAVA_HEAP_MIN/MAX
-        if (additionalEnvironmentVariable.name === 'JAVA_OPTS') {
-          environmentVariableValue = sanitizeJavaOptionsForHeapSettings(environmentVariableValue);
-        }
-
-        const sanitizedEnvironmentVariable: EnvironmentVariable = {
-          name: additionalEnvironmentVariable.name,
-          value: environmentVariableValue,
-        };
-
-        if (existingIndex === -1) {
-          // Add new environment variable
-          extraEnvironmentVariables.push(sanitizedEnvironmentVariable);
-        } else {
-          // Overwrite existing environment variable
-          extraEnvironmentVariables[existingIndex] = sanitizedEnvironmentVariable;
-        }
+        setExtraEnvironmentVariable(additionalEnvironmentVariable.name, additionalEnvironmentVariable.value);
       }
+    }
+
+    // Final sanitization: remove -Xms/-Xmx from JAVA_OPTS regardless of which source introduced them.
+    // This covers base values files, debug-node prepend, and additional env vars so that
+    // JAVA_HEAP_MIN/JAVA_HEAP_MAX remain the sole authoritative heap sizing source.
+    const finalJavaOptionsIndex: number = extraEnvironmentVariables.findIndex(
+      (environmentVariable): boolean => environmentVariable.name === 'JAVA_OPTS',
+    );
+    if (finalJavaOptionsIndex !== -1) {
+      extraEnvironmentVariables[finalJavaOptionsIndex].value = sanitizeJavaOptionsForHeapSettings(
+        extraEnvironmentVariables[finalJavaOptionsIndex].value,
+      );
     }
 
     // Ensure the hedera.nodes array has enough elements
