@@ -5,8 +5,8 @@ if [[ "${SOLO_CLUSTER_SETUP_ONLY,,}" != "true" ]]; then
   task build:compile
   # install dependencies in case they haven't been installed yet, and cache args for subsequent commands
   npm run solo -- init || exit 1
+  export PATH=~/.solo/bin:${PATH}
 fi
-export PATH=~/.solo/bin:${PATH}
 
 ##### Setup Environment #####
 SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
