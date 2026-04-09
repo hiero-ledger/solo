@@ -360,22 +360,26 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
 
-              // Detect and remove stale deployment state left over from a previously interrupted run.
-              // When a deploy is interrupted (e.g. via Ctrl+C) after the local-config entry has been
-              // created but before the deploy completes, re-running the command would fail because
-              // 'deployment config create' throws when the deployment already exists in local config.
-              // By removing the stale entry here we allow the deploy to proceed cleanly.
+              // Detect and remove a local-config deployment entry left over from a previously
+              // interrupted run (e.g. via Ctrl+C).  When a deploy is interrupted after the local-
+              // config entry has been created but before the deploy completes, re-running the command
+              // would fail because 'deployment config create' throws when the name already exists in
+              // local config.  Removing the entry here allows the deploy to proceed cleanly.
+              //
+              // Safety: any Kubernetes-level resources (namespace, remote ConfigMap) that may have
+              // been created during the interrupted run are caught by the subsequent
+              // 'Check for other deployments' task, which prompts the user before proceeding.
               await this.localConfig.load();
-              const staleDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
+              const existingDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
                 (deployment: Deployment): boolean => deployment.name === config.deployment,
               );
-              if (staleDeployment) {
+              if (existingDeployment) {
                 this.logger.warn(
                   `Found existing deployment '${config.deployment}' in local config. ` +
                     'This may be left over from an interrupted previous run. ' +
-                    'Removing the stale entry so the deployment can be re-created.',
+                    'Removing the local entry so the deployment can be re-created.',
                 );
-                this.localConfig.configuration.deployments.remove(staleDeployment);
+                this.localConfig.configuration.deployments.remove(existingDeployment);
                 await this.localConfig.persist();
               }
 
