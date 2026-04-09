@@ -61,7 +61,9 @@ export class DefaultSoloEventBus implements SoloEventBus {
     return new Promise<T>((resolve: (value: T | PromiseLike<T>) => void, reject: (reason: unknown) => void): void => {
       const timer: NodeJS.Timeout = setTimeout((): void => {
         this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
-        reject(new SoloError(`waitFor timed out after ${timeout.toMillis()}ms waiting for event type: ${String(type)}`));
+        reject(
+          new SoloError(`waitFor timed out after ${timeout.toMillis()}ms waiting for event type: ${String(type)}`),
+        );
       }, timeout.toMillis());
       // Ensure we only resolve once if handler and history check race.
       let settled: boolean = false;
@@ -78,8 +80,10 @@ export class DefaultSoloEventBus implements SoloEventBus {
             this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
             resolve(event);
           }
-        } catch {
-          // If predicate throws, treat it as non-matching and continue.
+        } catch (error) {
+          clearTimeout(timer);
+          this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
+          reject(new SoloError(`Error in waitFor handler predicate for event type: ${String(type)}`, error));
         }
       };
 
