@@ -82,18 +82,22 @@ export class PlatformInstaller {
       );
     }
 
-    // @ts-ignore
-    if (!fs.statSync(appsDirectory).isEmpty()) {
+    const appsJarFiles: string[] = fs
+      .readdirSync(appsDirectory)
+      .filter((file: string): boolean => file.endsWith('.jar'));
+    if (appsJarFiles.length === 0) {
       throw new IllegalArgumentError(
-        `'${constants.HEDERA_DATA_APPS_DIR}' is empty in releaseDir: ${releaseDirectory}`,
+        `No jar files found in '${constants.HEDERA_DATA_APPS_DIR}' in releaseDir: ${releaseDirectory}`,
         releaseDirectory,
       );
     }
 
-    // @ts-ignore
-    if (!fs.statSync(libraryDirectory).isEmpty()) {
+    const libraryJarFiles: string[] = fs
+      .readdirSync(libraryDirectory)
+      .filter((file: string): boolean => file.endsWith('.jar'));
+    if (libraryJarFiles.length === 0) {
       throw new IllegalArgumentError(
-        `'${constants.HEDERA_DATA_LIB_DIR}' is empty in releaseDir: ${releaseDirectory}`,
+        `No jar files found in '${constants.HEDERA_DATA_LIB_DIR}' in releaseDir: ${releaseDirectory}`,
         releaseDirectory,
       );
     }

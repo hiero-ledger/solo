@@ -372,6 +372,7 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
+      this.platformInstaller.validatePlatformReleaseDir(localDataLibraryBuildPath);
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
