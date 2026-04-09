@@ -393,7 +393,7 @@ export class NodeCommandTasks {
             this.logger.showUser(
               chalk.yellowBright(
                 'The release tag could not be verified, please ensure that the release tag passed on the command line ' +
-                  'matches the release tag of the code in the local build path directory',
+                'matches the release tag of the code in the local build path directory',
               ),
             );
           }
@@ -625,7 +625,7 @@ export class NodeCommandTasks {
     if (!success) {
       throw new SoloError(
         `node '${nodeAlias}' is not ${NodeStatusEnums[status]}` +
-          `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
+        `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
       );
     }
 
@@ -1023,8 +1023,8 @@ export class NodeCommandTasks {
     return {
       title: 'Download generated files from an existing node',
       task: async ({
-        config: {nodeAlias, existingNodeAliases, consensusNodes, stagingDir, keysDir, namespace},
-      }): Promise<void> => {
+                     config: {nodeAlias, existingNodeAliases, consensusNodes, stagingDir, keysDir, namespace},
+                   }): Promise<void> => {
         // don't try to download from the same node we are deleting, it won't work
         const targetNodeAlias: NodeAlias =
           nodeAlias === existingNodeAliases[0] && existingNodeAliases.length > 1
@@ -1077,9 +1077,9 @@ export class NodeCommandTasks {
         await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
           ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
           : k8Container.copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
-              `${stagingDir}/templates`,
-            ));
+            `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+            `${stagingDir}/templates`,
+          ));
       },
     };
   }
@@ -1394,22 +1394,22 @@ export class NodeCommandTasks {
 
         return localBuildPath === ''
           ? this._fetchPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              releaseTag,
-              task,
-              this.platformInstaller,
-              context_.config.consensusNodes,
-              context_.config.stagingDir,
-            )
+            context_.config[aliasesField],
+            podRefs,
+            releaseTag,
+            task,
+            this.platformInstaller,
+            context_.config.consensusNodes,
+            context_.config.stagingDir,
+          )
           : this._uploadPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              task,
-              localBuildPath,
-              context_.config.consensusNodes,
-              releaseTag,
-            );
+            context_.config[aliasesField],
+            podRefs,
+            task,
+            localBuildPath,
+            context_.config.consensusNodes,
+            releaseTag,
+          );
       },
     };
   }
@@ -1838,15 +1838,15 @@ export class NodeCommandTasks {
               );
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
-                    'bash',
-                    '-c',
-                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
-                  ])
+                  'bash',
+                  '-c',
+                  '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
+                ])
                 : container.execContainer([
-                    'bash',
-                    '-c',
-                    'systemctl stop network-node || true && systemctl enable --now network-node',
-                  ]));
+                  'bash',
+                  '-c',
+                  'systemctl stop network-node || true && systemctl enable --now network-node',
+                ]));
             },
           });
         }
@@ -2224,11 +2224,11 @@ export class NodeCommandTasks {
   public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
-      task: async ({config}, task): Promise<void> => {
+      task: async ({config}, task): Promise<SoloListrTask<NodeConnectionsContext> | void> => {
         if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
-              chalk.grey('no consensus node configuration files to be updated'),
+            chalk.grey('no consensus node configuration files to be updated'),
           );
 
           return;
@@ -2363,30 +2363,40 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
-        // Update all charts
-        await Promise.all(
-          clusterReferences.map(async (clusterReference: string): Promise<void> => {
-            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
+          {
+            title: 'Update all charts',
+            task: async (): Promise<void> => {
+              await Promise.all(
+                clusterReferences.map(async (clusterReference: string): Promise<void> => {
+                  const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
-              config.soloChartVersion,
-              false,
-              'Solo chart version',
-            );
+                  config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+                    config.soloChartVersion,
+                    false,
+                    'Solo chart version',
+                  );
 
-            await this.chartManager.upgrade(
-              config.namespace,
-              constants.SOLO_DEPLOYMENT_CHART,
-              constants.SOLO_DEPLOYMENT_CHART,
-              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
-              config.soloChartVersion,
-              valuesFiles[clusterReference],
-              context,
-            );
+                  await this.chartManager.upgrade(
+                    config.namespace,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.soloChartVersion,
+                    valuesFiles[clusterReference],
+                    context,
+                  );
 
-            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
-          }),
-        );
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+                }),
+              );
+            },
+          },
+          this.checkAllNodesAreFrozen('existingNodeAliases'),
+        ];
+
+        // @ts-ignore
+        return task.newListr(subTasks, {concurrent: false, rendererOptions: {collapseSubtasks: false}});
       },
     };
   }
@@ -2531,13 +2541,13 @@ export class NodeCommandTasks {
   }
 
   private validateComponentData({
-    portForwards,
-    namespace,
-    clusterReference,
-    contextName,
-    componentId,
-    componentDisplayName,
-  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+                                  portForwards,
+                                  namespace,
+                                  clusterReference,
+                                  contextName,
+                                  componentId,
+                                  componentDisplayName,
+                                }: ComponentData): SoloListrTask<NodeConnectionsContext> {
     return {
       title: cyan(componentDisplayName),
       task: (_, task): SoloListr<NodeConnectionsContext> | void => {
@@ -3341,11 +3351,11 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         newAccountNumber && consensusNode.name === nodeAlias
           ? ` --set "hedera.nodes[${index}].accountId=${newAccountNumber}"` +
-            ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
-            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
+          ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
+          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-            ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
+          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
       if (constants.ENABLE_S6_IMAGE) {
         valuesArgumentMap[clusterReference] = addRootImageValues(
