@@ -4,25 +4,29 @@
 # Reproduces and verifies the fix for the stale local-config issue:
 #   "Solo local state becomes out-of-sync when users manually clean up Docker/Kubernetes resources"
 #
+# What this script tests:
+#   The `deployment config create` command (called internally by `one-shot single deploy`)
+#   must detect when an existing deployment entry in the local config no longer has any
+#   matching resources in the cluster (stale state) and automatically clean it up instead
+#   of failing with "A deployment named X already exists."
+#
 # Steps:
-#   1. Deploy a one-shot network (creates local config + Kind cluster + solo resources)
-#   2. Manually delete the Kind cluster (simulates user running `kind delete cluster` or
-#      `docker system prune`, etc.)
-#   3. Re-deploy the one-shot network
-#      - EXPECTED: Solo detects the stale local config, logs a warning, cleans it up, and
-#                  proceeds with a fresh deployment instead of failing with
-#                  "A deployment named one-shot already exists."
-#   4. Verify that the expected stale-config message appeared in the output
-#   5. Destroy the deployment (cleanup)
+#   1. Create a Kind cluster and register it with solo
+#   2. Create a deployment entry in local config (simulates what one-shot single deploy does)
+#   3. Attach the cluster ref to the deployment (simulates what one-shot single deploy does)
+#   4. Delete the Kind cluster — the local config entry is now STALE
+#   5. Re-create the deployment config
+#      EXPECTED: Solo detects the stale entry, logs the warning, cleans it up, and
+#                proceeds with a fresh deployment instead of failing with
+#                "A deployment named one-shot already exists."
+#   6. Verify the expected stale-config message appeared in the output
 #
 # Usage (from the root of the solo repository):
 #   .github/workflows/script/reproduce-stale-config.sh
 #
 # Environment variables (all optional):
 #   SOLO_CMD         - Solo command to use (default: "npm run solo --")
-#   SOLO_DEPLOYMENT  - Deployment name        (default: "one-shot")
 #   SOLO_CLUSTER     - Kind cluster name      (default: "solo-cluster")
-#   SKIP_CLEANUP     - Set to "true" to skip the final destroy step (default: unset)
 
 set -eo pipefail
 
@@ -30,8 +34,11 @@ set -eo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 SOLO_CMD="${SOLO_CMD:-npm run solo --}"
-SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-one-shot}"
 SOLO_CLUSTER="${SOLO_CLUSTER:-solo-cluster}"
+KUBE_CONTEXT="kind-${SOLO_CLUSTER}"
+CLUSTER_REF="one-shot"
+DEPLOYMENT="one-shot"
+NAMESPACE="one-shot"
 
 EXPECTED_MSG="no matching resources were found in the cluster"
 REDEPLOY_LOG="$(mktemp /tmp/solo-stale-config-redeploy-XXXX.log)"
@@ -49,91 +56,124 @@ step() {
 cleanup() {
   local rc=$?
   rm -f "${REDEPLOY_LOG}"
+  kind delete cluster --name "${SOLO_CLUSTER}" 2>/dev/null || true
   if [[ ${rc} -ne 0 ]]; then
     echo ""
     echo "Script FAILED (exit code ${rc})"
-    if [[ -s "${REDEPLOY_LOG}" ]]; then
-      echo "--- redeploy output ---"
-      cat "${REDEPLOY_LOG}" || true
-      echo "--- end redeploy output ---"
-    fi
   fi
   exit "${rc}"
 }
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# Step 1 – Initial deployment
+# Pre-flight checks
 # ---------------------------------------------------------------------------
-step "Step 1: Deploy one-shot network (deployment='${SOLO_DEPLOYMENT}')"
-${SOLO_CMD} one-shot single deploy \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  --quiet-mode \
-  --no-rollback
-
-echo "Step 1 complete: one-shot network deployed successfully."
-
-# ---------------------------------------------------------------------------
-# Step 2 – Simulate manual cluster deletion (reproduces the issue)
-# ---------------------------------------------------------------------------
-step "Step 2: Delete Kind cluster '${SOLO_CLUSTER}' (simulating manual user cleanup)"
 if ! command -v kind &>/dev/null; then
-  echo "ERROR: 'kind' not found in PATH. Cannot delete cluster."
+  echo "ERROR: 'kind' not found in PATH."
   exit 1
 fi
 
+if ! command -v yq &>/dev/null; then
+  echo "ERROR: 'yq' not found in PATH. Install from https://github.com/mikefarah/yq"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Step 1 – Clean up any previous state and create a fresh Kind cluster
+# ---------------------------------------------------------------------------
+step "Step 1: Clean up previous state and create Kind cluster '${SOLO_CLUSTER}'"
+kind delete cluster --name "${SOLO_CLUSTER}" 2>/dev/null || true
+rm -rf "${HOME}/.solo"
+kind create cluster --name "${SOLO_CLUSTER}"
+echo "Step 1 complete: Kind cluster '${SOLO_CLUSTER}' created (context: '${KUBE_CONTEXT}')."
+
+# ---------------------------------------------------------------------------
+# Step 2 – Register the cluster ref with solo
+# ---------------------------------------------------------------------------
+step "Step 2: Register cluster ref '${CLUSTER_REF}' → '${KUBE_CONTEXT}'"
+${SOLO_CMD} cluster-ref config connect \
+  --cluster-ref "${CLUSTER_REF}" \
+  --context "${KUBE_CONTEXT}" \
+  --quiet-mode
+echo "Step 2 complete: cluster ref registered."
+
+# ---------------------------------------------------------------------------
+# Step 3 – Create a deployment entry in local config
+# ---------------------------------------------------------------------------
+step "Step 3: Create deployment '${DEPLOYMENT}' in namespace '${NAMESPACE}'"
+${SOLO_CMD} deployment config create \
+  --deployment "${DEPLOYMENT}" \
+  --namespace "${NAMESPACE}" \
+  --quiet-mode
+echo "Step 3 complete: deployment config created."
+
+# ---------------------------------------------------------------------------
+# Step 4 – Attach the cluster ref to the deployment
+#   Simulates what `one-shot single deploy` (or `deployment cluster attach`) does.
+#   After this, the local config has:
+#     deployments[0].clusters = ["one-shot"]
+#     clusterRefs["one-shot"]  = "kind-solo-cluster"
+#   This is the "healthy" state — the deployment exists and has a cluster ref.
+# ---------------------------------------------------------------------------
+step "Step 4: Attach cluster ref '${CLUSTER_REF}' to deployment '${DEPLOYMENT}'"
+yq -i "
+  (.deployments[] | select(.name == \"${DEPLOYMENT}\")).clusters =
+    [(\"${CLUSTER_REF}\" | .)
+  ]
+" "${HOME}/.solo/local-config.yaml"
+
+echo "Local config after cluster attachment:"
+cat "${HOME}/.solo/local-config.yaml"
+echo ""
+echo "Step 4 complete: cluster ref attached to deployment."
+
+# ---------------------------------------------------------------------------
+# Step 5 – Delete the Kind cluster (reproduce the issue)
+#   'kind delete cluster' also removes the context from kubeconfig.
+#   The local config entry is now STALE: it references a cluster + namespace
+#   that no longer exist.
+# ---------------------------------------------------------------------------
+step "Step 5: Delete Kind cluster '${SOLO_CLUSTER}' (simulating user cleanup)"
 kind delete cluster --name "${SOLO_CLUSTER}"
-echo "Step 2 complete: Kind cluster '${SOLO_CLUSTER}' deleted."
-echo "  Solo's local config still references deployment '${SOLO_DEPLOYMENT}' — it is now STALE."
+echo "Step 5 complete: Kind cluster deleted."
+echo "  Local config still references deployment '${DEPLOYMENT}' — it is now STALE."
 
 # ---------------------------------------------------------------------------
-# Step 3 – Re-deploy (should detect stale config and proceed)
+# Step 6 – Re-create deployment config (should detect stale entry and proceed)
 # ---------------------------------------------------------------------------
-step "Step 3: Re-deploy one-shot network (should detect stale local config)"
+step "Step 6: Re-create deployment config (should detect stale local config)"
 
-# Capture combined stdout+stderr so we can grep for the expected message.
+# Capture stdout+stderr to check for the expected message.
 # Also tee to terminal so CI logs remain readable.
 set +e
-${SOLO_CMD} one-shot single deploy \
-  --deployment "${SOLO_DEPLOYMENT}" \
+${SOLO_CMD} deployment config create \
+  --deployment "${DEPLOYMENT}" \
+  --namespace "${NAMESPACE}" \
   --quiet-mode 2>&1 | tee "${REDEPLOY_LOG}"
 REDEPLOY_EXIT=${PIPESTATUS[0]}
 set -e
 
 # ---------------------------------------------------------------------------
-# Step 4 – Verify the stale-config warning appeared
+# Step 7 – Verify the stale-config warning appeared
 # ---------------------------------------------------------------------------
-step "Step 4: Verify stale-config detection message"
+step "Step 7: Verify stale-config detection message"
 
 if grep -q "${EXPECTED_MSG}" "${REDEPLOY_LOG}"; then
   echo "✅  Stale config detection is working correctly."
   echo "    Found expected message: \"${EXPECTED_MSG}\""
 else
-  echo "❌  Expected stale-config message NOT found in redeploy output."
+  echo "❌  Expected stale-config message NOT found in output."
   echo "    Searched for: \"${EXPECTED_MSG}\""
   echo "    This means the fix is not active or the message changed."
   exit 1
 fi
 
 if [[ ${REDEPLOY_EXIT} -ne 0 ]]; then
-  echo "❌  Re-deployment exited with code ${REDEPLOY_EXIT} (expected 0)."
+  echo "❌  Command exited with code ${REDEPLOY_EXIT} (expected 0)."
   exit "${REDEPLOY_EXIT}"
 fi
 
-echo "✅  Re-deployment succeeded after stale config cleanup."
-
-# ---------------------------------------------------------------------------
-# Step 5 – Cleanup (optional)
-# ---------------------------------------------------------------------------
-if [[ "${SKIP_CLEANUP:-false}" != "true" ]]; then
-  step "Step 5: Cleanup — destroy one-shot deployment"
-  ${SOLO_CMD} one-shot single destroy \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --quiet-mode || true
-  echo "Step 5 complete: deployment destroyed."
-else
-  echo "Step 5 skipped (SKIP_CLEANUP=true)."
-fi
+echo "✅  Command succeeded after stale config cleanup."
 
 echo ""
 echo "============================================================"
