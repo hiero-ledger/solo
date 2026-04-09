@@ -1164,8 +1164,8 @@ export function extractExtraEnvironmentFromValuesFiles(
       continue;
     }
 
-    for (const consensusNode of consensusNodes) {
-      const nodeEntry: unknown = nodesArray[consensusNode.nodeId];
+    for (const [helmNodeIndex, consensusNode] of consensusNodes.entries()) {
+      const nodeEntry: unknown = nodesArray[helmNodeIndex];
       if (!nodeEntry || typeof nodeEntry !== 'object') {
         continue;
       }
