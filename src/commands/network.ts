@@ -78,7 +78,7 @@ import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {PackageDownloader} from '../core/package-downloader.js';
 import {Zippy} from '../core/zippy.js';
-import {SoloEventBus} from '../core/events/solo-event-bus.js';
+import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {NetworkDeployedEvent} from '../core/events/event-types.js';
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
@@ -176,7 +176,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
-    @inject(InjectTokens.EventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
   ) {
     super();
 

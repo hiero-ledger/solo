@@ -67,7 +67,6 @@ import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
-import {SharedResourceManager} from '../../core/shared-resources/shared-resource-manager.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
@@ -84,7 +83,7 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
-import {SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {MirrorNodeDeployedEvent, NodesStartedEvent, SoloEventType} from '../../core/events/event-types.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
@@ -156,17 +155,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
-    @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
-    @inject(InjectTokens.EventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
   ) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-    this.eventBus = patchInject(eventBus, InjectTokens.EventBus, this.constructor.name);
-    this.sharedResourceManager = patchInject(
-      sharedResourceManager,
-      InjectTokens.SharedResourceManager,
-      this.constructor.name,
-    );
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
   }
 
   /**

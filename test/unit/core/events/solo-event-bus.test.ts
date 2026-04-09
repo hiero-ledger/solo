@@ -3,7 +3,8 @@
 import sinon from 'sinon';
 import {expect} from 'chai';
 import {describe, it, beforeEach} from 'mocha';
-import {SoloEventBus} from '../../../../src/core/events/solo-event-bus.js';
+import {type SoloEventBus} from '../../../../src/core/events/solo-event-bus.js';
+import {DefaultSoloEventBus} from '../../../../src/core/events/default-solo-event-bus.js';
 import {SoloEventType, NetworkDeployedEvent, MirrorNodeDeployedEvent} from '../../../../src/core/events/event-types.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
@@ -18,7 +19,7 @@ describe('SoloEventBus', (): void => {
   beforeEach((): void => {
     // resolve the test logger from the DI container
     const testLogger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
-    bus = new SoloEventBus(testLogger);
+    bus = new DefaultSoloEventBus(testLogger);
   });
 
   it('should call a registered handler when the matching event is emitted', (): void => {

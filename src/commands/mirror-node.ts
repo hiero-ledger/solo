@@ -62,7 +62,7 @@ import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types.js';
-import {SoloEventBus} from '../core/events/solo-event-bus.js';
+import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -199,7 +199,7 @@ export class MirrorNodeCommand extends BaseCommand {
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
-    @inject(InjectTokens.EventBus) private readonly eventBus?: SoloEventBus,
+    @inject(InjectTokens.SoloEventBus) private readonly eventBus?: SoloEventBus,
   ) {
     super();
 

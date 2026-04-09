@@ -178,7 +178,7 @@ import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types.js';
-import {SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -206,7 +206,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
     @inject(InjectTokens.ConfigProvider) configProvider: ConfigProvider,
-    @inject(InjectTokens.EventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -223,7 +223,7 @@ export class NodeCommandTasks {
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
     this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
-    this.eventBus = patchInject(eventBus, InjectTokens.EventBus, this.constructor.name);
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
     configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
     this.soloConfig = SoloConfig.getConfig(configProvider);
   }
