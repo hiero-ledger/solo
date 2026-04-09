@@ -41,7 +41,7 @@ import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.
 import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
-import {findDeploymentsFromRemoteConfig} from '../util/remote-config-collector.js';
+import {findDeploymentsFromRemoteConfig, type RemoteDeploymentInfo} from '../util/remote-config-collector.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 
 @injectable()
@@ -710,7 +710,10 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (validDeployments.length === 0) {
-      const remoteDeployments: Map<string, string> = await findDeploymentsFromRemoteConfig(this.k8Factory, this.logger);
+      const remoteDeployments: Map<string, RemoteDeploymentInfo> = await findDeploymentsFromRemoteConfig(
+        this.k8Factory,
+        this.logger,
+      );
       if (remoteDeployments.size === 0) {
         throw new SoloError(
           `No deployments found in local or remote config. Please provide --${flags.deployment.name} or create a deployment first.`,
@@ -736,8 +739,10 @@ export class NodeCommandHandlers extends CommandHandler {
         this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
       }
 
+      const remoteInfo: RemoteDeploymentInfo = remoteDeployments.get(selectedFromRemote)!;
       argv[flags.deployment.name] = selectedFromRemote;
-      argv[flags.namespace.name] = remoteDeployments.get(selectedFromRemote);
+      argv[flags.namespace.name] = remoteInfo.namespace;
+      argv[flags.context.name] = remoteInfo.context;
       return;
     }
 

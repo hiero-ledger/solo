@@ -19,15 +19,29 @@ function sanitizeFilename(input: string): string {
   return input.replaceAll(/[^A-Za-z0-9._-]/g, '_');
 }
 
+/** Location information for a deployment discovered from a remote-config ConfigMap. */
+export type RemoteDeploymentInfo = {
+  /** Kubernetes namespace where the deployment resides. */
+  namespace: string;
+  /** Kubeconfig context in which the deployment was found. */
+  context: string;
+};
+
 /**
  * Scan all kubeconfig contexts for solo remote-config ConfigMaps and return a map of
- * deployment name → namespace.  Contexts that are unreachable are skipped with a warning.
+ * deployment name → {namespace, context}.  Contexts that are unreachable are skipped with a
+ * warning.  If the same deployment name appears in more than one context, the entry is removed
+ * from the map and the caller receives a warning so it can ask the user to disambiguate via
+ * --deployment / --context flags.
  */
 export async function findDeploymentsFromRemoteConfig(
   k8Factory: K8Factory,
   logger: SoloLogger,
-): Promise<Map<string, string>> {
-  const deploymentNamespaceMap: Map<string, string> = new Map<string, string>();
+): Promise<Map<string, RemoteDeploymentInfo>> {
+  const deploymentMap: Map<string, RemoteDeploymentInfo> = new Map();
+  /** Tracks deployment names that appear in more than one context so we can drop them. */
+  const ambiguousNames: Set<string> = new Set();
+
   const contextList: string[] = k8Factory.default().contexts().list();
   for (const context of contextList) {
     try {
@@ -52,7 +66,18 @@ export async function findDeploymentsFromRemoteConfig(
             for (const cluster of clusters) {
               const deployment: unknown = (cluster as Record<string, unknown>).deployment;
               if (deployment && typeof deployment === 'string') {
-                deploymentNamespaceMap.set(deployment, configMap.namespace.name);
+                if (deploymentMap.has(deployment)) {
+                  const existing: RemoteDeploymentInfo = deploymentMap.get(deployment)!;
+                  if (existing.context !== context) {
+                    logger.warn(
+                      `Deployment "${deployment}" found in multiple contexts (${existing.context} and ${context}). ` +
+                        `It will be excluded from automatic selection — please provide --deployment and --context explicitly.`,
+                    );
+                    ambiguousNames.add(deployment);
+                  }
+                } else {
+                  deploymentMap.set(deployment, {namespace: configMap.namespace.name, context});
+                }
               }
             }
           }
@@ -66,7 +91,12 @@ export async function findDeploymentsFromRemoteConfig(
       logger.warn(`Failed to scan remote config in context ${context}: ${(error as Error).message}`);
     }
   }
-  return deploymentNamespaceMap;
+
+  for (const name of ambiguousNames) {
+    deploymentMap.delete(name);
+  }
+
+  return deploymentMap;
 }
 
 export class RemoteConfigCollector {
