@@ -6,20 +6,11 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {UserBreak} from './errors/user-break.js';
 import {SilentBreak} from './errors/silent-break.js';
-import {type NodeCommandHandlers} from '../commands/node/handlers.js';
 
 @injectable()
 export class ErrorHandler {
-  public constructor(
-    @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
-    @inject(InjectTokens.NodeCommandHandlers) private readonly nodeCommandHandlers: NodeCommandHandlers,
-  ) {
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.nodeCommandHandlers = patchInject(
-      nodeCommandHandlers,
-      InjectTokens.NodeCommandHandlers,
-      this.constructor.name,
-    );
   }
 
   public handle(error: unknown): void {

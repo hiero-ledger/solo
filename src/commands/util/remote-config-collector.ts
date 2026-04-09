@@ -12,6 +12,14 @@ import {type Contexts} from '../../integration/kube/resources/context/contexts.j
 import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 
 /**
+ * Sanitize a string for safe use as a filename on all platforms.
+ * Replaces characters invalid on Windows with underscores.
+ */
+function sanitizeFilename(input: string): string {
+  return input.replaceAll(/[^A-Za-z0-9._-]/g, '_');
+}
+
+/**
  * Scan all kubeconfig contexts for solo remote-config ConfigMaps and return a map of
  * deployment name → namespace.  Contexts that are unreachable are skipped with a warning.
  */
@@ -28,17 +36,30 @@ export async function findDeploymentsFromRemoteConfig(
         .configMaps()
         .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
       for (const configMap of configMaps) {
-        const remoteConfigData: Record<string, unknown> = yaml.parse(
-          configMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY],
-        ) as Record<string, unknown>;
-        const clusters: unknown = remoteConfigData.clusters;
-        if (Array.isArray(clusters)) {
-          for (const cluster of clusters) {
-            const deployment: unknown = (cluster as Record<string, unknown>).deployment;
-            if (deployment && typeof deployment === 'string') {
-              deploymentNamespaceMap.set(deployment, configMap.namespace.name);
+        try {
+          if (!configMap.data?.[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]) {
+            logger.debug(
+              `Skipping ConfigMap ${configMap.name} in ${context}/${configMap.namespace.name}: missing remote config data key`,
+            );
+            continue;
+          }
+
+          const remoteConfigData: Record<string, unknown> = yaml.parse(
+            configMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY],
+          ) as Record<string, unknown>;
+          const clusters: unknown = remoteConfigData.clusters;
+          if (Array.isArray(clusters)) {
+            for (const cluster of clusters) {
+              const deployment: unknown = (cluster as Record<string, unknown>).deployment;
+              if (deployment && typeof deployment === 'string') {
+                deploymentNamespaceMap.set(deployment, configMap.namespace.name);
+              }
             }
           }
+        } catch (configMapError) {
+          logger.warn(
+            `Failed to parse remote config in ConfigMap ${configMap.name} (${context}/${configMap.namespace.name}): ${(configMapError as Error).message}`,
+          );
         }
       }
     } catch (error) {
@@ -70,7 +91,7 @@ export class RemoteConfigCollector {
 
         for (const configMap of configMaps) {
           const namespace: string = configMap.namespace.name;
-          const outputFileName: string = `${context}-${namespace}-${configMap.name}.json`;
+          const outputFileName: string = `${sanitizeFilename(context)}-${sanitizeFilename(namespace)}-${sanitizeFilename(configMap.name)}.json`;
           const outputFilePath: string = PathEx.join(outputDirectory, outputFileName);
 
           fs.writeFileSync(

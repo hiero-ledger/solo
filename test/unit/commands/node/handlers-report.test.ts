@@ -105,6 +105,7 @@ describe('NodeCommandHandlers - report', (): void => {
     const argv: ArgvStruct = {
       _: ['deployment', 'diagnostics', 'report'],
       [flags.quiet.name]: true,
+      [flags.deployment.name]: 'test-deployment',
     };
 
     await expect(handlers.report(argv)).to.be.rejectedWith(SoloError, /GitHub CLI \(gh\) is required/);
@@ -118,6 +119,7 @@ describe('NodeCommandHandlers - report', (): void => {
     const argv: ArgvStruct = {
       _: ['deployment', 'diagnostics', 'report'],
       [flags.quiet.name]: true,
+      [flags.deployment.name]: 'test-deployment',
     };
 
     const result: boolean = await handlers.report(argv);
@@ -131,6 +133,7 @@ describe('NodeCommandHandlers - report', (): void => {
     const argv: ArgvStruct = {
       _: ['deployment', 'diagnostics', 'report'],
       [flags.quiet.name]: true,
+      [flags.deployment.name]: 'test-deployment',
     };
 
     await expect(handlers.report(argv)).to.be.rejectedWith(SoloError);
