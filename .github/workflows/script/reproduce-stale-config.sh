@@ -91,6 +91,28 @@ if ! command -v yq &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
+# Step 0 – Build the solo CLI from source
+#   This ensures the script always tests the latest TypeScript source and not
+#   a potentially stale dist/ folder from a previous build.
+# ---------------------------------------------------------------------------
+step "Step 0: Build solo CLI from source"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+echo "Repository root: ${REPO_ROOT}"
+(
+  cd "${REPO_ROOT}"
+  if [[ ! -x node_modules/.bin/tsc ]]; then
+    echo "TypeScript compiler not found. Running npm install…"
+    npm install
+  fi
+  echo "Compiling TypeScript…"
+  rm -rf dist
+  node_modules/.bin/tsc
+  node resources/post-build-script.js
+)
+echo "Step 0 complete: solo CLI built successfully."
+
+# ---------------------------------------------------------------------------
 # Step 1 – Clean up any previous state and create a fresh Kind cluster
 # ---------------------------------------------------------------------------
 step "Step 1: Clean up previous state and create Kind cluster '${SOLO_CLUSTER}'"
