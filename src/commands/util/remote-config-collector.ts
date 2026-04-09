@@ -71,7 +71,7 @@ export async function findDeploymentsFromRemoteConfig(
                   if (existing.context !== context) {
                     logger.warn(
                       `Deployment "${deployment}" found in multiple contexts (${existing.context} and ${context}). ` +
-                        `It will be excluded from automatic selection — please provide --deployment and --context explicitly.`,
+                        'It will be excluded from automatic selection — please provide --deployment and --context explicitly.',
                     );
                     ambiguousNames.add(deployment);
                   }
