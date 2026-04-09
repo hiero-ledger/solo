@@ -12,7 +12,6 @@ import struct
 import sys
 import time
 import argparse
-import os
 from pathlib import Path
 
 
