@@ -177,7 +177,7 @@ import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.j
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
-import {NodesStartedEvent} from '../../core/events/event-types.js';
+import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 
 const {gray, cyan, red, green, yellow} = chalk;

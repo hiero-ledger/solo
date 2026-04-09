@@ -84,7 +84,9 @@ import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
-import {MirrorNodeDeployedEvent, NodesStartedEvent, SoloEventType} from '../../core/events/event-types.js';
+import {SoloEventType} from '../../core/events/event-types/event-types.js';
+import {MirrorNodeDeployedEvent} from '../../core/events/event-types/mirror-node-deployed-event.js';
+import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';

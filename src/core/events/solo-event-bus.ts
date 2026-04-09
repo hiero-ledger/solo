@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AnySoloEvent, type SoloEventType} from './event-types.js';
+import {type AnySoloEvent, type SoloEventType} from './event-types/event-types.js';
 
 export interface SoloEventBus {
   emit(event: AnySoloEvent): void;

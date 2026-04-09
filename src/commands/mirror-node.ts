@@ -61,7 +61,7 @@ import yaml from 'yaml';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
-import {MirrorNodeDeployedEvent} from '../core/events/event-types.js';
+import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 // Port forwarding is now a method on the components object
 
