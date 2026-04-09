@@ -3320,7 +3320,8 @@ export class NodeCommandTasks {
               },
               constants.SOLO_CACHE_DIR,
             );
-            valuesArgumentMap[clusterReference] += ` --values "${extraEnvironmentValuesFile}"`;
+            valuesArgumentMap[clusterReference] =
+              ` --values "${extraEnvironmentValuesFile}"${valuesArgumentMap[clusterReference]}`;
           }
         }
 
