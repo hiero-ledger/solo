@@ -22,7 +22,6 @@ vars:
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
-  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
   CN_VERSION: '{{default "v0.71.0" .CONSENSUS_NODE_VERSION}}'
   MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.149.0"
