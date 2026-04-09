@@ -10,16 +10,21 @@
 #   matching resources in the cluster (stale state) and automatically clean it up instead
 #   of failing with "A deployment named X already exists."
 #
+#   Additionally, `ledger account create` (and other commands that require a live cluster)
+#   must properly report an error when the cluster referenced by the deployment is gone.
+#
 # Steps:
 #   1. Create a Kind cluster and register it with solo
 #   2. Create a deployment entry in local config (simulates what one-shot single deploy does)
 #   3. Attach the cluster ref to the deployment (simulates what one-shot single deploy does)
 #   4. Delete the Kind cluster — the local config entry is now STALE
-#   5. Re-create the deployment config
+#   5. Run `ledger account create` — should fail with a cluster-connection error,
+#      confirming that solo properly detects the deployment no longer matches the live cluster
+#   6. Re-create the deployment config
 #      EXPECTED: Solo detects the stale entry, logs the warning, cleans it up, and
 #                proceeds with a fresh deployment instead of failing with
 #                "A deployment named one-shot already exists."
-#   6. Verify the expected stale-config message appeared in the output
+#   7. Verify the expected stale-config message appeared in the output
 #
 # Usage (from the root of the solo repository):
 #   .github/workflows/script/reproduce-stale-config.sh
@@ -46,7 +51,9 @@ DEPLOYMENT="one-shot"
 NAMESPACE="one-shot"
 
 EXPECTED_MSG="no matching resources were found in the cluster"
+EXPECTED_ACCOUNT_ERR="Failed to get remote config ConfigMap"
 REDEPLOY_LOG="$(mktemp /tmp/solo-stale-config-redeploy-XXXX.log)"
+ACCOUNT_LOG="$(mktemp /tmp/solo-stale-config-account-XXXX.log)"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -60,7 +67,7 @@ step() {
 
 cleanup() {
   local rc=$?
-  rm -f "${REDEPLOY_LOG}"
+  rm -f "${REDEPLOY_LOG}" "${ACCOUNT_LOG}"
   kind delete cluster --name "${SOLO_CLUSTER}" 2>/dev/null || true
   if [[ ${rc} -ne 0 ]]; then
     echo ""
@@ -143,9 +150,41 @@ echo "Step 5 complete: Kind cluster deleted."
 echo "  Local config still references deployment '${DEPLOYMENT}' — it is now STALE."
 
 # ---------------------------------------------------------------------------
-# Step 6 – Re-create deployment config (should detect stale entry and proceed)
+# Step 6 – Run `ledger account create` to confirm it properly fails
+#   With the cluster gone, any command that requires a live cluster must report
+#   an error about being unable to connect.  This step verifies that solo does
+#   NOT silently succeed or give a misleading message — it must clearly tell the
+#   user that the deployment's cluster is unreachable.
 # ---------------------------------------------------------------------------
-step "Step 6: Re-create deployment config (should detect stale local config)"
+step "Step 6: Run 'ledger account create' — should fail (cluster is gone)"
+
+set +e
+${SOLO_CMD} ledger account create \
+  --deployment "${DEPLOYMENT}" 2>&1 | tee "${ACCOUNT_LOG}"
+ACCOUNT_EXIT=${PIPESTATUS[0]}
+set -e
+
+if grep -q "${EXPECTED_ACCOUNT_ERR}" "${ACCOUNT_LOG}"; then
+  echo "✅  'ledger account create' correctly reported a cluster-connection error."
+  echo "    Found expected error: \"${EXPECTED_ACCOUNT_ERR}\""
+else
+  echo "❌  Expected cluster-connection error NOT found in 'ledger account create' output."
+  echo "    Searched for: \"${EXPECTED_ACCOUNT_ERR}\""
+  exit 1
+fi
+
+if [[ ${ACCOUNT_EXIT} -eq 0 ]]; then
+  echo "❌  'ledger account create' unexpectedly succeeded (exit code 0)."
+  echo "    It should have failed because the cluster no longer exists."
+  exit 1
+fi
+
+echo "✅  'ledger account create' failed as expected (exit code ${ACCOUNT_EXIT})."
+
+# ---------------------------------------------------------------------------
+# Step 7 – Re-create deployment config (should detect stale entry and proceed)
+# ---------------------------------------------------------------------------
+step "Step 7: Re-create deployment config (should detect stale local config)"
 
 # Capture stdout+stderr to check for the expected message.
 # Also tee to terminal so CI logs remain readable.
@@ -158,9 +197,9 @@ REDEPLOY_EXIT=${PIPESTATUS[0]}
 set -e
 
 # ---------------------------------------------------------------------------
-# Step 7 – Verify the stale-config warning appeared
+# Step 8 – Verify the stale-config warning appeared
 # ---------------------------------------------------------------------------
-step "Step 7: Verify stale-config detection message"
+step "Step 8: Verify stale-config detection message"
 
 if grep -q "${EXPECTED_MSG}" "${REDEPLOY_LOG}"; then
   echo "✅  Stale config detection is working correctly."
