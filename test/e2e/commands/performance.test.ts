@@ -17,6 +17,7 @@ import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../src/commands/command-definitions/deployment-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -160,6 +161,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
 
+          testLogger.info(`${testName}: collecting ${deployment} deployment diagnostics logs`);
+          await main(soloDeploymentDiagnosticsLogs(testName, deployment));
+
           await preDestroy(endToEndTestSuite);
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
@@ -286,6 +290,20 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloDeploymentDiagnosticsLogs(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push(
+    DeploymentCommandDefinition.COMMAND_NAME,
+    DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
+    DeploymentCommandDefinition.DIAGNOSTICS_LOGS,
+    optionFromFlag(Flags.deployment),
+    deployment,
+  );
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

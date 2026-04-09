@@ -215,10 +215,7 @@ jobs:
           trap - SIGTERM SIGINT
 
           if [ "${TASK_RC}" -ne 0 ]; then
-            echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
-            TEST_CACHE_DIR="test/data/tmp/performance-tests"
-            SOLO_CACHE_DIR="${TEST_CACHE_DIR}" npm run solo-test -- deployment diagnostics logs \
-              -q --dev || true
+            echo "task test-e2e-performance failed with exit code ${TASK_RC}. "
             exit "${TASK_RC}"
           fi
 
