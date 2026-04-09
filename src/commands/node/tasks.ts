@@ -2214,7 +2214,7 @@ export class NodeCommandTasks {
       task: async ({config: {namespace, contexts}}): Promise<void> => {
         await container
           .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
-          .getLogs(namespace, contexts, outputDirectory || undefined, excludeSensitiveData);
+          .getLogs(namespace, contexts, outputDirectory, excludeSensitiveData);
       },
     };
   }
@@ -2395,7 +2395,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public getHelmChartValues(outputDirectory: string = ''): SoloListrTask<AnyListrContext> {
+  public getHelmChartValues(outputDirectory?: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get Helm chart values from all releases',
       task: async (): Promise<void> => {
