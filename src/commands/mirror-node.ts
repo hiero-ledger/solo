@@ -63,6 +63,7 @@ import yaml from 'yaml';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
+import {SoloErrorCode} from '../core/errors/solo-error-code.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -1111,6 +1112,20 @@ END $grant$;`;
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            try {
+              this.localConfig.configuration.realmForDeployment('sdsdsdsds');
+            } catch (error) {
+              throw SoloError.withCode(
+                SoloErrorCode.POD_NOT_READY,
+                {
+                  pod: 'POD1',
+                  namespace: 'sdsdsds',
+                  timeout: '9999',
+                },
+                error,
+              );
+            }
+
             await this.localConfig.load();
             await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
