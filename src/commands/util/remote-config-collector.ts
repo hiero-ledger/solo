@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import yaml from 'yaml';
 import * as constants from '../../core/constants.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -9,6 +10,43 @@ import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {type Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+
+/**
+ * Scan all kubeconfig contexts for solo remote-config ConfigMaps and return a map of
+ * deployment name → namespace.  Contexts that are unreachable are skipped with a warning.
+ */
+export async function findDeploymentsFromRemoteConfig(
+  k8Factory: K8Factory,
+  logger: SoloLogger,
+): Promise<Map<string, string>> {
+  const deploymentNamespaceMap: Map<string, string> = new Map<string, string>();
+  const contextList: string[] = k8Factory.default().contexts().list();
+  for (const context of contextList) {
+    try {
+      const configMaps: ConfigMap[] = await k8Factory
+        .getK8(context)
+        .configMaps()
+        .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
+      for (const configMap of configMaps) {
+        const remoteConfigData: Record<string, unknown> = yaml.parse(
+          configMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY],
+        ) as Record<string, unknown>;
+        const clusters: unknown = remoteConfigData.clusters;
+        if (Array.isArray(clusters)) {
+          for (const cluster of clusters) {
+            const deployment: unknown = (cluster as Record<string, unknown>).deployment;
+            if (deployment && typeof deployment === 'string') {
+              deploymentNamespaceMap.set(deployment, configMap.namespace.name);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to scan remote config in context ${context}: ${(error as Error).message}`);
+    }
+  }
+  return deploymentNamespaceMap;
+}
 
 export class RemoteConfigCollector {
   public constructor(

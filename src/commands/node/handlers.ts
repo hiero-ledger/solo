@@ -41,9 +41,8 @@ import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.
 import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
+import {findDeploymentsFromRemoteConfig} from '../util/remote-config-collector.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
-import yaml from 'yaml';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -711,7 +710,7 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (validDeployments.length === 0) {
-      const remoteDeployments: Map<string, string> = await this.findDeploymentsFromRemoteConfig();
+      const remoteDeployments: Map<string, string> = await findDeploymentsFromRemoteConfig(this.k8Factory, this.logger);
       if (remoteDeployments.size === 0) {
         throw new SoloError(
           `No deployments found in local or remote config. Please provide --${flags.deployment.name} or create a deployment first.`,
@@ -762,36 +761,6 @@ export class NodeCommandHandlers extends CommandHandler {
     })) as string;
     argv[flags.deployment.name] = selectedDeployment;
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
-  }
-
-  private async findDeploymentsFromRemoteConfig(): Promise<Map<string, string>> {
-    const deploymentNamespaceMap: Map<string, string> = new Map<string, string>();
-    const contextList: string[] = this.k8Factory.default().contexts().list();
-    for (const context of contextList) {
-      try {
-        const configMaps: ConfigMap[] = await this.k8Factory
-          .getK8(context)
-          .configMaps()
-          .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
-        for (const configMap of configMaps) {
-          const remoteConfigData: Record<string, unknown> = yaml.parse(
-            configMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY],
-          ) as Record<string, unknown>;
-          const clusters: unknown = remoteConfigData.clusters;
-          if (Array.isArray(clusters)) {
-            for (const cluster of clusters) {
-              const deployment: unknown = (cluster as Record<string, unknown>).deployment;
-              if (deployment && typeof deployment === 'string') {
-                deploymentNamespaceMap.set(deployment, configMap.namespace.name);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        this.logger.warn(`Failed to scan remote config in context ${context}: ${(error as Error).message}`);
-      }
-    }
-    return deploymentNamespaceMap;
   }
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
