@@ -272,53 +272,55 @@ jobs:
 
       - name: Bootstrap WSL Toolchain
         if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: 20
         run: |
-          set -euo pipefail
-
-          sudo apt-get update
-          sudo apt-get install -y \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gawk \
-            gnupg \
-            jq \
-            lsb-release \
-            software-properties-common
-
-          # Docker Engine inside WSL
-          sudo install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-          # Helm repo
-          curl https://baltocdn.com/helm/signing.asc | sudo gpg --dearmor -o /usr/share/keyrings/helm.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | \
-            sudo tee /etc/apt/sources.list.d/helm-stable-debian.list > /dev/null
-
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io helm
-
-          # Start Docker
-          sudo service docker start
-          sudo docker version
-
-          # kind
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v${{ inputs.kind-version }}/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
-          kind --version
-
-          # kubectl
-          curl -Lo ./kubectl https://dl.k8s.io/release/v${{ inputs.kubectl-version }}/bin/linux/amd64/kubectl
-          chmod +x ./kubectl
-          sudo mv ./kubectl /usr/local/bin/kubectl
-          kubectl version --client
+          wsl bash -lc '
+            set -euo pipefail
+    
+            sudo apt-get update
+            sudo apt-get install -y \
+              apt-transport-https \
+              ca-certificates \
+              curl \
+              gawk \
+              gnupg \
+              jq \
+              lsb-release \
+              software-properties-common
+    
+            # Docker Engine inside WSL
+            sudo install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+              sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+            # Helm repo
+            curl https://baltocdn.com/helm/signing.asc | sudo gpg --dearmor -o /usr/share/keyrings/helm.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | \
+              sudo tee /etc/apt/sources.list.d/helm-stable-debian.list > /dev/null
+    
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io helm
+    
+            # Start Docker
+            sudo service docker start
+            sudo docker version
+    
+            # kind
+            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v${{ inputs.kind-version }}/kind-linux-amd64
+            chmod +x ./kind
+            sudo mv ./kind /usr/local/bin/kind
+            kind --version
+    
+            # kubectl
+            curl -Lo ./kubectl https://dl.k8s.io/release/v${{ inputs.kubectl-version }}/bin/linux/amd64/kubectl
+            chmod +x ./kubectl
+            sudo mv ./kubectl /usr/local/bin/kubectl
+            kubectl version --client
+          '
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
