@@ -38,12 +38,12 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
-const defaultTimeout = Duration.ofSeconds(20).toMillis();
+const defaultTimeout: number = Duration.ofSeconds(20).toMillis();
 
-const testName = 'account-cmd-e2e';
+const testName: string = 'account-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
-const testSystemAccounts = [[3, 5]];
-const argv = Argv.getDefaultArgv(namespace);
+const testSystemAccounts: number[][] = [[3, 5]];
+const argv: Argv = Argv.getDefaultArgv(namespace);
 argv.setArg(flags.forcePortForward, true);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);

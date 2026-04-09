@@ -43,6 +43,8 @@ const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
+let currentTestDeployment: string | undefined;
+let currentTestNamespace: string | undefined;
 
 // When the workflow cancels this step (e.g. due to a new commit superseding the PR),
 // go-task forwards SIGTERM to this process' process group before SIGKILL reaches task.
@@ -51,7 +53,7 @@ let events: string[] = [];
 // minutes. Force-exit immediately so the runner can move on without waiting.
 process.on('SIGTERM', (): void => {
   clearInterval(metricsInterval);
-  process.exit(143); // 128 + SIGTERM(15)
+  throw new Error('Received SIGTERM, terminating performance test');
 });
 const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
@@ -66,6 +68,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
       describe(testTitle, (): void => {
         const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
+        currentTestDeployment = deployment;
+        currentTestNamespace = namespace.name;
 
         // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
         before(async (): Promise<void> => {
@@ -245,6 +249,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 async function getNamespaceFromDeployment(): Promise<string> {
+  if (currentTestNamespace) {
+    return currentTestNamespace;
+  }
+
   const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
   const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
     InjectTokens.LocalConfigRuntimeState,
@@ -324,7 +332,8 @@ export function soloRapidFire(
 ): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
-  const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
+  const deploymentName: string =
+    currentTestDeployment ?? fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
   const argv: string[] = newArgv();
   argv.push(
     'rapid-fire',
