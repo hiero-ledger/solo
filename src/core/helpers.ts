@@ -931,16 +931,26 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     const extraEnvironmentVariables: EnvironmentVariable[] = [
       ...(options.baseExtraEnvironmentVariables?.[consensusNode.name] ?? []),
     ];
+    const setExtraEnvironmentVariable = (name: string, value: string): void => {
+      const environmentVariableIndex: number = extraEnvironmentVariables.findIndex(
+        (environmentVariable): boolean => environmentVariable.name === name,
+      );
+      if (environmentVariableIndex === -1) {
+        extraEnvironmentVariables.push({name, value});
+      } else {
+        extraEnvironmentVariables[environmentVariableIndex].value = value;
+      }
+    };
 
     // Add JAVA_MAIN_CLASS for tools/local builds
     if (options.useJavaMainClass) {
-      extraEnvironmentVariables.push({name: 'JAVA_MAIN_CLASS', value: 'com.swirlds.platform.Browser'});
+      setExtraEnvironmentVariable('JAVA_MAIN_CLASS', 'com.swirlds.platform.Browser');
     }
 
     // Add TSS wraps if enabled
     if (options.wrapsEnabled && options.tss) {
       const wrapPath: string = `${constants.HEDERA_HAPI_PATH}/${options.tss.wraps.artifactsFolderName}`;
-      extraEnvironmentVariables.push({name: 'TSS_LIB_WRAPS_ARTIFACTS_PATH', value: wrapPath});
+      setExtraEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_PATH', wrapPath);
     }
 
     // Override JAVA_OPTS for debug mode if this is the debug node
