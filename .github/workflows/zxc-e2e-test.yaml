@@ -406,9 +406,14 @@ jobs:
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             if [[ "$RUNNER_OS" != "Windows" ]]; then
-              SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+              SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} \
+              ${{ env.CG_EXEC }} \
+              ./test/e2e/dual-cluster/setup-dual-e2e.sh
             else
-              SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+              SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} \
+              SOLO_CLUSTER_CREATE_ONLY=true \
+              SOLO_KUBECONFIG_PATH=/tmp/${SOLO_TEST_CLUSTER}.kubeconfig \
+              ./test/e2e/dual-cluster/setup-dual-e2e.sh
             fi
 
       - name: Build Block Code Locally
