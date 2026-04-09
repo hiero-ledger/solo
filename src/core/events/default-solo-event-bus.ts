@@ -7,6 +7,8 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {type SoloEventBus} from './solo-event-bus.js';
+import {Duration} from '../time/duration.js';
+import {SoloError} from '../errors/solo-error.js';
 
 @injectable()
 export class DefaultSoloEventBus implements SoloEventBus {
@@ -51,8 +53,16 @@ export class DefaultSoloEventBus implements SoloEventBus {
     }
   }
 
-  public async waitFor<T extends AnySoloEvent>(type: SoloEventType, predicate?: (event: T) => boolean): Promise<T> {
-    return new Promise<T>((resolve: (value: T | PromiseLike<T>) => void): void => {
+  public async waitFor<T extends AnySoloEvent>(
+    type: SoloEventType,
+    predicate?: (event: T) => boolean,
+    timeout: Duration = Duration.ofSeconds(60),
+  ): Promise<T> {
+    return new Promise<T>((resolve: (value: T | PromiseLike<T>) => void, reject: (reason: unknown) => void): void => {
+      const timer: NodeJS.Timeout = setTimeout((): void => {
+        this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
+        reject(new SoloError(`waitFor timed out after ${timeout.toMillis()}ms waiting for event type: ${String(type)}`));
+      }, timeout.toMillis());
       // Ensure we only resolve once if handler and history check race.
       let settled: boolean = false;
       // Register handler first to avoid missing events that arrive while
@@ -64,6 +74,7 @@ export class DefaultSoloEventBus implements SoloEventBus {
               return;
             }
             settled = true;
+            clearTimeout(timer);
             this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
             resolve(event);
           }
@@ -85,6 +96,7 @@ export class DefaultSoloEventBus implements SoloEventBus {
                 return;
               }
               settled = true;
+              clearTimeout(timer);
               this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
               resolve(candidate);
               return;

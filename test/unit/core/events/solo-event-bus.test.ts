@@ -11,6 +11,8 @@ import {MirrorNodeDeployedEvent} from '../../../../src/core/events/event-types/m
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {Duration} from '../../../../src/core/time/duration.js';
+import {SoloError} from '../../../../src/core/errors/solo-error.js';
 
 describe('SoloEventBus', (): void => {
   let bus: SoloEventBus;
@@ -186,6 +188,37 @@ describe('SoloEventBus', (): void => {
     const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
     const result: NetworkDeployedEvent = await promise;
     expect(result).to.equal(networkEvent);
+  });
+
+  describe('waitFor() timeout', (): void => {
+    it('should reject with a SoloError when the timeout elapses before the event is emitted', async (): Promise<void> => {
+      const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(
+        SoloEventType.NetworkDeployed,
+        undefined,
+        Duration.ofMillis(10),
+      );
+      await expect(promise).to.be.rejectedWith(SoloError, /timed out/);
+    });
+
+    it('should resolve before the timeout if the event arrives in time', async (): Promise<void> => {
+      const promise: Promise<NetworkDeployedEvent> = bus.waitFor<NetworkDeployedEvent>(
+        SoloEventType.NetworkDeployed,
+        undefined,
+        Duration.ofMillis(100),
+      );
+      bus.emit(networkEvent);
+      expect(await promise).to.equal(networkEvent);
+    });
+
+    it('should resolve immediately from history before the timeout fires', async (): Promise<void> => {
+      bus.emit(networkEvent);
+      const result: NetworkDeployedEvent = await bus.waitFor<NetworkDeployedEvent>(
+        SoloEventType.NetworkDeployed,
+        undefined,
+        Duration.ofMillis(10),
+      );
+      expect(result).to.equal(networkEvent);
+    });
   });
 
   describe('clearHistory()', (): void => {

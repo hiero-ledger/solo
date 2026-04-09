@@ -852,6 +852,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       await this.eventBus.waitFor(
                         SoloEventType.MirrorNodeDeployed,
                         (soloEvent: MirrorNodeDeployedEvent): boolean => soloEvent.deployment === config.deployment,
+                        Duration.ofMinutes(5),
                       );
                       const argv: string[] = newArgv();
                       argv.push(
@@ -879,10 +880,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       await this.eventBus.waitFor(
                         SoloEventType.MirrorNodeDeployed,
                         (soloEvent: MirrorNodeDeployedEvent): boolean => soloEvent.deployment === config.deployment,
+                        Duration.ofMinutes(5),
                       );
                       await this.eventBus.waitFor(
                         SoloEventType.NodesStarted,
                         (soloEvent: NodesStartedEvent): boolean => soloEvent.deployment === config.deployment,
+                        Duration.ofMinutes(5),
                       );
                       const argv: string[] = newArgv();
                       argv.push(
