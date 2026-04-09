@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-if [[ "${SOLO_CLUSTER_SETUP_ONLY,,}" != "true" ]]; then
+if [[ "${SOLO_CLUSTER_CREATE_ONLY,,}" != "true" ]]; then
   task build:compile
   # install dependencies in case they haven't been installed yet, and cache args for subsequent commands
   npm run solo -- init || exit 1
@@ -124,7 +124,7 @@ done
 # **********************************************************************************************************************
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 
-if [[ "${SOLO_CLUSTER_SETUP_ONLY,,}" != "true" ]]; then
+if [[ "${SOLO_CLUSTER_CREATE_ONLY,,}" != "true" ]]; then
   for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
     kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c${i}"
     npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
@@ -133,6 +133,6 @@ if [[ "${SOLO_CLUSTER_SETUP_ONLY,,}" != "true" ]]; then
 
   kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c1"
 else
-  echo "Skipping task/npm calls (SOLO_CLUSTER_SETUP_ONLY=true)"
+  echo "Skipping task/npm calls (SOLO_CLUSTER_CREATE_ONLY=true)"
 fi
 sleep 10 # give time for solo-setup to finish deploying
