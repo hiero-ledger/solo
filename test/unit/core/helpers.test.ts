@@ -7,8 +7,9 @@ import {Flags as flags} from '../../../src/commands/flags.js';
 
 import * as helpers from '../../../src/core/helpers.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
+import {type NodeAlias} from '../../../src/types/aliases.js';
 
-function makeConsensusNode(name: string, nodeId: number): ConsensusNode {
+function makeConsensusNode(name: NodeAlias, nodeId: number): ConsensusNode {
   return new ConsensusNode(
     name,
     nodeId,
