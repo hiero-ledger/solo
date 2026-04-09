@@ -942,17 +942,19 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
     // Override JAVA_OPTS for debug mode if this is the debug node
     if (options.debugNodeAlias === consensusNode.name) {
+      const debugJavaOptions: string =
+        `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
       const javaOptionsIndex: number = extraEnvironmentVariables.findIndex(
         (environmentVariable): boolean => environmentVariable.name === 'JAVA_OPTS',
       );
       if (javaOptionsIndex === -1) {
         extraEnvironmentVariables.push({
           name: 'JAVA_OPTS',
-          value: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`,
+          value: debugJavaOptions,
         });
       } else {
         extraEnvironmentVariables[javaOptionsIndex].value =
-          `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
+          `${debugJavaOptions} ${extraEnvironmentVariables[javaOptionsIndex].value}`.trim();
       }
     }
 
