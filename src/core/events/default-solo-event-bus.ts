@@ -43,6 +43,14 @@ export class DefaultSoloEventBus implements SoloEventBus {
     this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
   }
 
+  public clearHistory(type?: SoloEventType): void {
+    if (type === undefined) {
+      this.history.clear();
+    } else {
+      this.history.delete(type);
+    }
+  }
+
   public async waitFor<T extends AnySoloEvent>(type: SoloEventType, predicate?: (event: T) => boolean): Promise<T> {
     return new Promise<T>((resolve: (value: T | PromiseLike<T>) => void): void => {
       // Ensure we only resolve once if handler and history check race.

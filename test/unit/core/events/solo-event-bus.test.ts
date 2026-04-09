@@ -187,4 +187,67 @@ describe('SoloEventBus', (): void => {
     const result: NetworkDeployedEvent = await promise;
     expect(result).to.equal(networkEvent);
   });
+
+  describe('clearHistory()', (): void => {
+    it('should prevent waitFor() from resolving against a cleared event type', async (): Promise<void> => {
+      bus.emit(networkEvent);
+      bus.clearHistory(SoloEventType.NetworkDeployed);
+
+      let resolved: boolean = false;
+      bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed).then((): void => {
+        resolved = true;
+      });
+      await Promise.resolve();
+      expect(resolved).to.be.false;
+    });
+
+    it('should not affect history for other event types when clearing a specific type', async (): Promise<void> => {
+      bus.emit(networkEvent);
+      bus.emit(mirrorEvent);
+      bus.clearHistory(SoloEventType.NetworkDeployed);
+
+      // mirror history should still resolve waitFor immediately
+      const result: MirrorNodeDeployedEvent = await bus.waitFor<MirrorNodeDeployedEvent>(
+        SoloEventType.MirrorNodeDeployed,
+      );
+      expect(result).to.equal(mirrorEvent);
+    });
+
+    it('should clear all event type histories when called with no argument', async (): Promise<void> => {
+      bus.emit(networkEvent);
+      bus.emit(mirrorEvent);
+      bus.clearHistory();
+
+      let networkResolved: boolean = false;
+      let mirrorResolved: boolean = false;
+      bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed).then((): void => {
+        networkResolved = true;
+      });
+      bus.waitFor<MirrorNodeDeployedEvent>(SoloEventType.MirrorNodeDeployed).then((): void => {
+        mirrorResolved = true;
+      });
+      await Promise.resolve();
+      expect(networkResolved).to.be.false;
+      expect(mirrorResolved).to.be.false;
+    });
+
+    it('should allow new events to be recorded after history is cleared', async (): Promise<void> => {
+      bus.emit(networkEvent);
+      bus.clearHistory(SoloEventType.NetworkDeployed);
+
+      const newEvent: NetworkDeployedEvent = new NetworkDeployedEvent('new-deployment');
+      bus.emit(newEvent);
+
+      const result: NetworkDeployedEvent = await bus.waitFor<NetworkDeployedEvent>(SoloEventType.NetworkDeployed);
+      expect(result).to.equal(newEvent);
+    });
+
+    it('should be a no-op when called on a type with no recorded history', (): void => {
+      expect((): void => bus.clearHistory(SoloEventType.NetworkDeployed)).not.to.throw();
+    });
+
+    it('should be a no-op when called with no argument on an empty bus', (): void => {
+      expect((): void => bus.clearHistory()).not.to.throw();
+    });
+  });
 });

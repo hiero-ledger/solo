@@ -7,4 +7,5 @@ export interface SoloEventBus {
   on<T extends AnySoloEvent>(type: SoloEventType, handler: (event: T) => void): void;
   off<T extends AnySoloEvent>(type: SoloEventType, handler: (event: T) => void): void;
   waitFor<T extends AnySoloEvent>(type: SoloEventType, predicate?: (event: T) => boolean): Promise<T>;
+  clearHistory(type?: SoloEventType): void;
 }
