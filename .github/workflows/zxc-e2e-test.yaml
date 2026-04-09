@@ -401,7 +401,7 @@ jobs:
         with:
           max_attempts: 3
           timeout_minutes: 10
-          shell: bash
+          shell: ${{ runner.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
           command: |
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
