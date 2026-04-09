@@ -217,13 +217,7 @@ jobs:
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
             TEST_CACHE_DIR="test/data/tmp/performance-tests"
-            TEST_DEPLOYMENT=""
-            if [ -f "${TEST_CACHE_DIR}/last-one-shot-deployment.txt" ]; then
-              TEST_DEPLOYMENT="$(tr -d '\r\n' < "${TEST_CACHE_DIR}/last-one-shot-deployment.txt")"
-            fi
-            TEST_DEPLOYMENT="${TEST_DEPLOYMENT:-performance-tests-deployment}"
             SOLO_CACHE_DIR="${TEST_CACHE_DIR}" npm run solo-test -- deployment diagnostics logs \
-              ${TEST_DEPLOYMENT:+--deployment "${TEST_DEPLOYMENT}"} \
               -q --dev || true
             exit "${TASK_RC}"
           fi
