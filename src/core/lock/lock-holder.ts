@@ -146,6 +146,10 @@ export class LockHolder {
    * @returns true if the process is stopped/suspended; false otherwise or if indeterminate.
    */
   private static isProcessStopped(processId: number): boolean {
+    // Validate that processId is a positive integer to prevent unexpected behaviour
+    if (!Number.isInteger(processId) || processId <= 0) {
+      return false;
+    }
     try {
       if (process.platform === 'linux') {
         const status: string = readFileSync(`/proc/${processId}/status`, 'utf8');

@@ -6,6 +6,9 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import process from 'node:process';
 import {LockHolder} from '../../../src/core/lock/lock-holder.js';
 
+/** A PID large enough that it is virtually guaranteed not to exist on any platform. */
+const NON_EXISTENT_PID: number = 2_147_483_647;
+
 describe('LockHolder', (): void => {
   describe('isProcessAlive', (): void => {
     it('should return true for the current running process', (): void => {
@@ -15,7 +18,7 @@ describe('LockHolder', (): void => {
 
     it('should return false for a non-existent process', (): void => {
       const holder: LockHolder = LockHolder.fromJson(
-        JSON.stringify({username: 'testuser', hostname: 'testhost', pid: 2_147_483_647}),
+        JSON.stringify({username: 'testuser', hostname: 'testhost', pid: NON_EXISTENT_PID}),
       );
       expect(holder.isProcessAlive()).to.be.false;
     });
