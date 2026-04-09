@@ -121,6 +121,7 @@ describe('DiagnosticsReporter', (): void => {
         soloVersion: '1.2.3',
         deployment: 'my-deploy',
         timestamp: '2026-04-01T10-00-00',
+        analysisDirectory: '/tmp/analysis',
         zipFilePath: '/tmp/solo-debug.zip',
       });
 
@@ -136,6 +137,7 @@ describe('DiagnosticsReporter', (): void => {
         soloVersion: '1.0.0',
         deployment: '',
         timestamp: '2026-04-01T10-00-00',
+        analysisDirectory: '/tmp/analysis',
       });
 
       expect(body).to.include('(not specified)');
@@ -161,7 +163,12 @@ describe('DiagnosticsReporter', (): void => {
         signal: undefined,
       } as SpawnSyncReturns<string>);
 
-      const url: string = await DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body');
+      const url: string = await DiagnosticsReporter.createGitHubIssue(
+        loggerStub,
+        'Test Title',
+        'Test Body',
+        '/tmp/analysis',
+      );
 
       expect(url).to.equal(expectedUrl);
       expect(executeGhCommandStub).to.have.been.calledOnce;
@@ -177,10 +184,9 @@ describe('DiagnosticsReporter', (): void => {
         signal: undefined,
       } as SpawnSyncReturns<string>);
 
-      await expect(DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body')).to.be.rejectedWith(
-        SoloError,
-        /Failed to create GitHub issue/,
-      );
+      await expect(
+        DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body', '/tmp/analysis'),
+      ).to.be.rejectedWith(SoloError, /Failed to create GitHub issue/);
     });
   });
 });

@@ -668,9 +668,9 @@ export class NodeCommandHandlers extends CommandHandler {
 
     this.logger.showUser(
       chalk.yellow(
-        '\n⚠  Warning: Collected diagnostic data may contain sensitive node configuration\n' +
-          '   (TLS certificates, onboard data). Store it securely and do not share publicly\n' +
-          '   without reviewing the contents first. Private keys under data/keys are NOT included.',
+        '\n⚠  Warning: Collected diagnostic data contains sensitive node configuration\n' +
+          '   (TLS certificates, private keys, onboard data). Store it securely and do\n' +
+          '   not share publicly without reviewing the contents first.',
       ),
     );
 
@@ -799,6 +799,13 @@ export class NodeCommandHandlers extends CommandHandler {
 
     this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
     this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠  Warning: The debug archive contains sensitive node configuration\n' +
+          '   (TLS certificates, private keys, onboard data). Review its contents\n' +
+          '   before sharing. Private keys under data/keys are NOT excluded.',
+      ),
+    );
 
     try {
       await this.zippy.zip(outputDirectory, zipFilePath);
@@ -851,6 +858,9 @@ export class NodeCommandHandlers extends CommandHandler {
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
+    // Resolve deployment before calling collectDebug() so it's available for the issue title/body
+    await this.resolveDeploymentForLogs(argv);
+
     await DiagnosticsReporter.runDiagnosticsReport({
       logger: this.logger,
       deployment: this.resolveDeploymentFlag(argv),
