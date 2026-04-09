@@ -140,8 +140,9 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUserError(error: unknown): void {
     // Build chain of causes (up to 10 deep)
-    const errorObject: {message?: unknown; stack?: string; cause?: unknown} | undefined =
-      error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
+    const errorObject: {message?: unknown; stack?: string; cause?: unknown} | undefined = error as
+      | {message?: unknown; stack?: string; cause?: unknown}
+      | undefined;
     const stack: {message: string; stacktrace?: string}[] = [
       {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
     ];
@@ -150,8 +151,11 @@ export class SoloPinoLogger implements SoloLogger {
       let depth: number = 0;
       let cause: unknown = errorObject.cause;
       while (cause && depth < 10) {
-        const c: {message?: unknown; stack?: string; cause?: unknown} =
-          cause as {message?: unknown; stack?: string; cause?: unknown};
+        const c: {message?: unknown; stack?: string; cause?: unknown} = cause as {
+          message?: unknown;
+          stack?: string;
+          cause?: unknown;
+        };
         if (c.stack) {
           stack.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
         }
