@@ -369,7 +369,8 @@ export class DiagnosticsAnalyzer {
     this.logger.showUser(`  Found ${soloLogFiles.length} solo log file(s)`);
 
     const errorPattern: RegExp = /\]\s+ERROR:/;
-    const ansiPattern: RegExp = /\u001B\[[0-9;]*m/g;
+    // eslint-disable-next-line no-control-regex
+    const ansiPattern: RegExp = new RegExp('\u001B\\[[0-9;]*m', 'g');
     const traceIdPattern: RegExp = /\s+\[traceId="[^"]*"\]/g;
 
     for (const soloLogFile of soloLogFiles) {

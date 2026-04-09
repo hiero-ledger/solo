@@ -134,10 +134,11 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUserError(error: unknown): void {
     // Build chain of causes (up to 10 deep)
-    const errorObject: {message?: unknown; stack?: string; cause?: unknown} | undefined =
-      error as
-        | {message?: unknown; stack?: string; cause?: unknown}
-        | undefined;
+    const errorObject:
+      | {message?: unknown; stack?: string; cause?: unknown}
+      | undefined = error as
+      | {message?: unknown; stack?: string; cause?: unknown}
+      | undefined;
     const stack: {message: string; stacktrace?: string}[] = [
       {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
     ];
