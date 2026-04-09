@@ -109,6 +109,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
+          try {
+            testLogger.info(`${testName}: collecting ${deployment} deployment diagnostics logs`);
+            await main(soloDeploymentDiagnosticsLogs(testName, deployment));
+          } catch (error) {
+            testLogger.warn(`${testName}: failed to collect deployment diagnostics logs: ${(error as Error).message}`);
+          }
+
           // read all logged metrics and parse the JSON
           const namespace: string = await getNamespaceFromDeployment();
           const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
@@ -164,9 +171,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(tartgetDirectory, `${namespace}.json`),
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
-
-          testLogger.info(`${testName}: collecting ${deployment} deployment diagnostics logs`);
-          await main(soloDeploymentDiagnosticsLogs(testName, deployment));
 
           await preDestroy(endToEndTestSuite);
 
