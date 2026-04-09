@@ -907,10 +907,12 @@ type PerNodeExtraEnvironmentValues = {
  */
 export function sanitizeJavaOptionsForHeapSettings(javaOptions: string): string {
   // Remove any existing -Xms or -Xmx arguments to prevent conflicts
-  // with JAVA_HEAP_MIN and JAVA_HEAP_MAX environment variables
+  // with JAVA_HEAP_MIN and JAVA_HEAP_MAX environment variables.
+  // Supports both attached (-Xms512m, -Xmx2g) and spaced
+  // (-Xms 512m, -Xmx 2g) JVM option forms.
   return javaOptions
-    .replaceAll(/-Xms\S+/g, '')
-    .replaceAll(/-Xmx\S+/g, '')
+    .replaceAll(/(^|\s)-Xms\s*\S+/g, '$1')
+    .replaceAll(/(^|\s)-Xmx\s*\S+/g, '$1')
     .replaceAll(/\s+/g, ' ')
     .trim();
 }
