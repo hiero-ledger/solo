@@ -16,6 +16,8 @@ export type DiagnosticsIssueBodyOptions = {
   soloVersion: string;
   deployment: string;
   timestamp: string;
+  /** Directory where diagnostics-analysis.txt was written by DiagnosticsAnalyzer. */
+  analysisDirectory: string;
   /** Absolute path to the debug zip archive, if one was created. */
   zipFilePath?: string;
 };
@@ -45,6 +47,12 @@ export class DiagnosticsReporter {
 
     const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
     const startTime: number = Date.now();
+    // DiagnosticsAnalyzer writes diagnostics-analysis.txt into the hiero-components-logs
+    // subdirectory when using the default output path, or directly into the custom directory.
+    const analysisDirectory: string =
+      outputDirectory === constants.SOLO_LOGS_DIR
+        ? PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs')
+        : outputDirectory;
 
     await collectDebug();
 
@@ -52,7 +60,7 @@ export class DiagnosticsReporter {
       throw new SoloError(
         'The GitHub CLI (gh) is required for this command but was not found.\n' +
           'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
-          `Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`,
+          `Diagnostic logs are available at: ${analysisDirectory}`,
       );
     }
 
@@ -63,7 +71,13 @@ export class DiagnosticsReporter {
     );
     const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
     const issueTitle: string = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
-    const issueBody: string = DiagnosticsReporter.buildIssueBody({soloVersion, deployment, timestamp, zipFilePath});
+    const issueBody: string = DiagnosticsReporter.buildIssueBody({
+      soloVersion,
+      deployment,
+      timestamp,
+      analysisDirectory,
+      zipFilePath,
+    });
 
     if (!isQuiet) {
       logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
@@ -95,7 +109,7 @@ export class DiagnosticsReporter {
     }
 
     logger.showUser(chalk.cyan('\nCreating GitHub issue...'));
-    await DiagnosticsReporter.createGitHubIssue(logger, issueTitle, issueBody, zipFilePath);
+    await DiagnosticsReporter.createGitHubIssue(logger, issueTitle, issueBody, analysisDirectory, zipFilePath);
   }
 
   /**
@@ -169,8 +183,8 @@ export class DiagnosticsReporter {
    * information.
    */
   public static buildIssueBody(options: DiagnosticsIssueBodyOptions): string {
-    const {soloVersion, deployment, timestamp, zipFilePath} = options;
-    const analysisContent: string = DiagnosticsReporter.readAnalysisContent(constants.SOLO_LOGS_DIR);
+    const {soloVersion, deployment, timestamp, analysisDirectory, zipFilePath} = options;
+    const analysisContent: string = DiagnosticsReporter.readAnalysisContent(analysisDirectory);
 
     const lines: string[] = [
       '## Solo Diagnostic Report',
@@ -180,7 +194,7 @@ export class DiagnosticsReporter {
       `- **Timestamp**: ${timestamp}`,
       `- **Platform**: ${os.platform()} ${os.release()}`,
       `- **Node.js**: ${process.version}`,
-      `- **Diagnostic logs**: ${constants.SOLO_LOGS_DIR}`,
+      `- **Diagnostic logs**: ${analysisDirectory}`,
     ];
 
     if (zipFilePath) {
@@ -242,6 +256,7 @@ export class DiagnosticsReporter {
     logger: SoloLogger,
     title: string,
     body: string,
+    analysisDirectory: string,
     zipFilePath?: string,
   ): Promise<string> {
     // Write body to a temp file to avoid any shell interpretation of the markdown content.
@@ -273,7 +288,7 @@ export class DiagnosticsReporter {
       if (issueUrl) {
         logger.showUser(chalk.cyan(`  Issue URL: ${issueUrl}`));
       }
-      logger.showUser(chalk.cyan(`  Diagnostic logs: ${constants.SOLO_LOGS_DIR}`));
+      logger.showUser(chalk.cyan(`  Diagnostic logs: ${analysisDirectory}`));
 
       if (zipFilePath && fs.existsSync(zipFilePath)) {
         logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
