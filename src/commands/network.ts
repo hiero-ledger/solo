@@ -1256,6 +1256,9 @@ export class NetworkCommand extends BaseCommand {
             this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
 
             if (wrapsEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
+              this.logger.showUser(
+                `Consensus node version ${currentVersion} does not support TSS or Wraps. Please upgrade to version ${minimumVersion} or later to enable these features.`,
+              );
               throw new SoloError(
                 `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
               );
