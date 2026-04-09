@@ -178,8 +178,10 @@ export class DeploymentCommand extends BaseCommand {
                         break;
                       }
                     }
-                  } catch {
-                    // Cannot connect to cluster - treat as stale
+                  } catch (error: unknown) {
+                    this.logger.debug(
+                      `Could not connect to cluster context '${clusterContext}' for deployment '${deploymentName}': ${error instanceof Error ? error.message : String(error)}. Treating as stale.`,
+                    );
                   }
                 }
               }
