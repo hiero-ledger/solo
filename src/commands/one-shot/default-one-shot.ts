@@ -360,6 +360,25 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
 
+              // Detect and remove stale deployment state left over from a previously interrupted run.
+              // When a deploy is interrupted (e.g. via Ctrl+C) after the local-config entry has been
+              // created but before the deploy completes, re-running the command would fail because
+              // 'deployment config create' throws when the deployment already exists in local config.
+              // By removing the stale entry here we allow the deploy to proceed cleanly.
+              await this.localConfig.load();
+              const staleDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
+                (deployment: Deployment): boolean => deployment.name === config.deployment,
+              );
+              if (staleDeployment) {
+                this.logger.warn(
+                  `Found existing deployment '${config.deployment}' in local config. ` +
+                    'This may be left over from an interrupted previous run. ' +
+                    'Removing the stale entry so the deployment can be re-created.',
+                );
+                this.localConfig.configuration.deployments.remove(staleDeployment);
+                await this.localConfig.persist();
+              }
+
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
               const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
