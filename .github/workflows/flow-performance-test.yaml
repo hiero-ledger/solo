@@ -238,6 +238,13 @@ jobs:
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
+      - name: Collect Deployment Diagnostics Logs
+        if: ${{ !cancelled() && always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+
       - name: Write Log Metrics Message File
         id: log-metrics-file
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
