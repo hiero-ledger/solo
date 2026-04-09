@@ -100,7 +100,7 @@ export class DiagnosticsReporter {
 
       if (!confirmed) {
         logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
-        logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${constants.SOLO_LOGS_DIR}`));
+        logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${analysisDirectory}`));
         if (zipFilePath) {
           logger.showUser(chalk.cyan(`Debug archive: ${zipFilePath}`));
         }

@@ -799,13 +799,15 @@ export class NodeCommandHandlers extends CommandHandler {
 
     this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
     this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
-    this.logger.showUser(
-      chalk.yellow(
-        '\n⚠  Warning: The debug archive contains sensitive node configuration\n' +
-          '   (TLS certificates, private keys, onboard data). Review its contents\n' +
-          '   before sharing. Private keys under data/keys are NOT excluded.',
-      ),
-    );
+    if (!excludeSensitiveData) {
+      this.logger.showUser(
+        chalk.yellow(
+          '\n⚠  Warning: The debug archive contains sensitive node configuration\n' +
+            '   (TLS certificates, private keys, onboard data). Review its contents\n' +
+            '   before sharing. Private keys under data/keys are NOT excluded.',
+        ),
+      );
+    }
 
     try {
       await this.zippy.zip(outputDirectory, zipFilePath);
