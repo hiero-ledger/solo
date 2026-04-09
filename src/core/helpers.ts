@@ -921,8 +921,9 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 ): PerNodeExtraEnvironmentValues {
   const hedera: PerNodeExtraEnvironmentValues['hedera'] = {nodes: []};
 
-  for (const consensusNode of consensusNodes) {
-    const nodeIndex: number = consensusNode.nodeId;
+  for (const [nodeIndex, consensusNode] of consensusNodes.entries()) {
+    // Use the cluster-local position in the provided node list as the Helm chart index.
+    // `nodeId` is not guaranteed to match `hedera.nodes[...]` array positions.
     // Start with env vars from existing values files so Helm array replacement doesn't drop them.
     // Solo-generated entries below will override any conflicts.
     const extraEnvironmentVariables: EnvironmentVariable[] = [
@@ -942,17 +943,19 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
     // Override JAVA_OPTS for debug mode if this is the debug node
     if (options.debugNodeAlias === consensusNode.name) {
+      const debugJavaOptions: string =
+        `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
       const javaOptionsIndex: number = extraEnvironmentVariables.findIndex(
         (environmentVariable): boolean => environmentVariable.name === 'JAVA_OPTS',
       );
       if (javaOptionsIndex === -1) {
         extraEnvironmentVariables.push({
           name: 'JAVA_OPTS',
-          value: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`,
+          value: debugJavaOptions,
         });
       } else {
         extraEnvironmentVariables[javaOptionsIndex].value =
-          `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
+          `${debugJavaOptions} ${extraEnvironmentVariables[javaOptionsIndex].value}`.trim();
       }
     }
 
@@ -1082,10 +1085,11 @@ export function extractExtraEnvironmentFromValuesFiles(
       const existingIndex: number = result[nodeAlias].findIndex(
         (variable: EnvironmentVariable): boolean => variable.name === environmentVariable.name,
       );
+      const environmentVariableClone: EnvironmentVariable = {...environmentVariable};
       if (existingIndex === -1) {
-        result[nodeAlias].push(environmentVariable);
+        result[nodeAlias].push(environmentVariableClone);
       } else {
-        result[nodeAlias][existingIndex] = environmentVariable;
+        result[nodeAlias][existingIndex] = environmentVariableClone;
       }
     }
   }

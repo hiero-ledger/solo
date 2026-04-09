@@ -3279,35 +3279,49 @@ export class NodeCommandTasks {
           this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
 
         if (needsExtraEnvironment) {
-          // Collect extraEnv entries already present in the values files applied so far,
-          // so that the generated file can include them and avoid Helm array replacement
-          // silently dropping env vars set by user-provided values files.
-          const existingValuesFilePaths: string[] = [];
           for (const [clusterReference] of clusterReferences) {
+            // Collect extraEnv entries already present in the values files applied to this
+            // cluster so that the generated file can include them and avoid Helm array
+            // replacement silently dropping env vars set by user-provided values files.
+            const existingValuesFilePaths: string[] = [];
             for (const filePath of helpers.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
               if (!existingValuesFilePaths.includes(filePath)) {
                 existingValuesFilePaths.push(filePath);
               }
             }
-          }
 
-          const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
-            consensusNodes,
-            {
-              wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
-              tss: this.soloConfig.tss,
-              debugNodeAlias: config.debugNodeAlias,
-              useJavaMainClass: false,
-              baseExtraEnvironmentVariables: helpers.extractExtraEnvironmentFromValuesFiles(
-                existingValuesFilePaths,
-                consensusNodes,
-              ),
-            },
-            constants.SOLO_CACHE_DIR,
-          );
+            const clusterLocalNodeIndices = clusterNodeIndexMap.get(clusterReference);
+            const clusterConsensusNodes = [...consensusNodes].sort((leftNode, rightNode): number => {
+              const leftIndex = clusterLocalNodeIndices?.get(leftNode.nodeId);
+              const rightIndex = clusterLocalNodeIndices?.get(rightNode.nodeId);
 
-          // Add the extraEnv values file to all cluster references
-          for (const [clusterReference] of clusterReferences) {
+              if (leftIndex === undefined && rightIndex === undefined) {
+                return 0;
+              }
+              if (leftIndex === undefined) {
+                return 1;
+              }
+              if (rightIndex === undefined) {
+                return -1;
+              }
+
+              return leftIndex - rightIndex;
+            });
+
+            const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
+              clusterConsensusNodes,
+              {
+                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                tss: this.soloConfig.tss,
+                debugNodeAlias: config.debugNodeAlias,
+                useJavaMainClass: false,
+                baseExtraEnvironmentVariables: helpers.extractExtraEnvironmentFromValuesFiles(
+                  existingValuesFilePaths,
+                  clusterConsensusNodes,
+                ),
+              },
+              constants.SOLO_CACHE_DIR,
+            );
             valuesArgumentMap[clusterReference] += ` --values "${extraEnvironmentValuesFile}"`;
           }
         }
