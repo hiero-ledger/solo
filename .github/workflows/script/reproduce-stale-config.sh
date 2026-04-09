@@ -24,6 +24,11 @@
 # Usage (from the root of the solo repository):
 #   .github/workflows/script/reproduce-stale-config.sh
 #
+# Requirements:
+#   kind   - https://kind.sigs.k8s.io/
+#   yq     - https://github.com/mikefarah/yq (used in Step 4 to update the local config YAML)
+#   Node.js and npm (to run the solo CLI)
+#
 # Environment variables (all optional):
 #   SOLO_CMD         - Solo command to use (default: "npm run solo --")
 #   SOLO_CLUSTER     - Kind cluster name      (default: "solo-cluster")
@@ -118,8 +123,7 @@ echo "Step 3 complete: deployment config created."
 step "Step 4: Attach cluster ref '${CLUSTER_REF}' to deployment '${DEPLOYMENT}'"
 yq -i "
   (.deployments[] | select(.name == \"${DEPLOYMENT}\")).clusters =
-    [(\"${CLUSTER_REF}\" | .)
-  ]
+    [\"${CLUSTER_REF}\"]
 " "${HOME}/.solo/local-config.yaml"
 
 echo "Local config after cluster attachment:"
