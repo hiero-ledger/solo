@@ -51,7 +51,6 @@ describe('PackageInstaller', () => {
       const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
-      fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}/test.jar`, '');
       expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
