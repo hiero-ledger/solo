@@ -428,7 +428,7 @@ jobs:
             done
             
             ./gradlew :block-node-app:createDockerImage
-            kind get clusters
+            timeout 30 kind get clusters
             kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
             ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
             cd ../solo
@@ -672,4 +672,4 @@ jobs:
           for i in $(seq 1 ${{ env.SOLO_CLUSTER_DUALITY }}); do
             timeout 60 kind delete cluster -n "${{ inputs.cluster-name }}-c${i}" 2>/dev/null || true
           done
-          docker network rm -f kind 2>/dev/null || true
+          timeout 30 docker network rm -f kind 2>/dev/null || true
