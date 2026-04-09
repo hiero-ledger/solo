@@ -921,8 +921,9 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 ): PerNodeExtraEnvironmentValues {
   const hedera: PerNodeExtraEnvironmentValues['hedera'] = {nodes: []};
 
-  for (const consensusNode of consensusNodes) {
-    const nodeIndex: number = consensusNode.nodeId;
+  for (const [nodeIndex, consensusNode] of consensusNodes.entries()) {
+    // Use the cluster-local position in the provided node list as the Helm chart index.
+    // `nodeId` is not guaranteed to match `hedera.nodes[...]` array positions.
     // Start with env vars from existing values files so Helm array replacement doesn't drop them.
     // Solo-generated entries below will override any conflicts.
     const extraEnvironmentVariables: EnvironmentVariable[] = [
