@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {MissingArgumentError} from '../errors/missing-argument-error.js';
+import {readFileSync} from 'node:fs';
+import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import os from 'node:os';
 import process from 'node:process';
 
@@ -119,15 +121,49 @@ export class LockHolder {
 
   /**
    * Determines if the process associated with this leaseholder is still alive. This method will return false if the
-   * process is not alive or an error occurs while checking the process status.
-   * @returns true if the process is alive; false otherwise.
+   * process is not alive, is suspended/stopped (e.g. via Ctrl+Z), or an error occurs while checking the process status.
+   * A suspended process cannot renew its lock, so it is treated as not alive for lock management purposes.
+   * @returns true if the process is alive and running; false otherwise.
    */
   public isProcessAlive(): boolean {
     try {
-      return process.kill(this.processId, 0);
+      const exists: boolean = process.kill(this.processId, 0);
+      if (!exists) {
+        return false;
+      }
+      return !LockHolder.isProcessStopped(this.processId);
     } catch (error: any) {
       return error.code === 'EPERM';
     }
+  }
+
+  /**
+   * Determines if the given process is in a stopped/suspended state (e.g. via Ctrl+Z / SIGTSTP).
+   * A stopped process exists on the OS but cannot make progress or renew locks.
+   * Returns false if the state cannot be determined (defaults to assuming the process is running).
+   *
+   * @param processId - the process identifier to check.
+   * @returns true if the process is stopped/suspended; false otherwise or if indeterminate.
+   */
+  private static isProcessStopped(processId: number): boolean {
+    try {
+      if (process.platform === 'linux') {
+        const status: string = readFileSync(`/proc/${processId}/status`, 'utf8');
+        // State 'T' means stopped by job control signal (e.g. Ctrl+Z / SIGTSTP)
+        // State 't' means stopped by debugger/tracer
+        return /^State:\s+[Tt]/m.test(status);
+      } else if (process.platform === 'darwin' || process.platform === 'freebsd') {
+        const result: SpawnSyncReturns<Buffer> = spawnSync('ps', ['-p', String(processId), '-o', 'stat=']);
+        if (result.status === 0) {
+          const stat: string = (result.stdout?.toString() ?? '').trim();
+          // 'T' in the stat field means the process is stopped
+          return stat.startsWith('T');
+        }
+      }
+    } catch {
+      // If we cannot determine the process state, assume it is running
+    }
+    return false;
   }
 
   /**
