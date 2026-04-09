@@ -213,7 +213,13 @@ jobs:
 
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
-            npm run solo-test -- deployment diagnostics logs -q --dev || true
+            TEST_CACHE_DIR="test/data/tmp/performance-tests"
+            TEST_DEPLOYMENT="$(tr -d '\r\n' < "${TEST_CACHE_DIR}/last-one-shot-deployment.txt" 2>/dev/null || true)"
+            TEST_DEPLOYMENT="${TEST_DEPLOYMENT:-performance-tests-deployment}"
+            npm run solo-test -- deployment diagnostics logs \
+              --cache-dir "${TEST_CACHE_DIR}" \
+              ${TEST_DEPLOYMENT:+--deployment "${TEST_DEPLOYMENT}"} \
+              -q --dev || true
             exit "${TASK_RC}"
           fi
 
@@ -237,13 +243,6 @@ jobs:
             fi
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
-
-      - name: Collect Deployment Diagnostics Logs
-        if: ${{ !cancelled() && always() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo-test -- deployment diagnostics logs -q --dev || true
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
@@ -284,13 +283,6 @@ jobs:
             mv ~/.solo/logs/performance-tests/* ~/.solo/metrics/
             rm -rf ~/.solo/logs/performance-tests
           fi
-
-      - name: Collect Deployment Diagnostics Logs
-        if: ${{ !cancelled() && always() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo-test -- deployment diagnostics logs -q --dev || true
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
