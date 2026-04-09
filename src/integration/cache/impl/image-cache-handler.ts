@@ -65,14 +65,6 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
           if (!archiveExists) {
             try {
-              await this.engine.pullImage(image);
-            } catch (error) {
-              task.title += ' - ' + chalk.red(`failed to PULL image: ${image}`);
-              this.logger.error('Failed to pull image:', error);
-              return;
-            }
-
-            try {
               await this.engine.saveImage(image, archivePath);
             } catch (error) {
               task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
@@ -123,9 +115,6 @@ export class ImageCacheHandler implements CacheOperationHandler {
     const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
 
     for (const item of items) {
-      const image: string = `${item.target.name}:${item.target.version}`;
-
-      await this.engine.removeImage(image);
       await fs.rm(item.localPath, {force: true});
     }
   }

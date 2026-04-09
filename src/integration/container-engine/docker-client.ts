@@ -39,11 +39,9 @@ export class DockerClient implements ContainerEngineClient {
   public async saveImage(image: string, archivePath: string): Promise<void> {
     await fs.mkdir(path.dirname(archivePath), {recursive: true});
 
-    const platformArguments: string = `--platform ${this.quote(this.defaultLinuxPlatform())}`;
+    const platform: string = this.defaultLinuxPlatform();
 
-    await this.sh.run(
-      `docker image save ${platformArguments} ${this.quote(image)} --output ${this.quote(archivePath)}`,
-    );
+    await this.sh.run(`crane pull --platform ${this.quote(platform)} ${this.quote(image)} ${this.quote(archivePath)}`);
   }
 
   public async loadImage(archivePath: string): Promise<void> {
