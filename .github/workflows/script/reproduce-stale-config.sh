@@ -101,7 +101,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 echo "Repository root: ${REPO_ROOT}"
 (
   cd "${REPO_ROOT}"
-  if [[ ! -x node_modules/.bin/tsc ]]; then
+  if [[ ! -f node_modules/.bin/tsc ]]; then
     echo "TypeScript compiler not found. Running npm install…"
     npm install
   fi
