@@ -884,6 +884,7 @@ type PerNodeExtraEnvironmentOptions = {
       name?: NodeAlias;
       nodeId?: NodeId;
       accountId?: string;
+      blockNodesJson?: string;
     }
   >;
 };
@@ -894,6 +895,7 @@ type PerNodeExtraEnvironmentValues = {
       name?: NodeAlias;
       nodeId?: NodeId;
       accountId?: string;
+      blockNodesJson?: string;
     }>;
   };
 };
@@ -998,8 +1000,9 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
       root: {extraEnv: extraEnvironmentVariables},
     };
 
-    const additionalNodeValues: {name?: NodeAlias; nodeId?: NodeId; accountId?: string} | undefined =
-      options.additionalNodeValues?.[consensusNode.name];
+    const additionalNodeValues:
+      | {name?: NodeAlias; nodeId?: NodeId; accountId?: string; blockNodesJson?: string}
+      | undefined = options.additionalNodeValues?.[consensusNode.name];
     if (additionalNodeValues?.name) {
       nodeValues['name'] = additionalNodeValues.name;
     }
@@ -1008,6 +1011,9 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     }
     if (additionalNodeValues?.accountId) {
       nodeValues['accountId'] = additionalNodeValues.accountId;
+    }
+    if (additionalNodeValues?.blockNodesJson) {
+      nodeValues['blockNodesJson'] = additionalNodeValues.blockNodesJson;
     }
 
     hedera.nodes[nodeIndex] = nodeValues;
@@ -1174,6 +1180,62 @@ export function extractExtraEnvironmentFromValuesFiles(
       if (nodeEnvironmentVariables.length > 0) {
         mergeIntoResult(consensusNode.name, nodeEnvironmentVariables);
       }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Read a YAML Helm values file and extract the `blockNodesJson` field for each consensus node,
+ * keyed by node alias. Uses the consensusNodes array index as the `hedera.nodes` Helm index
+ * (matching the semantics of `buildPerNodeExtraEnvironmentValuesStructure`).
+ *
+ * Returns an empty record if the file cannot be read, cannot be parsed, or contains no
+ * `hedera.nodes` array.
+ */
+export function extractPerNodeBlockNodesJsonFromValuesFile(
+  valuesFilePath: string,
+  consensusNodes: ConsensusNode[],
+): Record<NodeAlias, string> {
+  const result: Record<NodeAlias, string> = {};
+
+  let content: string;
+  try {
+    content = fs.readFileSync(valuesFilePath, 'utf8');
+  } catch {
+    return result;
+  }
+
+  let parsedValues: unknown;
+  try {
+    parsedValues = yaml.parse(content);
+  } catch {
+    return result;
+  }
+
+  if (!parsedValues || typeof parsedValues !== 'object') {
+    return result;
+  }
+
+  const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+  if (!hederaSection || typeof hederaSection !== 'object') {
+    return result;
+  }
+
+  const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+  if (!Array.isArray(nodesArray)) {
+    return result;
+  }
+
+  for (const [helmNodeIndex, consensusNode] of consensusNodes.entries()) {
+    const nodeEntry: unknown = nodesArray[helmNodeIndex];
+    if (!nodeEntry || typeof nodeEntry !== 'object') {
+      continue;
+    }
+    const blockNodesJson: unknown = (nodeEntry as Record<string, unknown>)['blockNodesJson'];
+    if (typeof blockNodesJson === 'string') {
+      result[consensusNode.name] = blockNodesJson;
     }
   }
 

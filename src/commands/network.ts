@@ -15,6 +15,7 @@ import {
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   extractExtraEnvironmentFromValuesFiles,
+  extractPerNodeBlockNodesJsonFromValuesFile,
   generateExtraEnvironmentValuesFile,
   parseNodeAliases,
   parseValuesFilePaths,
@@ -441,53 +442,82 @@ export class NetworkCommand extends BaseCommand {
       [constants.SOLO_DEPLOYMENT_VALUES_FILE],
     );
 
-    // Generate per-node extraEnv values file if any extraEnv customizations are needed
-    let perNodeExtraEnvironmentValuesFile: string = '';
+    // Generate per-cluster extraEnv values files to avoid passing the global node list to every
+    // cluster's Helm upgrade (in multi-cluster deployments each cluster has its own node subset).
+    // Each file carries only the nodes that belong to the target cluster, preventing Helm's
+    // array-replacement semantics from inserting nodes from other clusters.
+    const perClusterExtraEnvironmentValuesFiles: Record<ClusterReferenceName, string> = {};
     const needsExtraEnvironment: boolean =
       config.wrapsEnabled || !!config.debugNodeAlias || config.app !== constants.HEDERA_APP_NAME; // JAVA_MAIN_CLASS for tools/local builds
 
     if (needsExtraEnvironment) {
       const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
       const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
-      const additionalNodeValues: Record<NodeAlias, {name: NodeAlias; nodeId: number; accountId: string}> = {};
 
-      for (const consensusNode of config.consensusNodes) {
-        additionalNodeValues[consensusNode.name] = {
-          name: consensusNode.name,
-          nodeId: consensusNode.nodeId,
-          accountId: `${shard}.${realm}.${constants.DEFAULT_START_ID_NUMBER + consensusNode.nodeId}`,
-        };
-      }
+      for (const clusterReference of Object.keys(valuesFiles)) {
+        // Only include nodes belonging to this cluster so the generated hedera.nodes array
+        // matches the cluster-specific node set and does not overwrite nodes in other clusters.
+        const clusterConsensusNodes: ConsensusNode[] = config.consensusNodes.filter(
+          (node): boolean => node.cluster === clusterReference,
+        );
+        if (clusterConsensusNodes.length === 0) {
+          continue;
+        }
 
-      // Collect extraEnv entries already present in the values files applied so far,
-      // so that the generated file can include them and avoid Helm array replacement
-      // silently dropping env vars set by user-provided values files.
-      const existingValuesFilePaths: string[] = [];
-      for (const clusterValuesArgument of Object.values(valuesFiles)) {
-        for (const filePath of parseValuesFilePaths(clusterValuesArgument)) {
-          if (!existingValuesFilePaths.includes(filePath)) {
-            existingValuesFilePaths.push(filePath);
+        const additionalNodeValues: Record<
+          NodeAlias,
+          {name: NodeAlias; nodeId: number; accountId: string; blockNodesJson?: string}
+        > = {};
+
+        for (const consensusNode of clusterConsensusNodes) {
+          additionalNodeValues[consensusNode.name] = {
+            name: consensusNode.name,
+            nodeId: consensusNode.nodeId,
+            accountId: `${shard}.${realm}.${constants.DEFAULT_START_ID_NUMBER + consensusNode.nodeId}`,
+          };
+        }
+
+        // Preserve blockNodesJson from the per-cluster profile values file so that it is not
+        // silently dropped when the extraEnv values file replaces the hedera.nodes array.
+        const clusterProfileValuesFile: string | undefined = this.profileValuesFile?.[clusterReference];
+        if (clusterProfileValuesFile) {
+          const blockNodesJsonMap: Record<NodeAlias, string> = extractPerNodeBlockNodesJsonFromValuesFile(
+            clusterProfileValuesFile,
+            clusterConsensusNodes,
+          );
+          for (const consensusNode of clusterConsensusNodes) {
+            if (blockNodesJsonMap[consensusNode.name]) {
+              additionalNodeValues[consensusNode.name].blockNodesJson = blockNodesJsonMap[consensusNode.name];
+            }
           }
         }
+
+        // Collect extraEnv entries already present in this cluster's values files so that the
+        // generated file can include them and avoid Helm array replacement silently dropping
+        // env vars set by user-provided values files.
+        const existingValuesFilePaths: string[] = parseValuesFilePaths(valuesFiles[clusterReference]);
+
+        const clusterExtraEnvironmentValuesFile: string = generateExtraEnvironmentValuesFile(
+          clusterConsensusNodes,
+          {
+            wrapsEnabled: config.wrapsEnabled,
+            tss: this.soloConfig.tss,
+            debugNodeAlias: config.debugNodeAlias,
+            useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+            additionalNodeValues,
+            baseExtraEnvironmentVariables: extractExtraEnvironmentFromValuesFiles(
+              existingValuesFilePaths,
+              clusterConsensusNodes,
+            ),
+          },
+          config.cacheDir,
+        );
+
+        perClusterExtraEnvironmentValuesFiles[clusterReference] = clusterExtraEnvironmentValuesFile;
+        this.logger.debug(
+          `Created per-cluster extraEnv values file for ${clusterReference}: ${clusterExtraEnvironmentValuesFile}`,
+        );
       }
-
-      perNodeExtraEnvironmentValuesFile = generateExtraEnvironmentValuesFile(
-        config.consensusNodes,
-        {
-          wrapsEnabled: config.wrapsEnabled,
-          tss: this.soloConfig.tss,
-          debugNodeAlias: config.debugNodeAlias,
-          useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
-          additionalNodeValues,
-          baseExtraEnvironmentVariables: extractExtraEnvironmentFromValuesFiles(
-            existingValuesFilePaths,
-            config.consensusNodes,
-          ),
-        },
-        config.cacheDir,
-      );
-
-      this.logger.debug(`Created per-node extraEnv values file: ${perNodeExtraEnvironmentValuesFile}`);
     }
 
     for (const clusterReference of Object.keys(valuesFiles)) {
@@ -496,9 +526,9 @@ export class NetworkCommand extends BaseCommand {
       // values file can replace array elements and drop fields like node labels/account IDs.
       let valuesArgument: string = valuesFiles[clusterReference];
 
-      // Add per-node extraEnv values file if wraps are enabled (replaces --set approach)
-      if (perNodeExtraEnvironmentValuesFile) {
-        valuesArgument += ` --values "${perNodeExtraEnvironmentValuesFile}"`;
+      // Add per-cluster extraEnv values file if any extraEnv customizations are needed
+      if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
+        valuesArgument += ` --values "${perClusterExtraEnvironmentValuesFiles[clusterReference]}"`;
       }
 
       valuesArgument += valuesArguments[clusterReference];
