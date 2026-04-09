@@ -205,8 +205,11 @@ jobs:
             sleep 5
           done
           kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
-          wait "${TASK_PID}" 2>/dev/null
-          TASK_RC=$?
+          if wait "${TASK_PID}" 2>/dev/null; then
+            TASK_RC=0
+          else
+            TASK_RC=$?
+          fi
           TASK_PID=""
           TASK_PGID=""
           trap - SIGTERM SIGINT
