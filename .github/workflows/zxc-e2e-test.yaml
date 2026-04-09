@@ -320,9 +320,13 @@ jobs:
           $content = $content -replace "`r`n", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $content, [System.Text.UTF8Encoding]::new($false))
       
-          $wslScriptPath = (wsl wslpath -a $scriptPath).Trim()
-          wsl chmod +x $wslScriptPath
-          wsl bash $wslScriptPath
+          $resolvedScriptPath = (Resolve-Path $scriptPath).Path
+          $drive = $resolvedScriptPath.Substring(0,1).ToLower()
+          $rest = $resolvedScriptPath.Substring(2) -replace '\\','/'
+          $wslScriptPath = "/mnt/$drive$rest"
+          
+          wsl chmod +x "$wslScriptPath"
+          wsl bash "$wslScriptPath"
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -494,10 +498,14 @@ jobs:
           $content = $content -replace "`r`n", "`n"
           [System.IO.File]::WriteAllText($scriptPath, $content, [System.Text.UTF8Encoding]::new($false))
 
-          $scriptPathWsl = (wsl wslpath -a "$scriptPath").Trim()
-          wsl chmod +x "$scriptPathWsl"
-          wsl bash "$scriptPathWsl"
-
+          $resolvedScriptPath = (Resolve-Path $scriptPath).Path
+          $drive = $resolvedScriptPath.Substring(0,1).ToLower()
+          $rest = $resolvedScriptPath.Substring(2) -replace '\\','/'
+          $wslScriptPath = "/mnt/$drive$rest"
+          
+          wsl chmod +x "$wslScriptPath"
+          wsl bash "$wslScriptPath"
+          
           "KUBECONFIG=$windowsKubeconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $env:KUBECONFIG = $windowsKubeconfig
 
