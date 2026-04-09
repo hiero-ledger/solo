@@ -872,13 +872,15 @@ export class NodeCommandHandlers extends CommandHandler {
 
   /**
    * Collects a full debug archive for the deployment (logs + configs + zip) and
-   * then creates a GitHub issue using the `gh` CLI with the archive pre-attached.
+   * then creates a GitHub issue using the `gh` CLI with a pre-filled title and body.
+   * The generated archive is referenced for the user to attach manually via the GitHub UI.
    *
    * Steps:
    *  1. Collect logs and create a zip via `deployment diagnostics debug`
    *  2. Verify the `gh` CLI is installed
    *  3. Prompt the user to confirm issue creation (skipped in quiet mode)
-   *  4. Create a GitHub issue with a pre-filled title and body referencing the zip
+   *  4. Create a GitHub issue with a pre-filled title and body referencing the zip,
+   *     then instruct the user to attach the archive manually
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
