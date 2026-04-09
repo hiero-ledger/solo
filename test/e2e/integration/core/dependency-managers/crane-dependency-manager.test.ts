@@ -387,9 +387,9 @@ describe('CraneDependencyManager', (): void => {
       sandbox.stub(packageDownloader, 'fetchPackage').resolves(dummyDownloadedArchive);
       sandbox
         .stub(CraneDependencyManager.prototype as any, 'processDownloadedPackage')
-        .callsFake(async (_packageFilePath: string, tempDir: string): Promise<string[]> => {
-          const executablePath: string = PathEx.join(tempDir, constants.CRANE);
-          fs.mkdirSync(tempDir, {recursive: true});
+        .callsFake(async (_packageFilePath: string, temporaryDirectory: string): Promise<string[]> => {
+          const executablePath: string = PathEx.join(temporaryDirectory, constants.CRANE);
+          fs.mkdirSync(temporaryDirectory, {recursive: true});
           fs.writeFileSync(executablePath, 'dummy executable');
           return [executablePath];
         });
@@ -447,9 +447,9 @@ describe('CraneDependencyManager', (): void => {
         sandbox.stub(packageDownloader, 'fetchPackage').resolves(dummyDownloadedArchive);
         sandbox
           .stub(CraneDependencyManager.prototype as any, 'processDownloadedPackage')
-          .callsFake(async (_packageFilePath: string, tempDir: string): Promise<string[]> => {
-            const executablePath: string = PathEx.join(tempDir, constants.CRANE);
-            fs.mkdirSync(tempDir, {recursive: true});
+          .callsFake(async (_packageFilePath: string, temporaryDirectory: string): Promise<string[]> => {
+            const executablePath: string = PathEx.join(temporaryDirectory, constants.CRANE);
+            fs.mkdirSync(temporaryDirectory, {recursive: true});
             fs.writeFileSync(executablePath, 'dummy executable');
             return [executablePath];
           });
