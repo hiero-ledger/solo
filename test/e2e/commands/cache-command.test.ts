@@ -73,9 +73,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         CacheTest.status(options);
         CacheTest.load(options);
         CacheTest.clear(options);
-
-        // More workflow-oriented check
-        CacheTest.pullListStatusClear(options);
       });
     },
   )

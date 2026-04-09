@@ -5,13 +5,7 @@ import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {AnyListrContext, type ArgvStruct} from '../types/aliases.js';
-import {
-  type ClusterReferenceName,
-  type Context,
-  type DeploymentName,
-  type SoloListr,
-  type SoloListrTask,
-} from '../types/index.js';
+import {type ClusterReferenceName, type Context, type SoloListr, type SoloListrTask} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
@@ -19,7 +13,6 @@ import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.j
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {DockerClient} from '../integration/container-engine/docker-client.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {CachedItem} from '../integration/cache/models/impl/cached-item.js';
 import {ArtifactHealthResult} from '../integration/cache/models/impl/artifact-health-result.js';
 import fs from 'node:fs/promises';
@@ -35,8 +28,6 @@ interface CachePullContext {
 
 interface CacheLoadConfigClass {
   imageCacheHandler: ImageCacheHandler;
-  // deployment: DeploymentName;
-  // namespace: NamespaceName;
   clusterReference: ClusterReferenceName;
   context: Context;
 }
@@ -85,7 +76,7 @@ export class CacheCommand extends BaseCommand {
   };
 
   public static readonly LOAD_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
   };
 
@@ -159,7 +150,6 @@ export class CacheCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
-            // await this.remoteConfig.loadAndValidate(argv);
 
             this.configManager.update(argv);
 
@@ -172,8 +162,6 @@ export class CacheCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            // const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-            // const namespace: NamespaceName = await this.getNamespace(task);
             const clusterReference: ClusterReferenceName = this.getClusterReference();
             const context: Context = this.getClusterContext(clusterReference);
 
@@ -181,8 +169,6 @@ export class CacheCommand extends BaseCommand {
               imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
                 .engine(this.dockerClient)
                 .build(),
-              // deployment,
-              // namespace,
               clusterReference,
               context,
             };

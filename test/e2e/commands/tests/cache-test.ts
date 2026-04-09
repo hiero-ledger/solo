@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {BaseCommandTest} from './base-command-test.js';
-import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {type BaseTestOptions} from './base-test-options.js';
@@ -9,7 +8,6 @@ import {it} from 'mocha';
 import {expect} from 'chai';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
-import {type DeploymentName} from '../../../../src/types/index.js';
 import {CacheCommandDefinition} from '../../../../src/commands/command-definitions/cache-command-definition.js';
 
 /**
@@ -69,16 +67,14 @@ export class CacheTest extends BaseCommandTest {
     return argv;
   }
 
-  public static soloCacheLoadArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = CacheTest;
+  public static soloCacheLoadArgv(testName: string): string[] {
+    const {newArgv, argvPushGlobalFlags} = CacheTest;
 
     const argv: string[] = newArgv();
     argv.push(
       CacheCommandDefinition.COMMAND_NAME,
       CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME,
       CacheCommandDefinition.IMAGE_LOAD,
-      optionFromFlag(Flags.deployment),
-      deployment,
     );
     argvPushGlobalFlags(argv, testName, true, false);
     return argv;
@@ -109,10 +105,10 @@ export class CacheTest extends BaseCommandTest {
   }
 
   public static load(options: BaseTestOptions): void {
-    const {testName, deployment} = options;
+    const {testName} = options;
 
     it(`${testName}: cache load`, async (): Promise<void> => {
-      await main(CacheTest.soloCacheLoadArgv(testName, deployment));
+      await main(CacheTest.soloCacheLoadArgv(testName));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
@@ -167,11 +163,11 @@ export class CacheTest extends BaseCommandTest {
   }
 
   public static loadAfterNetworkDeploy(options: BaseTestOptions): void {
-    const {testName, deployment} = options;
+    const {testName} = options;
 
     it(`${testName}: cache load into cluster`, async (): Promise<void> => {
       await main(CacheTest.soloCachePullArgv(testName));
-      await main(CacheTest.soloCacheLoadArgv(testName, deployment));
+      await main(CacheTest.soloCacheLoadArgv(testName));
     }).timeout(Duration.ofMinutes(15).toMillis());
   }
 }

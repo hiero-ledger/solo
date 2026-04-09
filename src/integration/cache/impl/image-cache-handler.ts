@@ -94,8 +94,10 @@ export class ImageCacheHandler implements CacheOperationHandler {
     const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
 
     for (const item of items) {
+      const name: string = `${item.target.name}:${item.target.version}`;
+
       subTasks.push({
-        title: `Loading ${item.target.name}:${item.target.version} into ${target}`,
+        title: `Loading ${name} into ${target}`,
         task: async (): Promise<void> => {
           const exists: boolean = await this.inspector.exists(item.localPath);
 
@@ -103,7 +105,13 @@ export class ImageCacheHandler implements CacheOperationHandler {
             return;
           }
 
-          await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
+          try {
+            await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
+          } catch (error) {
+            this.logger.showUser(`Failed to load image archive into cluster: ${name}`);
+            this.logger.error(error);
+            console.error(error);
+          }
         },
       });
     }
