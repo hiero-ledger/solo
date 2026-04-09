@@ -51,7 +51,7 @@ env:
 
 jobs:
   performance-test:
-    if: >
+    if: >-
       ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
       startsWith(github.event.pull_request.title, 'trunk-merge') && !cancelled() && !failure() }}
     timeout-minutes: 90
