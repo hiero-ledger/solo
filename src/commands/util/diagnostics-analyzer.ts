@@ -144,7 +144,11 @@ export class DiagnosticsAnalyzer {
       this.analyzePodLogFiles(hieroOutputDirectory, findings);
     }
 
-    this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, findings);
+    if (fs.existsSync(hieroOutputDirectory)) {
+      this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, findings);
+    } else {
+      this.logger.showUser(yellow(`  Solo log directory not found, skipping: ${hieroOutputDirectory}`));
+    }
 
     if (!fs.existsSync(hieroOutputDirectory)) {
       fs.mkdirSync(hieroOutputDirectory, {recursive: true});
