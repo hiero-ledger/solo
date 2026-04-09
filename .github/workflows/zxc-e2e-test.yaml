@@ -270,6 +270,56 @@ jobs:
           wsl-shell-user: runner
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
+      - name: Bootstrap WSL Toolchain
+        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        shell: wsl-bash {0}
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            gawk \
+            gnupg \
+            jq \
+            lsb-release \
+            software-properties-common
+
+          # Docker Engine inside WSL
+          sudo install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          # Helm repo
+          curl https://baltocdn.com/helm/signing.asc | sudo gpg --dearmor -o /usr/share/keyrings/helm.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | \
+            sudo tee /etc/apt/sources.list.d/helm-stable-debian.list > /dev/null
+
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io helm
+
+          # Start Docker
+          sudo service docker start
+          sudo docker version
+
+          # kind
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v${{ inputs.kind-version }}/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          kind --version
+
+          # kubectl
+          curl -Lo ./kubectl https://dl.k8s.io/release/v${{ inputs.kubectl-version }}/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -397,25 +447,46 @@ jobs:
             cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
+        if: ${{ runner.os != 'Windows' && inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
           timeout_minutes: 10
-          shell: ${{ runner.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
+          shell: bash
           command: |
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
-            if [[ "$RUNNER_OS" != "Windows" ]]; then
-              SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} \
-              ${{ env.CG_EXEC }} \
-              ./test/e2e/dual-cluster/setup-dual-e2e.sh
-            else
-              SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} \
-              SOLO_CLUSTER_CREATE_ONLY=true \
-              SOLO_KUBECONFIG_PATH=/tmp/${SOLO_TEST_CLUSTER}.kubeconfig \
-              ./test/e2e/dual-cluster/setup-dual-e2e.sh
-            fi
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} \
+            ${{ env.CG_EXEC }} \
+            ./test/e2e/dual-cluster/setup-dual-e2e.sh
+
+      - name: Setup E2E Tests (Windows via WSL)
+        if: ${{ runner.os == 'Windows' && inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
+        shell: pwsh
+        timeout-minutes: 20
+        run: |
+          $workspaceWsl = (wsl wslpath -a "$env:GITHUB_WORKSPACE").Trim()
+          $windowsKubeconfig = Join-Path $env:GITHUB_WORKSPACE ".kube\${{ inputs.cluster-name }}-config"
+          $windowsKubeconfigWsl = (wsl wslpath -a "$windowsKubeconfig").Trim()
+
+          New-Item -ItemType Directory -Force (Split-Path $windowsKubeconfig) | Out-Null
+
+          wsl bash -lc @"
+            set -euo pipefail
+            cd '$workspaceWsl'
+            chmod +x ./test/e2e/dual-cluster/setup-dual-e2e.sh
+            export SOLO_TEST_CLUSTER='${{ inputs.cluster-name }}'
+            export SOLO_KUBECONFIG_PATH='$windowsKubeconfigWsl'
+            export SOLO_CLUSTER_CREATE_ONLY='true'
+            ./test/e2e/dual-cluster/setup-dual-e2e.sh
+          "@
+
+          "KUBECONFIG=$windowsKubeconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          Write-Host "Using Windows kubeconfig: $windowsKubeconfig"
+          Write-Host "KUBECONFIG=$env:KUBECONFIG"
+          kubectl config get-contexts
+          kubectl cluster-info
 
       - name: Build Block Code Locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
