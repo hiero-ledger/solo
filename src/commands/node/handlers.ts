@@ -655,8 +655,8 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeLogsAndConfigs(),
-        this.tasks.getHelmChartValues(),
+        this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
+        this.tasks.getHelmChartValues(outputDirectory),
         this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
@@ -776,8 +776,8 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeLogsAndConfigs(excludeSensitiveData),
-        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues()]),
+        this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
+        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
         this.tasks.getRemoteConfig(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
