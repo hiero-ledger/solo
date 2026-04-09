@@ -147,7 +147,7 @@ export class DiagnosticsAnalyzer {
     if (fs.existsSync(hieroOutputDirectory)) {
       this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, findings);
     } else {
-      this.logger.showUser(yellow(`  Solo log directory not found, skipping: ${hieroOutputDirectory}`));
+      this.logger.showUser(yellow(`  Diagnostics output directory not found, skipping: ${hieroOutputDirectory}`));
     }
 
     if (!fs.existsSync(hieroOutputDirectory)) {
