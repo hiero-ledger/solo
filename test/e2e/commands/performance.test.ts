@@ -160,7 +160,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
 
-          // Do not call destroy command so worker flow can collect logs.
+          await preDestroy(endToEndTestSuite);
+
+          testLogger.info(`${testName}: beginning ${testName}: destroy`);
+          await main(soloOneShotDestroy(testName));
+          testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(5).toMillis());
 
         it('NftTransferLoadTest', async (): Promise<void> => {
