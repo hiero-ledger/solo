@@ -498,7 +498,7 @@ export class NetworkCommand extends BaseCommand {
 
       // Add per-node extraEnv values file if wraps are enabled (replaces --set approach)
       if (perNodeExtraEnvironmentValuesFile) {
-        valuesArgument += ` --values ${perNodeExtraEnvironmentValuesFile}`;
+        valuesArgument += ` --values "${perNodeExtraEnvironmentValuesFile}"`;
       }
 
       valuesArgument += valuesArguments[clusterReference];
