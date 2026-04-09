@@ -261,6 +261,14 @@ jobs:
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Setup WSL2 (If Windows Runner) # Kind cluster creation on Windows runners requires WSL2
+        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        uses: Vampire/setup-wsl@6a8db447be7ed35f2f499c02c6e60ff77ef11278 # v6.0.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-shell-user: runner
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
