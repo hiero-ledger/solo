@@ -1085,10 +1085,11 @@ export function extractExtraEnvironmentFromValuesFiles(
       const existingIndex: number = result[nodeAlias].findIndex(
         (variable: EnvironmentVariable): boolean => variable.name === environmentVariable.name,
       );
+      const environmentVariableClone: EnvironmentVariable = {...environmentVariable};
       if (existingIndex === -1) {
-        result[nodeAlias].push(environmentVariable);
+        result[nodeAlias].push(environmentVariableClone);
       } else {
-        result[nodeAlias][existingIndex] = environmentVariable;
+        result[nodeAlias][existingIndex] = environmentVariableClone;
       }
     }
   }
