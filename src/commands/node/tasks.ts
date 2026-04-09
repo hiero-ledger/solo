@@ -3290,23 +3290,21 @@ export class NodeCommandTasks {
               }
             }
 
-            const clusterLocalNodeIndices = clusterNodeIndexMap.get(clusterReference);
-            const clusterConsensusNodes = [...consensusNodes].sort((leftNode, rightNode): number => {
-              const leftIndex = clusterLocalNodeIndices?.get(leftNode.nodeId);
-              const rightIndex = clusterLocalNodeIndices?.get(rightNode.nodeId);
-
-              if (leftIndex === undefined && rightIndex === undefined) {
-                return 0;
+            const clusterLocalNodeIndices = clusterNodeIndexMap[clusterReference];
+            const indexedConsensusNodes: Array<ConsensusNode | undefined> = [];
+            const unindexedConsensusNodes: ConsensusNode[] = [];
+            for (const consensusNode of consensusNodes) {
+              const nodeIndex = clusterLocalNodeIndices?.[consensusNode.nodeId];
+              if (nodeIndex === undefined) {
+                unindexedConsensusNodes.push(consensusNode);
+                continue;
               }
-              if (leftIndex === undefined) {
-                return 1;
-              }
-              if (rightIndex === undefined) {
-                return -1;
-              }
-
-              return leftIndex - rightIndex;
-            });
+              indexedConsensusNodes[nodeIndex] = consensusNode;
+            }
+            const clusterConsensusNodes: ConsensusNode[] = [
+              ...indexedConsensusNodes.filter((node): node is ConsensusNode => node !== undefined),
+              ...unindexedConsensusNodes,
+            ];
 
             const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
               clusterConsensusNodes,
