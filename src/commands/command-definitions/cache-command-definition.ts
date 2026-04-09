@@ -43,7 +43,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.pull,
               CacheCommand.PULL_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [...constants.BASE_DEPENDENCIES, constants.CRANE],
             ),
           )
           .addSubcommand(
@@ -53,7 +53,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.load,
               CacheCommand.LOAD_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [...constants.BASE_DEPENDENCIES, constants.CRANE],
             ),
           )
           .addSubcommand(

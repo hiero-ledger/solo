@@ -104,6 +104,7 @@ import {DockerClient} from '../../integration/container-engine/docker-client.js'
 import {DefaultCacheHandlerRegistry} from '../../integration/cache/impl/default-cache-handler-registry.js';
 import {DefaultCacheHealthInspector} from '../../integration/cache/impl/default-cache-health-inspector.js';
 import {FileSystemCacheCatalogStore} from '../../integration/cache/impl/file-system-cache-catalog-store.js';
+import {CraneDependencyManager} from '../dependency-managers/crane-dependency-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -146,6 +147,7 @@ export class Container {
       new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
       new SingletonContainer(InjectTokens.VfkitDependencyManager, VfkitDependencyManager),
       new SingletonContainer(InjectTokens.GvproxyDependencyManager, GvproxyDependencyManager),
+      new SingletonContainer(InjectTokens.CraneDependencyManager, CraneDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -238,6 +240,7 @@ export class Container {
       new ValueContainer(InjectTokens.KindInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.PodmanInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.CraneInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(
         InjectTokens.PodmanDependenciesInstallationDirectory,
         PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers'),
@@ -252,6 +255,7 @@ export class Container {
       new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
       new ValueContainer(InjectTokens.VfkitVersion, version.VFKIT_VERSION),
       new ValueContainer(InjectTokens.GvproxyVersion, version.GVPROXY_VERSION),
+      new ValueContainer(InjectTokens.CraneVersion, version.CRANE_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
