@@ -19,10 +19,9 @@ export async function resolveNamespaceFromDeployment(
   try {
     return NamespaceName.of(localConfig.configuration.deploymentByName(deploymentName).namespace);
   } catch {
-    // configManager.getFlag for namespace already returns NamespaceName (setFlag converts it)
-    const namespaceFromFlag: NamespaceName = configManager.getFlag<NamespaceName>(flags.namespace);
+    const namespaceFromFlag = configManager.getFlag<NamespaceName | string | undefined>(flags.namespace);
     if (namespaceFromFlag) {
-      return namespaceFromFlag;
+      return typeof namespaceFromFlag === 'string' ? NamespaceName.of(namespaceFromFlag) : namespaceFromFlag;
     }
     throw new SoloError(`Deployment ${deploymentName} not found in local config and no --namespace provided`);
   }
