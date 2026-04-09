@@ -16,6 +16,11 @@ readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 
+if [[ -n "${SOLO_KUBECONFIG_PATH}" ]]; then
+  export KUBECONFIG="${SOLO_KUBECONFIG_PATH}"
+  echo "Using kubeconfig: ${KUBECONFIG}"
+fi
+
 if [[ -n "${SOLO_TEST_CLUSTER}" ]]; then
   SOLO_CLUSTER_NAME="${SOLO_TEST_CLUSTER}"
 elif [[ -z "${SOLO_CLUSTER_NAME}" ]]; then
@@ -75,10 +80,10 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   if [[ -x "${KIND_CONFIG_RENDERER}" && -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" ]]; then
     rendered_cluster_kind_config="$(mktemp -t kind-cluster-${i}-XXXX.yaml)"
     "${KIND_CONFIG_RENDERER}" "${cluster_kind_config}" "${rendered_cluster_kind_config}"
-    kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${rendered_cluster_kind_config}" || exit 1
+    kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${rendered_cluster_kind_config}" ${KUBECONFIG:+--kubeconfig "${KUBECONFIG}"} || exit 1
     rm -f "${rendered_cluster_kind_config}"
   else
-    kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${cluster_kind_config}" || exit 1
+    kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${cluster_kind_config}" ${KUBECONFIG:+--kubeconfig "${KUBECONFIG}"} || exit 1
   fi
 
   helm upgrade --install metrics-server metrics-server/metrics-server \
