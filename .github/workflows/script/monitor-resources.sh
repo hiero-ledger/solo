@@ -8,6 +8,7 @@ set -eo pipefail
 #
 
 METRICS_FILE="${HOME}/.solo/logs/runner-metrics.jsonl"
+POD_DETAIL_FILE="${HOME}/.solo/logs/runner-metrics-pods.jsonl"
 PID_FILE="${HOME}/.solo/logs/monitor.pid"
 INTERVAL_FILE="${HOME}/.solo/logs/monitor.interval"
 
@@ -27,8 +28,9 @@ start_monitoring() {
   # Persist interval so stop_monitoring can report it
   echo "$interval" > "$INTERVAL_FILE"
 
-  # Initialize metrics file
+  # Initialize metrics files
   : > "$METRICS_FILE"
+  : > "$POD_DETAIL_FILE"
 
   # Start monitoring in background.
   # Run with +e so a failed command in one sample never kills the loop.
@@ -52,26 +54,40 @@ start_monitoring() {
       MEM_USED=$(printf '%s' "$(echo "$MEM_INFO" | awk '{print $3}')" | tr -d '[:space:]')
       MEM_PERCENT=$(printf '%s' "$(echo "$MEM_INFO" | awk '{if ($2>0) printf "%.1f",($3/$2)*100; else printf "0.0"}')" | tr -d '[:space:]')
 
-      # Sum CPU (millicores) and memory (MB) of all running pods across all namespaces
+      # Sum CPU (millicores) and memory (MB) of all running pods across all namespaces.
+      # Also build a per-pod JSON array for snapshot reporting at peak memory.
       POD_CPU_M=0
       POD_MEM_MB=0
+      POD_DETAIL_JSON="[]"
       if command -v kubectl >/dev/null 2>&1; then
-        _pod_stats=$(kubectl top pods --all-namespaces --no-headers 2>/dev/null \
-          | awk '
+        _pod_raw=$(kubectl top pods --all-namespaces --no-headers 2>/dev/null || true)
+        if [[ -n "$_pod_raw" ]]; then
+          _pod_stats=$(printf '%s\n' "$_pod_raw" | awk '
+            BEGIN { json="[" }
             {
-              cpu=$3; sub(/m$/,"",cpu);
-              if ($3 !~ /m$/) cpu=cpu*1000;
-              cpu_total += cpu+0;
-              mem=$4;
-              if (mem ~ /Gi$/) { sub(/Gi$/,"",mem); mem=mem*1024; }
-              else { sub(/Mi$/,"",mem); }
-              mem_total += mem+0;
+              ns=$1; pod=$2;
+              cpu=$3; cval=cpu; sub(/m$/, "", cval);
+              if (cpu !~ /m$/) cval=cval*1000;
+              cpu_total += cval+0;
+              mem=$4; mem_mb=mem;
+              if (mem ~ /Gi$/) { sub(/Gi$/, "", mem_mb); mem_mb=mem_mb*1024; }
+              else { sub(/Mi$/, "", mem_mb); }
+              mem_total += mem_mb+0;
+              if (NR > 1) json=json ",";
+              json=json sprintf("{\"ns\":\"%s\",\"pod\":\"%s\",\"mem_mb\":%d}", ns, pod, int(mem_mb+0));
             }
-            END { printf "%d %d", cpu_total, mem_total }
-          ' 2>/dev/null || true)
-        POD_CPU_M=$(printf '%s' "${_pod_stats%% *}" | tr -d '[:space:]')
-        POD_MEM_MB=$(printf '%s' "${_pod_stats##* }" | tr -d '[:space:]')
+            END {
+              json=json "]";
+              printf "%d %d %s", cpu_total, mem_total, json;
+            }
+          ' 2>/dev/null || echo "0 0 []")
+          POD_CPU_M=$(printf '%s' "${_pod_stats%% *}" | tr -d '[:space:]')
+          _pod_rest="${_pod_stats#* }"
+          POD_MEM_MB=$(printf '%s' "${_pod_rest%% *}" | tr -d '[:space:]')
+          POD_DETAIL_JSON="${_pod_rest#* }"
+        fi
       fi
+      printf '{"timestamp":"%s","pods":%s}\n' "$TIMESTAMP" "$POD_DETAIL_JSON" >> "$POD_DETAIL_FILE"
 
       printf '{"timestamp":"%s","cpu_percent":%s,"mem_used_mb":%s,"mem_total_mb":%s,"mem_percent":%s,"pod_mem_mb":%s,"pod_cpu_m":%s}\n' \
         "$TIMESTAMP" \
