@@ -295,7 +295,7 @@ jobs:
           fetch_with_retry() {
             local url="$1"
             local out="$2"
-            curl --http1.1 -fsSL --retry 5 --retry-delay 2 --retry-all-errors "$url" -o "$out" || curl "$url" || return 1
+            curl --http1.1 -fsSL --retry 5 --retry-delay 2 --retry-all-errors "$url" -o "$out" || curl --trace-config all "$url" || return 1
             test -s "$out"
           }
 
