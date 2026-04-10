@@ -276,8 +276,11 @@ jobs:
             ca-certificates
             curl
             software-properties-common
-
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Restart WSL (If Windows Runner)
+        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        run: wsl --shutdown
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -408,19 +411,14 @@ jobs:
       - name: Install Docker in WSL
         shell: wsl-bash {0}
         run: |
-          id
-          pwd
+          id && pwd
           echo "wsl-shell-wrapper-path=${{ steps.setup-wsl.outputs.wsl-shell-wrapper-path }}"
           echo "wsl-shell-distribution-wrapper-path=${{ steps.setup-wsl.outputs.wsl-shell-distribution-wrapper-path }}"
           cat /etc/wsl.conf
-          curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-          cat /tmp/get-docker.sh
-          chmod 750 /tmp/get-docker.sh
-          ls -al /tmp/get-docker.sh
-          mkdir -p /tmp/docker-install
-          cd /tmp/docker-install
-          pwd
-          sudo sh -x /tmp/get-docker.sh --dry-run
+          mkdir -p /tmp/docker-install && cd /tmp/docker-install && pwd
+          curl -fsSL https://get.docker.com -o docker-install.sh
+          cat docker-install.sh && chmod 750 docker-install.sh && ls -al docker-install.sh
+          sudo -i sh -x /tmp/docker-install/docker-install.sh --dry-run
           #curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
           #echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
           #sudo apt update
