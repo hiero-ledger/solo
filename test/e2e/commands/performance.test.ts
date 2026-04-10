@@ -53,7 +53,7 @@ let currentTestNamespace: string | undefined;
 // minutes. Force-exit immediately so the runner can move on without waiting.
 process.on('SIGTERM', (): void => {
   clearInterval(metricsInterval);
-  throw new Error('Received SIGTERM, terminating performance test');
+  process.exit(143); // 128 + SIGTERM(15)
 });
 const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;
 
@@ -293,8 +293,12 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment);
-  argv.push(optionFromFlag(Flags.valuesFile), 'test/data/performance-test-values.yaml');
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.valuesFile),
+    'test/data/performance-test-values.yaml',
+  );
   return argv;
 }
 
