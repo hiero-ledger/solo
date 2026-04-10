@@ -16,9 +16,11 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   extractExtraEnvironmentFromValuesFiles,
   extractPerNodeBlockNodesJsonFromValuesFile,
+  extractPerNodeIdentityFromValuesFile,
   generateExtraEnvironmentValuesFile,
   parseNodeAliases,
   parseValuesFilePaths,
+  type PerNodeIdentity,
   prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
@@ -472,26 +474,29 @@ export class NetworkCommand extends BaseCommand {
           {name: NodeAlias; nodeId: number; accountId: string; blockNodesJson?: string}
         > = {};
 
-        for (const consensusNode of clusterConsensusNodes) {
-          additionalNodeValues[consensusNode.name] = {
-            name: consensusNode.name,
-            nodeId: consensusNode.nodeId,
-            accountId: `${shard}.${realm}.${constants.DEFAULT_START_ID_NUMBER + consensusNode.nodeId}`,
-          };
-        }
-
         // Preserve blockNodesJson from the per-cluster profile values file so that it is not
         // silently dropped when the extraEnv values file replaces the hedera.nodes array.
         const clusterProfileValuesFile: string | undefined = this.profileValuesFile?.[clusterReference];
-        if (clusterProfileValuesFile) {
-          const blockNodesJsonMap: Record<NodeAlias, string> = extractPerNodeBlockNodesJsonFromValuesFile(
-            clusterProfileValuesFile,
-            clusterConsensusNodes,
-          );
-          for (const consensusNode of clusterConsensusNodes) {
-            if (blockNodesJsonMap[consensusNode.name]) {
-              additionalNodeValues[consensusNode.name].blockNodesJson = blockNodesJsonMap[consensusNode.name];
-            }
+        const nodeIdentityMap: Record<NodeAlias, PerNodeIdentity> = clusterProfileValuesFile
+          ? extractPerNodeIdentityFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
+          : {};
+        const blockNodesJsonMap: Record<NodeAlias, string> = clusterProfileValuesFile
+          ? extractPerNodeBlockNodesJsonFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
+          : {};
+
+        for (const consensusNode of clusterConsensusNodes) {
+          const identity: PerNodeIdentity = nodeIdentityMap[consensusNode.name] ?? {};
+          additionalNodeValues[consensusNode.name] = {
+            name: identity.name ?? consensusNode.name,
+            nodeId: identity.nodeId ?? consensusNode.nodeId,
+            // Prefer the accountId recorded in the profile values file (set by the account
+            // manager using the deployment's configured start account ID) over the computed
+            // default, so custom account IDs assigned via node transactions are preserved.
+            accountId:
+              identity.accountId ?? `${shard}.${realm}.${constants.DEFAULT_START_ID_NUMBER + consensusNode.nodeId}`,
+          };
+          if (blockNodesJsonMap[consensusNode.name]) {
+            additionalNodeValues[consensusNode.name].blockNodesJson = blockNodesJsonMap[consensusNode.name];
           }
         }
 

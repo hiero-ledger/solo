@@ -1242,3 +1242,82 @@ export function extractPerNodeBlockNodesJsonFromValuesFile(
 
   return result;
 }
+
+/**
+ * Extracts per-node identity fields (name, nodeId, accountId) from a Helm values file,
+ * keyed by node alias. Uses the consensusNodes array index as the `hedera.nodes` Helm index
+ * (matching the semantics of `buildPerNodeExtraEnvironmentValuesStructure`).
+ *
+ * This allows callers to re-use the configured account IDs from a previously generated
+ * profile values file instead of recomputing defaults, preserving any customisations made
+ * via node transactions.
+ *
+ * Returns an empty record if the file cannot be read, cannot be parsed, or contains no
+ * `hedera.nodes` array.
+ */
+export interface PerNodeIdentity {
+  name?: NodeAlias;
+  nodeId?: NodeId;
+  accountId?: string;
+}
+
+export function extractPerNodeIdentityFromValuesFile(
+  valuesFilePath: string,
+  consensusNodes: ConsensusNode[],
+): Record<NodeAlias, PerNodeIdentity> {
+  const result: Record<NodeAlias, PerNodeIdentity> = {};
+
+  let content: string;
+  try {
+    content = fs.readFileSync(valuesFilePath, 'utf8');
+  } catch {
+    return result;
+  }
+
+  let parsedValues: unknown;
+  try {
+    parsedValues = yaml.parse(content);
+  } catch {
+    return result;
+  }
+
+  if (!parsedValues || typeof parsedValues !== 'object') {
+    return result;
+  }
+
+  const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+  if (!hederaSection || typeof hederaSection !== 'object') {
+    return result;
+  }
+
+  const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+  if (!Array.isArray(nodesArray)) {
+    return result;
+  }
+
+  for (const [helmNodeIndex, consensusNode] of consensusNodes.entries()) {
+    const nodeEntry: unknown = nodesArray[helmNodeIndex];
+    if (!nodeEntry || typeof nodeEntry !== 'object') {
+      continue;
+    }
+    const entry: Record<string, unknown> = nodeEntry as Record<string, unknown>;
+    const identity: PerNodeIdentity = {};
+    if (typeof entry['name'] === 'string') {
+      identity.name = entry['name'] as NodeAlias;
+    }
+    if (typeof entry['nodeId'] === 'number') {
+      identity.nodeId = entry['nodeId'] as NodeId;
+    } else if (typeof entry['nodeId'] === 'string') {
+      const parsed: number = Number.parseInt(entry['nodeId'], 10);
+      if (!Number.isNaN(parsed)) {
+        identity.nodeId = parsed as NodeId;
+      }
+    }
+    if (typeof entry['accountId'] === 'string') {
+      identity.accountId = entry['accountId'];
+    }
+    result[consensusNode.name] = identity;
+  }
+
+  return result;
+}

@@ -112,10 +112,10 @@ wait_for_pid_with_timeout() {
     sleep 2
   done
 
-  # Reap the process and get its exit code. Use '|| true' first so set -e does not
-  # exit the script before we can capture and check the exit code ourselves.
-  wait "$pid" 2>/dev/null || true
-  local exit_code=$?
+  # Reap the process and get its exit code. Assign to exit_code before applying || so
+  # that set -e does not exit the script before we check the value ourselves.
+  local exit_code=0
+  wait "$pid" 2>/dev/null || exit_code=$?
   if [[ $exit_code -ne 0 ]]; then
     error "$description (PID $pid) failed with exit code $exit_code"
     return 1

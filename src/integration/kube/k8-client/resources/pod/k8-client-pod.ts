@@ -150,13 +150,8 @@ export class K8ClientPod implements Pod {
           );
         }
 
-        // if length of result is 1 then could not find previous port forward running, then we can use next available port
-        if (!matchedProcesses || matchedProcesses.length === 0) {
-          this.logger.warn(
-            `matching process list for port-forward returned no output: podReference: ${this.podReference.name.toString()}`,
-          );
-        }
-        if (matchedProcesses.length > 1) {
+        // Reuse an existing port-forward when at least one matching process is running.
+        if (matchedProcesses.length > 0) {
           // Extract local port number from command output.
           // Persist mode commands can have extra trailing args (e.g. kubectl path),
           // so do not assume the last token is local:remote.
