@@ -576,6 +576,14 @@ export class MirrorNodeCommand extends BaseCommand {
       );
 
       await this.remoteConfig.persist();
+    } else if (commandType === MirrorNodeCommandType.UPGRADE) {
+      // update mirror node version in remote config after successful upgrade
+      this.remoteConfig.updateComponentVersion(
+        ComponentTypes.MirrorNode,
+        new SemanticVersion<string>(config.mirrorNodeVersion),
+      );
+
+      await this.remoteConfig.persist();
     }
 
     if (config.enableIngress) {
@@ -1362,6 +1370,21 @@ END $grant$;`;
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
+
+            const currentMirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+              ComponentTypes.MirrorNode,
+            );
+            if (currentMirrorNodeVersion && !currentMirrorNodeVersion.equals('0.0.0')) {
+              const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
+                config.mirrorNodeVersion,
+              );
+              if (targetMirrorNodeVersion.lessThanOrEqual(currentMirrorNodeVersion)) {
+                throw new SoloError(
+                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is not newer than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
+                    'Use --mirror-node-version to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
