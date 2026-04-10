@@ -415,13 +415,7 @@ jobs:
           echo "wsl-shell-wrapper-path=${{ steps.setup-wsl.outputs.wsl-shell-wrapper-path }}"
           echo "wsl-shell-distribution-wrapper-path=${{ steps.setup-wsl.outputs.wsl-shell-distribution-wrapper-path }}"
           cat /etc/wsl.conf
-          mkdir -p /tmp/docker-install && cd /tmp/docker-install && pwd
-          #curl -fsSL https://get.docker.com -o docker-install.sh
-          #cat docker-install.sh && chmod 750 docker-install.sh && ls -al docker-install.sh
-          #set -x
-          #./docker-install.sh --dry-run
-          curl -fsSL "https://download.docker.com/linux/ubuntu/gpg" -o docker.asc
-          sudo cp docker.asc /etc/apt/keyrings/docker.asc && sudo chmod 644 /etc/apt/keyrings/docker.asc
+          sudo cp .github/workflows/resources/docker-apt-public-gpg-key.key /etc/apt/keyrings/docker.asc && sudo chmod 644 /etc/apt/keyrings/docker.asc
           sudo echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
           sudo apt-get -qq update >/dev/null
           sudo DEBIAN_FRONTEND=noninteractive apt-get -y -qq install docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-ce-rootless-extras docker-buildx-plugin docker-model-plugin >/dev/null
