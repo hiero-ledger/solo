@@ -1,32 +1,8 @@
-relay:
-  readinessProbe:
-    initialDelaySeconds: 10
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 6
-    successThreshold: 1
-  livenessProbe:
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 6
-  startupProbe:
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 30
-ws:
-  readinessProbe:
-    initialDelaySeconds: 10
-    periodSeconds: 5
-    timeoutSeconds: 3
-    failureThreshold: 6
-    successThreshold: 1
-  livenessProbe:
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 6
-  startupProbe:
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 30
+readinessProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 60
+livenessProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 60
