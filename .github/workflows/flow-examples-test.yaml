@@ -213,8 +213,8 @@ jobs:
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          distribution: 'temurin'
-          java-version: '25'
+          distribution: temurin
+          java-version: 21.0.1
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
@@ -235,7 +235,7 @@ jobs:
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
             ls -ltr
-            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info || exit 1
             cd ../solo
 
       - name: Build Application

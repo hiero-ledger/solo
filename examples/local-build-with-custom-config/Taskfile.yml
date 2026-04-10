@@ -24,7 +24,7 @@ vars:
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
-  CN_VERSION: 'v0.73.0-rc.1'
+  CN_VERSION: '{{default "v0.71.0" .CONSENSUS_NODE_VERSION}}'
   RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
   MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.149.0"
   EXPLORER_VERSION_FLAG: "--explorer-version 25.0.0"
@@ -83,8 +83,8 @@ tasks:
       # Solo block node add
       - cmd: |
           export BLOCK_NODE_RELEASE_TAG=$(grep "'BLOCK_NODE_VERSION'" {{ .ROOT_DIR }}/version.ts | sed -E "s/.*'([^']+)';/\1/")
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} --chart-version v0.31.0-rc1 \
-          {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          --chart-version $BLOCK_NODE_RELEASE_TAG {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
 
       # Solo node keys
       - cmd: |
@@ -102,7 +102,6 @@ tasks:
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --service-monitor true \
-          --tss --wraps \
           --enable-monitoring-support true \
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
