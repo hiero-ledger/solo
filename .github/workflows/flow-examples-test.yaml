@@ -235,7 +235,7 @@ jobs:
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
             ls -ltr
-            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info || exit 1
             cd ../solo
 
       - name: Build Application
