@@ -373,19 +373,6 @@ export class NodeCommandTasks {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
 
-      for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
-        const directoryPath: string = path.join(localDataLibraryBuildPath, directory);
-        const jarCount: number = fs.existsSync(directoryPath)
-          ? fs.readdirSync(directoryPath).filter((file: string): boolean => file.endsWith('.jar')).length
-          : 0;
-        if (jarCount === 0) {
-          throw new SoloError(
-            `Local build path '${localDataLibraryBuildPath}': no JAR files found in ${directoryPath}. ` +
-              'Ensure the project is fully built before running node setup.',
-          );
-        }
-      }
-
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
