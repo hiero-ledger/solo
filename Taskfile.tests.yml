@@ -89,7 +89,8 @@ tasks:
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/one-shot-single.test.ts'
-          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
+          --ignore 'test/e2e/commands/one-shot-falcon-prepare.test.ts'
+          --ignore 'test/e2e/commands/separate-node-update.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
@@ -159,8 +160,16 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
-        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts'
         {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
+
+  test-e2e-one-shot-falcon-prepare:
+    desc: "Runs E2E One Shot Falcon Prepare tests with coverage and generates reports in coverage/e2e-one-shot-falcon-prepare"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E One Shot Falcon Prepare Test\"
+        {{ .reporter_prefix }}='coverage/e2e-one-shot-falcon-prepare'
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-falcon-prepare.test.ts'
+        {{ .reporter_options_prefix }}-e2e-one-shot-falcon-prepare.xml"
 
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"

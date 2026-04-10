@@ -45,6 +45,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly INFO_COMMAND_NAME: string = 'show';
   public static readonly MULTIPLE_DEPLOY: string = 'deploy';
   public static readonly MULTIPLE_DESTROY: string = 'destroy';
+  public static readonly FALCON_PREPARE: string = 'prepare';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
@@ -126,6 +127,16 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.FALCON_PREPARE,
+              'Interactively generates a falcon-values.yaml for use with falcon deploy.',
+              this.oneShotCommand,
+              this.oneShotCommand.prepareFalcon,
+              DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST,
+              [],
             ),
           ),
       )
