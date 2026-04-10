@@ -100,7 +100,6 @@ jobs:
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true') && !cancelled() }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
-      - code-style
       - generate_matrix
     strategy:
       fail-fast: false
