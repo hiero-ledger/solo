@@ -416,18 +416,19 @@ jobs:
           echo "wsl-shell-distribution-wrapper-path=${{ steps.setup-wsl.outputs.wsl-shell-distribution-wrapper-path }}"
           cat /etc/wsl.conf
           ls -al .github/workflows/resources/docker-apt-public-gpg-key.key
-          sudo mkdir -p /etc/apt/keyrings
-          sudo ls -al /etc/apt/keyrings
-          sudo cp .github/workflows/resources/docker-apt-public-gpg-key.key /etc/apt/keyrings/docker.asc && sudo chmod 644 /etc/apt/keyrings/docker.asc
-          sudo ls -al /etc/apt/keyrings/docker.asc
-          sudo echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
-          sudo ls -al /etc/apt/sources.list.d/docker.list
-          sudo cat /etc/apt/sources.list.d/docker.list
-          sudo apt-get -qq update >/dev/null
+          sudo -n -E -- mkdir -p /etc/apt/keyrings
+          sudo -n -E -- ls -al /etc/apt/keyrings
+          sudo -n -E -- cp .github/workflows/resources/docker-apt-public-gpg-key.key /etc/apt/keyrings/docker.asc
+          sudo -n -E -- chmod 644 /etc/apt/keyrings/docker.asc
+          sudo -n -E -- ls -al /etc/apt/keyrings/docker.asc
+          sudo -n -E -- echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+          sudo -n -E -- ls -al /etc/apt/sources.list.d/docker.list
+          sudo -n -E -- cat /etc/apt/sources.list.d/docker.list
+          sudo -n -E -- apt-get -qq update >/dev/null
           echo "APT Update completed"
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-ce-rootless-extras docker-buildx-plugin docker-model-plugin
+          sudo -n -E -- DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-ce-rootless-extras docker-buildx-plugin docker-model-plugin
           echo "Docker installation completed"
-          sudo systemctl enable --now docker.service
+          sudo -n -E -- systemctl enable --now docker.service
           #curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
           #echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
           #sudo apt update
