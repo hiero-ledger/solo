@@ -341,7 +341,13 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          try {
+            await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          } catch (error) {
+            this.logger.warn(
+              `Could not copy block-nodes.json to consensus node ${node.name} — pod may not be ready yet: ${(error as Error).message}`,
+            );
+          }
         }
       },
     };
@@ -358,7 +364,13 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          try {
+            await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          } catch (error) {
+            this.logger.warn(
+              `Could not copy block-nodes.json to consensus node ${node.name} — pod may not be ready yet: ${(error as Error).message}`,
+            );
+          }
         }
       },
     };
@@ -368,11 +380,10 @@ export class BlockNodeCommand extends BaseCommand {
     return {
       title: 'Update consensus nodes',
       task: (_, task): SoloListr<BlockNodeDeployContext> => {
-        const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [this.updateConsensusNodesInRemoteConfig()];
-
-        if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
-          subTasks.push(this.updateConsensusNodesPostGenesis());
-        }
+        const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [
+          this.updateConsensusNodesInRemoteConfig(),
+          this.updateConsensusNodesPostGenesis(),
+        ];
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
@@ -407,11 +418,8 @@ export class BlockNodeCommand extends BaseCommand {
       task: (_, task): SoloListr<BlockNodeAddExternalContext> => {
         const subTasks: SoloListrTask<BlockNodeAddExternalContext>[] = [
           this.updateConsensusNodesInRemoteConfigForExternalBlockNode(),
+          this.updateConsensusNodesPostGenesisForExternal(),
         ];
-
-        if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
-          subTasks.push(this.updateConsensusNodesPostGenesisForExternal());
-        }
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
