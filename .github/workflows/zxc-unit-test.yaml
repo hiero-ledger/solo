@@ -89,13 +89,13 @@ jobs:
 
       - name: Setup Helm
         uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
-        if: ${{ runner.os == 'linux' }}
+        if: ${{ runner.os == 'Linux' }}
         with:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        if: ${{ runner.os == 'linux' }}
+        if: ${{ runner.os == 'Linux' }}
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -105,7 +105,7 @@ jobs:
           wait: 120s
 
       - name: Run Helm Client Unit Tests
-        if: ${{ runner.os == 'linux' }}
+        if: ${{ runner.os == 'Linux' }}
         run: task test-helm
 
       - name: Publish Windows Unit Test Report
@@ -117,28 +117,28 @@ jobs:
 
       - name: Publish Linux Unit Test Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
-        if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: ${{ runner.os == 'Linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'
           files: "junit.xml"
 
       - name: Publish Unit Test Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: ${{ runner.os == 'linux' && !cancelled() }}
+        if: ${{ runner.os == 'Linux' && !cancelled() }}
         with:
           name: Unit_Tests_Coverage_Report
           path: 'coverage/unit'
 
       - name: Publish HelmClient Unit Test Coverage Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: ${{ runner.os == 'linux' && !cancelled() }}
+        if: ${{ runner.os == 'Linux' && !cancelled() }}
         with:
           name: Unit_Helm_Tests_Coverage_Report
           path: 'coverage/unit-helm'
 
       - name: Publish Test Reports
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: ${{ runner.os == 'Linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: Test Reports
           path: "junit*.xml"

@@ -209,7 +209,7 @@ jobs:
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Setup Java
-        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -217,14 +217,14 @@ jobs:
           java-version: 21.0.1
 
       - name: Setup Gradle
-        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
 
       - name: Build Hedera code locally
-        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
