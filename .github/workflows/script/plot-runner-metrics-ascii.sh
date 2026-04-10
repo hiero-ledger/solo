@@ -12,6 +12,7 @@ fi
 
 METRICS_FILE="$1"
 OUTPUT_FILE="${2:-}"
+POD_DETAIL_FILE="${METRICS_FILE%.jsonl}-pods.jsonl"
 
 if [[ ! -f "$METRICS_FILE" ]]; then
   echo "Error: metrics file not found: $METRICS_FILE" >&2
@@ -176,6 +177,19 @@ else
     pod_cpu_chart=$(_mb_chart "$POD_CPU_VALUES" "${peak_pod_cpu_m:-1}" " m")
   fi
 
+  # Per-pod memory snapshot at the data point where total pod memory is highest
+  peak_pod_snapshot=""
+  peak_pod_snapshot_ts=""
+  if [[ -f "$POD_DETAIL_FILE" ]] && [[ -n "$POD_MEM_VALUES" ]] && printf '%s\n' "$POD_MEM_VALUES" | grep -qE '^[0-9]+'; then
+    peak_pod_snapshot_ts=$(jq -rs 'max_by(.pods | map(.mem_mb) | add // 0) | .timestamp' "$POD_DETAIL_FILE" 2>/dev/null || echo "")
+    if [[ -n "$peak_pod_snapshot_ts" ]]; then
+      peak_pod_snapshot=$(jq -r --arg ts "$peak_pod_snapshot_ts" \
+        'select(.timestamp == $ts) | .pods[] | [.mem_mb, (.ns + "/" + .pod)] | @tsv' \
+        "$POD_DETAIL_FILE" 2>/dev/null \
+        | sort -rn | head -30 || echo "")
+    fi
+  fi
+
   # Threshold checks (CPU only; memory uses absolute MB threshold if available)
   OVER_95=$(awk -v c="$peak_cpu" -v m="$peak_mem_pct" 'BEGIN{max=c+0; if(m+0>max)max=m+0; if(max>95)print 1; else print 0}')
   OVER_80=$(awk -v c="$peak_cpu" -v m="$peak_mem_pct" 'BEGIN{max=c+0; if(m+0>max)max=m+0; if(max>80)print 1; else print 0}')
@@ -201,6 +215,15 @@ else
   if [[ -n "$pod_mem_chart" ]]; then
     ASCII+="📦 Pod Memory Usage — sum of all containers (MB)"$'\n'
     ASCII+="$pod_mem_chart"$'\n'
+    ASCII+=$'\n'
+  fi
+
+  if [[ -n "$peak_pod_snapshot" ]]; then
+    ASCII+="🔍 Per-Pod Memory at Peak Cluster Usage (${peak_pod_snapshot_ts})"$'\n'
+    ASCII+="────────────────────────────────────────────────────"$'\n'
+    ASCII+="$(printf '%s\n' "$peak_pod_snapshot" | awk -F'\t' '{printf "   %6d MB  %s\n", $1, $2}')"$'\n'
+    ASCII+="────────────────────────────────────────────────────"$'\n'
+    ASCII+="   Total: ${peak_pod_mem_mb} MB"$'\n'
     ASCII+=$'\n'
   fi
 
