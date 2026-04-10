@@ -372,7 +372,29 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
-      this.platformInstaller.validatePlatformReleaseDir(localDataLibraryBuildPath);
+
+      // The local build path points to the `data` directory itself (containing apps/ and lib/).
+      // Validate that it contains jar files in each subdirectory to catch incorrect paths early.
+      const appsSubDirectory: string = path.join(localDataLibraryBuildPath, 'apps');
+      const libSubDirectory: string = path.join(localDataLibraryBuildPath, 'lib');
+      if (!fs.existsSync(appsSubDirectory) || !fs.existsSync(libSubDirectory)) {
+        throw new SoloError(
+          `local build path '${localDataLibraryBuildPath}' must contain 'apps' and 'lib' subdirectories`,
+        );
+      }
+      const appsJarFiles: string[] = fs
+        .readdirSync(appsSubDirectory)
+        .filter((file: string): boolean => file.endsWith('.jar'));
+      if (appsJarFiles.length === 0) {
+        throw new SoloError(`No jar files found in '${appsSubDirectory}'; please check your local build path`);
+      }
+      const libJarFiles: string[] = fs
+        .readdirSync(libSubDirectory)
+        .filter((file: string): boolean => file.endsWith('.jar'));
+      if (libJarFiles.length === 0) {
+        throw new SoloError(`No jar files found in '${libSubDirectory}'; please check your local build path`);
+      }
+
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
