@@ -335,10 +335,10 @@ Once the account is created, verify it in the web-based Explorer UI:
 3. View the account details, balance, and transaction history
 
 This confirms that:
-- ✓ The network is processing transactions
-- ✓ The consensus node is responding correctly
-- ✓ The mirror node is indexing transactions
-- ✓ The explorer is displaying data properly
+* The network is processing transactions
+* The consensus node is responding correctly
+* The mirror node is indexing transactions
+* The explorer is displaying data properly
 
 ## Managing Your Network
 
