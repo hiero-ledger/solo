@@ -289,11 +289,12 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
   const argv: string[] = newArgv();
   argv.push(
     OneShotCommandDefinition.COMMAND_NAME,
-    OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
+    OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
   argv.push(optionFromFlag(Flags.deployment), deployment);
+  argv.push(optionFromFlag(Flags.valuesFile), 'test/data/performance-test-values.yaml');
   return argv;
 }
 

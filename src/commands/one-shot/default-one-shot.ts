@@ -192,7 +192,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       return;
     }
     for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY && key !== '--deployment') {
+      if (key === '--deployment') {
+        continue;
+      }
+      if (value === false) {
+        // Boolean false must use yargs negation prefix (--no-flag) rather than --flag false
+        argv.push(key.replace(/^--/, '--no-'));
+      } else if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
         argv.push(`${key}`, value.toString());
       }
     }
@@ -715,6 +721,21 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             },
                             this.taskList,
                           ),
+                          {
+                            title: `Copy ${constants.BLOCK_NODES_JSON_FILE} to consensus nodes`,
+                            skip: (): boolean =>
+                              constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                              this.remoteConfig.configuration.state.blockNodes.length === 0,
+                            task: async (): Promise<void> => {
+                              for (const node of this.remoteConfig.getConsensusNodes()) {
+                                await helpers.createAndCopyBlockNodeJsonFileForConsensusNode(
+                                  node,
+                                  this.logger,
+                                  this.k8Factory,
+                                );
+                              }
+                            },
+                          },
                           invokeSoloCommand(
                             `solo ${ConsensusCommandDefinition.START_COMMAND}`,
                             ConsensusCommandDefinition.START_COMMAND,
