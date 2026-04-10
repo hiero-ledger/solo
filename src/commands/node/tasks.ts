@@ -3296,7 +3296,7 @@ export class NodeCommandTasks {
             const indexedConsensusNodes: Array<ConsensusNode | undefined> = [];
             const unindexedConsensusNodes: ConsensusNode[] = [];
             for (const consensusNode of consensusNodes) {
-              const nodeIndex = clusterLocalNodeIndices?.[consensusNode.nodeId];
+              const nodeIndex: number | undefined = clusterLocalNodeIndices?.[consensusNode.nodeId];
               if (nodeIndex === undefined) {
                 unindexedConsensusNodes.push(consensusNode);
                 continue;
