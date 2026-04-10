@@ -95,21 +95,21 @@ run_with_timeout_diag() {
 
 ##### Pre-cleanup Diagnostics (proves stale state from prior runs on self-hosted runners) #####
 echo "=== Existing kind clusters ==="
-run_with_timeout_diag 30 "kind get clusters" kind get clusters 2>/dev/null || true
+run_with_timeout_diag 30 "kind get clusters" kind get clusters || true
 echo "=== Existing Docker networks ==="
-run_with_timeout_diag 30 "docker network ls" docker network ls 2>/dev/null || true
+run_with_timeout_diag 30 "docker network ls" docker network ls || true
 echo "=== Docker containers (all) ==="
-run_with_timeout_diag 30 "docker ps -a" docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Networks}}' 2>/dev/null || true
+run_with_timeout_diag 30 "docker ps -a" docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Networks}}' || true
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
-  run_with_timeout_diag 60 "kind delete cluster ${SOLO_CLUSTER_NAME}-c${i}" kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" 2>/dev/null || true
+  run_with_timeout_diag 60 "kind delete cluster ${SOLO_CLUSTER_NAME}-c${i}" kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" || true
 done
 
 # On Windows (Docker Desktop), the bridge network plugin is not available via the v1
 # plugin registry. Kind manages its own Docker network automatically on Windows, so
 # manual network creation is not needed and will fail. Skip it on Windows (msys/Git Bash).
 if [[ "$OSTYPE" != msys* ]]; then
-  run_with_timeout_diag 30 "docker network rm kind" docker network rm -f kind 2>/dev/null || true
+  run_with_timeout_diag 30 "docker network rm kind" docker network rm -f kind || true
   run_with_timeout_diag 60 "docker network create kind" docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 fi
 run_with_timeout_diag 30 "docker info" docker info | grep -i cgroup || true
