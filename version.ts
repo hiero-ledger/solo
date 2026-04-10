@@ -45,18 +45,16 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 // Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
-export const SOLO_CHART_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
+export const SOLO_CHART_EDGE_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || '0.63.2';
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || HEDERA_PLATFORM_VERSION;
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.73.0-rc.1';
 export const MIRROR_NODE_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
-export const EXPLORER_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
+  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || 'v0.152.0-rc1';
+export const EXPLORER_EDGE_VERSION: string = constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || 'v26.0.0';
 export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || HEDERA_JSON_RPC_RELAY_VERSION;
+  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || 'v0.76.1';
 export const BLOCK_NODE_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || BLOCK_NODE_VERSION;
+  constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || 'v0.31.0-rc1';
 
 // -------------------------------------------------------------------- //
 
