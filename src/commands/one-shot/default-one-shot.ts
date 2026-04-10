@@ -84,6 +84,7 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
+import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
@@ -566,84 +567,115 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Create remote config components',
             task: async (): Promise<void> => {
-              // Pre add remote config components to remote config
+              // If recovering from an interrupted run the remote config already exists in K8s
+              // but was not loaded (createOrEditRemoteConfigForNewDeployment returned early).
+              // Load it now so we can detect which components are already registered.
+              if (!this.remoteConfig.isLoaded()) {
+                try {
+                  await this.remoteConfig.load(config.namespace, config.context);
+                } catch {
+                  // Remote config does not exist yet; proceed to create components from scratch
+                }
+              }
+
+              let changed: boolean = false;
 
               if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
-                // Add Block Node
-                const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
-                  config.clusterRef,
-                  config.namespace,
-                );
-
-                blockNode.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  blockNode,
-                  ComponentTypes.BlockNode,
-                  false,
-                  true,
-                );
-              }
-
-              // Add Explorer
-              if (config.deployExplorer) {
-                const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
-                  config.clusterRef,
-                  config.namespace,
-                );
-
-                explorer.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  explorer,
-                  ComponentTypes.Explorer,
-                  false,
-                  true,
-                );
-              }
-
-              // Add Mirror Node
-              if (config.deployMirrorNode) {
-                const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
-                  config.clusterRef,
-                  config.namespace,
-                );
-
-                mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  mirrorNode,
-                  ComponentTypes.MirrorNode,
-                  false,
-                  true,
-                );
-              }
-
-              // Add Relay
-              if (config.deployRelay) {
-                const nodeIds: NodeId[] = [];
-
-                for (const alias of Templates.renderNodeAliasesFromCount(config.numberOfConsensusNodes, 0)) {
-                  nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
+                const existingBlockNodes: BlockNodeStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
+                      ComponentTypes.BlockNode,
+                    )
+                  : [];
+                if (existingBlockNodes.length === 0) {
+                  const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
+                    config.clusterRef,
+                    config.namespace,
+                  );
+                  blockNode.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    blockNode,
+                    ComponentTypes.BlockNode,
+                    false,
+                    true,
+                  );
+                  changed = true;
                 }
-
-                const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
-                  config.clusterRef,
-                  config.namespace,
-                  nodeIds,
-                );
-
-                relay.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  relay,
-                  ComponentTypes.RelayNodes,
-                  false,
-                  true,
-                );
               }
 
-              await this.remoteConfig.persist();
+              if (config.deployExplorer) {
+                const existingExplorers: ExplorerStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<ExplorerStateSchema>(
+                      ComponentTypes.Explorer,
+                    )
+                  : [];
+                if (existingExplorers.length === 0) {
+                  const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
+                    config.clusterRef,
+                    config.namespace,
+                  );
+                  explorer.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    explorer,
+                    ComponentTypes.Explorer,
+                    false,
+                    true,
+                  );
+                  changed = true;
+                }
+              }
+
+              if (config.deployMirrorNode) {
+                const existingMirrorNodes: MirrorNodeStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<MirrorNodeStateSchema>(
+                      ComponentTypes.MirrorNode,
+                    )
+                  : [];
+                if (existingMirrorNodes.length === 0) {
+                  const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
+                    config.clusterRef,
+                    config.namespace,
+                  );
+                  mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    mirrorNode,
+                    ComponentTypes.MirrorNode,
+                    false,
+                    true,
+                  );
+                  changed = true;
+                }
+              }
+
+              if (config.deployRelay) {
+                const existingRelays: RelayNodeStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+                      ComponentTypes.RelayNodes,
+                    )
+                  : [];
+                if (existingRelays.length === 0) {
+                  const nodeIds: NodeId[] = [];
+                  for (const alias of Templates.renderNodeAliasesFromCount(config.numberOfConsensusNodes, 0)) {
+                    nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
+                  }
+                  const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
+                    config.clusterRef,
+                    config.namespace,
+                    nodeIds,
+                  );
+                  relay.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    relay,
+                    ComponentTypes.RelayNodes,
+                    false,
+                    true,
+                  );
+                  changed = true;
+                }
+              }
+
+              if (changed) {
+                await this.remoteConfig.persist();
+              }
             },
           },
           {
@@ -671,6 +703,21 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       return argvPushGlobalFlags(argv, config.cacheDir);
                     },
                     this.taskList,
+                    (): boolean => {
+                      if (!this.remoteConfig.isLoaded()) {
+                        return false;
+                      }
+                      const consensusNodes: ConsensusNodeStateSchema[] =
+                        this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                          ComponentTypes.ConsensusNode,
+                        );
+                      return consensusNodes.some(
+                        (node: ConsensusNodeStateSchema): boolean =>
+                          node.metadata.phase === DeploymentPhase.DEPLOYED ||
+                          node.metadata.phase === DeploymentPhase.CONFIGURED ||
+                          node.metadata.phase === DeploymentPhase.STARTED,
+                      );
+                    },
                   ),
                   invokeSoloCommand(
                     `solo ${BlockCommandDefinition.ADD_COMMAND}`,
@@ -686,7 +733,21 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       return argvPushGlobalFlags(argv);
                     },
                     this.taskList,
-                    (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+                    (): boolean => {
+                      if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true') {
+                        return true;
+                      }
+                      if (!this.remoteConfig.isLoaded()) {
+                        return false;
+                      }
+                      const blockNodes: BlockNodeStateSchema[] =
+                        this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
+                          ComponentTypes.BlockNode,
+                        );
+                      return blockNodes.some(
+                        (node: BlockNodeStateSchema): boolean => node.metadata.phase === DeploymentPhase.DEPLOYED,
+                      );
+                    },
                   ),
                 ],
                 {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
@@ -736,6 +797,23 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               return argvPushGlobalFlags(argv, config.cacheDir);
                             },
                             this.taskList,
+                            (): boolean => {
+                              if (!this.remoteConfig.isLoaded()) {
+                                return false;
+                              }
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              return (
+                                consensusNodes.length > 0 &&
+                                consensusNodes.every(
+                                  (node: ConsensusNodeStateSchema): boolean =>
+                                    node.metadata.phase === DeploymentPhase.CONFIGURED ||
+                                    node.metadata.phase === DeploymentPhase.STARTED,
+                                )
+                              );
+                            },
                           ),
                           invokeSoloCommand(
                             `solo ${ConsensusCommandDefinition.START_COMMAND}`,
@@ -751,6 +829,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               return argvPushGlobalFlags(argv);
                             },
                             this.taskList,
+                            (): boolean => {
+                              if (!this.remoteConfig.isLoaded()) {
+                                return false;
+                              }
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              return (
+                                consensusNodes.length > 0 &&
+                                consensusNodes.every(
+                                  (node: ConsensusNodeStateSchema): boolean =>
+                                    node.metadata.phase === DeploymentPhase.STARTED,
+                                )
+                              );
+                            },
                           ),
                         ],
                         {concurrent: false, rendererOptions: {collapseSubtasks: false}},
@@ -789,7 +883,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       return argvPushGlobalFlags(argv, config.cacheDir);
                                     },
                                     this.taskList,
-                                    (): boolean => !config.deployMirrorNode,
+                                    (): boolean => {
+                                      if (!config.deployMirrorNode) {
+                                        return true;
+                                      }
+                                      if (!this.remoteConfig.isLoaded()) {
+                                        return false;
+                                      }
+                                      const mirrorNodes: MirrorNodeStateSchema[] =
+                                        this.remoteConfig.configuration.components.getComponentByType<MirrorNodeStateSchema>(
+                                          ComponentTypes.MirrorNode,
+                                        );
+                                      return mirrorNodes.some(
+                                        (node: MirrorNodeStateSchema): boolean =>
+                                          node.metadata.phase === DeploymentPhase.DEPLOYED,
+                                      );
+                                    },
                                   ),
                                   {
                                     title: 'Deploy Extensions',
@@ -818,7 +927,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                               return argvPushGlobalFlags(argv, config.cacheDir);
                                             },
                                             this.taskList,
-                                            (): boolean => !config.deployExplorer,
+                                            (): boolean => {
+                                              if (!config.deployExplorer) {
+                                                return true;
+                                              }
+                                              if (!this.remoteConfig.isLoaded()) {
+                                                return false;
+                                              }
+                                              const explorers: ExplorerStateSchema[] =
+                                                this.remoteConfig.configuration.components.getComponentByType<ExplorerStateSchema>(
+                                                  ComponentTypes.Explorer,
+                                                );
+                                              return explorers.some(
+                                                (node: ExplorerStateSchema): boolean =>
+                                                  node.metadata.phase === DeploymentPhase.DEPLOYED,
+                                              );
+                                            },
                                           ),
                                           invokeSoloCommand(
                                             `solo ${RelayCommandDefinition.ADD_COMMAND}`,
@@ -842,7 +966,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                               return argvPushGlobalFlags(argv);
                                             },
                                             this.taskList,
-                                            (): boolean => !config.deployRelay,
+                                            (): boolean => {
+                                              if (!config.deployRelay) {
+                                                return true;
+                                              }
+                                              if (!this.remoteConfig.isLoaded()) {
+                                                return false;
+                                              }
+                                              const relays: RelayNodeStateSchema[] =
+                                                this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+                                                  ComponentTypes.RelayNodes,
+                                                );
+                                              return relays.some(
+                                                (node: RelayNodeStateSchema): boolean =>
+                                                  node.metadata.phase === DeploymentPhase.DEPLOYED,
+                                              );
+                                            },
                                           ),
                                         ],
                                         {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
