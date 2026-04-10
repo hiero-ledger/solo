@@ -727,6 +727,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
                               this.remoteConfig.configuration.state.blockNodes.length === 0,
                             task: async (): Promise<void> => {
+                              // Reload remote config so we pick up the blockNodeMap written by
+                              // the `block-node add` sub-command (which ran in a separate main() call)
+                              await this.remoteConfig.load();
                               for (const node of this.remoteConfig.getConsensusNodes()) {
                                 await helpers.createAndCopyBlockNodeJsonFileForConsensusNode(
                                   node,
