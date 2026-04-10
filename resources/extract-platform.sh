@@ -8,6 +8,8 @@ set -o pipefail
 
 readonly HAPI_DIR=/opt/hgcapp/services-hedera/HapiApp2.0
 readonly LOG_FILE="${HAPI_DIR}/output/extract-platform.log"
+readonly MAIN_CLASS_PATTERN='[c]om.hedera.node.app.ServicesMain'
+readonly NETWORK_NODE_SERVICE_DIR='/run/service/network-node'
 
 function log() {
   local message="${1}"
@@ -18,6 +20,50 @@ function log() {
   fi
 
   printf "%s - %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "${message}" | tee -a "${LOG_FILE}"
+}
+
+function running_services_main_pids() {
+  ps -eo pid,args | awk "/${MAIN_CLASS_PATTERN}/{print \$1}"
+}
+
+function ensure_services_main_stopped() {
+  local pids
+  pids="$(running_services_main_pids)"
+  if [[ -z "${pids}" ]]; then
+    return 0
+  fi
+
+  log "ServicesMain JVM detected before extraction; stopping network-node to avoid deleting jars under a live process"
+
+  if [[ -x /command/network-node-lifecycle ]]; then
+    /command/network-node-lifecycle stop > >(tee -a "${LOG_FILE}") 2>&1 || true
+  fi
+
+  # Force the service down at supervisor level so an emergency kill is not
+  # immediately restarted by s6 while extraction is in progress.
+  if [[ -d "${NETWORK_NODE_SERVICE_DIR}" ]] && [[ -x /command/s6-svc ]]; then
+    /command/s6-svc -d "${NETWORK_NODE_SERVICE_DIR}" > >(tee -a "${LOG_FILE}") 2>&1 || true
+  fi
+
+  pids="$(running_services_main_pids)"
+  if [[ -n "${pids}" ]]; then
+    kill -TERM ${pids} > >(tee -a "${LOG_FILE}") 2>&1 || true
+    sleep 5
+  fi
+
+  pids="$(running_services_main_pids)"
+  if [[ -n "${pids}" ]]; then
+    kill -KILL ${pids} > >(tee -a "${LOG_FILE}") 2>&1 || true
+    sleep 2
+  fi
+
+  pids="$(running_services_main_pids)"
+  if [[ -n "${pids}" ]]; then
+    log "Failed to stop ServicesMain JVM before extraction; refusing to continue"
+    return 1
+  fi
+
+  return 0
 }
 
 readonly tag="${1}"
@@ -31,6 +77,13 @@ readonly BUILD_ZIP_FILE="${HEDERA_USER_HOME_DIR}/build-${tag}.zip"
 readonly CHECKSUM_FILE="${HEDERA_USER_HOME_DIR}/build-${tag}.sha384"
 
 log "extract-platform.sh: begin................................"
+
+ensure_services_main_stopped
+ec="${?}"
+if [[ "${ec}" -ne 0 ]]; then
+  log "Pre-extraction stop check failed. Aborting extraction."
+  exit 1
+fi
 
 # shellcheck disable=SC2164
 cd ${HEDERA_USER_HOME_DIR}

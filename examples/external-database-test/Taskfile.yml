@@ -61,9 +61,6 @@ tasks:
       # Set kubectl context
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
-      # Solo init
-      - cmd: $SOLO_COMMAND init
-
       # Solo cluster-ref config setup
       - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
 
