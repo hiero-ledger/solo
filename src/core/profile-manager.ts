@@ -215,10 +215,9 @@ export class ProfileManager {
       this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
       // For application.properties: when the user provides a custom file (flag value differs
-      // from the default relative path), apply it as an additive override by:
-      //   1. Copying the already-updated Solo default (applicationPropertiesPath) to staging.
-      //   2. Appending the user's properties onto that staging file.
-      // This preserves all required Solo defaults while allowing user overrides.
+      // from the default relative path), use the user's file as the base and then apply
+      // Solo's required overrides (realm, shard, block-node settings) on top.
+      // This preserves all user-defined properties while ensuring Solo's critical settings win.
       const flagValue: string | undefined = this.configManager.getFlag<string>(flags.applicationProperties);
       const isUserSuppliedApplicationProperties: boolean =
         flag.name === flags.applicationProperties.name &&
@@ -226,7 +225,10 @@ export class ProfileManager {
         flagValue !== (flags.applicationProperties.definition.defaultValue as string);
 
       if (isUserSuppliedApplicationProperties) {
-        // Base: Solo's updated default (realm/shard/block-node settings already applied)
+        // Base: Solo's updated default (realm/shard/block-node settings already applied).
+        // Apply user's properties as key-level overrides: existing keys are updated,
+        // new keys are appended.  This avoids duplicates while preserving all Solo defaults
+        // that the user did not explicitly override.
         fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
         await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
       } else {
@@ -451,14 +453,61 @@ export class ProfileManager {
   }
 
   /**
-   * Append a user-supplied application.properties onto the existing staging file.
-   * Solo's defaults are preserved; the user's entries are added at the end.
+   * Merge a user-supplied application.properties into the existing staging file.
+   * Solo's defaults (already written to stagingPath) are the base; for each key in the
+   * user's file the existing line is replaced in-place.  Keys not present in the base
+   * are appended at the end.  This avoids duplicate entries while preserving every
+   * Solo default the user did not explicitly override.
    */
   private async mergeApplicationProperties(stagingPath: string, userFilePath: string): Promise<void> {
-    this.logger.debug(`Appending user application.properties '${userFilePath}' onto staging '${stagingPath}'`);
-    const userContent: string = await readFile(userFilePath, 'utf8');
+    this.logger.debug(`Merging user application.properties '${userFilePath}' into staging '${stagingPath}'`);
     const stagingContent: string = await readFile(stagingPath, 'utf8');
-    await writeFile(stagingPath, `${stagingContent.trimEnd()}\n${userContent}`);
+    const userContent: string = await readFile(userFilePath, 'utf8');
+
+    // Parse user file into key→value map (comments and blank lines are skipped)
+    const userProperties = new Map<string, string>();
+    for (const line of userContent.split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        userProperties.set(trimmed.slice(0, equalsIndex).trim(), trimmed.slice(equalsIndex + 1));
+      }
+    }
+
+    // Walk staging lines, replacing values for keys the user supplied
+    const appliedKeys = new Set<string>();
+    const resultLines: string[] = [];
+    for (const line of stagingContent.split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        resultLines.push(line);
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        const key: string = trimmed.slice(0, equalsIndex).trim();
+        if (userProperties.has(key)) {
+          resultLines.push(`${key}=${userProperties.get(key)}`);
+          appliedKeys.add(key);
+        } else {
+          resultLines.push(line);
+        }
+      } else {
+        resultLines.push(line);
+      }
+    }
+
+    // Append keys from user's file that were not present in Solo's default
+    for (const [key, value] of userProperties) {
+      if (!appliedKeys.has(key)) {
+        resultLines.push(`${key}=${value}`);
+      }
+    }
+
+    await writeFile(stagingPath, resultLines.join('\n'));
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
