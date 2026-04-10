@@ -457,9 +457,12 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of Object.keys(valuesFiles)) {
         // Only include nodes belonging to this cluster so the generated hedera.nodes array
         // matches the cluster-specific node set and does not overwrite nodes in other clusters.
-        const clusterConsensusNodes: ConsensusNode[] = config.consensusNodes.filter(
-          (node): boolean => node.cluster === clusterReference,
-        );
+        // Sort deterministically by nodeId so per-node Helm values align with the chart's
+        // expected node ordering regardless of upstream object iteration order.
+        const clusterConsensusNodes: ConsensusNode[] = config.consensusNodes
+          .filter((node): boolean => node.cluster === clusterReference)
+          // eslint-disable-next-line unicorn/no-array-sort
+          .sort((left, right): number => left.nodeId - right.nodeId);
         if (clusterConsensusNodes.length === 0) {
           continue;
         }

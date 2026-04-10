@@ -996,9 +996,10 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
       hedera.nodes.push({});
     }
 
-    const nodeValues: PerNodeExtraEnvironmentValues['hedera']['nodes'][number] = {
-      root: {extraEnv: extraEnvironmentVariables},
-    };
+    const nodeValues: PerNodeExtraEnvironmentValues['hedera']['nodes'][number] = {};
+    if (extraEnvironmentVariables.length > 0) {
+      nodeValues['root'] = {extraEnv: extraEnvironmentVariables};
+    }
 
     const additionalNodeValues:
       | {name?: NodeAlias; nodeId?: NodeId; accountId?: string; blockNodesJson?: string}
