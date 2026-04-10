@@ -415,6 +415,7 @@ jobs:
           cat /etc/wsl.conf
           curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
           cat /tmp/get-docker.sh
+          chmod 750 /tmp/get-docker.sh
           ls -al /tmp/get-docker.sh
           mkdir -p /tmp/docker-install
           cd /tmp/docker-install
