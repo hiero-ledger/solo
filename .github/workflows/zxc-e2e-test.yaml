@@ -253,7 +253,7 @@ jobs:
 
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
-        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           # Configure APT to use main Ubuntu archive (disable mirror rotation)
@@ -271,7 +271,6 @@ jobs:
           wsl-shell-user: runner
           use-cache: false
           set-as-default: true
-          update: true
           additional-packages:
             apt-transport-https
             ca-certificates
@@ -291,7 +290,7 @@ jobs:
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
       - name: Install wget
-        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -364,7 +363,7 @@ jobs:
         run: task build:compile
 
       - name: Setup Java
-        if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -372,14 +371,14 @@ jobs:
           java-version: 21.0.1
 
       - name: Setup Gradle
-        if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
 
       - name: Create Diagnostic Script
-        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           WRITE_DIAG_SCRIPT: ${{ github.workspace }}/.github/workflows/script/write_diag_script.sh
@@ -388,7 +387,7 @@ jobs:
           ${WRITE_DIAG_SCRIPT}
 
       - name: Build Hedera code locally
-        if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -453,7 +452,7 @@ jobs:
             fi
 
       - name: Build Block Code Locally
-        if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'Linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -487,7 +486,7 @@ jobs:
 
       - name: Run E2E Tests
         id: run-e2e-tests
-        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
