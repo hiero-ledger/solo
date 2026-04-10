@@ -400,6 +400,13 @@ jobs:
             if [[ "$RUNNER_OS" != "Windows" ]]; then
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             else
+              systeminfo
+              wsl --list --verbose
+              wsl --status
+              wsl --version
+              docker version
+              docker info
+              
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             fi
 
