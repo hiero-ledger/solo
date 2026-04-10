@@ -396,6 +396,29 @@ jobs:
             ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
             cd ../solo
 
+      - name: Install Docker in WSL
+        shell: wsl-bash {0}
+        run: |
+          sudo apt update
+          sudo apt upgrade -y
+          sudo apt install \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            software-properties-common -y
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt update
+          sudo apt install docker-ce -y
+          sudo service docker start
+          sudo docker --version
+          sudo docker version
+          sudo docker info
+          sudo cat /etc/docker/daemon.json
+          sudo usermod -aG docker $USER
+          sudo systemctl daemon-reload
+          sudo systemctl restart docker.service
+
       - name: Setup E2E Tests
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
@@ -415,7 +438,7 @@ jobs:
               wsl --version
               docker version
               docker info
-              
+              echo "DOCKER_HOST: $DOCKER_HOST"
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             fi
 
