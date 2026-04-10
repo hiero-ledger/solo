@@ -4100,6 +4100,31 @@ export class NodeCommandTasks {
     };
   }
 
+  public reportActivePortForwards(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Report active port-forward processes',
+      task: async (): Promise<void> => {
+        try {
+          const output: string = execSync('ps -ef | grep port-forward', {encoding: 'utf8'});
+          const lines: string[] = output
+            .split('\n')
+            .filter((line: string): boolean => line.includes('port-forward') && !line.includes('grep'))
+            .filter((line: string): boolean => line.trim().length > 0);
+          if (lines.length === 0) {
+            this.logger.showUser('No active port-forward processes found.');
+          } else {
+            this.logger.showUser(`Active port-forward processes (${lines.length}):`);
+            for (const line of lines) {
+              this.logger.showUser(`  ${line}`);
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to list port-forward processes: ${(error as Error).message}`);
+        }
+      },
+    };
+  }
+
   private async downloadPodLogs(
     podInfo: {pod: Pod; context: string; namespace: NamespaceName},
     outputDirectory: string,

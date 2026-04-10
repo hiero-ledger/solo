@@ -893,10 +893,7 @@ export class DeploymentCommand extends BaseCommand {
                         // - podPort: the port on the pod to forward from
                         // - reuse: true = reuse the configured port number
                         // - persist: false = temporary port-forward (will not restart on failure)
-                        await k8Client
-                          .pods()
-                          .readByReference(podReference)
-                          .portForward(localPort, podPort, true, false);
+                        await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, true);
 
                         const restoredDetail: string = `  ↳ Restored port forward for ${componentLabel}`;
                         this.logger.showUser(chalk.green(restoredDetail));
