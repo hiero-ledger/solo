@@ -1,2 +1,2 @@
 network:
-  --tss: true
+  --application-properties: test/data/tss-disabled.properties
