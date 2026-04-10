@@ -48,8 +48,12 @@ tasks:
     desc: Verify custom application.properties was merged into the consensus node container
     cmds:
       - cmd: |
-          # Resolve namespace from the last one-shot deployment (falls back to DEPLOYMENT var)
-          NAMESPACE=$(cat ~/.solo/cache/last-one-shot-deployment.txt 2>/dev/null || echo "{{ .DEPLOYMENT }}")
+          # Find the namespace containing network-node pods directly from Kubernetes
+          NAMESPACE=$(kubectl get pods --all-namespaces -l "solo.hedera.com/type=network-node" \
+            -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null)
+          if [[ -z "$NAMESPACE" ]]; then
+            NAMESPACE=$(cat ~/.solo/cache/last-one-shot-deployment.txt 2>/dev/null || echo "{{ .DEPLOYMENT }}")
+          fi
           # Find the first network-node pod in that namespace
           POD=$(kubectl get pods -n "$NAMESPACE" -l "solo.hedera.com/type=network-node" \
             -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
