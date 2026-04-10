@@ -106,6 +106,20 @@ jobs:
           export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
           node .github/workflows/script/one-shot-interrupt-destroy.mjs
 
+      - name: Run Interrupt Redeploy Script
+        timeout-minutes: 60
+        env:
+          ONE_SHOT_WITH_BLOCK_NODE: true
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
+            export SOLO_COMMAND="npx @hashgraph/solo"
+          else
+            export SOLO_COMMAND="npm run solo --"
+          fi
+          export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
+          bash .github/workflows/script/one-shot-interrupt-redeploy.sh
+
       - name: Cleanup Deployment
         if: always()
         timeout-minutes: 15
@@ -117,4 +131,17 @@ jobs:
             npx @hashgraph/solo one-shot single destroy --quiet-mode
           else
             npm run solo -- one-shot single destroy --quiet-mode
+          fi
+
+      - name: Cleanup Redeploy Deployment
+        if: always()
+        timeout-minutes: 15
+        env:
+          ONE_SHOT_WITH_BLOCK_NODE: true
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
+            npx @hashgraph/solo one-shot single destroy --deployment one-shot-recover --quiet-mode || true
+          else
+            npm run solo -- one-shot single destroy --deployment one-shot-recover --quiet-mode || true
           fi
