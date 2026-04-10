@@ -465,7 +465,7 @@ export class ProfileManager {
     const userContent: string = await readFile(userFilePath, 'utf8');
 
     // Parse user file into key→value map (comments and blank lines are skipped)
-    const userProperties = new Map<string, string>();
+    const userProperties: Map<string, string> = new Map<string, string>();
     for (const line of userContent.split('\n')) {
       const trimmed: string = line.trim();
       if (!trimmed || trimmed.startsWith('#')) {
@@ -478,7 +478,7 @@ export class ProfileManager {
     }
 
     // Walk staging lines, replacing values for keys the user supplied
-    const appliedKeys = new Set<string>();
+    const appliedKeys: Set<string> = new Set<string>();
     const resultLines: string[] = [];
     for (const line of stagingContent.split('\n')) {
       const trimmed: string = line.trim();
