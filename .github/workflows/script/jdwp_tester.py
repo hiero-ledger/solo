@@ -15,6 +15,17 @@ import argparse
 from pathlib import Path
 
 
+def recv_exactly(sock: socket.socket, num_bytes: int) -> bytes:
+    """Read exactly num_bytes from sock, looping until all bytes are received."""
+    data = b""
+    while len(data) < num_bytes:
+        chunk = sock.recv(num_bytes - len(data))
+        if not chunk:
+            raise ConnectionError(f"Connection closed after {len(data)}/{num_bytes} bytes")
+        data += chunk
+    return data
+
+
 def jdwp_handshake_and_resume(host: str, port: int) -> bool:
     """
     Perform JDWP handshake and send VirtualMachine.Resume command.
@@ -28,7 +39,7 @@ def jdwp_handshake_and_resume(host: str, port: int) -> bool:
         # Connect and handshake
         sock.connect((host, port))
         sock.sendall(b"JDWP-Handshake")
-        response = sock.recv(14)
+        response = recv_exactly(sock, 14)
 
         if response != b"JDWP-Handshake":
             print(f"[JDWP] Handshake failed, got: {response!r}", file=sys.stderr)
@@ -42,11 +53,7 @@ def jdwp_handshake_and_resume(host: str, port: int) -> bool:
         packet = length + packet_id + flags + bytes([cmd_set, cmd])
 
         sock.sendall(packet)
-        response_header = sock.recv(11)
-
-        if len(response_header) < 11:
-            print(f"[JDWP] Incomplete resume response: {response_header!r}", file=sys.stderr)
-            return False
+        recv_exactly(sock, 11)
 
         sock.close()
         print("[JDWP] Handshake + Resume successful")

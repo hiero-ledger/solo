@@ -3283,7 +3283,9 @@ export class NodeCommandTasks {
             // Collect extraEnv entries already present in the values files applied to this
             // cluster so that the generated file can include them and avoid Helm array
             // replacement silently dropping env vars set by user-provided values files.
-            const existingValuesFilePaths: string[] = [];
+            // Always include the chart's own defaults file so default JAVA_OPTS/heap vars
+            // are preserved when no per-node override exists in the user-provided files.
+            const existingValuesFilePaths: string[] = [constants.SOLO_DEPLOYMENT_VALUES_FILE];
             for (const filePath of helpers.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
               if (!existingValuesFilePaths.includes(filePath)) {
                 existingValuesFilePaths.push(filePath);
@@ -3320,8 +3322,15 @@ export class NodeCommandTasks {
               },
               constants.SOLO_CACHE_DIR,
             );
+            // Append the generated file after all existing --values entries but before
+            // any --set overrides so it wins in Helm's merge order without being overridden
+            // by subsequent --values files that could still replace the hedera.nodes array.
+            const existingArguments: string = valuesArgumentMap[clusterReference] ?? '';
+            const firstSetArgumentIndex: number = existingArguments.search(/\s--set(?:\s|=|-)/);
             valuesArgumentMap[clusterReference] =
-              ` --values "${extraEnvironmentValuesFile}"${valuesArgumentMap[clusterReference]}`;
+              firstSetArgumentIndex === -1
+                ? `${existingArguments} --values "${extraEnvironmentValuesFile}"`
+                : `${existingArguments.slice(0, firstSetArgumentIndex)} --values "${extraEnvironmentValuesFile}"${existingArguments.slice(firstSetArgumentIndex)}`;
           }
         }
 
