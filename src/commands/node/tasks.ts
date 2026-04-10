@@ -177,6 +177,7 @@ import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.j
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
+import {RemoteConfigCollector} from '../util/remote-config-collector.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2204,13 +2205,16 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeLogsAndConfigs(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
-  > {
+  public getNodeLogsAndConfigs(
+    excludeSensitiveData?: boolean,
+    outputDirectory?: string,
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
+        await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getLogs(namespace, contexts, outputDirectory, excludeSensitiveData);
       },
     };
   }
@@ -2391,25 +2395,27 @@ export class NodeCommandTasks {
     };
   }
 
-  public getHelmChartValues(): SoloListrTask<AnyListrContext> {
+  public getHelmChartValues(outputDirectory?: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get Helm chart values from all releases',
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
         const helmClient: HelmClient = new DefaultHelmClient();
         container.registerInstance(InjectTokens.Helm, helmClient);
-        const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+        const helmChartValuesDirectory: string = outputDirectory
+          ? PathEx.join(outputDirectory, 'helm-chart-values')
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
-          if (!fs.existsSync(outputDirectory)) {
-            fs.mkdirSync(outputDirectory, {recursive: true});
+          if (!fs.existsSync(helmChartValuesDirectory)) {
+            fs.mkdirSync(helmChartValuesDirectory, {recursive: true});
           }
         } catch (error) {
-          this.logger.warn(`Failed to create output directory ${outputDirectory}: ${error}`);
+          this.logger.warn(`Failed to create output directory ${helmChartValuesDirectory}: ${error}`);
           return;
         }
 
-        this.logger.info(`Helm chart values will be saved to: ${outputDirectory}`);
+        this.logger.info(`Helm chart values will be saved to: ${helmChartValuesDirectory}`);
 
         const contextList: string[] = contexts.list();
         this.logger.info(`Processing Helm releases for contexts: ${contextList.join(', ')}`);
@@ -2428,7 +2434,7 @@ export class NodeCommandTasks {
             this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
 
             // Create directory for this context
-            const contextDirectory: string = PathEx.join(outputDirectory, context);
+            const contextDirectory: string = PathEx.join(helmChartValuesDirectory, context);
             try {
               if (!fs.existsSync(contextDirectory)) {
                 fs.mkdirSync(contextDirectory, {recursive: true});
@@ -2442,7 +2448,11 @@ export class NodeCommandTasks {
               try {
                 this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
 
-                const getAllCommand: string = `helm get all ${release.name} -n ${release.namespace} --kube-context ${context}`;
+                // Use "helm get values --all" (user-supplied + chart defaults only).
+                // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
+                // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
+                // and pod specs that may embed plaintext passwords from chart values.
+                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
                 const output: string = execSync(getAllCommand, {
                   encoding: 'utf8',
                   cwd: process.cwd(),
@@ -2473,7 +2483,7 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.showUser(`Helm chart values saved to ${outputDirectory}`);
+        this.logger.showUser(`Helm chart values saved to ${helmChartValuesDirectory}`);
       },
     };
   }
@@ -4079,6 +4089,18 @@ export class NodeCommandTasks {
         }
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
+      },
+    };
+  }
+
+  public getRemoteConfig(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Get solo-remote-config ConfigMaps from all clusters',
+      task: async (): Promise<void> => {
+        const outputDirectory: string = await new RemoteConfigCollector(this.k8Factory, this.logger).collect(
+          customOutputDirectory,
+        );
+        this.logger.showUser(`Remote config saved to ${outputDirectory}`);
       },
     };
   }

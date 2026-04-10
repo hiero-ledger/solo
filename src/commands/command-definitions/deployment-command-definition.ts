@@ -63,6 +63,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTICS_DEBUG: string = 'debug';
   public static readonly DIAGNOSTICS_LOGS: string = 'logs';
   public static readonly DIAGNOSTICS_CONNECTIONS: string = 'connections';
+  public static readonly DIAGNOSTICS_REPORT: string = 'report';
 
   public static readonly CREATE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
@@ -209,6 +210,15 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.analyze,
               NodeFlags.ANALYZE_FLAGS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTICS_REPORT,
+              'Collect diagnostic logs and create a GitHub issue using the gh CLI.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.report,
+              NodeFlags.REPORT_FLAGS,
             ),
           ),
       )

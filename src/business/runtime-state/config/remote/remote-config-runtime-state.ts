@@ -344,7 +344,18 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public populateClusterReferences(deploymentName: DeploymentName): Context {
-    const deployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+    let deployment: Deployment;
+    try {
+      deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+    } catch {
+      // Deployment not in local config — fall back to namespace/context already resolved from remote config scan.
+      const namespaceFromConfig: NamespaceName = this.configManager.getFlag<NamespaceName>(flags.namespace);
+      if (namespaceFromConfig) {
+        this.namespace = namespaceFromConfig;
+      }
+      return this.configManager.getFlag<Context>(flags.context);
+    }
+
     this.namespace = NamespaceName.of(deployment.namespace);
 
     for (const clusterReference of deployment.clusters) {
@@ -370,6 +381,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   ): Promise<void> {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     await this.setDefaultContextIfNotSet();
+
+    // Sync resolved context back to argv so subsequent configManager.update(argv) preserves it.
+    if (!argv[flags.context.name]) {
+      argv[flags.context.name] = this.configManager.getFlag<Context>(flags.context);
+    }
 
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const context: Context = this.populateClusterReferences(deploymentName);
@@ -473,14 +489,22 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
-    const namespaceFromConfig: NamespaceNameAsString = this.configManager.getFlag(flags.namespace);
+    let namespaceFromConfig: NamespaceNameAsString = this.configManager.getFlag(flags.namespace);
     let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const deploymentFromArgv: DeploymentName = argv[flags.deployment.name] as DeploymentName;
+    const namespaceFromArgv: NamespaceNameAsString = argv[flags.namespace.name] as NamespaceNameAsString;
 
-    // Keep config manager in sync when deployment is resolved directly in argv by caller logic.
+    // Keep config manager in sync when deployment/namespace are resolved directly in argv by caller logic.
     if (!deploymentName && deploymentFromArgv) {
       this.configManager.setFlag(flags.deployment, deploymentFromArgv);
       deploymentName = deploymentFromArgv;
+    }
+
+    // Keep config manager in sync when namespace is resolved directly in argv by caller logic.
+    // argv takes precedence over the default namespace that middleware may have set from kubectl context.
+    if (namespaceFromArgv) {
+      this.configManager.setFlag(flags.namespace, namespaceFromArgv);
+      namespaceFromConfig = namespaceFromArgv;
     }
 
     if (namespaceFromConfig && deploymentName) {
@@ -551,7 +575,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       const cluster: ClusterSchema = this.configuration.clusters.find(
         (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
       );
-      const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
+      const context: Context =
+        this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString() ??
+        this.configManager.getFlag<string>(flags.context);
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
       const nodeId: NodeId = Templates.renderNodeIdFromComponentId(node.metadata.id);
 
