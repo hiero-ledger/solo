@@ -291,6 +291,7 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
+    '--no-parallel-deploy',
   );
   argvPushGlobalFlags(argv, testName);
   argv.push(optionFromFlag(Flags.deployment), deployment);
