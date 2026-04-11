@@ -452,9 +452,30 @@ jobs:
           sudo -n -E -- cat /etc/docker/daemon.json
           sudo -n -E -- systemctl daemon-reload
           sudo -n -E -- systemctl restart docker.service || true
-          sudo -n -E -- systemctl status docker.service
+          sleep 20
+          sudo -n -E -- systemctl status docker.service ) || true
           sudo -n -E -- journalctl -xeu docker.service --no-pager
-          echo "::endgroup::" 
+          echo "::endgroup::"
+
+      - name: Configure Windows Docker CLI
+        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        run: |
+          setx DOCKER_HOST "tcp://localhost:2375"
+          echo "::group::WSL List"
+          wsl --list --verbose
+          echo "::endgroup::"
+          echo "::group::WSL Status"
+          wsl --status
+          echo "::endgroup::"
+          echo "::group::WSL Version"
+          wsl --version
+          echo "::endgroup::"
+          echo "::group::Docker Version"
+          docker version
+          echo "::endgroup::"
+          echo "::group::Docker Info"
+          docker info
+          echo "::endgroup::"
 
       - name: Setup E2E Tests
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
