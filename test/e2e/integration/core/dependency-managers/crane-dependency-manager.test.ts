@@ -18,6 +18,7 @@ import {OperatingSystem} from '../../../../../src/business/utils/operating-syste
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import {ShellRunner} from '../../../../../src/core/shell-runner.js';
 import {type PackageDownloader} from '../../../../../src/core/package-downloader.js';
+import {ReleaseInfo} from '../../../../../src/types/index.js';
 
 // Test data constants
 const CRANE_VERSION: string = version.CRANE_VERSION.replace(/^v/, '');
@@ -196,7 +197,7 @@ describe('CraneDependencyManager', (): void => {
 
     it('getVersion should return version from crane version output', async (): Promise<void> => {
       const executableWithPath: string = '/usr/local/bin/crane';
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`"${executableWithPath}" version`).resolves([`0.21.4`]);
+      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`"${executableWithPath}" version`).resolves(['0.21.4']);
 
       const actualVersion: string = await craneDependencyManager.getVersion(executableWithPath);
       expect(actualVersion).to.equal('0.21.4');
@@ -208,7 +209,7 @@ describe('CraneDependencyManager', (): void => {
       try {
         await craneDependencyManager.getVersion('/usr/local/bin/crane');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('Failed to check crane version');
       }
     });
@@ -219,7 +220,7 @@ describe('CraneDependencyManager', (): void => {
       try {
         await craneDependencyManager.getVersion('/usr/local/bin/crane');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('Failed to check crane version');
       }
     });
@@ -257,7 +258,7 @@ describe('CraneDependencyManager', (): void => {
       );
 
       // @ts-expect-error TS2341: Property fetchReleaseInfo is private
-      const releaseInfo = await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
+      const releaseInfo: ReleaseInfo = await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.downloadUrl).to.equal(MOCK_DOWNLOAD_URL_BASE);
       expect(releaseInfo.assetName).to.equal(MOCK_LINUX_ASSET_NAME);
@@ -278,7 +279,7 @@ describe('CraneDependencyManager', (): void => {
       );
 
       // @ts-expect-error TS2341: Property fetchReleaseInfo is private
-      const releaseInfo = await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
+      const releaseInfo: ReleaseInfo = await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.assetName).to.equal(MOCK_DARWIN_ARM64_ASSET_NAME);
       expect(releaseInfo.checksum).to.equal(MOCK_CHECKSUM);
@@ -291,7 +292,7 @@ describe('CraneDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('GitHub API request failed with status 404');
       }
     });
@@ -303,7 +304,7 @@ describe('CraneDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('No releases found');
       }
     });
@@ -316,7 +317,7 @@ describe('CraneDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('No matching crane asset found for');
       }
     });
@@ -363,8 +364,8 @@ describe('CraneDependencyManager', (): void => {
       const downloaderFetchPackageSpy: sinon.SinonSpy = sandbox.spy(packageDownloader, 'fetchPackage');
 
       runStub.withArgs('which crane').resolves(['/usr/local/bin/crane']);
-      runStub.withArgs('"/usr/local/bin/crane" version').resolves([`0.21.4`]);
-      runStub.withArgs(`"${temporaryDirectory}/crane" version`).resolves([`0.21.4`]);
+      runStub.withArgs('"/usr/local/bin/crane" version').resolves(['0.21.4']);
+      runStub.withArgs(`"${temporaryDirectory}/crane" version`).resolves(['0.21.4']);
       existsSyncStub.withArgs(`${temporaryDirectory}/crane`).returns(false);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
