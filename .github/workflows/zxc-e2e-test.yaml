@@ -460,9 +460,14 @@ jobs:
 
       - name: Configure Windows Docker CLI
         if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        env:
+          DOCKER_HOST: "tcp://localhost:2375"
         run: |
           setx DOCKER_HOST "tcp://localhost:2375"
           echo "::group::WSL List"
+          echo "DOCKER_HOST: $DOCKER_HOST"
+          set DOCKER_HOST=tcp://localhost:2375
+          echo "DOCKER_HOST: $DOCKER_HOST"
           wsl --list --verbose
           echo "::endgroup::"
           echo "::group::WSL Status"
@@ -491,6 +496,8 @@ jobs:
             if [[ "$RUNNER_OS" != "Windows" ]]; then
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             else
+              set DOCKER_HOST=tcp://localhost:2375
+              echo "DOCKER_HOST: $DOCKER_HOST"
               systeminfo
               wsl --list --verbose
               wsl --status
@@ -533,6 +540,17 @@ jobs:
             kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
             ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
             cd ../solo
+
+      - name: Run E2E Tests (Windows)
+        id: run-e2e-tests-windows
+        if: ${{ runner.os == 'Windows' && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
+        shell: pwsh
+        run: |
+          $env:Path = "$env:USERPROFILE\.solo\bin;$env:Path"
+          Write-Output "PATH=$env:PATH"
+          "SOLO_TEST_CLUSTER=one-shot" | Out-File -FilePath .env -Encoding UTF8
+          task ${{ inputs.test-script }}
 
       - name: Run E2E Tests
         id: run-e2e-tests
@@ -622,7 +640,7 @@ jobs:
 
       - name: Log Metrics
         id: log-metrics
-        if: ${{ !cancelled() }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         shell: bash
         run: |
@@ -658,6 +676,7 @@ jobs:
 
       - name: Generate ASCII Resource Chart
         id: generate-chart
+        if: ${{ runner.os != 'Windows' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "json_log=${{ steps.log-metrics.outputs.json_log }}"
@@ -683,7 +702,7 @@ jobs:
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
-        if: ${{ !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
+        if: ${{ runner.os != 'Windows' && !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
@@ -725,7 +744,7 @@ jobs:
       - name: Comment PR with Log Metrics
         if: >-
           ${{ github.event_name == 'pull_request' && steps.log-metrics-file.conclusion == 'success' &&
-          github.event.pull_request.head.repo.fork == false && !cancelled() && !failure() }}
+          github.event.pull_request.head.repo.fork == false && runner.os != 'Windows' && !cancelled() && !failure() }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -766,7 +785,7 @@ jobs:
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
 
       - name: Cleanup Kind Clusters
-        if: ${{ always() }}
+        if: ${{ runner.os != 'Windows' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
