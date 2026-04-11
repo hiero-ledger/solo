@@ -108,8 +108,8 @@ export interface KindClient {
   /**
    * Loads an image archive into the Kind cluster.
    *
-   * @param imageName the name of the images to load from the archive.
+   * @param archivePath the path to the image archive to load.
    * @param options the options to use for loading the image archive
    */
-  loadImageArchive(imageName: string, options?: LoadImageArchiveOptions): Promise<LoadImageArchiveResponse>;
+  loadImageArchive(archivePath: string, options?: LoadImageArchiveOptions): Promise<LoadImageArchiveResponse>;
 }
