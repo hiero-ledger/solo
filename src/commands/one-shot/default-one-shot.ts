@@ -71,6 +71,7 @@ import {SharedResourceManager} from '../../core/shared-resources/shared-resource
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
+import {type Pod} from '../../integration/kube/resources/pod/pod.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
@@ -799,6 +800,37 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               config.mirrorNodeConfiguration['--values-file'] = existingValuesFile
                                 ? `${existingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
                                 : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
+                            },
+                          },
+                          {
+                            title: 'Restart consensus node pod for clean gRPC initialisation',
+                            skip: (): boolean => {
+                              if (!this.oneShotState.isActive() || !this.remoteConfig.isLoaded()) {
+                                return true;
+                              }
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              return !consensusNodes.some(
+                                (node: ConsensusNodeStateSchema): boolean =>
+                                  node.metadata.phase === DeploymentPhase.CONFIGURED,
+                              );
+                            },
+                            task: async (): Promise<void> => {
+                              const k8: K8 = this.k8Factory.getK8(config.context);
+                              const networkNodePods: Pod[] = await k8
+                                .pods()
+                                .list(config.namespace, ['solo.hedera.com/type=network-node']);
+                              for (const pod of networkNodePods) {
+                                await k8.pods().readByReference(pod.podReference).killPod();
+                              }
+                              await k8.pods().waitForRunningPhase(
+                                config.namespace,
+                                ['solo.hedera.com/type=network-node'],
+                                constants.PODS_RUNNING_MAX_ATTEMPTS,
+                                constants.PODS_RUNNING_DELAY,
+                              );
                             },
                           },
                           invokeSoloCommand(
