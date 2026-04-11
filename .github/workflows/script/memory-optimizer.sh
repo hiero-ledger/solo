@@ -11,6 +11,12 @@
 #   # Optimize specific components (comma-separated aliases):
 #   ./memory-optimizer.sh --components mirror-grpc,relay,postgres
 #
+#   # Optimize all components that use a specific probe type:
+#   ./memory-optimizer.sh --probe-type nlg        # all NLG-tested components
+#   ./memory-optimizer.sh --probe-type relay-rpc  # relay, relay-ws, mirror-web3
+#   ./memory-optimizer.sh --probe-type both       # network-node
+#   ./memory-optimizer.sh --probe-type none       # observation-only components
+#
 #   # Optimize all known components automatically:
 #   ./memory-optimizer.sh --auto
 #
@@ -18,16 +24,23 @@
 #   ./memory-optimizer.sh --list
 #
 # Options:
-#   --components ALIAS[,...]  Components to optimize (see --list for valid aliases)
-#   --auto                    Optimize all known components
-#   --list                    Print component aliases and exit
-#   --namespace  NAME         Kubernetes namespace          (default: solo)
-#   --deployment NAME         Solo deployment name          (default: solo)
-#   --min-memory MI           Memory search lower bound Mi  (default: 128)
-#   --max-memory MI           Memory search upper bound Mi  (default: 4096)
-#   --granularity MI          Stop when range ≤ this Mi     (default: 64)
-#   --tps N                   NLG transactions per second   (default: 10)
-#   --duration S              NLG probe duration seconds    (default: 60)
+#   --components ALIAS[,...]            Components to optimize (see --list)
+#   --probe-type nlg|relay-rpc|both|none  Optimize all components of this probe category
+#   --auto                              Optimize all known components
+#   --list                              Print component aliases and exit
+#   --namespace  NAME                   Kubernetes namespace          (default: solo)
+#   --deployment NAME                   Solo deployment name          (default: solo)
+#   --min-memory MI                     Memory search lower bound Mi  (default: 128)
+#   --max-memory MI                     Memory search upper bound Mi  (default: 4096)
+#   --granularity MI                    Stop when range ≤ this Mi     (default: 64)
+#   --tps N                             NLG transactions per second   (default: 100)
+#   --duration S                        NLG probe duration seconds    (default: 300)
+#   --nlg-test TYPE                     NLG test class to run         (default: CryptoTransferLoadTest)
+#                                         CryptoTransferLoadTest
+#                                         NftTransferLoadTest
+#                                         TokenTransferLoadTest
+#                                         HCSLoadTest
+#                                         SmartContractLoadTest
 
 set -eo pipefail
 
@@ -39,36 +52,73 @@ MEMORY_MIN_MI="${MEMORY_MIN_MI:-128}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
 MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-64}"
 NLG_TPS="${NLG_TPS:-100}"
-NLG_DURATION_S="${NLG_DURATION_S:-60}"
+NLG_DURATION_S="${NLG_DURATION_S:-300}"
 NLG_CLIENTS="${NLG_CLIENTS:-5}"
 NLG_ACCOUNTS="${NLG_ACCOUNTS:-20}"
 NLG_JAVA_HEAP_GB="${NLG_JAVA_HEAP_GB:-4}"
+NLG_TEST_CLASS="${NLG_TEST_CLASS:-CryptoTransferLoadTest}"
 STABILIZE_S="${STABILIZE_S:-15}"
 RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 
 # ── Component registry ──────────────────────────────────────────────────────────
-# Format: "alias|kind|name_pattern|containers"
-#   alias        — short name used with --components
-#   kind         — deployment | statefulset
-#   name_pattern — grep -E pattern matched against resource names in the namespace
-#   containers   — comma-separated container names to optimize, or empty to
-#                  auto-discover the first container from the pod spec
+# Format: "alias|kind|name_pattern|containers|max_memory_mi|probe_type"
+#   alias         — short name used with --components
+#   kind          — deployment | statefulset
+#   name_pattern  — grep -E pattern matched against resource names in the namespace
+#   containers    — comma-separated container names to optimize, or empty to
+#                   auto-discover the first container from the pod spec
+#   max_memory_mi — upper bound for binary search (Mi); sourced from resources/*.yaml
+#                   (overrides global --max-memory for this component only)
+#   probe_type    — which load probe to run during each binary-search iteration:
+#                     nlg        NLG CryptoTransferLoadTest → gRPC port 50211
+#                     relay-rpc  curl loop of eth_blockNumber → relay HTTP port 7546
+#                     both       run NLG first then relay-rpc; both must pass
+#                     none       skip probing (apply memory limit for observation only)
+#
+# Transaction-path impact table:
+#   Component        NLG (native gRPC)   Relay JSON-RPC      probe_type
+#   ─────────────    ─────────────────   ──────────────────  ──────────
+#   network-node     DIRECT (consensus)  DIRECT (relay→grpc) both
+#   mirror-importer  DIRECT (record files ingested)  indirect none-direct none  nlg
+#   mirror-grpc      indirect (subscriptions)         indirect               nlg
+#   mirror-rest      indirect (REST reads)             indirect (relay polls) nlg
+#   mirror-restjava  indirect (REST Java reads)        indirect               nlg
+#   mirror-web3      none (NLG skips EVM path)        DIRECT (eth_call)      relay-rpc
+#   mirror-monitor   none (health polling only)        none                   none
+#   relay            none (NLG bypasses relay)         DIRECT (entry point)   relay-rpc
+#   relay-ws         none (NLG bypasses relay)         DIRECT (WS entry)      relay-rpc
+#   postgres         DIRECT (all mirror writes)        indirect               nlg
+#   redis            indirect (mirror cache)           indirect               nlg
+#
+# Memory sources (max_memory_mi):
+#   mirror-*    resources/mirror-node-values.yaml  <component>.resources.limits.memory
+#   network-node resources/solo-values.yaml        JAVA_HEAP_MAX=6g + JVM overhead → 8192Mi
+#   relay*      resources/relay-values.yaml        no limit defined → 512Mi
+#   postgres    resources/mirror-node-values.yaml  postgresql.postgresql.resources.limits.memory
+#   redis       not defined in chart values        → 512Mi per container
 #
 # When multiple containers are listed (e.g. redis,sentinel) each is optimized
 # as a separate binary-search pass against the same workload.
 
 COMPONENT_REGISTRY=(
-  "mirror-grpc|deployment|mirror.*grpc|"
-  "mirror-importer|deployment|mirror.*importer|"
-  "mirror-monitor|deployment|mirror.*monitor|"
-  "mirror-rest|deployment|mirror.*-rest$|"
-  "mirror-restjava|deployment|mirror.*restjava|"
-  "mirror-web3|deployment|mirror.*web3|"
-  "network-node|statefulset|^network-node[0-9]|"
-  "relay|deployment|^relay-[0-9]+$|"
-  "relay-ws|deployment|^relay-[0-9]+-ws$|"
-  "postgres|statefulset|solo-shared-resources-postgres|postgresql"
-  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel"
+  # ── Both transaction paths hit network-node directly ──────────────────────────
+  "network-node|statefulset|^network-node[0-9]||8192|both"
+
+  # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → mirror-importer ──
+  "mirror-importer|deployment|mirror.*importer||2000|nlg"
+  "mirror-grpc|deployment|mirror.*grpc||1000|nlg"
+  "mirror-rest|deployment|mirror.*-rest$||500|nlg"
+  "mirror-restjava|deployment|mirror.*restjava||500|nlg"
+  "postgres|statefulset|solo-shared-resources-postgres|postgresql|1000|nlg"
+  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|512|nlg"
+
+  # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay → gRPC / mirror-web3 ─
+  "relay|deployment|^relay-[0-9]+$||512|relay-rpc"
+  "relay-ws|deployment|^relay-[0-9]+-ws$||512|relay-rpc"
+  "mirror-web3|deployment|mirror.*web3||1000|relay-rpc"
+
+  # ── No meaningful transaction-load impact; apply limit for observation only ───
+  "mirror-monitor|deployment|mirror.*monitor||1000|none"
 )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────
@@ -82,7 +132,7 @@ header() {
   echo "════════════════════════════════════════════════════════════"
 }
 
-# Lookup a field (2=kind, 3=pattern, 4=containers) for a given alias (field 1)
+# Lookup a field (2=kind, 3=pattern, 4=containers, 5=max_memory_mi, 6=probe_type) for a given alias (field 1)
 registry_field() {
   local alias="$1"
   local field="$2"
@@ -101,13 +151,20 @@ registry_field() {
 list_components() {
   echo "Available component aliases:"
   echo ""
-  printf "  %-18s  %-12s  %-40s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS"
-  printf "  %-18s  %-12s  %-40s  %s\n" "-----" "----" "------------" "----------"
+  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS" "PROBE" "MAX MEMORY"
+  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------"
   local entry
   for entry in "${COMPONENT_REGISTRY[@]}"; do
-    IFS='|' read -r alias kind pattern containers <<< "${entry}"
+    IFS='|' read -r alias kind pattern containers max_mi probe_type <<< "${entry}"
     containers="${containers:-<auto>}"
-    printf "  %-18s  %-12s  %-40s  %s\n" "${alias}" "${kind}" "${pattern}" "${containers}"
+    local max_display
+    if [[ -n "${max_mi}" ]]; then
+      max_display="${max_mi}Mi"
+    else
+      max_display="${MEMORY_MAX_MI}Mi (global default)"
+    fi
+    printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %s\n" \
+      "${alias}" "${kind}" "${pattern}" "${containers}" "${probe_type:-nlg}" "${max_display}"
   done
   echo ""
 }
@@ -248,16 +305,150 @@ run_nlg_probe() {
   return 0
 }
 
+# Run a JSON-RPC load against the relay HTTP endpoint (port 7546) using concurrent
+# curl calls, then watch for OOMKill on the target container.
+# Returns 0 (pass) or 1 (fail / OOM / too many RPC errors).
+run_relay_rpc_probe() {
+  local resource_name="$1"
+  local container="$2"
+
+  # Find a running pod for this resource (pod names start with resource_name-)
+  local pod_name
+  pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+    | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+
+  if [[ -z "${pod_name}" ]]; then
+    log "  No pod found for ${resource_name} — cannot run relay-rpc probe"
+    return 1
+  fi
+
+  # Discover JSON-RPC service port; fall back to 7546
+  local rpc_port
+  rpc_port=$(kubectl get svc "${resource_name}" -n "${SOLO_NAMESPACE}" \
+    -o jsonpath='{.spec.ports[?(@.name=="http")].port}' 2>/dev/null || echo "")
+  rpc_port="${rpc_port:-7546}"
+
+  # Pick an unused local port for the port-forward
+  local local_port=$(( (RANDOM % 10000) + 40000 ))
+
+  log "  Relay RPC probe: port-forward ${pod_name}:${rpc_port} → localhost:${local_port} for ${NLG_DURATION_S}s"
+
+  kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
+    "${local_port}:${rpc_port}" >/dev/null 2>&1 &
+  local pf_pid=$!
+  sleep 3  # Let the port-forward establish
+
+  local rpc_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+  local oom_detected=false
+  local success_count=0
+  local fail_count=0
+  local elapsed=0
+  local poll_interval=5
+
+  # Background load loop: send NLG_TPS requests per second in parallel
+  (
+    while kill -0 "${pf_pid}" 2>/dev/null; do
+      local i
+      for i in $(seq 1 "${NLG_TPS}"); do
+        curl -sf -X POST \
+          -H "Content-Type: application/json" \
+          --data "${rpc_payload}" \
+          --max-time 5 \
+          "http://localhost:${local_port}" >/dev/null 2>&1 &
+      done
+      wait
+      sleep 1
+    done
+  ) &
+  local load_pid=$!
+
+  while [[ ${elapsed} -lt ${NLG_DURATION_S} ]]; do
+    sleep "${poll_interval}"
+    elapsed=$(( elapsed + poll_interval ))
+
+    if check_oom "${resource_name}" "${container}"; then
+      log "  OOMKilled detected on ${resource_name}/${container}"
+      oom_detected=true
+      break
+    fi
+
+    # Connectivity health-check
+    if curl -sf -X POST \
+        -H "Content-Type: application/json" \
+        --data "${rpc_payload}" \
+        --max-time 5 \
+        "http://localhost:${local_port}" >/dev/null 2>&1; then
+      success_count=$(( success_count + 1 ))
+    else
+      fail_count=$(( fail_count + 1 ))
+    fi
+  done
+
+  kill "${load_pid}" 2>/dev/null || true
+  kill "${pf_pid}" 2>/dev/null || true
+  wait "${load_pid}" "${pf_pid}" 2>/dev/null || true
+
+  local total=$(( success_count + fail_count ))
+  if [[ "${oom_detected}" == "true" ]]; then
+    log "  Relay RPC probe FAILED (OOMKilled)"
+    return 1
+  fi
+  if [[ ${total} -gt 0 && ${fail_count} -gt $(( total / 3 )) ]]; then
+    log "  Relay RPC probe FAILED (${fail_count}/${total} health checks failed)"
+    return 1
+  fi
+
+  log "  Relay RPC probe PASSED (${success_count}/${total} health checks ok)"
+  return 0
+}
+
+# Dispatcher: run the appropriate probe(s) based on probe_type.
+#   nlg       → NLG CryptoTransfer load
+#   relay-rpc → curl JSON-RPC load against relay HTTP port
+#   both      → NLG first, then relay-rpc; both must pass
+#   none      → skip load; always return pass (limit applied for observation)
+run_probe() {
+  local probe_type="$1"
+  local resource_name="$2"
+  local container="$3"
+
+  case "${probe_type}" in
+    nlg)
+      run_nlg_probe "${resource_name}" "${container}"
+      ;;
+    relay-rpc)
+      run_relay_rpc_probe "${resource_name}" "${container}"
+      ;;
+    both)
+      log "  probe=both: running NLG then relay-rpc (both must pass)"
+      run_nlg_probe "${resource_name}" "${container}" || return 1
+      run_relay_rpc_probe "${resource_name}" "${container}"
+      ;;
+    none)
+      log "  probe=none: skipping load test (memory limit applied for observation)"
+      return 0
+      ;;
+    *)
+      log "  Unknown probe_type '${probe_type}' — defaulting to nlg"
+      run_nlg_probe "${resource_name}" "${container}"
+      ;;
+  esac
+}
+
 # Binary-search minimum viable memory for one (workload, container) pair.
+# $4 = max_mi override (falls back to global MEMORY_MAX_MI when absent)
+# $5 = probe_type (defaults to nlg)
 optimize_one() {
   local kind="$1"
   local name="$2"
   local container="$3"
+  local max_mi="${4:-${MEMORY_MAX_MI}}"
+  local probe_type="${5:-nlg}"
 
-  header "Optimizing ${kind}/${name}  container: ${container}"
+  header "Optimizing ${kind}/${name}  container: ${container}  probe: ${probe_type}  [${MEMORY_MIN_MI}–${max_mi}Mi]"
 
   local low="${MEMORY_MIN_MI}"
-  local high="${MEMORY_MAX_MI}"
+  local high="${max_mi}"
   local best_mi=0
   local iteration=0
 
@@ -268,7 +459,7 @@ optimize_one() {
 
     set_memory_limit "${kind}" "${name}" "${container}" "${mid}"
 
-    if run_nlg_probe "${name}" "${container}"; then
+    if run_probe "${probe_type}" "${name}" "${container}"; then
       log "SUCCESS at ${mid}Mi — trying lower"
       best_mi="${mid}"
       high="${mid}"
@@ -296,11 +487,18 @@ optimize_alias() {
   local kind; kind="$(registry_field "${alias}" 2)"
   local pattern; pattern="$(registry_field "${alias}" 3)"
   local containers_csv; containers_csv="$(registry_field "${alias}" 4)"
+  local component_max_mi; component_max_mi="$(registry_field "${alias}" 5)"
+  local probe_type; probe_type="$(registry_field "${alias}" 6)"
+  probe_type="${probe_type:-nlg}"
+  # Use component-specific max if defined, otherwise fall back to global --max-memory
+  local effective_max_mi="${component_max_mi:-${MEMORY_MAX_MI}}"
 
   if [[ -z "${kind}" ]]; then
     log "Unknown component alias '${alias}' — use --list to see valid aliases"
     return 1
   fi
+
+  log "Component ${alias}: max=${effective_max_mi}Mi probe=${probe_type}"
 
   resource_names=()
   while IFS= read -r line; do
@@ -332,7 +530,7 @@ optimize_alias() {
 
     local container
     for container in "${containers_to_test[@]}"; do
-      optimize_one "${kind}" "${name}" "${container}"
+      optimize_one "${kind}" "${name}" "${container}" "${effective_max_mi}" "${probe_type}"
     done
   done
 }
@@ -352,18 +550,17 @@ on_exit() {
   exit "${rc}"
 }
 
-trap on_exit EXIT
-
 # ── Argument parsing ─────────────────────────────────────────────────────────────
 
-MODE=""          # "auto" | "manual"
-SELECTED=()      # aliases chosen with --components
+MODE=""             # "auto" | "by-probe-type" | "manual"
+SELECTED=()         # aliases to optimize
+FILTER_PROBE_TYPE=""  # set by --probe-type
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --list)
       list_components
-      exit 0
+      exit 0   # exits before trap is registered — no NLG cleanup triggered
       ;;
     --auto)
       MODE="auto"
@@ -372,6 +569,11 @@ while [[ $# -gt 0 ]]; do
     --components)
       MODE="manual"
       IFS=',' read -ra SELECTED <<< "$2"
+      shift 2
+      ;;
+    --probe-type)
+      MODE="by-probe-type"
+      FILTER_PROBE_TYPE="$2"
       shift 2
       ;;
     --namespace|-n)    SOLO_NAMESPACE="$2";        shift 2 ;;
@@ -390,17 +592,36 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${MODE}" ]]; then
-  echo "Error: specify --components ALIAS[,...] or --auto"
+  echo "Error: specify --components ALIAS[,...], --probe-type TYPE, or --auto"
   echo ""
   list_components
   exit 1
 fi
 
-# In auto mode, select all registered aliases
+# Register cleanup trap only now — after early-exit paths (--list, bad args)
+trap on_exit EXIT
+
+# Build SELECTED from registry based on chosen mode
 if [[ "${MODE}" == "auto" ]]; then
   for entry in "${COMPONENT_REGISTRY[@]}"; do
     SELECTED+=("$(cut -d'|' -f1 <<< "${entry}")")
   done
+elif [[ "${MODE}" == "by-probe-type" ]]; then
+  valid_types="nlg relay-rpc both none"
+  if ! echo "${valid_types}" | grep -qw "${FILTER_PROBE_TYPE}"; then
+    echo "Error: --probe-type must be one of: ${valid_types}"
+    exit 1
+  fi
+  for entry in "${COMPONENT_REGISTRY[@]}"; do
+    IFS='|' read -r alias _ _ _ _ probe_type <<< "${entry}"
+    if [[ "${probe_type}" == "${FILTER_PROBE_TYPE}" ]]; then
+      SELECTED+=("${alias}")
+    fi
+  done
+  if [[ ${#SELECTED[@]} -eq 0 ]]; then
+    echo "No components registered with probe-type '${FILTER_PROBE_TYPE}'"
+    exit 1
+  fi
 fi
 
 # ── Main ────────────────────────────────────────────────────────────────────────
