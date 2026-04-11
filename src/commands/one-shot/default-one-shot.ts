@@ -831,6 +831,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                 constants.PODS_RUNNING_MAX_ATTEMPTS,
                                 constants.PODS_RUNNING_DELAY,
                               );
+                              // Reset phase to REQUESTED so that node setup re-runs on the
+                              // freshly created pod (the old setup artefacts were lost on deletion).
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              for (const node of consensusNodes) {
+                                if (node.metadata.phase === DeploymentPhase.CONFIGURED) {
+                                  node.metadata.phase = DeploymentPhase.REQUESTED;
+                                }
+                              }
+                              await this.remoteConfig.persist();
                             },
                           },
                           invokeSoloCommand(

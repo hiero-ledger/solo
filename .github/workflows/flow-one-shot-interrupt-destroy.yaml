@@ -136,26 +136,5 @@ jobs:
 
       - name: Cleanup Deployment
         if: always()
-        timeout-minutes: 15
-        env:
-          ONE_SHOT_WITH_BLOCK_NODE: true
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            npx @hashgraph/solo one-shot single destroy --quiet-mode
-          else
-            npm run solo -- one-shot single destroy --quiet-mode
-          fi
-
-      - name: Cleanup Redeploy Deployment
-        if: always()
-        timeout-minutes: 15
-        env:
-          ONE_SHOT_WITH_BLOCK_NODE: true
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            npx @hashgraph/solo one-shot single destroy --deployment one-shot-recover --quiet-mode || true
-          else
-            npm run solo -- one-shot single destroy --deployment one-shot-recover --quiet-mode || true
-          fi
+        timeout-minutes: 5
+        run: kind delete cluster --name solo-cluster 2>/dev/null || true
