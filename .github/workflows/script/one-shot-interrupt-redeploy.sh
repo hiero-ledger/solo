@@ -14,7 +14,7 @@
 #   SOLO_COMMAND     override solo command   (default: "npm run solo --")
 #   DEPLOYMENT       deployment name         (default: "one-shot-recover")
 #   WAIT_SECONDS     seconds to wait between the kill and the second deploy (default: 5)
-#   KILL_SIGNAL      signal sent to the first deploy process (default: SIGTERM)
+#   KILL_SIGNAL      signal sent to the first deploy process (default: SIGKILL)
 
 set -uo pipefail
 
@@ -25,7 +25,11 @@ INTERRUPT_SECONDS="${INTERRUPT_SECONDS:-${1:-60}}"
 SOLO_COMMAND="${SOLO_COMMAND:-npm run solo --}"
 DEPLOYMENT="${DEPLOYMENT:-one-shot-recover}"
 WAIT_SECONDS="${WAIT_SECONDS:-5}"
-KILL_SIGNAL="${KILL_SIGNAL:-SIGTERM}"
+# Use SIGKILL so the process is killed immediately with no graceful-shutdown
+# cleanup.  SIGTERM triggers Listr2's shutdown handler which uninstalls any
+# Helm releases that were deployed mid-run; SIGKILL leaves them in place so
+# the second deploy can reuse them instead of reinstalling from scratch.
+KILL_SIGNAL="${KILL_SIGNAL:-SIGKILL}"
 
 # Internal state
 FIRST_DEPLOY_PID=""

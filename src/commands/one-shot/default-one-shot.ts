@@ -1068,19 +1068,32 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     ): Promise<void> => {
                                       await helpers.sleep(Duration.ofMillis(100 * index));
 
-                                      const createdAccount: {
+                                      let createdAccount: {
                                         accountId: string;
                                         privateKey: string;
                                         publicKey: string;
                                         balance: number;
                                         accountAlias?: string;
-                                      } = await this.accountManager.createNewAccount(
-                                        context_.config.namespace,
-                                        account.privateKey,
-                                        account.balance.to(HbarUnit.Hbar).toNumber(),
-                                        account.alias,
-                                        context_.config.context,
-                                      );
+                                      };
+                                      try {
+                                        createdAccount = await this.accountManager.createNewAccount(
+                                          context_.config.namespace,
+                                          account.privateKey,
+                                          account.balance.to(HbarUnit.Hbar).toNumber(),
+                                          account.alias,
+                                          context_.config.context,
+                                        );
+                                      } catch (error: unknown) {
+                                        // On recovery, accounts may already exist from the interrupted
+                                        // first deploy.  Skip gracefully so the second deploy succeeds.
+                                        const message: string =
+                                          error instanceof Error ? error.message : String(error);
+                                        if (message.includes('ALIAS_ALREADY_ASSIGNED')) {
+                                          subTask.title = `Account ${index} already exists, skipping`;
+                                          return;
+                                        }
+                                        throw error;
+                                      }
 
                                       context_.createdAccounts.push({
                                         accountId: AccountId.fromString(createdAccount.accountId),
