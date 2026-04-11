@@ -72,6 +72,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
@@ -1799,15 +1800,30 @@ export class NetworkCommand extends BaseCommand {
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
+          // During a normal upgrade the proxy components already exist in the remote config.
+          // During a recovery re-run (chart installed but remote config never updated) they
+          // don't exist yet.  Check actual presence rather than relying solely on isUpgrade so
+          // that recovery deploys always end up with the proxy entries they need.
           if (isUpgrade) {
             this.logger.info('Do not add envoy and haproxy components again during upgrade');
-          } else {
-            // do not add new envoy or haproxy components if they already exist
+          }
+
+          const existingEnvoyProxies: BaseStateSchema[] =
+            this.remoteConfig.configuration.components.getComponentByType<BaseStateSchema>(
+              ComponentTypes.EnvoyProxy,
+            );
+          if (existingEnvoyProxies.length === 0) {
             this.remoteConfig.configuration.components.addNewComponent(
               this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
               ComponentTypes.EnvoyProxy,
             );
+          }
 
+          const existingHaProxies: BaseStateSchema[] =
+            this.remoteConfig.configuration.components.getComponentByType<BaseStateSchema>(
+              ComponentTypes.HaProxy,
+            );
+          if (existingHaProxies.length === 0) {
             this.remoteConfig.configuration.components.addNewComponent(
               this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
               ComponentTypes.HaProxy,
