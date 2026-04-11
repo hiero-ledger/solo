@@ -483,14 +483,29 @@ run_relay_rpc_probe() {
   sleep 3  # Let the port-forward establish
 
   local rpc_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+
+  # Verify port-forward is reachable before starting load.
+  # Return 2 (infrastructure error) so the caller aborts the binary search entirely
+  # rather than incorrectly treating this as an OOM and trying higher memory.
+  if ! curl -sf -X POST -H "Content-Type: application/json" \
+      --data "${rpc_payload}" --max-time 10 \
+      "http://localhost:${local_port}" >/dev/null 2>&1; then
+    log "  Cannot reach relay at localhost:${local_port} — port-forward not working, aborting component"
+    kill "${pf_pid}" 2>/dev/null || true
+    return 2
+  fi
+  log "  Relay reachable — starting ${NLG_TPS} TPS load for ${NLG_DURATION_S}s"
+
   local oom_detected=false
+  local load_died=false
   local elapsed=0
   local poll_interval=5
 
-  # Background load loop: send NLG_TPS requests per second in parallel
+  # Background load loop: send NLG_TPS requests per second in parallel.
+  # Note: 'local' must NOT be used inside a subshell (only valid in functions);
+  # doing so with set -e causes the subshell to exit immediately without sending traffic.
   (
     while kill -0 "${pf_pid}" 2>/dev/null; do
-      local i
       for i in $(seq 1 "${NLG_TPS}"); do
         curl -sf -X POST \
           -H "Content-Type: application/json" \
@@ -504,8 +519,9 @@ run_relay_rpc_probe() {
   ) &
   local load_pid=$!
 
-  # Poll only for OOMKill/crash — connectivity checks via port-forward are unreliable
-  # under high concurrent load and produce false failures even when the pod is healthy.
+  # Poll for OOMKill/crash and also check the load loop is still running.
+  # Connectivity health-checks via the same port-forward are unreliable under high
+  # concurrent load and produce false failures even when the pod is healthy.
   while [[ ${elapsed} -lt ${NLG_DURATION_S} ]]; do
     sleep "${poll_interval}"
     elapsed=$(( elapsed + poll_interval ))
@@ -513,6 +529,13 @@ run_relay_rpc_probe() {
     if check_pod_health "${resource_name}" "${container}"; then
       log "  OOMKilled/crash detected on ${resource_name}/${container}"
       oom_detected=true
+      break
+    fi
+
+    # If the load subshell died (port-forward dropped, etc.) the result is meaningless
+    if ! kill -0 "${load_pid}" 2>/dev/null; then
+      log "  Load loop exited early — probe infrastructure error, aborting component"
+      load_died=true
       break
     fi
   done
@@ -524,6 +547,10 @@ run_relay_rpc_probe() {
   if [[ "${oom_detected}" == "true" ]]; then
     log "  Relay RPC probe FAILED (OOMKilled/crash)"
     return 1
+  fi
+  if [[ "${load_died}" == "true" ]]; then
+    log "  Relay RPC probe FAILED (load loop died early — infrastructure error)"
+    return 2
   fi
 
   log "  Relay RPC probe PASSED (no OOMKill/crash in ${NLG_DURATION_S}s under ${NLG_TPS} TPS load)"
@@ -733,6 +760,7 @@ run_probe() {
   local probe_type="$1"
   local resource_name="$2"
   local container="$3"
+  local rc
 
   case "${probe_type}" in
     nlg)
@@ -746,7 +774,9 @@ run_probe() {
       ;;
     both)
       log "  probe=both: running NLG then relay-rpc (both must pass)"
-      run_nlg_probe "${resource_name}" "${container}" || return 1
+      run_nlg_probe "${resource_name}" "${container}"
+      rc=$?
+      [[ ${rc} -ne 0 ]] && return "${rc}"
       run_relay_rpc_probe "${resource_name}" "${container}"
       ;;
     none)
@@ -799,6 +829,9 @@ optimize_one() {
     log "Range [${low}–${high}]Mi < granularity ${MEMORY_GRANULARITY_MI}Mi — using effective granularity ${effective_granularity}Mi"
   fi
 
+  local prev_display="${live_limit_mi:+${live_limit_mi}Mi}"
+  prev_display="${prev_display:-unknown}"
+
   header "Optimizing ${kind}/${name}  container: ${container}  probe: ${probe_type}  [${low}–${high}Mi]"
   local best_mi=0
   local iteration=0
@@ -814,7 +847,18 @@ optimize_one() {
       continue
     fi
 
-    if run_probe "${probe_type}" "${name}" "${container}"; then
+    local probe_rc
+    run_probe "${probe_type}" "${name}" "${container}" && probe_rc=0 || probe_rc=$?
+
+    if [[ ${probe_rc} -eq 2 ]]; then
+      # Infrastructure error (port-forward failure, load loop died, etc.) — not OOM.
+      # Retrying at higher memory won't help; abort this component entirely.
+      log "ABORT ${name}/${container}: probe infrastructure error — skipping component"
+      printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
+        "PROBE_ERROR" "${kind}/${name}" "${container}" "${prev_display}" "(aborted)" \
+        >> "${RESULTS_FILE}"
+      return 1
+    elif [[ ${probe_rc} -eq 0 ]]; then
       log "SUCCESS at ${mid}Mi — trying lower"
       best_mi="${mid}"
       high="${mid}"
@@ -823,9 +867,6 @@ optimize_one() {
       low="${mid}"
     fi
   done
-
-  local prev_display="${live_limit_mi:+${live_limit_mi}Mi}"
-  prev_display="${prev_display:-unknown}"
 
   if [[ "${best_mi}" -gt 0 ]]; then
     log "Converged: optimal = ${best_mi}Mi for ${kind}/${name} [${container}]  (was ${prev_display})"
