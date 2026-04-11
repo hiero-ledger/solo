@@ -451,9 +451,10 @@ jobs:
             > /etc/docker/daemon.json'
           sudo -n -E -- cat /etc/docker/daemon.json
           sudo -n -E -- systemctl daemon-reload
+          sleep 5
           sudo -n -E -- systemctl restart docker.service || true
           sleep 20
-          sudo -n -E -- systemctl status docker.service ) || true
+          sudo -n -E -- systemctl status docker.service || true
           sudo -n -E -- journalctl -xeu docker.service --no-pager
           echo "::endgroup::"
 
