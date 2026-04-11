@@ -17,6 +17,7 @@ import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../src/commands/command-definitions/deployment-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -42,6 +43,8 @@ const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
+let currentTestDeployment: string | undefined;
+let currentTestNamespace: string | undefined;
 
 // When the workflow cancels this step (e.g. due to a new commit superseding the PR),
 // go-task forwards SIGTERM to this process' process group before SIGKILL reaches task.
@@ -65,6 +68,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
       describe(testTitle, (): void => {
         const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
+        currentTestDeployment = deployment;
+        currentTestNamespace = namespace.name;
 
         // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
         before(async (): Promise<void> => {
@@ -103,6 +108,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
+
+          try {
+            testLogger.info(`${testName}: collecting ${deployment} deployment diagnostics logs`);
+            await main(soloDeploymentDiagnosticsLogs(testName, deployment));
+          } catch (error) {
+            testLogger.warn(`${testName}: failed to collect deployment diagnostics logs: ${(error as Error).message}`);
+          }
 
           // read all logged metrics and parse the JSON
           const namespace: string = await getNamespaceFromDeployment();
@@ -241,6 +253,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 async function getNamespaceFromDeployment(): Promise<string> {
+  if (currentTestNamespace) {
+    return currentTestNamespace;
+  }
+
   const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
   const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
     InjectTokens.LocalConfigRuntimeState,
@@ -273,11 +289,16 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
   const argv: string[] = newArgv();
   argv.push(
     OneShotCommandDefinition.COMMAND_NAME,
-    OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
+    OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment);
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.valuesFile),
+    'test/data/performance-test-values.yaml',
+  );
   return argv;
 }
 
@@ -286,6 +307,20 @@ export function soloOneShotDestroy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('one-shot', 'single', 'destroy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloDeploymentDiagnosticsLogs(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+  const argv: string[] = newArgv();
+  argv.push(
+    DeploymentCommandDefinition.COMMAND_NAME,
+    DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
+    DeploymentCommandDefinition.DIAGNOSTICS_LOGS,
+    optionFromFlag(Flags.deployment),
+    deployment,
+  );
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
@@ -306,7 +341,8 @@ export function soloRapidFire(
 ): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
-  const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
+  const deploymentName: string =
+    currentTestDeployment ?? fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
   const argv: string[] = newArgv();
   argv.push(
     'rapid-fire',

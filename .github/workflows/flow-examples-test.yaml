@@ -125,12 +125,16 @@ jobs:
             echo "Using concatenated matrix from standard + trunkio files."
             SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${STANDARD_MATRIX_FILE}" "${TRUNK_MATRIX_FILE}")
           fi
-          
+
+          # Read consensus node version from version.ts
+          CONSENSUS_VERSION=$(grep "export const HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)'.*/\1/")
+          echo "Consensus Node Version: $CONSENSUS_VERSION"
+
           if [ -n "$EXAMPLE_DIR" ]; then
             # Filter to specific example
             echo "Filtering matrix for example directory: $EXAMPLE_DIR"
             JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c "[.[] | select(.directory == \"$EXAMPLE_DIR\")]")
-            
+
             if [ "$JSON_CONTENT" = "[]" ]; then
               echo "Error: Example directory '$EXAMPLE_DIR' not found in matrix"
               echo "Available examples:"
@@ -142,9 +146,9 @@ jobs:
             echo "Using all examples from selected matrix source"
             JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c .)
           fi
-          
+
           echo "Generated matrix: $JSON_CONTENT"
-          
+
           # Set the output variable 'matrix' with the JSON content
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
@@ -339,7 +343,27 @@ jobs:
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
-          
+
+          # Skip version-upgrade-test if consensus version >= v0.72.0
+          if [ "${{ matrix.example.directory }}" = "version-upgrade-test" ]; then
+            CONSENSUS_VERSION=$(grep "export const HEDERA_PLATFORM_VERSION" ../../version.ts | sed -E "s/.*'([^']+)'.*/\1/")
+            version_gte() {
+              local IFS=.
+              local v1=($1) v2=($2)
+              for i in 0 1 2; do
+                local a=${v1[$i]:-0} b=${v2[$i]:-0}
+                (( 10#$a > 10#$b )) && return 0
+                (( 10#$a < 10#$b )) && return 1
+              done
+              return 0
+            }
+            CV="${CONSENSUS_VERSION#v}"
+            if version_gte "$CV" "0.72.0"; then
+              echo "Skipping version-upgrade-test: consensus version ${CONSENSUS_VERSION} >= v0.72.0"
+              exit 0
+            fi
+          fi
+
           # Export environment variables for Taskfile.
           # Release ZIP examples are not executed from the Solo repo checkout, so they must use released Solo CLI.
           if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then

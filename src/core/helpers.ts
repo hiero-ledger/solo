@@ -801,6 +801,15 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
 
+  const parsedBlockNodesJson: {nodes: unknown[]} = JSON.parse(blockNodesJsonData) as {nodes: unknown[]};
+  if (parsedBlockNodesJson.nodes.length === 0) {
+    logger.showUser(
+      chalk.red(
+        `WARNING: block-nodes.json for consensus node ${nodeAlias} has no block nodes configured — block streaming will not work.`,
+      ),
+    );
+  }
+
   const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
   const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
 

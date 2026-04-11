@@ -15,6 +15,7 @@ import {
 import {
   type DeploymentName,
   type Optional,
+  type PortForwardConfig,
   type Realm,
   type Shard,
   type SoloListr,
@@ -191,7 +192,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       return;
     }
     for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY && key !== '--deployment') {
+      if (key === '--deployment') {
+        continue;
+      }
+      if (value === false) {
+        // Boolean false must use yargs negation prefix (--no-flag) rather than --flag false
+        argv.push(key.replace(/^--/, '--no-'));
+      } else if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
         argv.push(`${key}`, value.toString());
       }
     }
@@ -714,6 +721,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             },
                             this.taskList,
                           ),
+                          {
+                            title: `Copy ${constants.BLOCK_NODES_JSON_FILE} to consensus nodes`,
+                            skip: (): boolean =>
+                              constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                              this.remoteConfig.configuration.state.blockNodes.length === 0,
+                            task: async (): Promise<void> => {
+                              // Reload remote config so we pick up the blockNodeMap written by
+                              // the `block-node add` sub-command (which ran in a separate main() call)
+                              await this.remoteConfig.load();
+                              for (const node of this.remoteConfig.getConsensusNodes()) {
+                                await helpers.createAndCopyBlockNodeJsonFileForConsensusNode(
+                                  node,
+                                  this.logger,
+                                  this.k8Factory,
+                                );
+                              }
+                            },
+                          },
                           invokeSoloCommand(
                             `solo ${ConsensusCommandDefinition.START_COMMAND}`,
                             ConsensusCommandDefinition.START_COMMAND,
@@ -797,30 +822,50 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                             this.taskList,
                                             (): boolean => !config.deployExplorer,
                                           ),
-                                          invokeSoloCommand(
-                                            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                                            RelayCommandDefinition.ADD_COMMAND,
-                                            (): string[] => {
-                                              const argv: string[] = newArgv();
-                                              argv.push(
-                                                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                                                optionFromFlag(Flags.deployment),
-                                                config.deployment,
-                                                optionFromFlag(Flags.clusterRef),
-                                                config.clusterRef,
-                                                optionFromFlag(Flags.nodeAliasesUnparsed),
-                                                'node1',
+                                          {
+                                            title: `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                                            skip: (): boolean => !config.deployRelay,
+                                            task: (_context, relayTask): SoloListr<OneShotSingleDeployContext> => {
+                                              return relayTask.newListr(
+                                                [
+                                                  {
+                                                    title: 'Wait for mirror operator account data',
+                                                    task: async (_context_, waitTask): Promise<void> => {
+                                                      await this.waitForMirrorOperatorAccountReady(
+                                                        config,
+                                                        argv,
+                                                        waitTask,
+                                                      );
+                                                    },
+                                                  },
+                                                  invokeSoloCommand(
+                                                    `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                                                    RelayCommandDefinition.ADD_COMMAND,
+                                                    (): string[] => {
+                                                      const argv: string[] = newArgv();
+                                                      argv.push(
+                                                        ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                                                        optionFromFlag(Flags.deployment),
+                                                        config.deployment,
+                                                        optionFromFlag(Flags.clusterRef),
+                                                        config.clusterRef,
+                                                        optionFromFlag(Flags.nodeAliasesUnparsed),
+                                                        'node1',
+                                                      );
+                                                      this.appendConfigToArgv(argv, {
+                                                        [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
+                                                        [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
+                                                        ...config.relayNodeConfiguration,
+                                                      });
+                                                      return argvPushGlobalFlags(argv);
+                                                    },
+                                                    this.taskList,
+                                                  ),
+                                                ],
+                                                {concurrent: false, rendererOptions: {collapseSubtasks: false}},
                                               );
-                                              this.appendConfigToArgv(argv, {
-                                                [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
-                                                [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
-                                                ...config.relayNodeConfiguration,
-                                              });
-                                              return argvPushGlobalFlags(argv);
                                             },
-                                            this.taskList,
-                                            (): boolean => !config.deployRelay,
-                                          ),
+                                          },
                                         ],
                                         {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
                                       );
@@ -975,6 +1020,77 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     return true;
+  }
+
+  private getRelayOperatorAccountId(config: OneShotSingleDeployConfigClass): string {
+    const configuredOperatorId: unknown = config.relayNodeConfiguration?.[optionFromFlag(Flags.operatorId)];
+
+    if (typeof configuredOperatorId === 'string' && configuredOperatorId.length > 0) {
+      return configuredOperatorId;
+    }
+
+    return this.accountManager.getOperatorAccountId(config.deployment).toString();
+  }
+
+  private getMirrorIngressLocalPort(): number {
+    const mirrorNode: Optional<MirrorNodeStateSchema> = this.remoteConfig.configuration.components.state.mirrorNodes[0];
+    const portForwardConfig: Optional<PortForwardConfig> =
+      mirrorNode?.metadata?.portForwardConfigs?.find((config): boolean => config.podPort === 80) ??
+      mirrorNode?.metadata?.portForwardConfigs?.[0];
+
+    if (!portForwardConfig) {
+      throw new SoloError('Mirror ingress port-forward is not configured');
+    }
+
+    return portForwardConfig.localPort;
+  }
+
+  private async waitForMirrorOperatorAccountReady(
+    config: OneShotSingleDeployConfigClass,
+    argv: ArgvStruct,
+    task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+  ): Promise<void> {
+    await this.remoteConfig.loadAndValidate(argv, false);
+
+    const operatorAccountId: string = this.getRelayOperatorAccountId(config);
+    const localPort: number = this.getMirrorIngressLocalPort();
+    const maxAttempts: number = constants.PODS_READY_MAX_ATTEMPTS;
+    const delayMs: number = constants.PODS_READY_DELAY;
+    const url: string = `http://localhost:${localPort}/api/v1/accounts/${operatorAccountId}?transactions=false`;
+
+    let lastFailure: string = 'mirror account endpoint did not return a funded account';
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      task.title = `Wait for mirror operator account data [${attempt}/${maxAttempts}]`;
+
+      try {
+        const response: Response = await fetch(url);
+
+        if (response.ok) {
+          const body: AnyObject = (await response.json()) as AnyObject;
+          const balance: number = Number(body?.balance?.balance ?? 0);
+
+          if (balance > 0) {
+            task.title = `Mirror operator account data ready: ${operatorAccountId}`;
+            return;
+          }
+
+          lastFailure = `account ${operatorAccountId} has non-positive balance (${balance})`;
+        } else {
+          lastFailure = `status ${response.status}`;
+        }
+      } catch (error) {
+        lastFailure = error instanceof Error ? error.message : String(error);
+      }
+
+      if (attempt < maxAttempts) {
+        await helpers.sleep(Duration.ofMillis(delayMs));
+      }
+    }
+
+    throw new SoloError(
+      `Mirror node did not expose funded account data for ${operatorAccountId} before relay deploy: ${lastFailure} [maxAttempts = ${maxAttempts}]`,
+    );
   }
 
   private showOneShotUserNotes(
