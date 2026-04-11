@@ -1307,11 +1307,19 @@ export class NetworkCommand extends BaseCommand {
                 clusterRefs.get(clusterReference),
               );
               if (isInstalled) {
-                await this.chartManager.uninstall(
-                  namespace,
-                  constants.SOLO_DEPLOYMENT_CHART,
-                  clusterRefs.get(clusterReference),
-                );
+                // In one-shot recovery mode the chart is already installed with running
+                // consensus-node pods.  Skip the uninstall so those pods are not deleted
+                // and rescheduled — an unnecessary restart under resource pressure causes
+                // the node to be stuck Pending due to system pressure taints.
+                // For non-one-shot deploys keep the original uninstall-then-reinstall
+                // behaviour (needed to handle Helm immutable-field changes).
+                if (!this.oneShotState.isActive()) {
+                  await this.chartManager.uninstall(
+                    namespace,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    clusterRefs.get(clusterReference),
+                  );
+                }
                 config.isUpgrade = true;
               }
 
