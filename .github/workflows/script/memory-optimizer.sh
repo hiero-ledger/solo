@@ -12,10 +12,11 @@
 #   ./memory-optimizer.sh --components mirror-grpc,relay,postgres
 #
 #   # Optimize all components that use a specific probe type:
-#   ./memory-optimizer.sh --probe-type nlg        # all NLG-tested components
-#   ./memory-optimizer.sh --probe-type relay-rpc  # relay, relay-ws, mirror-web3
-#   ./memory-optimizer.sh --probe-type both       # network-node
-#   ./memory-optimizer.sh --probe-type none       # observation-only components
+#   ./memory-optimizer.sh --probe-type nlg        # NLG write path (importer, postgres, redis)
+#   ./memory-optimizer.sh --probe-type query      # mirror read path (grpc, rest, restjava)
+#   ./memory-optimizer.sh --probe-type relay-rpc  # relay JSON-RPC path (relay, relay-ws, web3)
+#   ./memory-optimizer.sh --probe-type both       # both write paths (network-node)
+#   ./memory-optimizer.sh --probe-type none       # observation-only (mirror-monitor)
 #
 #   # Optimize all known components automatically:
 #   ./memory-optimizer.sh --auto
@@ -25,7 +26,8 @@
 #
 # Options:
 #   --components ALIAS[,...]            Components to optimize (see --list)
-#   --probe-type nlg|relay-rpc|both|none  Optimize all components of this probe category
+#   --probe-type TYPE                   Optimize all components of this probe category
+#                                         nlg | relay-rpc | query | both | none
 #   --auto                              Optimize all known components
 #   --list                              Print component aliases and exit
 #   --namespace  NAME                   Kubernetes namespace          (default: solo)
@@ -70,25 +72,26 @@ RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 #   max_memory_mi — upper bound for binary search (Mi); sourced from resources/*.yaml
 #                   (overrides global --max-memory for this component only)
 #   probe_type    — which load probe to run during each binary-search iteration:
-#                     nlg        NLG CryptoTransferLoadTest → gRPC port 50211
-#                     relay-rpc  curl loop of eth_blockNumber → relay HTTP port 7546
-#                     both       run NLG first then relay-rpc; both must pass
+#                     nlg        NLG CryptoTransferLoadTest → consensus gRPC port 50211
+#                     relay-rpc  curl eth_blockNumber loop  → relay HTTP port 7546
+#                     query      concurrent HTTP/gRPC read  → mirror service port
+#                     both       NLG then relay-rpc; both must pass
 #                     none       skip probing (apply memory limit for observation only)
 #
 # Transaction-path impact table:
-#   Component        NLG (native gRPC)   Relay JSON-RPC      probe_type
-#   ─────────────    ─────────────────   ──────────────────  ──────────
-#   network-node     DIRECT (consensus)  DIRECT (relay→grpc) both
-#   mirror-importer  DIRECT (record files ingested)  indirect none-direct none  nlg
-#   mirror-grpc      indirect (subscriptions)         indirect               nlg
-#   mirror-rest      indirect (REST reads)             indirect (relay polls) nlg
-#   mirror-restjava  indirect (REST Java reads)        indirect               nlg
-#   mirror-web3      none (NLG skips EVM path)        DIRECT (eth_call)      relay-rpc
-#   mirror-monitor   none (health polling only)        none                   none
-#   relay            none (NLG bypasses relay)         DIRECT (entry point)   relay-rpc
-#   relay-ws         none (NLG bypasses relay)         DIRECT (WS entry)      relay-rpc
-#   postgres         DIRECT (all mirror writes)        indirect               nlg
-#   redis            indirect (mirror cache)           indirect               nlg
+#   Component        NLG writes (gRPC)      Relay JSON-RPC         Client queries    probe_type
+#   ─────────────    ─────────────────────  ─────────────────────  ───────────────   ──────────
+#   network-node     DIRECT (consensus)     DIRECT (relay→grpc)    none              both
+#   mirror-importer  DIRECT (record stream) indirect               none              nlg
+#   mirror-grpc      none                   none                   DIRECT (gRPC sub) query
+#   mirror-rest      indirect (data source) indirect (polls REST)  DIRECT (GET)      query
+#   mirror-restjava  indirect (data source) indirect               DIRECT (GET)      query
+#   mirror-web3      none                   DIRECT (eth_call)      indirect          relay-rpc
+#   mirror-monitor   none                   none                   none (health only) none
+#   relay            none (bypassed)        DIRECT (entry point)   none              relay-rpc
+#   relay-ws         none (bypassed)        DIRECT (WS entry)      none              relay-rpc
+#   postgres         DIRECT (all writes)    indirect               indirect (reads)  nlg
+#   redis            indirect (cache)       indirect               indirect (cache)  nlg
 #
 # Memory sources (max_memory_mi):
 #   mirror-*    resources/mirror-node-values.yaml  <component>.resources.limits.memory
@@ -105,12 +108,16 @@ COMPONENT_REGISTRY=(
   "network-node|statefulset|^network-node[0-9]||8192|both"
 
   # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → mirror-importer ──
-  "mirror-importer|deployment|mirror.*importer||2000|nlg"
-  "mirror-grpc|deployment|mirror.*grpc||1000|nlg"
-  "mirror-rest|deployment|mirror.*-rest$||500|nlg"
-  "mirror-restjava|deployment|mirror.*restjava||500|nlg"
+  "mirror-importer|deployment|mirror.*importer||596|nlg"
   "postgres|statefulset|solo-shared-resources-postgres|postgresql|1000|nlg"
   "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|512|nlg"
+
+  # ── Query path: client read requests → mirror REST/gRPC services ──────────────
+  # mirror-grpc memory is driven by concurrent gRPC subscriptions, not writes
+  # mirror-rest / mirror-restjava memory is driven by concurrent GET requests
+  "mirror-grpc|deployment|mirror.*grpc||1000|query"
+  "mirror-rest|deployment|mirror.*-rest$||500|query"
+  "mirror-restjava|deployment|mirror.*restjava||500|query"
 
   # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay → gRPC / mirror-web3 ─
   "relay|deployment|^relay-[0-9]+$||512|relay-rpc"
@@ -197,7 +204,50 @@ container_index() {
         '[.spec.template.spec.containers[].name] | index($c) // 0'
 }
 
-# Patch one container's memory limit + request on a workload and wait for rollout
+# Poll pods belonging to a workload for unhealthy states.
+# Prints a reason string and returns 0 if a bad state is found, 1 otherwise.
+check_pod_health() {
+  local resource_name="$1"
+  local container="$2"
+
+  local pod
+  while IFS= read -r pod; do
+    [[ -z "${pod}" ]] && continue
+
+    # Phase-level failures (e.g. pod stuck in Error)
+    local phase
+    phase=$(kubectl get pod "${pod}" -n "${SOLO_NAMESPACE}" \
+      -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+    if [[ "${phase}" == "Failed" ]]; then
+      log "  Pod ${pod} in Failed phase"
+      return 0
+    fi
+
+    # Container-level failures: CrashLoopBackOff or OOMKilled in waiting or lastState
+    local reasons
+    reasons=$(kubectl get pod "${pod}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null \
+      | jq -r --arg c "${container}" '
+          .status.containerStatuses[]?
+          | select(.name == $c)
+          | (.state.waiting.reason // ""),
+            (.lastState.terminated.reason // "")
+        ' 2>/dev/null || echo "")
+
+    if echo "${reasons}" | grep -qE "OOMKilled|CrashLoopBackOff|Error"; then
+      local cause
+      cause=$(echo "${reasons}" | grep -E "OOMKilled|CrashLoopBackOff|Error" | head -1)
+      log "  Pod ${pod} container ${container}: ${cause}"
+      return 0
+    fi
+  done < <(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers -o name 2>/dev/null \
+    | sed 's|pod/||' | grep "^${resource_name}-")
+
+  return 1
+}
+
+# Patch one container's memory limit + request on a workload, then wait for rollout
+# while concurrently watching for CrashLoopBackOff / OOMKilled.
+# Returns 0 on clean rollout, 1 if the pod crashed during startup.
 set_memory_limit() {
   local kind="$1"
   local name="$2"
@@ -207,7 +257,7 @@ set_memory_limit() {
 
   log "  kubectl set resources ${kind}/${name} -c ${container} --limits=memory=${memory_mi}Mi --requests=memory=${request_mi}Mi"
 
-  # Primary: kubectl set resources (handles the container lookup internally)
+  # Primary: kubectl set resources
   if ! kubectl set resources "${kind}/${name}" \
       -n "${SOLO_NAMESPACE}" \
       -c "${container}" \
@@ -224,10 +274,38 @@ set_memory_limit() {
     ]' "${idx}" "${memory_mi}" "${idx}" "${request_mi}")"
   fi
 
-  log "  Waiting for rollout of ${kind}/${name}..."
-  kubectl rollout status "${kind}/${name}" -n "${SOLO_NAMESPACE}" --timeout=300s
-  log "  Stabilizing ${STABILIZE_S}s..."
+  log "  Waiting for rollout of ${kind}/${name} (monitoring for OOMKilled/CrashLoopBackOff)..."
+
+  # Run rollout status in the background; poll concurrently for crash states
+  kubectl rollout status "${kind}/${name}" -n "${SOLO_NAMESPACE}" --timeout=300s \
+    >/dev/null 2>&1 &
+  local rollout_pid=$!
+
+  local elapsed=0
+  local poll_interval=5
+  local crashed=false
+
+  while kill -0 "${rollout_pid}" 2>/dev/null; do
+    sleep "${poll_interval}"
+    elapsed=$(( elapsed + poll_interval ))
+
+    if check_pod_health "${name}" "${container}"; then
+      log "  Rollout aborted — pod crashed at ${memory_mi}Mi (see above)"
+      kill "${rollout_pid}" 2>/dev/null || true
+      crashed=true
+      break
+    fi
+  done
+
+  wait "${rollout_pid}" 2>/dev/null || true
+
+  if [[ "${crashed}" == "true" ]]; then
+    return 1
+  fi
+
+  log "  Rollout complete. Stabilizing ${STABILIZE_S}s..."
   sleep "${STABILIZE_S}"
+  return 0
 }
 
 # Detect if any pod belonging to a workload has a container that was OOMKilled
@@ -246,23 +324,56 @@ check_oom() {
     | grep -q "OOMKilled" && return 0 || return 1
 }
 
+# Build the --args string for the NLG test class.
+# Common flags used by all test types:
+#   -c  number of client threads
+#   -a  number of accounts to use
+#   -R  reuse existing accounts (skip pre-creation)
+#   -t  test duration in seconds
+# Extra flags per test type (kept at reasonable defaults):
+#   NftTransferLoadTest   -T <nfts-per-account>  -n <nft-class-count>  -S flat  -p <percent-nft>
+#   TokenTransferLoadTest -T <tokens-per-account> -A <associations-per-account>
+nlg_build_args() {
+  local base="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -R -t ${NLG_DURATION_S}"
+  case "${NLG_TEST_CLASS}" in
+    NftTransferLoadTest)
+      local nfts="${NLG_NFTS:-10}"
+      local percent="${NLG_NFT_PERCENT:-50}"
+      echo "${base} -T ${nfts} -n ${NLG_ACCOUNTS} -S flat -p ${percent}"
+      ;;
+    TokenTransferLoadTest)
+      local tokens="${NLG_TOKENS:-10}"
+      local associations="${NLG_ASSOCIATIONS:-10}"
+      echo "${base} -T ${tokens} -A ${associations}"
+      ;;
+    *)
+      # CryptoTransferLoadTest | HCSLoadTest | SmartContractLoadTest
+      echo "${base}"
+      ;;
+  esac
+}
+
 # Run the NLG probe in the background; concurrently watch for OOMKills.
 # Returns 0 (pass) or 1 (fail / OOM).
 run_nlg_probe() {
   local resource_name="$1"
   local container="$2"
 
-  log "  NLG probe: ${NLG_TPS} TPS for ${NLG_DURATION_S}s (watching ${resource_name}/${container} for OOM)..."
+  local nlg_args
+  nlg_args="$(nlg_build_args)"
+
+  log "  NLG probe: ${NLG_TEST_CLASS} @ ${NLG_TPS} TPS for ${NLG_DURATION_S}s (watching ${resource_name}/${container} for OOM)"
+  log "  NLG args: ${nlg_args}"
 
   local nlg_log
   nlg_log="$(mktemp -t nlg-probe-XXXX.log)"
 
   npm run solo -- rapid-fire load start \
     --deployment "${SOLO_DEPLOYMENT}" \
-    --test CryptoTransferLoadTest \
+    --test "${NLG_TEST_CLASS}" \
     --max-tps "${NLG_TPS}" \
     --java-heap "${NLG_JAVA_HEAP_GB}" \
-    --args "\"-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${NLG_DURATION_S}\"" \
+    --args "\"${nlg_args}\"" \
     --quiet-mode \
     >"${nlg_log}" 2>&1 &
   local nlg_pid=$!
@@ -402,9 +513,141 @@ run_relay_rpc_probe() {
   return 0
 }
 
+# Run a read-query load against a mirror service (REST or gRPC).
+# Strategy:
+#   - mirror-grpc: use grpcurl for gRPC health/subscribe probes if available;
+#                  fall back to TCP port-forward connectivity check.
+#   - All others:  port-forward to the service HTTP port and send concurrent GET
+#                  requests to the /actuator/health or /api/v1/transactions endpoint.
+# Returns 0 (pass) or 1 (fail / OOM / connection errors).
+run_query_probe() {
+  local resource_name="$1"
+  local container="$2"
+
+  local pod_name
+  pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+    | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+
+  if [[ -z "${pod_name}" ]]; then
+    log "  No pod found for ${resource_name} — cannot run query probe"
+    return 1
+  fi
+
+  # Discover first service port; fall back by component name pattern
+  local svc_port
+  svc_port=$(kubectl get svc "${resource_name}" -n "${SOLO_NAMESPACE}" \
+    -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || echo "")
+
+  # Determine protocol and query endpoint based on component name
+  local is_grpc=false
+  local query_path="/actuator/health"
+  if echo "${resource_name}" | grep -q "grpc"; then
+    is_grpc=true
+    svc_port="${svc_port:-5600}"
+  elif echo "${resource_name}" | grep -q "restjava"; then
+    svc_port="${svc_port:-8084}"
+    query_path="/api/v1/transactions?limit=1"
+  else
+    # mirror-rest
+    svc_port="${svc_port:-5551}"
+    query_path="/api/v1/transactions?limit=1"
+  fi
+
+  local local_port=$(( (RANDOM % 10000) + 41000 ))
+  log "  Query probe: port-forward ${pod_name}:${svc_port} → localhost:${local_port} for ${NLG_DURATION_S}s"
+
+  kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
+    "${local_port}:${svc_port}" >/dev/null 2>&1 &
+  local pf_pid=$!
+  sleep 3
+
+  local oom_detected=false
+  local success_count=0
+  local fail_count=0
+  local elapsed=0
+  local poll_interval=5
+
+  # Background load: NLG_TPS concurrent requests per second
+  if [[ "${is_grpc}" == "true" ]] && command -v grpcurl >/dev/null 2>&1; then
+    log "  Using grpcurl for gRPC health checks"
+    (
+      while kill -0 "${pf_pid}" 2>/dev/null; do
+        local i
+        for i in $(seq 1 "${NLG_TPS}"); do
+          grpcurl -plaintext -max-time 5 \
+            "localhost:${local_port}" grpc.health.v1.Health/Check \
+            >/dev/null 2>&1 &
+        done
+        wait
+        sleep 1
+      done
+    ) &
+  else
+    # HTTP GET load (also serves as gRPC fallback via actuator)
+    local url="http://localhost:${local_port}${query_path}"
+    log "  Using HTTP GET: ${url}"
+    (
+      while kill -0 "${pf_pid}" 2>/dev/null; do
+        local i
+        for i in $(seq 1 "${NLG_TPS}"); do
+          curl -sf --max-time 5 "${url}" >/dev/null 2>&1 &
+        done
+        wait
+        sleep 1
+      done
+    ) &
+  fi
+  local load_pid=$!
+
+  while [[ ${elapsed} -lt ${NLG_DURATION_S} ]]; do
+    sleep "${poll_interval}"
+    elapsed=$(( elapsed + poll_interval ))
+
+    if check_oom "${resource_name}" "${container}"; then
+      log "  OOMKilled detected on ${resource_name}/${container}"
+      oom_detected=true
+      break
+    fi
+
+    # Health-check poll
+    local ok=false
+    if [[ "${is_grpc}" == "true" ]] && command -v grpcurl >/dev/null 2>&1; then
+      grpcurl -plaintext -max-time 5 \
+        "localhost:${local_port}" grpc.health.v1.Health/Check \
+        >/dev/null 2>&1 && ok=true
+    else
+      curl -sf --max-time 5 "http://localhost:${local_port}${query_path}" \
+        >/dev/null 2>&1 && ok=true
+    fi
+    if [[ "${ok}" == "true" ]]; then
+      success_count=$(( success_count + 1 ))
+    else
+      fail_count=$(( fail_count + 1 ))
+    fi
+  done
+
+  kill "${load_pid}" 2>/dev/null || true
+  kill "${pf_pid}" 2>/dev/null || true
+  wait "${load_pid}" "${pf_pid}" 2>/dev/null || true
+
+  local total=$(( success_count + fail_count ))
+  if [[ "${oom_detected}" == "true" ]]; then
+    log "  Query probe FAILED (OOMKilled)"
+    return 1
+  fi
+  if [[ ${total} -gt 0 && ${fail_count} -gt $(( total / 3 )) ]]; then
+    log "  Query probe FAILED (${fail_count}/${total} health checks failed)"
+    return 1
+  fi
+
+  log "  Query probe PASSED (${success_count}/${total} health checks ok)"
+  return 0
+}
+
 # Dispatcher: run the appropriate probe(s) based on probe_type.
-#   nlg       → NLG CryptoTransfer load
-#   relay-rpc → curl JSON-RPC load against relay HTTP port
+#   nlg       → NLG CryptoTransfer load (consensus write path)
+#   relay-rpc → curl eth_blockNumber loop (relay JSON-RPC path)
+#   query     → concurrent HTTP GET / grpcurl reads (mirror read path)
 #   both      → NLG first, then relay-rpc; both must pass
 #   none      → skip load; always return pass (limit applied for observation)
 run_probe() {
@@ -418,6 +661,9 @@ run_probe() {
       ;;
     relay-rpc)
       run_relay_rpc_probe "${resource_name}" "${container}"
+      ;;
+    query)
+      run_query_probe "${resource_name}" "${container}"
       ;;
     both)
       log "  probe=both: running NLG then relay-rpc (both must pass)"
@@ -457,7 +703,11 @@ optimize_one() {
     local mid=$(( (low + high) / 2 ))
     log "Iter ${iteration}: testing ${mid}Mi  [range ${low}–${high}]"
 
-    set_memory_limit "${kind}" "${name}" "${container}" "${mid}"
+    if ! set_memory_limit "${kind}" "${name}" "${container}" "${mid}"; then
+      log "FAILURE at ${mid}Mi — pod crashed during startup (OOMKilled/CrashLoopBackOff)"
+      low="${mid}"
+      continue
+    fi
 
     if run_probe "${probe_type}" "${name}" "${container}"; then
       log "SUCCESS at ${mid}Mi — trying lower"
@@ -583,6 +833,7 @@ while [[ $# -gt 0 ]]; do
     --granularity)     MEMORY_GRANULARITY_MI="$2"; shift 2 ;;
     --tps)             NLG_TPS="$2";               shift 2 ;;
     --duration)        NLG_DURATION_S="$2";        shift 2 ;;
+    --nlg-test)        NLG_TEST_CLASS="$2";        shift 2 ;;
     *)
       echo "Unknown argument: $1"
       echo "Run with --list to see component aliases, or --help for usage."
@@ -607,7 +858,7 @@ if [[ "${MODE}" == "auto" ]]; then
     SELECTED+=("$(cut -d'|' -f1 <<< "${entry}")")
   done
 elif [[ "${MODE}" == "by-probe-type" ]]; then
-  valid_types="nlg relay-rpc both none"
+  valid_types="nlg relay-rpc query both none"
   if ! echo "${valid_types}" | grep -qw "${FILTER_PROBE_TYPE}"; then
     echo "Error: --probe-type must be one of: ${valid_types}"
     exit 1
@@ -633,6 +884,7 @@ cat <<INFO
   Mode:         ${MODE}
   Components:   ${SELECTED[*]}
   Memory range: ${MEMORY_MIN_MI}Mi – ${MEMORY_MAX_MI}Mi  (granularity ${MEMORY_GRANULARITY_MI}Mi)
+  NLG test:     ${NLG_TEST_CLASS}
   NLG load:     ${NLG_TPS} TPS × ${NLG_DURATION_S}s per probe
   Results file: ${RESULTS_FILE}
 INFO
