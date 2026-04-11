@@ -1307,19 +1307,31 @@ export class NetworkCommand extends BaseCommand {
                 clusterRefs.get(clusterReference),
               );
               if (isInstalled) {
-                // In one-shot recovery mode the chart is already installed with running
-                // consensus-node pods.  Skip the uninstall so those pods are not deleted
-                // and rescheduled — an unnecessary restart under resource pressure causes
-                // the node to be stuck Pending due to system pressure taints.
-                // For non-one-shot deploys keep the original uninstall-then-reinstall
-                // behaviour (needed to handle Helm immutable-field changes).
-                if (!this.oneShotState.isActive()) {
-                  await this.chartManager.uninstall(
-                    namespace,
-                    constants.SOLO_DEPLOYMENT_CHART,
-                    clusterRefs.get(clusterReference),
+                if (this.oneShotState.isActive()) {
+                  // In one-shot recovery mode the chart is already installed.  Skip both
+                  // the uninstall and the upgrade: helm upgrade --reuse-values still causes
+                  // a StatefulSet rolling-restart (even when values are identical) which
+                  // tears down the running consensus-node pod.  Because node-setup needs
+                  // to copy platform software into that pod, the restart causes a race
+                  // where the pod disappears between identifyNetworkPods and copyTo,
+                  // producing an "Invalid pod network-node1-0" error.  Simply leave the
+                  // already-installed chart in place and proceed.
+                  config.isUpgrade = true;
+                  config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+                    config.soloChartVersion,
+                    false,
+                    'Solo chart version',
                   );
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+                  continue;
                 }
+
+                // Non-one-shot: uninstall then reinstall to handle Helm immutable-field changes.
+                await this.chartManager.uninstall(
+                  namespace,
+                  constants.SOLO_DEPLOYMENT_CHART,
+                  clusterRefs.get(clusterReference),
+                );
                 config.isUpgrade = true;
               }
 
