@@ -16,7 +16,7 @@ import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
+  return !(path.includes('data/keys') || path.includes('data/config'));
 };
 import {Templates} from '../../core/templates.js';
 import {
@@ -49,7 +49,6 @@ import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
 import * as helpers from '../../core/helpers.js';
 import {
-  addDebugOptions,
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
@@ -3273,19 +3272,67 @@ export class NodeCommandTasks {
             });
           }
         }
-        // Add Debug options
-        const consensusNode: ConsensusNode = consensusNodes.find(
-          (node): boolean => node.name === config.debugNodeAlias,
-        );
-        const clusterReference: string = consensusNode
-          ? consensusNode.cluster
-          : this.k8Factory.default().clusters().readCurrent();
 
-        valuesArgumentMap[clusterReference] = addDebugOptions(
-          valuesArgumentMap[clusterReference],
-          config.debugNodeAlias,
-          this.remoteConfig.configuration.state.wrapsEnabled ? 1 : 0,
-        );
+        // Generate extraEnv values file for wraps, debug, and custom environment variables
+        // This replaces the old --set extraEnv approach to prevent Helm replacement issues
+        const needsExtraEnvironment: boolean =
+          this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
+
+        if (needsExtraEnvironment) {
+          for (const [clusterReference] of clusterReferences) {
+            // Collect extraEnv entries already present in the values files applied to this
+            // cluster so that the generated file can include them and avoid Helm array
+            // replacement silently dropping env vars set by user-provided values files.
+            // Always include the chart's own defaults file so default JAVA_OPTS/heap vars
+            // are preserved when no per-node override exists in the user-provided files.
+            const existingValuesFilePaths: string[] = [constants.SOLO_DEPLOYMENT_VALUES_FILE];
+            for (const filePath of helpers.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
+              if (!existingValuesFilePaths.includes(filePath)) {
+                existingValuesFilePaths.push(filePath);
+              }
+            }
+
+            const clusterLocalNodeIndices = clusterNodeIndexMap[clusterReference];
+            const indexedConsensusNodes: Array<ConsensusNode | undefined> = [];
+            const unindexedConsensusNodes: ConsensusNode[] = [];
+            for (const consensusNode of consensusNodes) {
+              const nodeIndex: number | undefined = clusterLocalNodeIndices?.[consensusNode.nodeId];
+              if (nodeIndex === undefined) {
+                unindexedConsensusNodes.push(consensusNode);
+                continue;
+              }
+              indexedConsensusNodes[nodeIndex] = consensusNode;
+            }
+            const clusterConsensusNodes: ConsensusNode[] = [
+              ...indexedConsensusNodes.filter((node): node is ConsensusNode => node !== undefined),
+              ...unindexedConsensusNodes,
+            ];
+
+            const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
+              clusterConsensusNodes,
+              {
+                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                tss: this.soloConfig.tss,
+                debugNodeAlias: config.debugNodeAlias,
+                useJavaMainClass: false,
+                baseExtraEnvironmentVariables: helpers.extractExtraEnvironmentFromValuesFiles(
+                  existingValuesFilePaths,
+                  clusterConsensusNodes,
+                ),
+              },
+              constants.SOLO_CACHE_DIR,
+            );
+            // Append the generated file after all existing --values entries but before
+            // any --set overrides so it wins in Helm's merge order without being overridden
+            // by subsequent --values files that could still replace the hedera.nodes array.
+            const existingArguments: string = valuesArgumentMap[clusterReference] ?? '';
+            const firstSetArgumentIndex: number = existingArguments.search(/\s--set(?:\s|=|-)/);
+            valuesArgumentMap[clusterReference] =
+              firstSetArgumentIndex === -1
+                ? `${existingArguments} --values "${extraEnvironmentValuesFile}"`
+                : `${existingArguments.slice(0, firstSetArgumentIndex)} --values "${extraEnvironmentValuesFile}"${existingArguments.slice(firstSetArgumentIndex)}`;
+          }
+        }
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
@@ -3356,15 +3403,7 @@ export class NodeCommandTasks {
           versions.S6_NODE_IMAGE_VERSION,
         );
       }
-      if (this.remoteConfig.configuration.state.wrapsEnabled) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-        const wraps: Wraps = this.soloConfig.tss.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-      }
+      // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
     }
   }
 
@@ -3447,15 +3486,7 @@ export class NodeCommandTasks {
       }
     }
 
-    if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      valuesArgumentMap[clusterReference] +=
-        ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-      const wraps: Wraps = this.soloConfig.tss.wraps;
-      const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-    }
+    // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
   }
 
   /**
@@ -3499,15 +3530,7 @@ export class NodeCommandTasks {
             versions.S6_NODE_IMAGE_VERSION,
           );
         }
-        if (this.remoteConfig.configuration.state.wrapsEnabled) {
-          valuesArgumentMap[clusterReference] +=
-            ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-          const wraps: Wraps = this.soloConfig.tss.wraps;
-          const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-          valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-        }
+        // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
 
         index++;
       }
