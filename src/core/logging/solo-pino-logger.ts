@@ -6,7 +6,7 @@ import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import {default as chalk} from 'chalk';
+import chalk from 'chalk';
 import {type ChalkInstance} from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
