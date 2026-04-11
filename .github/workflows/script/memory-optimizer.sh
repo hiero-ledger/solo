@@ -1,24 +1,27 @@
 #!/bin/bash
 # memory-optimizer.sh
 #
-# Patches container memory limits on a live solo cluster and uses NLG at 10 TPS
-# to binary-search the minimum viable memory per component.
+# Binary-searches the minimum viable memory limit for each container in a live
+# solo Kubernetes cluster. Components sharing the same probe category are tested
+# in parallel — one shared traffic run per round covers all components in the
+# group simultaneously. If a component crashes, only its memory floor is raised;
+# survivors continue lowering their ceiling in the next round.
 #
-# Prerequisites: kubectl, npm (solo workspace), jq
+# Prerequisites: kubectl, npm (solo workspace), jq, awk
 # The cluster must already be running — this script does NOT deploy anything.
 #
 # Usage:
 #   # Optimize specific components (comma-separated aliases):
 #   ./memory-optimizer.sh --components mirror-grpc,relay,postgres
 #
-#   # Optimize all components that use a specific probe type:
-#   ./memory-optimizer.sh --probe-type nlg        # NLG write path (importer, postgres, redis)
-#   ./memory-optimizer.sh --probe-type query      # mirror read path (grpc, rest, restjava)
-#   ./memory-optimizer.sh --probe-type relay-rpc  # relay JSON-RPC path (relay, relay-ws, web3)
+#   # Optimize all components that use a specific probe type (parallel within group):
+#   ./memory-optimizer.sh --probe-type nlg        # NLG write path — all nlg components tested together
+#   ./memory-optimizer.sh --probe-type query      # mirror read path — all query components tested together
+#   ./memory-optimizer.sh --probe-type relay-rpc  # relay JSON-RPC path
 #   ./memory-optimizer.sh --probe-type both       # both write paths (network-node)
-#   ./memory-optimizer.sh --probe-type none       # observation-only (mirror-monitor)
+#   ./memory-optimizer.sh --probe-type none       # observation-only (no probing, apply registry max)
 #
-#   # Optimize all known components automatically:
+#   # Optimize all known components automatically (each probe-type group in sequence):
 #   ./memory-optimizer.sh --auto
 #
 #   # List available component aliases and exit:
@@ -35,7 +38,7 @@
 #   --min-memory MI                     Memory search lower bound Mi  (default: 64)
 #   --max-memory MI                     Memory search upper bound Mi  (default: 4096)
 #   --granularity MI                    Stop when range ≤ this Mi     (default: 64)
-#   --tps N                             NLG transactions per second   (default: 100)
+#   --tps N                             NLG/query requests per second (default: 100)
 #   --duration S                        NLG probe duration seconds    (default: 300)
 #   --query-duration S                  Query probe duration seconds  (default: 60)
 #   --nlg-test TYPE                     NLG test class to run         (default: CryptoTransferLoadTest)
@@ -44,6 +47,23 @@
 #                                         TokenTransferLoadTest
 #                                         HCSLoadTest
 #                                         SmartContractLoadTest
+#
+# How the parallel binary search works:
+#   1. Components sharing a probe_type are grouped together.
+#   2. Each round: every non-converged component is set to its current mid-point memory.
+#   3. One shared traffic run starts (NLG, relay-rpc, or per-component query workers).
+#      For query: each component gets workers targeting its specific API endpoint —
+#        mirror-grpc    → port-forward pod:8081/actuator/health
+#        mirror-web3    → port-forward pod:8545/actuator/health
+#        mirror-restjava→ ingress /api/v1/network/supply
+#        mirror-rest    → ingress /api/v1/network/exchangerate
+#        mirror-ingress-controller → ingress /api/v1/network/exchangerate
+#   4. All components are monitored simultaneously. Crash detection uses both
+#      pod health state and restart-count + finishedAt timestamp to avoid
+#      attributing stale OOMs from previous rounds to the current memory setting.
+#   5. After the probe window: crashed components raise their low bound (try higher);
+#      survivors lower their high bound (new best). Converged components are frozen.
+#   6. Repeat until all components in the group converge.
 
 set -eo pipefail
 
@@ -83,29 +103,38 @@ RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 #                     none       skip probing (apply memory limit for observation only)
 #
 # Transaction-path impact table:
-#   Component        NLG writes (gRPC)      Relay JSON-RPC         Client queries    probe_type
-#   ─────────────    ─────────────────────  ─────────────────────  ───────────────   ──────────
-#   network-node     DIRECT (consensus)     DIRECT (relay→grpc)    none              both
-#   mirror-importer  DIRECT (record stream) indirect               none              nlg
-#   mirror-grpc      none                   none                   DIRECT (gRPC sub) query
-#   mirror-rest      indirect (data source) indirect (polls REST)  DIRECT (GET)      query
-#   mirror-restjava  indirect (data source) indirect               DIRECT (GET)      query
-#   mirror-web3      none                   DIRECT (eth_call)      indirect          relay-rpc
-#   mirror-monitor   none                   none                   none (health only) none
-#   relay            none (bypassed)        DIRECT (entry point)   none              relay-rpc
-#   relay-ws         none (bypassed)        DIRECT (WS entry)      none              relay-rpc
-#   postgres         DIRECT (all writes)    indirect               indirect (reads)  nlg
-#   redis            indirect (cache)       indirect               indirect (cache)  nlg
+#   Component                NLG writes (gRPC)       Relay JSON-RPC          Client queries              probe_type
+#   ──────────────────────   ──────────────────────  ──────────────────────  ─────────────────────────   ──────────
+#   network-node             DIRECT (consensus)      DIRECT (relay→grpc)     none                        both
+#   haproxy-node             DIRECT (entry lb)       DIRECT (entry lb)       none                        nlg
+#   envoy-proxy              DIRECT (sidecar proxy)  DIRECT (sidecar proxy)  none                        nlg
+#   block-node               DIRECT (record stream)  none                    none                        nlg
+#   mirror-importer          DIRECT (record stream)  indirect                none                        nlg
+#   postgres                 DIRECT (all writes)     indirect                indirect (reads)            nlg
+#   redis                    indirect (cache)        indirect                indirect (cache)            nlg
+#   minio                    DIRECT (stream storage) none                    none                        nlg
+#   mirror-ingress-controller none                   none                    DIRECT (all REST routing)   query
+#   mirror-grpc              none                    none                    DIRECT (gRPC subscriptions) query  → pod:8081/actuator/health
+#   mirror-rest              indirect (data source)  indirect (polls REST)   DIRECT (GET /api/v1/*)      query  → ingress /api/v1/network/exchangerate
+#   mirror-restjava          indirect (data source)  indirect                DIRECT (GET /api/v1/*)      query  → ingress /api/v1/network/supply
+#   mirror-web3              none                    DIRECT (eth_call)       indirect                    query  → pod:8545/actuator/health
+#   relay                    none (bypassed)         DIRECT (entry point)    none                        relay-rpc
+#   hiero-explorer           none                    none                    none (UI only)              none
+#   mirror-monitor           none                    none                    none (pinger only)          none
+#   minio-operator           none                    none                    none (control plane)        none
 #
-# Memory sources (max_memory_mi):
-#   mirror-*    resources/mirror-node-values.yaml  <component>.resources.limits.memory
-#   network-node resources/solo-values.yaml        JAVA_HEAP_MAX=6g + JVM overhead → 8192Mi
-#   relay*      resources/relay-values.yaml        no limit defined → 512Mi
-#   postgres    resources/mirror-node-values.yaml  postgresql.postgresql.resources.limits.memory
-#   redis       not defined in chart values        → 512Mi per container
+# Memory sources (max_memory_mi → stored in resources/*.yaml):
+#   mirror-*                resources/mirror-node-values.yaml   <component>.resources.limits.memory
+#   network-node            resources/solo-values.yaml          JAVA_HEAP_MAX=6g + JVM overhead → 8192Mi
+#   block-node              resources/block-node-values.yaml    resources.limits.memory
+#   relay                   resources/relay-values.yaml         relay.resources.limits.memory
+#   hiero-explorer          resources/hiero-explorer-values.yaml resources.limits.memory
+#   mirror-ingress-ctrl     resources/ingress-controller-values.yaml controller.resources.limits.memory
+#   haproxy-node, envoy-proxy, minio — no dedicated values file; limit applied via kubectl set resources
+#   minio-operator          lives in solo-setup namespace (field 7 namespace override)
 #
-# When multiple containers are listed (e.g. redis,sentinel) each is optimized
-# as a separate binary-search pass against the same workload.
+# When multiple containers are listed (e.g. redis,sentinel) each is binary-searched
+# independently within the same probe round.
 
 COMPONENT_REGISTRY=(
   # Registry format: alias|kind|name_pattern|containers|max_memory_mi|probe_type|namespace
@@ -141,8 +170,7 @@ COMPONENT_REGISTRY=(
   "mirror-restjava|deployment|mirror.*restjava||466|query"
 
   # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay ─────────────────────
-  "relay|deployment|^relay-[0-9]+$||128|relay-rpc"
-  "relay-ws|deployment|^relay-[0-9]+-ws$||128|relay-rpc"
+  "relay|deployment|^relay-[0-9]+$||100|relay-rpc"
 
   # ── mirror-web3: serves POST /api/v1/contracts/call via ingress ──────────────
   # Memory driven by EVM simulation requests; probed via actuator/health on pod
@@ -1115,6 +1143,505 @@ optimize_alias() {
   done
 }
 
+# Parallel binary search across all components sharing the same probe_type.
+# Each component gets its own [low, high, best] state updated per round.
+# One shared probe run per round — if a component crashes, raise its memory;
+# if it survives, lower it. All non-converged components move each round.
+#
+# Global arrays (prefixed _cg_) are used because bash cannot pass arrays to functions.
+_cg_count=0
+_cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
+_cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
+_cg_registry_max=(); _cg_converged=()
+_cg_restart_before=(); _cg_probe_start=()
+
+# Populate _cg_* arrays with all live (kind, name, container) tuples for a list of aliases.
+cg_discover_components() {
+  _cg_count=0
+  _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
+  _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
+  _cg_registry_max=(); _cg_converged=()
+
+  local alias
+  for alias in "$@"; do
+    local kind; kind="$(registry_field "${alias}" 2)"
+    local pattern; pattern="$(registry_field "${alias}" 3)"
+    local containers_csv; containers_csv="$(registry_field "${alias}" 4)"
+    local registry_max; registry_max="$(registry_field "${alias}" 5)"
+    local ns_override; ns_override="$(registry_field "${alias}" 7)"
+    local ns="${ns_override:-${SOLO_NAMESPACE}}"
+    registry_max="${registry_max:-${MEMORY_MAX_MI}}"
+
+    [[ -z "${kind}" ]] && continue
+
+    local names=()
+    while IFS= read -r line; do
+      [[ -n "${line}" ]] && names+=("${line}")
+    done < <(discover_resources "${kind}" "${pattern}" "${ns}")
+
+    local name
+    for name in "${names[@]}"; do
+      local containers=()
+      if [[ -n "${containers_csv}" ]]; then
+        IFS=',' read -ra containers <<< "${containers_csv}"
+      else
+        local discovered; discovered="$(auto_discover_container "${kind}" "${name}" "${ns}")"
+        [[ -z "${discovered}" ]] && continue
+        containers=("${discovered}")
+      fi
+
+      local container
+      for container in "${containers[@]}"; do
+        local live_mi; live_mi="$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")"
+        local high=$(( registry_max * 6 / 5 ))
+        local low="${MEMORY_GRANULARITY_MI}"
+        local prev_display="${live_mi:+${live_mi}Mi}"; prev_display="${prev_display:-unknown}"
+
+        _cg_alias+=("${alias}")
+        _cg_kind+=("${kind}")
+        _cg_name+=("${name}")
+        _cg_container+=("${container}")
+        _cg_ns+=("${ns}")
+        _cg_low+=("${low}")
+        _cg_high+=("${high}")
+        _cg_mid+=(0)
+        _cg_best+=(0)
+        _cg_prev+=("${prev_display}")
+        _cg_registry_max+=("${registry_max}")
+        _cg_converged+=(false)
+        _cg_count=$(( _cg_count + 1 ))
+        log "  Registered ${alias} → ${kind}/${name} [${container}]  ns=${ns}  range=[${low}–${high}Mi]  prev=${prev_display}"
+      done
+    done
+  done
+}
+
+# Snapshot each component's restart count and record probe start time.
+cg_snapshot_restarts() {
+  local probe_start; probe_start=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  _cg_restart_before=()
+  _cg_probe_start=()
+  local i
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    local rc
+    rc=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers -o name 2>/dev/null \
+      | sed 's|pod/||' | grep "^${_cg_name[$i]}-" | head -1 \
+      | xargs -I{} kubectl get pod {} -n "${_cg_ns[$i]}" \
+          -o jsonpath="{.status.containerStatuses[?(@.name==\"${_cg_container[$i]}\")].restartCount}" \
+          2>/dev/null || echo "0")
+    _cg_restart_before+=("${rc:-0}")
+    _cg_probe_start+=("${probe_start}")
+  done
+}
+
+# Check each non-converged component for a new crash during this probe round.
+# Sets _cg_crashed[i]=true for any that crashed.
+cg_check_crashes() {
+  _cg_crashed=()
+  local i
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    _cg_crashed+=(false)
+    [[ "${_cg_converged[$i]}" == "true" ]] && continue
+
+    # Find current pod name
+    local pod_name
+    pod_name=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers -o name 2>/dev/null \
+      | sed 's|pod/||' | grep "^${_cg_name[$i]}-" | head -1 || true)
+    [[ -z "${pod_name}" ]] && continue
+
+    # Check pod health (current state)
+    if check_pod_health "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}"; then
+      log "  CRASH detected: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] — OOMKilled/CrashLoopBackOff"
+      _cg_crashed[$i]=true
+      continue
+    fi
+
+    # Check restart count + timestamp (catches fast crashes before status updates)
+    local rc_now
+    rc_now=$(kubectl get pod "${pod_name}" -n "${_cg_ns[$i]}" \
+      -o jsonpath="{.status.containerStatuses[?(@.name==\"${_cg_container[$i]}\")].restartCount}" \
+      2>/dev/null || echo "0")
+    rc_now="${rc_now:-0}"
+    if [[ "${rc_now}" -gt "${_cg_restart_before[$i]}" ]]; then
+      # Verify it happened during this probe via finishedAt timestamp
+      local finished_at
+      finished_at=$(kubectl get pod "${pod_name}" -n "${_cg_ns[$i]}" \
+        -o jsonpath="{.status.containerStatuses[?(@.name==\"${_cg_container[$i]}\")].lastState.terminated.finishedAt}" \
+        2>/dev/null || echo "")
+      if [[ -z "${finished_at}" || "${finished_at}" > "${_cg_probe_start[$i]}" ]]; then
+        log "  CRASH detected: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] — restart count ${_cg_restart_before[$i]}→${rc_now} during probe"
+        _cg_crashed[$i]=true
+      else
+        log "  Restart count ${_cg_restart_before[$i]}→${rc_now} for ${_cg_name[$i]} but finishedAt=${finished_at} predates probe — ignoring stale restart"
+      fi
+    fi
+  done
+}
+
+# Start shared background traffic for a probe_type category.
+# For nlg and relay-rpc, one shared traffic stream covers all components.
+# For query, each component gets its own workers targeting its specific endpoint —
+# different mirror services handle different API paths through the same ingress
+# (grpc→pod:8081/actuator/health, web3→pod:8545/actuator/health,
+#  restjava→ingress/api/v1/network/supply, rest→ingress/api/v1/network/exchangerate).
+#
+# Sets globals: _cg_traffic_pids, _cg_traffic_pf_pid, _cg_traffic_log
+# Also: _cg_comp_pf_pids (per-component port-forward pids for query probes)
+_cg_traffic_pids=()
+_cg_traffic_pf_pid=""
+_cg_traffic_log=""
+_cg_comp_pf_pids=()   # indexed by _cg_count position, for query per-component pf cleanup
+
+# Start workers for a single query component (by _cg index i).
+# Appends worker pids to _cg_traffic_pids and pf pid to _cg_comp_pf_pids[i].
+_start_query_component_traffic() {
+  local i="$1"
+  local resource_name="${_cg_name[$i]}"
+  local ns="${_cg_ns[$i]}"
+  local QUERY_WORKERS="${QUERY_WORKERS:-5}"
+  local worker_sleep; worker_sleep=$(awk "BEGIN{printf \"%.3f\", ${QUERY_WORKERS}/${NLG_TPS}}")
+  _cg_comp_pf_pids[$i]=""
+
+  if echo "${resource_name}" | grep -q "grpc"; then
+    # mirror-grpc: port-forward pod:8081, hit /actuator/health
+    local pod_name; pod_name=$(kubectl get pods -n "${ns}" --no-headers \
+      | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+    if [[ -z "${pod_name}" ]]; then
+      log "  [${resource_name}] No pod found — skipping query traffic"
+      return
+    fi
+    local local_port=$(( (RANDOM % 10000) + 42000 ))
+    kubectl port-forward -n "${ns}" "pod/${pod_name}" \
+      "${local_port}:8081" >/dev/null 2>&1 &
+    _cg_comp_pf_pids[$i]=$!
+    sleep 2
+    local url="http://localhost:${local_port}/actuator/health"
+    log "  [${resource_name}] grpc traffic: ${QUERY_WORKERS} workers → ${url}"
+    local pf_ref="${_cg_comp_pf_pids[$i]}"
+    for w in $(seq 1 "${QUERY_WORKERS}"); do
+      ( while kill -0 "${pf_ref}" 2>/dev/null; do
+          curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
+          sleep "${worker_sleep}"
+        done ) &
+      _cg_traffic_pids+=($!)
+    done
+
+  elif echo "${resource_name}" | grep -q "web3"; then
+    # mirror-web3: port-forward pod:8545, hit /actuator/health
+    local pod_name; pod_name=$(kubectl get pods -n "${ns}" --no-headers \
+      | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+    if [[ -z "${pod_name}" ]]; then
+      log "  [${resource_name}] No pod found — skipping query traffic"
+      return
+    fi
+    local local_port=$(( (RANDOM % 10000) + 43000 ))
+    kubectl port-forward -n "${ns}" "pod/${pod_name}" \
+      "${local_port}:8545" >/dev/null 2>&1 &
+    _cg_comp_pf_pids[$i]=$!
+    sleep 2
+    local url="http://localhost:${local_port}/actuator/health"
+    log "  [${resource_name}] web3 traffic: ${QUERY_WORKERS} workers → ${url}"
+    local pf_ref="${_cg_comp_pf_pids[$i]}"
+    for w in $(seq 1 "${QUERY_WORKERS}"); do
+      ( while kill -0 "${pf_ref}" 2>/dev/null; do
+          curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
+          sleep "${worker_sleep}"
+        done ) &
+      _cg_traffic_pids+=($!)
+    done
+
+  elif echo "${resource_name}" | grep -q "restjava"; then
+    # mirror-restjava: GET /api/v1/network/supply via ingress (restjava-only path)
+    local url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/supply"
+    log "  [${resource_name}] restjava traffic: ${QUERY_WORKERS} workers → ${url}"
+    for w in $(seq 1 "${QUERY_WORKERS}"); do
+      ( while true; do
+          curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
+          sleep "${worker_sleep}"
+        done ) &
+      _cg_traffic_pids+=($!)
+    done
+
+  else
+    # mirror-rest, mirror-ingress-controller, or anything else:
+    # GET /api/v1/network/exchangerate via ingress (served by mirror-rest)
+    local url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/exchangerate"
+    log "  [${resource_name}] rest/ingress traffic: ${QUERY_WORKERS} workers → ${url}"
+    for w in $(seq 1 "${QUERY_WORKERS}"); do
+      ( while true; do
+          curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
+          sleep "${worker_sleep}"
+        done ) &
+      _cg_traffic_pids+=($!)
+    done
+  fi
+}
+
+start_category_traffic() {
+  local probe_type="$1"
+  _cg_traffic_pids=()
+  _cg_traffic_pf_pid=""
+  _cg_traffic_log="$(mktemp)"
+  _cg_comp_pf_pids=()
+
+  case "${probe_type}" in
+    nlg)
+      local nlg_args="-c 4 -a 2000 -t ${NLG_DURATION_S}"
+      npm run solo -- rapid-fire load start \
+        --deployment "${SOLO_DEPLOYMENT}" \
+        --test "${NLG_TEST_CLASS}" \
+        --max-tps "${NLG_TPS}" \
+        --java-heap "${NLG_JAVA_HEAP_GB}" \
+        --args "\"${nlg_args}\"" \
+        --quiet-mode \
+        >"${_cg_traffic_log}" 2>&1 &
+      _cg_traffic_pids=($!)
+      log "  Category traffic: NLG started (pid=${_cg_traffic_pids[*]})"
+      ;;
+
+    relay-rpc)
+      local pod_name; pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+        | awk '{print $1}' | grep "^relay-[0-9]" | grep -v "\-ws-" | head -1 || true)
+      [[ -z "${pod_name}" ]] && log "  No relay pod found for relay-rpc traffic" && return 1
+      pkill -f "port-forward.*${pod_name}" 2>/dev/null || true
+      sleep 1
+      local rpc_port; rpc_port=$(kubectl get pod "${pod_name}" -n "${SOLO_NAMESPACE}" \
+        -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "7546")
+      local local_port=$(( (RANDOM % 10000) + 40000 ))
+      kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
+        "${local_port}:${rpc_port}" >"${_cg_traffic_log}" 2>&1 &
+      _cg_traffic_pf_pid=$!
+      sleep 3
+      local rpc_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+      local url="http://localhost:${local_port}"
+      if ! curl -sf -X POST -H "Content-Type: application/json" \
+          --data "${rpc_payload}" --max-time 10 "${url}" >/dev/null 2>&1; then
+        log "  relay-rpc: port-forward not reachable — cannot start traffic"
+        kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+        return 1
+      fi
+      local RELAY_WORKERS="${RELAY_WORKERS:-5}"
+      local worker_sleep; worker_sleep=$(awk "BEGIN{printf \"%.3f\", ${RELAY_WORKERS}/${NLG_TPS}}")
+      log "  Category traffic: relay-rpc ${RELAY_WORKERS} workers × sleep ${worker_sleep}s ≈ ${NLG_TPS} RPS"
+      local pf_pid_ref="${_cg_traffic_pf_pid}"
+      for w in $(seq 1 "${RELAY_WORKERS}"); do
+        (
+          while kill -0 "${pf_pid_ref}" 2>/dev/null; do
+            curl -sf -X POST -H "Content-Type: application/json" \
+              --data "${rpc_payload}" --max-time 5 "${url}" >/dev/null 2>&1 || true
+            sleep "${worker_sleep}"
+          done
+        ) &
+        _cg_traffic_pids+=($!)
+      done
+      ;;
+
+    query)
+      # Each component gets its own workers targeting its specific endpoint.
+      # All run simultaneously so we probe all query components in one round.
+      local i
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_converged[$i]}" == "true" ]] && continue
+        _start_query_component_traffic "${i}"
+      done
+      ;;
+
+    both)
+      start_category_traffic "nlg"
+      ;;
+
+    none)
+      log "  Category traffic: probe=none, no traffic"
+      ;;
+  esac
+}
+
+stop_category_traffic() {
+  for pid in "${_cg_traffic_pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
+  [[ -n "${_cg_traffic_pf_pid}" ]] && kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+  for pf_pid in "${_cg_comp_pf_pids[@]}"; do
+    [[ -n "${pf_pid}" ]] && kill "${pf_pid}" 2>/dev/null || true
+  done
+  rm -f "${_cg_traffic_log}"
+  _cg_traffic_pids=()
+  _cg_traffic_pf_pid=""
+  _cg_traffic_log=""
+  _cg_comp_pf_pids=()
+}
+
+# Run parallel binary search for all components in a probe_type group.
+optimize_category_group() {
+  local probe_type="$1"
+  shift
+  local aliases=("$@")
+
+  header "Category: probe_type=${probe_type}  aliases=${aliases[*]}"
+
+  cg_discover_components "${aliases[@]}"
+
+  if [[ ${_cg_count} -eq 0 ]]; then
+    log "No live components found for category ${probe_type} — skipping"
+    return 0
+  fi
+
+  # Handle probe=none: apply registry max (no probing needed)
+  if [[ "${probe_type}" == "none" ]]; then
+    local i
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      log "probe=none: applying max limit ${_cg_registry_max[$i]}Mi to ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}]"
+      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_registry_max[$i]}" "${_cg_ns[$i]}"
+      printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
+        "OBSERVED" "${_cg_kind[$i]}/${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_prev[$i]}" "${_cg_registry_max[$i]}Mi" >> "${RESULTS_FILE}"
+    done
+    return 0
+  fi
+
+  local effective_granularity="${MEMORY_GRANULARITY_MI}"
+  local round=0
+
+  while true; do
+    # Check convergence
+    local all_converged=true
+    local i
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" != "true" ]] && all_converged=false && break
+    done
+    [[ "${all_converged}" == "true" ]] && break
+
+    round=$(( round + 1 ))
+    header "Round ${round} — probe_type=${probe_type}"
+
+    # Reset per-round crash flags before rollout
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      _cg_crashed[$i]=false
+    done
+
+    # Compute mid and set memory for all non-converged components
+    local rollout_args=()
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      local range=$(( _cg_high[$i] - _cg_low[$i] ))
+      local eff_gran="${effective_granularity}"
+      if [[ ${range} -le ${eff_gran} ]]; then
+        eff_gran=$(( range / 2 ))
+        [[ ${eff_gran} -lt 1 ]] && eff_gran=1
+      fi
+      if [[ ${range} -le ${eff_gran} ]]; then
+        log "  ${_cg_name[$i]}/${_cg_container[$i]} converged at best=${_cg_best[$i]}Mi"
+        _cg_converged[$i]=true
+        continue
+      fi
+      _cg_mid[$i]=$(( (_cg_low[$i] + _cg_high[$i]) / 2 ))
+      log "  ${_cg_name[$i]}/${_cg_container[$i]}: mid=${_cg_mid[$i]}Mi  [${_cg_low[$i]}–${_cg_high[$i]}]"
+      local rollout_rc=0
+      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_mid[$i]}" "${_cg_ns[$i]}" || rollout_rc=$?
+      if [[ ${rollout_rc} -ne 0 ]]; then
+        log "  STARTUP CRASH at ${_cg_mid[$i]}Mi — raising floor immediately for ${_cg_name[$i]}/${_cg_container[$i]}"
+        _cg_crashed[$i]=true
+        _cg_low[$i]="${_cg_mid[$i]}"
+        _cg_converged[$i]=false
+      fi
+    done
+
+    # Re-check convergence after setting (some may have converged above)
+    all_converged=true
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" != "true" ]] && all_converged=false && break
+    done
+    [[ "${all_converged}" == "true" ]] && break
+
+    # If every non-converged component crashed during rollout, skip the probe phase
+    # and go straight to the next round (floors already raised above).
+    local all_startup_crashed=true
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      [[ "${_cg_crashed[$i]}" != "true" ]] && all_startup_crashed=false && break
+    done
+    if [[ "${all_startup_crashed}" == "true" ]]; then
+      log "  All components crashed during rollout — skipping probe, advancing to next round"
+      continue
+    fi
+
+    # Snapshot restart counts before probe
+    cg_snapshot_restarts
+
+    # Start shared traffic for this category
+    start_category_traffic "${probe_type}"
+
+    # Monitor for the probe duration, checking all components every poll_interval
+    local elapsed=0
+    local poll_interval=10
+    local probe_duration="${NLG_DURATION_S}"
+    [[ "${probe_type}" == "query" ]] && probe_duration="${QUERY_DURATION_S}"
+    local any_crashed=false
+
+    while [[ ${elapsed} -lt ${probe_duration} ]]; do
+      sleep "${poll_interval}"
+      elapsed=$(( elapsed + poll_interval ))
+      cg_check_crashes
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        if [[ "${_cg_crashed[$i]}" == "true" ]]; then
+          any_crashed=true
+        fi
+      done
+      # Keep running even if some crashed — gather data for all components this round
+    done
+
+    stop_category_traffic
+
+    # For relay-rpc: if port-forward died, check restart counts after a brief wait
+    if [[ "${probe_type}" == "relay-rpc" && -z "${_cg_traffic_pf_pid}" ]]; then
+      sleep 5
+      cg_check_crashes
+    fi
+
+    # Update binary search state
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      local mid="${_cg_mid[$i]}"
+      [[ "${mid}" -eq 0 ]] && continue
+      if [[ "${_cg_crashed[$i]}" == "true" ]]; then
+        log "  FAIL ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — raising floor"
+        _cg_low[$i]="${mid}"
+      else
+        log "  PASS ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — lowering ceiling, new best"
+        _cg_high[$i]="${mid}"
+        _cg_best[$i]="${mid}"
+      fi
+      # Check convergence
+      local range=$(( _cg_high[$i] - _cg_low[$i] ))
+      local eff_gran="${effective_granularity}"
+      [[ ${range} -le ${eff_gran} ]] && eff_gran=$(( range / 2 ))
+      [[ ${eff_gran} -lt 1 ]] && eff_gran=1
+      if [[ ${range} -le ${eff_gran} ]]; then
+        log "  ${_cg_name[$i]}/${_cg_container[$i]} converged at best=${_cg_best[$i]}Mi"
+        _cg_converged[$i]=true
+      fi
+    done
+  done
+
+  # Apply best limits and write results
+  local i
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    if [[ "${_cg_best[$i]}" -gt 0 ]]; then
+      log "Converged: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] = ${_cg_best[$i]}Mi  (was ${_cg_prev[$i]})"
+      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_best[$i]}" "${_cg_ns[$i]}"
+      printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
+        "OK" "${_cg_kind[$i]}/${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_prev[$i]}" "${_cg_best[$i]}Mi" >> "${RESULTS_FILE}"
+    else
+      log "WARNING: no passing value found for ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}]"
+      printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
+        "NOT FOUND" "${_cg_kind[$i]}/${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_prev[$i]}" ">(${_cg_high[$i]}Mi)" >> "${RESULTS_FILE}"
+    fi
+  done
+}
+
 # ── Cleanup trap ────────────────────────────────────────────────────────────────
 
 on_exit() {
@@ -1234,9 +1761,16 @@ INFO
   printf "%-14s  %-40s  %-20s  %-18s  %s\n" "------" "--------" "---------" "----------" "----------"
 } > "${RESULTS_FILE}"
 
-# Optimize selected components one at a time
-for alias in "${SELECTED[@]}"; do
-  optimize_alias "${alias}"
+# Group selected components by probe_type and optimize each group.
+# Use a bash 3-compatible approach (no declare -A) by iterating over known probe types.
+for probe_type in nlg relay-rpc query; do
+  filtered=()
+  for alias in "${SELECTED[@]}"; do
+    local_probe_type="$(registry_field "${alias}" 6)"
+    local_probe_type="${local_probe_type:-nlg}"
+    [[ "${local_probe_type}" == "${probe_type}" ]] && filtered+=("${alias}")
+  done
+  [[ ${#filtered[@]} -gt 0 ]] && optimize_category_group "${probe_type}" "${filtered[@]}"
 done
 
 # Print summary
