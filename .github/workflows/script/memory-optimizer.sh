@@ -108,24 +108,41 @@ RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 # as a separate binary-search pass against the same workload.
 
 COMPONENT_REGISTRY=(
+  # Registry format: alias|kind|name_pattern|containers|max_memory_mi|probe_type|namespace
+  # Fields:
+  #   alias        — short name used with --components
+  #   kind         — kubernetes resource kind (deployment, statefulset)
+  #   name_pattern — regex matched against live resource names
+  #   containers   — comma-separated container names; empty = auto-discover first container
+  #   max_memory_mi — fallback upper bound when live limit cannot be read
+  #   probe_type   — nlg | relay-rpc | query | both | none
+  #   namespace    — (optional) override SOLO_NAMESPACE; empty = use SOLO_NAMESPACE
+
   # ── Both transaction paths hit network-node directly ──────────────────────────
   "network-node|statefulset|^network-node[0-9]||8192|both"
 
-  # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → mirror-importer ──
+  # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → ─────────────────
+  #    haproxy-node → envoy-proxy → network-node → block-node → mirror-importer
+  "haproxy-node|deployment|^haproxy-node[0-9]+$|haproxy|128|nlg"
+  "envoy-proxy|deployment|^envoy-proxy-node[0-9]+$|envoy-proxy|128|nlg"
+  "block-node|statefulset|^block-node-[0-9]+$|block-node-server|512|nlg"
   "mirror-importer|deployment|mirror.*importer||540|nlg"
   "postgres|statefulset|solo-shared-resources-postgres|postgresql|300|nlg"
   "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|180|nlg"
+  "minio|statefulset|^minio-pool-[0-9]+$|minio|512|nlg"
 
-  # ── Query path: client read requests → mirror REST/gRPC services ──────────────
+  # ── Query path: client read requests → ingress → mirror REST/gRPC services ───
+  # mirror-ingress-controller sits in front of all mirror REST queries
   # mirror-grpc memory is driven by concurrent gRPC subscriptions, not writes
   # mirror-rest / mirror-restjava memory is driven by concurrent GET requests
+  "mirror-ingress-controller|deployment|mirror-ingress-controller.*||128|query"
   "mirror-grpc|deployment|mirror.*grpc||350|query"
   "mirror-rest|deployment|mirror.*-rest$||365|query"
   "mirror-restjava|deployment|mirror.*restjava||466|query"
 
   # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay ─────────────────────
-  "relay|deployment|^relay-[0-9]+$||512|relay-rpc"
-  "relay-ws|deployment|^relay-[0-9]+-ws$||512|relay-rpc"
+  "relay|deployment|^relay-[0-9]+$||128|relay-rpc"
+  "relay-ws|deployment|^relay-[0-9]+-ws$||128|relay-rpc"
 
   # ── mirror-web3: serves POST /api/v1/contracts/call via ingress ──────────────
   # Memory driven by EVM simulation requests; probed via actuator/health on pod
@@ -133,7 +150,10 @@ COMPONENT_REGISTRY=(
   "mirror-web3|deployment|mirror.*web3||441|query"
 
   # ── No meaningful transaction-load impact; apply limit for observation only ───
+  "hiero-explorer|deployment|hiero-explorer.*|hiero-explorer-chart|250|none"
   "mirror-monitor|deployment|mirror.*monitor||250|none"
+  # minio-operator lives in the cluster-setup namespace, not the deployment namespace
+  "minio-operator|deployment|^minio-operator$|operator|128|none|solo-setup"
 )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────
@@ -147,7 +167,7 @@ header() {
   echo "════════════════════════════════════════════════════════════"
 }
 
-# Lookup a field (2=kind, 3=pattern, 4=containers, 5=max_memory_mi, 6=probe_type) for a given alias (field 1)
+# Lookup a field (2=kind, 3=pattern, 4=containers, 5=max_memory_mi, 6=probe_type, 7=namespace) for a given alias (field 1)
 registry_field() {
   local alias="$1"
   local field="$2"
@@ -188,7 +208,8 @@ list_components() {
 discover_resources() {
   local kind="$1"
   local pattern="$2"
-  kubectl get "${kind}" -n "${SOLO_NAMESPACE}" --no-headers -o name 2>/dev/null \
+  local ns="${3:-${SOLO_NAMESPACE}}"
+  kubectl get "${kind}" -n "${ns}" --no-headers -o name 2>/dev/null \
     | sed 's|.*/||' \
     | grep -E "${pattern}" \
     || true
@@ -198,7 +219,8 @@ discover_resources() {
 auto_discover_container() {
   local kind="$1"
   local name="$2"
-  kubectl get "${kind}/${name}" -n "${SOLO_NAMESPACE}" \
+  local ns="${3:-${SOLO_NAMESPACE}}"
+  kubectl get "${kind}/${name}" -n "${ns}" \
     -o jsonpath='{.spec.template.spec.containers[0].name}' 2>/dev/null || echo ""
 }
 
@@ -208,8 +230,9 @@ get_current_memory_limit_mi() {
   local kind="$1"
   local name="$2"
   local container="$3"
+  local ns="${4:-${SOLO_NAMESPACE}}"
   local raw
-  raw=$(kubectl get "${kind}/${name}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null \
+  raw=$(kubectl get "${kind}/${name}" -n "${ns}" -o json 2>/dev/null \
     | jq -r --arg c "${container}" '
         .spec.template.spec.containers[]?
         | select(.name == $c)
@@ -233,7 +256,8 @@ container_index() {
   local kind="$1"
   local name="$2"
   local container="$3"
-  kubectl get "${kind}/${name}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null \
+  local ns="${4:-${SOLO_NAMESPACE}}"
+  kubectl get "${kind}/${name}" -n "${ns}" -o json 2>/dev/null \
     | jq --arg c "${container}" \
         '[.spec.template.spec.containers[].name] | index($c) // 0'
 }
@@ -246,13 +270,14 @@ container_index() {
 check_pod_health() {
   local resource_name="$1"
   local container="$2"
+  local ns="${3:-${SOLO_NAMESPACE}}"
 
   local pod
   while IFS= read -r pod; do
     [[ -z "${pod}" ]] && continue
 
     local pod_json
-    pod_json=$(kubectl get pod "${pod}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null) || continue
+    pod_json=$(kubectl get pod "${pod}" -n "${ns}" -o json 2>/dev/null) || continue
 
     # Phase-level failure
     local phase
@@ -288,9 +313,74 @@ check_pod_health() {
       return 0
     fi
 
-  done < <(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers -o name 2>/dev/null \
+  done < <(kubectl get pods -n "${ns}" --no-headers -o name 2>/dev/null \
     | sed 's|pod/||' | grep "^${resource_name}-")
 
+  return 1
+}
+
+# Check whether a specific pod's container was OOMKilled in its LAST termination.
+# Safe to call only after confirming a restart count increase — otherwise lastState
+# reflects normal rollout restarts and produces false positives.
+# Returns 0 if last termination was OOMKilled, 1 otherwise.
+check_last_termination_oom() {
+  local pod_name="$1"
+  local container="$2"
+  local ns="${3:-${SOLO_NAMESPACE}}"
+  local reason
+  reason=$(kubectl get pod "${pod_name}" -n "${ns}" \
+    -o jsonpath="{.status.containerStatuses[?(@.name==\"${container}\")].lastState.terminated.reason}" \
+    2>/dev/null || echo "")
+  if [[ "${reason}" == "OOMKilled" ]]; then
+    log "  Pod ${pod_name} container ${container}: lastState.terminated.reason=OOMKilled"
+    return 0
+  fi
+  return 1
+}
+
+# Returns 0 if restartCount increased AND the last termination finished after
+# probe_start_time — meaning the crash happened during THIS probe, not a leftover
+# from a previous iteration.
+is_new_crash_since() {
+  local pod_name="$1"
+  local container="$2"
+  local restart_count_before="$3"
+  local probe_start_time="$4"
+  local ns="${5:-${SOLO_NAMESPACE}}"
+
+  local restart_count_after
+  restart_count_after=$(kubectl get pod "${pod_name}" -n "${ns}" \
+    -o jsonpath="{.status.containerStatuses[?(@.name==\"${container}\")].restartCount}" \
+    2>/dev/null || echo "0")
+  restart_count_after="${restart_count_after:-0}"
+
+  if [[ "${restart_count_after}" -le "${restart_count_before}" ]]; then
+    echo "${restart_count_after}"
+    return 1
+  fi
+
+  # Restart count increased — verify the termination happened after the probe started
+  local finished_at
+  finished_at=$(kubectl get pod "${pod_name}" -n "${ns}" \
+    -o jsonpath="{.status.containerStatuses[?(@.name==\"${container}\")].lastState.terminated.finishedAt}" \
+    2>/dev/null || echo "")
+
+  if [[ -z "${finished_at}" ]]; then
+    # finishedAt not populated yet — trust the count increase
+    echo "${restart_count_after}"
+    return 0
+  fi
+
+  # Compare timestamps lexicographically (both are RFC3339/ISO8601 UTC strings)
+  if [[ "${finished_at}" > "${probe_start_time}" ]]; then
+    echo "${restart_count_after}"
+    return 0
+  fi
+
+  # Restart count went up but the termination time predates this probe — stale OOM
+  # from a previous iteration. Do not count it.
+  log "  Restart count ${restart_count_before}→${restart_count_after} but lastState.finishedAt=${finished_at} predates probe start ${probe_start_time} — stale restart, ignoring"
+  echo "${restart_count_after}"
   return 1
 }
 
@@ -302,22 +392,23 @@ set_memory_limit() {
   local name="$2"
   local container="$3"
   local memory_mi="$4"
+  local ns="${5:-${SOLO_NAMESPACE}}"
   local request_mi=$(( memory_mi / 2 ))
 
   log "  kubectl set resources ${kind}/${name} -c ${container} --limits=memory=${memory_mi}Mi --requests=memory=${request_mi}Mi"
 
   # Primary: kubectl set resources
   if ! kubectl set resources "${kind}/${name}" \
-      -n "${SOLO_NAMESPACE}" \
+      -n "${ns}" \
       -c "${container}" \
       --limits="memory=${memory_mi}Mi" \
       --requests="memory=${request_mi}Mi" \
       2>/dev/null; then
     # Fallback: JSON patch using the discovered container index
     local idx
-    idx="$(container_index "${kind}" "${name}" "${container}")"
+    idx="$(container_index "${kind}" "${name}" "${container}" "${ns}")"
     log "  kubectl set resources failed — falling back to json-patch at container index ${idx}"
-    kubectl patch "${kind}/${name}" -n "${SOLO_NAMESPACE}" --type=json -p "$(printf '[
+    kubectl patch "${kind}/${name}" -n "${ns}" --type=json -p "$(printf '[
       {"op":"replace","path":"/spec/template/spec/containers/%s/resources/limits/memory","value":"%sMi"},
       {"op":"replace","path":"/spec/template/spec/containers/%s/resources/requests/memory","value":"%sMi"}
     ]' "${idx}" "${memory_mi}" "${idx}" "${request_mi}")"
@@ -326,7 +417,7 @@ set_memory_limit() {
   log "  Waiting for rollout of ${kind}/${name} (monitoring for OOMKilled/CrashLoopBackOff)..."
 
   # Run rollout status in the background; poll concurrently for crash states
-  kubectl rollout status "${kind}/${name}" -n "${SOLO_NAMESPACE}" --timeout=300s \
+  kubectl rollout status "${kind}/${name}" -n "${ns}" --timeout=300s \
     >/dev/null 2>&1 &
   local rollout_pid=$!
 
@@ -338,7 +429,7 @@ set_memory_limit() {
     sleep "${poll_interval}"
     elapsed=$(( elapsed + poll_interval ))
 
-    if check_pod_health "${name}" "${container}"; then
+    if check_pod_health "${name}" "${container}" "${ns}"; then
       log "  Rollout aborted — pod crashed at ${memory_mi}Mi (see above)"
       kill "${rollout_pid}" 2>/dev/null || true
       crashed=true
@@ -473,12 +564,19 @@ run_relay_rpc_probe() {
     -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "")
   rpc_port="${rpc_port:-7546}"
 
+  # Kill any stale port-forwards to this pod from previous iterations — they hold
+  # the connection open and cause the new port-forward to conflict or die quickly.
+  pkill -f "port-forward.*${pod_name}" 2>/dev/null || true
+  sleep 1
+
   local local_port=$(( (RANDOM % 10000) + 40000 ))
 
   log "  Relay RPC probe: port-forward ${pod_name}:${rpc_port} → localhost:${local_port} for ${NLG_DURATION_S}s"
 
+  # Capture port-forward stderr to a temp file so we can diagnose unexpected exits
+  local pf_log; pf_log=$(mktemp)
   kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
-    "${local_port}:${rpc_port}" >/dev/null 2>&1 &
+    "${local_port}:${rpc_port}" >"${pf_log}" 2>&1 &
   local pf_pid=$!
   sleep 3  # Let the port-forward establish
 
@@ -494,28 +592,53 @@ run_relay_rpc_probe() {
     kill "${pf_pid}" 2>/dev/null || true
     return 2
   fi
-  log "  Relay reachable — starting ${NLG_TPS} TPS load for ${NLG_DURATION_S}s"
+  # Snapshot restart count AND last-termination timestamp before load starts.
+  # After the port-forward dies we only treat a restart as a NEW crash if both:
+  #   (a) restartCount increased, AND
+  #   (b) the new lastState.terminated.finishedAt is after probe_start_time.
+  # This prevents falsely attributing a restart from a *previous* iteration's OOM
+  # to the current (higher) memory setting.
+  local probe_start_time; probe_start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local restart_count_before
+  restart_count_before=$(kubectl get pod "${pod_name}" -n "${SOLO_NAMESPACE}" \
+    -o jsonpath="{.status.containerStatuses[?(@.name==\"${container}\")].restartCount}" \
+    2>/dev/null || echo "0")
+  restart_count_before="${restart_count_before:-0}"
+  log "  Relay reachable — starting ${NLG_TPS} TPS load for ${NLG_DURATION_S}s (restart count: ${restart_count_before}, probe started: ${probe_start_time})"
 
   local oom_detected=false
   local load_died=false
   local elapsed=0
   local poll_interval=5
 
-  # Background load loop: send NLG_TPS requests per second in parallel.
-  # Note: 'local' must NOT be used inside a subshell (only valid in functions);
-  # doing so with set -e causes the subshell to exit immediately without sending traffic.
-  (
-    while kill -0 "${pf_pid}" 2>/dev/null; do
-      for i in $(seq 1 "${NLG_TPS}"); do
+  # Background load loop: use a small pool of persistent worker loops.
+  # kubectl port-forward tunnels through the API server — too many concurrent
+  # connections kill it. Each worker sends one request then sleeps, keeping
+  # total concurrency = RELAY_WORKERS (default 5) at any moment.
+  # Sleep per worker = RELAY_WORKERS / NLG_TPS seconds, so aggregate ≈ NLG_TPS RPS.
+  local RELAY_WORKERS="${RELAY_WORKERS:-5}"
+  # Use awk for float division (bash only does integers)
+  local worker_sleep
+  worker_sleep=$(awk "BEGIN{printf \"%.3f\", ${RELAY_WORKERS}/${NLG_TPS}}")
+  log "  Load workers: ${RELAY_WORKERS} workers × sleep ${worker_sleep}s ≈ ${NLG_TPS} RPS"
+
+  local worker_pids=()
+  for w in $(seq 1 "${RELAY_WORKERS}"); do
+    (
+      while kill -0 "${pf_pid}" 2>/dev/null; do
         curl -sf -X POST \
           -H "Content-Type: application/json" \
           --data "${rpc_payload}" \
           --max-time 5 \
-          "http://localhost:${local_port}" >/dev/null 2>&1 &
+          "http://localhost:${local_port}" >/dev/null 2>&1 || true
+        sleep "${worker_sleep}"
       done
-      wait
-      sleep 1
-    done
+    ) &
+    worker_pids+=($!)
+  done
+  # Sentinel: if ALL workers die, load_pid wait will return
+  (
+    for wpid in "${worker_pids[@]}"; do wait "${wpid}" 2>/dev/null || true; done
   ) &
   local load_pid=$!
 
@@ -532,24 +655,77 @@ run_relay_rpc_probe() {
       break
     fi
 
-    # If the load subshell died (port-forward dropped, etc.) the result is meaningless
-    if ! kill -0 "${load_pid}" 2>/dev/null; then
-      log "  Load loop exited early — probe infrastructure error, aborting component"
+    # If the port-forward died, all workers will follow. The most likely cause is
+    # the pod OOMKilled and restarted — check pod health before deciding.
+    if ! kill -0 "${pf_pid}" 2>/dev/null; then
+      log "  Port-forward exited early — last output: $(tail -3 "${pf_log}" 2>/dev/null | tr '\n' ' ')"
       load_died=true
       break
     fi
   done
 
+  # Kill all workers, the sentinel, and the port-forward
+  for wpid in "${worker_pids[@]}"; do kill "${wpid}" 2>/dev/null || true; done
   kill "${load_pid}" 2>/dev/null || true
   kill "${pf_pid}" 2>/dev/null || true
-  wait "${load_pid}" "${pf_pid}" 2>/dev/null || true
+  wait "${pf_pid}" 2>/dev/null || true
+  rm -f "${pf_log}"
+
+  # When the port-forward dies, determine whether the container crashed or it was
+  # a genuine infrastructure failure.  Two signals — checked in order:
+  #
+  # 1. Restart count increased — the container definitely restarted (crashed under
+  #    load). This is detectable even while the pod still shows "Running" because
+  #    the process exited faster than Kubernetes updates containerStatuses.
+  #    "Connection refused" in port-forward output is the typical symptom.
+  #
+  # 2. OOM state in containerStatuses — poll for up to 60s because Kubernetes can
+  #    take 10-30s+ to propagate CrashLoopBackOff / OOMKilled after a restart.
+  if [[ "${load_died}" == "true" ]]; then
+    local new_restart_count
+    if new_restart_count=$(is_new_crash_since "${pod_name}" "${container}" \
+        "${restart_count_before}" "${probe_start_time}" "${SOLO_NAMESPACE}"); then
+      log "  New restart detected (${restart_count_before} → ${new_restart_count}) during this probe — container crashed under load"
+      check_last_termination_oom "${pod_name}" "${container}" "${SOLO_NAMESPACE}" || \
+        log "  Last termination: not OOMKilled (process crash) — treating as memory failure"
+      oom_detected=true
+    else
+      local oom_wait=0
+      local oom_wait_max=60
+      local oom_wait_interval=5
+      log "  Port-forward exited, no new restart yet (count=${new_restart_count}) — polling for up to ${oom_wait_max}s"
+      while [[ ${oom_wait} -lt ${oom_wait_max} ]]; do
+        sleep "${oom_wait_interval}"
+        oom_wait=$(( oom_wait + oom_wait_interval ))
+        if new_restart_count=$(is_new_crash_since "${pod_name}" "${container}" \
+            "${restart_count_before}" "${probe_start_time}" "${SOLO_NAMESPACE}"); then
+          log "  New restart detected after ${oom_wait}s (${restart_count_before} → ${new_restart_count}) — container crashed under load"
+          check_last_termination_oom "${pod_name}" "${container}" "${SOLO_NAMESPACE}" || \
+            log "  Last termination: not OOMKilled (process crash) — treating as memory failure"
+          oom_detected=true
+          break
+        fi
+        if check_pod_health "${resource_name}" "${container}"; then
+          log "  OOMKilled/crash status confirmed after ${oom_wait}s"
+          oom_detected=true
+          break
+        fi
+        log "  No crash signal at ${oom_wait}s (restarts=${new_restart_count}) — waiting..."
+      done
+      if [[ "${oom_detected}" == "false" ]]; then
+        log "  No crash signal after ${oom_wait_max}s — treating as infrastructure error"
+      fi
+    fi
+  fi
 
   if [[ "${oom_detected}" == "true" ]]; then
     log "  Relay RPC probe FAILED (OOMKilled/crash)"
     return 1
   fi
   if [[ "${load_died}" == "true" ]]; then
-    log "  Relay RPC probe FAILED (load loop died early — infrastructure error)"
+    # Load loop died but pod is healthy — true infrastructure failure (e.g. port-forward
+    # dropped for unrelated reasons). Abort rather than falsely trying higher memory.
+    log "  Relay RPC probe FAILED (load loop died, pod healthy — infrastructure error)"
     return 2
   fi
 
@@ -804,20 +980,20 @@ optimize_one() {
   local container="$3"
   local registry_max_mi="${4:-${MEMORY_MAX_MI}}"
   local probe_type="${5:-nlg}"
+  local ns="${6:-${SOLO_NAMESPACE}}"
 
   # Discover live memory limit and derive search bounds
   local live_limit_mi
-  live_limit_mi=$(get_current_memory_limit_mi "${kind}" "${name}" "${container}")
+  live_limit_mi=$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")
 
-  local high low
+  # High bound = registry max_mi * 120% — a fixed ceiling derived from the known
+  # safe maximum, independent of whatever live limit happens to be set right now.
+  local high=$(( registry_max_mi * 6 / 5 ))
+  local low="${MEMORY_GRANULARITY_MI}"
   if [[ -n "${live_limit_mi}" && "${live_limit_mi}" -gt 0 ]]; then
-    high=$(( live_limit_mi * 6 / 5 ))  # 120% of current live limit — headroom above known-good
-    low="${MEMORY_GRANULARITY_MI}"     # 64Mi floor
-    log "Live memory limit: ${live_limit_mi}Mi → 120% = ${high}Mi — search range [${low}–${high}Mi]"
+    log "Live memory limit: ${live_limit_mi}Mi  registry max: ${registry_max_mi}Mi → high=120%=${high}Mi  search range [${low}–${high}Mi]"
   else
-    log "Could not read live memory limit for ${kind}/${name} [${container}] — using registry/global defaults"
-    high="${registry_max_mi}"
-    low="${MEMORY_GRANULARITY_MI}"
+    log "Could not read live memory limit for ${kind}/${name} [${container}] — using registry max: ${registry_max_mi}Mi → high=120%=${high}Mi  search range [${low}–${high}Mi]"
   fi
 
   # If the range is already ≤ granularity (e.g. 20% window is narrow), scale down
@@ -841,7 +1017,7 @@ optimize_one() {
     local mid=$(( (low + high) / 2 ))
     log "Iter ${iteration}: testing ${mid}Mi  [range ${low}–${high}]"
 
-    if ! set_memory_limit "${kind}" "${name}" "${container}" "${mid}"; then
+    if ! set_memory_limit "${kind}" "${name}" "${container}" "${mid}" "${ns}"; then
       log "FAILURE at ${mid}Mi — pod crashed during startup (OOMKilled/CrashLoopBackOff)"
       low="${mid}"
       continue
@@ -870,7 +1046,7 @@ optimize_one() {
 
   if [[ "${best_mi}" -gt 0 ]]; then
     log "Converged: optimal = ${best_mi}Mi for ${kind}/${name} [${container}]  (was ${prev_display})"
-    set_memory_limit "${kind}" "${name}" "${container}" "${best_mi}"
+    set_memory_limit "${kind}" "${name}" "${container}" "${best_mi}" "${ns}"
     printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
       "OK" "${kind}/${name}" "${container}" "${prev_display}" "${best_mi}Mi" \
       >> "${RESULTS_FILE}"
@@ -891,6 +1067,9 @@ optimize_alias() {
   local component_max_mi; component_max_mi="$(registry_field "${alias}" 5)"
   local probe_type; probe_type="$(registry_field "${alias}" 6)"
   probe_type="${probe_type:-nlg}"
+  # Field 7: optional namespace override (empty = use SOLO_NAMESPACE)
+  local ns_override; ns_override="$(registry_field "${alias}" 7)"
+  local ns="${ns_override:-${SOLO_NAMESPACE}}"
   # Use component-specific max if defined, otherwise fall back to global --max-memory
   local effective_max_mi="${component_max_mi:-${MEMORY_MAX_MI}}"
 
@@ -899,15 +1078,15 @@ optimize_alias() {
     return 1
   fi
 
-  log "Component ${alias}: max=${effective_max_mi}Mi probe=${probe_type}"
+  log "Component ${alias}: max=${effective_max_mi}Mi probe=${probe_type} namespace=${ns}"
 
   resource_names=()
   while IFS= read -r line; do
     [[ -n "${line}" ]] && resource_names+=("${line}")
-  done < <(discover_resources "${kind}" "${pattern}")
+  done < <(discover_resources "${kind}" "${pattern}" "${ns}")
 
   if [[ ${#resource_names[@]} -eq 0 ]]; then
-    log "No live ${kind} matching '${pattern}' in namespace ${SOLO_NAMESPACE} — skipping ${alias}"
+    log "No live ${kind} matching '${pattern}' in namespace ${ns} — skipping ${alias}"
     printf "%-14s  %-40s  %-20s  %-18s  %s\n" "SKIPPED" "${kind}/${pattern}" "(not found)" "-" "" \
       >> "${RESULTS_FILE}"
     return 0
@@ -921,7 +1100,7 @@ optimize_alias() {
       IFS=',' read -ra containers_to_test <<< "${containers_csv}"
     else
       local discovered
-      discovered="$(auto_discover_container "${kind}" "${name}")"
+      discovered="$(auto_discover_container "${kind}" "${name}" "${ns}")"
       if [[ -z "${discovered}" ]]; then
         log "Cannot determine container for ${kind}/${name} — skipping"
         continue
@@ -931,7 +1110,7 @@ optimize_alias() {
 
     local container
     for container in "${containers_to_test[@]}"; do
-      optimize_one "${kind}" "${name}" "${container}" "${effective_max_mi}" "${probe_type}"
+      optimize_one "${kind}" "${name}" "${container}" "${effective_max_mi}" "${probe_type}" "${ns}"
     done
   done
 }

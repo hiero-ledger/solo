@@ -1,18 +1,27 @@
-readinessProbe:
-  initialDelaySeconds: 0
-  periodSeconds: 1
-  failureThreshold: 60
-livenessProbe:
-  initialDelaySeconds: 0
-  periodSeconds: 1
-  failureThreshold: 60
 relay:
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
   resources:
     requests:
       memory: 0
     limits:
       memory: 512Mi
 ws:
+  enabled: false
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
   resources:
     requests:
       memory: 0
