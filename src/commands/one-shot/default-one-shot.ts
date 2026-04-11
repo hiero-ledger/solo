@@ -1422,7 +1422,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private showPortForwards(outputFile?: string): void {
     this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
 
-    if (outputFile) {
+    if (outputFile && this.logger.getMessageGroupKeys().includes(constants.PORT_FORWARDING_MESSAGE_GROUP)) {
       const messages: string[] = this.logger.getMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
       const fileData: string = messages.join('\n') + '\n';
       createDirectoryIfNotExists(outputFile);

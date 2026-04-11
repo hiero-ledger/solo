@@ -31,6 +31,13 @@ WAIT_SECONDS="${WAIT_SECONDS:-5}"
 # the second deploy can reuse them instead of reinstalling from scratch.
 KILL_SIGNAL="${KILL_SIGNAL:-SIGKILL}"
 
+# Add a small random jitter (±5 s) so matrix jobs that share a runner do not
+# all interrupt at the same deploy phase when the base interval is similar.
+JITTER=$(( (RANDOM % 11) - 5 ))
+INTERRUPT_SECONDS=$(( INTERRUPT_SECONDS + JITTER ))
+# Ensure the adjusted value is at least 10 seconds.
+(( INTERRUPT_SECONDS < 10 )) && INTERRUPT_SECONDS=10
+
 # Internal state
 FIRST_DEPLOY_PID=""
 SECOND_DEPLOY_LOG=""

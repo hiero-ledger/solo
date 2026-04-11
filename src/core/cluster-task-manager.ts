@@ -308,6 +308,16 @@ export class ClusterTaskManager extends ShellRunner {
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
 
+        // Proactively remove any orphaned Docker containers labelled for this cluster
+        // that may have been left behind by a previous SIGKILL'd run.  If we don't do
+        // this before calling createCluster(), kind may try to reuse the containers and
+        // hang for up to 60 minutes waiting for the broken control plane to become ready.
+        await this.run(
+          `docker rm --force --volumes $(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null) 2>/dev/null || true`,
+        ).catch((): void => {
+          // Ignore errors — containers may already be absent.
+        });
+
         let clusterResponse: ClusterCreateResponse;
         try {
           clusterResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions);
@@ -327,9 +337,6 @@ export class ClusterTaskManager extends ShellRunner {
             } catch {
               // Cluster not registered with kind; nothing to delete at the kind level.
             }
-            // Force-remove any Docker containers labelled for this cluster that kind may not
-            // have cleaned up (happens when the process was killed before kind wrote its state).
-            // Pass the whole pipeline as a single shell string so that $() substitution works.
             await this.run(
               `docker rm --force --volumes $(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null) 2>/dev/null || true`,
             ).catch((): void => {
