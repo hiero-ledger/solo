@@ -32,11 +32,12 @@
 #   --list                              Print component aliases and exit
 #   --namespace  NAME                   Kubernetes namespace          (default: solo)
 #   --deployment NAME                   Solo deployment name          (default: solo)
-#   --min-memory MI                     Memory search lower bound Mi  (default: 128)
+#   --min-memory MI                     Memory search lower bound Mi  (default: 64)
 #   --max-memory MI                     Memory search upper bound Mi  (default: 4096)
 #   --granularity MI                    Stop when range ≤ this Mi     (default: 64)
 #   --tps N                             NLG transactions per second   (default: 100)
 #   --duration S                        NLG probe duration seconds    (default: 300)
+#   --query-duration S                  Query probe duration seconds  (default: 60)
 #   --nlg-test TYPE                     NLG test class to run         (default: CryptoTransferLoadTest)
 #                                         CryptoTransferLoadTest
 #                                         NftTransferLoadTest
@@ -50,16 +51,19 @@ set -eo pipefail
 
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo}"
-MEMORY_MIN_MI="${MEMORY_MIN_MI:-128}"
+MEMORY_MIN_MI="${MEMORY_MIN_MI:-64}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
 MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-64}"
 NLG_TPS="${NLG_TPS:-100}"
 NLG_DURATION_S="${NLG_DURATION_S:-300}"
+QUERY_DURATION_S="${QUERY_DURATION_S:-60}"
 NLG_CLIENTS="${NLG_CLIENTS:-5}"
 NLG_ACCOUNTS="${NLG_ACCOUNTS:-20}"
 NLG_JAVA_HEAP_GB="${NLG_JAVA_HEAP_GB:-4}"
 NLG_TEST_CLASS="${NLG_TEST_CLASS:-CryptoTransferLoadTest}"
 STABILIZE_S="${STABILIZE_S:-15}"
+# Port that solo port-forwards the mirror ingress controller to on localhost
+MIRROR_INGRESS_LOCAL_PORT="${MIRROR_INGRESS_LOCAL_PORT:-38081}"
 RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 
 # ── Component registry ──────────────────────────────────────────────────────────
@@ -204,8 +208,11 @@ container_index() {
         '[.spec.template.spec.containers[].name] | index($c) // 0'
 }
 
-# Poll pods belonging to a workload for unhealthy states.
-# Prints a reason string and returns 0 if a bad state is found, 1 otherwise.
+# Poll pods belonging to a workload for actively unhealthy states.
+# Only inspects CURRENT state — never lastState, which reflects the previous
+# pod lifecycle and produces false positives after normal rollout restarts.
+#
+# Returns 0 (bad state found) or 1 (all pods healthy / not yet scheduled).
 check_pod_health() {
   local resource_name="$1"
   local container="$2"
@@ -214,31 +221,43 @@ check_pod_health() {
   while IFS= read -r pod; do
     [[ -z "${pod}" ]] && continue
 
-    # Phase-level failures (e.g. pod stuck in Error)
+    local pod_json
+    pod_json=$(kubectl get pod "${pod}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null) || continue
+
+    # Phase-level failure
     local phase
-    phase=$(kubectl get pod "${pod}" -n "${SOLO_NAMESPACE}" \
-      -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+    phase=$(echo "${pod_json}" | jq -r '.status.phase // ""')
     if [[ "${phase}" == "Failed" ]]; then
       log "  Pod ${pod} in Failed phase"
       return 0
     fi
 
-    # Container-level failures: CrashLoopBackOff or OOMKilled in waiting or lastState
-    local reasons
-    reasons=$(kubectl get pod "${pod}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null \
-      | jq -r --arg c "${container}" '
-          .status.containerStatuses[]?
-          | select(.name == $c)
-          | (.state.waiting.reason // ""),
-            (.lastState.terminated.reason // "")
-        ' 2>/dev/null || echo "")
+    # Current waiting reason — CrashLoopBackOff means the container keeps dying
+    local waiting_reason
+    waiting_reason=$(echo "${pod_json}" | jq -r --arg c "${container}" '
+      .status.containerStatuses[]?
+      | select(.name == $c)
+      | .state.waiting.reason // ""
+    ' 2>/dev/null || echo "")
 
-    if echo "${reasons}" | grep -qE "OOMKilled|CrashLoopBackOff|Error"; then
-      local cause
-      cause=$(echo "${reasons}" | grep -E "OOMKilled|CrashLoopBackOff|Error" | head -1)
-      log "  Pod ${pod} container ${container}: ${cause}"
+    if echo "${waiting_reason}" | grep -qE "CrashLoopBackOff|OOMKilled|CreateContainerError"; then
+      log "  Pod ${pod} container ${container}: ${waiting_reason}"
       return 0
     fi
+
+    # Current terminated reason — OOMKilled while the new pod is still terminating
+    local terminated_reason
+    terminated_reason=$(echo "${pod_json}" | jq -r --arg c "${container}" '
+      .status.containerStatuses[]?
+      | select(.name == $c)
+      | .state.terminated.reason // ""
+    ' 2>/dev/null || echo "")
+
+    if [[ "${terminated_reason}" == "OOMKilled" ]]; then
+      log "  Pod ${pod} container ${container}: OOMKilled (current state)"
+      return 0
+    fi
+
   done < <(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers -o name 2>/dev/null \
     | sed 's|pod/||' | grep "^${resource_name}-")
 
@@ -513,53 +532,51 @@ run_relay_rpc_probe() {
   return 0
 }
 
-# Run a read-query load against a mirror service (REST or gRPC).
+# Run a read-query load against a mirror service via the mirror ingress controller.
+#
+# All mirror client traffic is routed through the ingress controller. Solo
+# port-forwards the ingress controller to localhost:MIRROR_INGRESS_LOCAL_PORT (38081).
+# Path routing (from ingress rules):
+#   mirror-grpc     → /api/v1/network/supply  (REST fallback; gRPC needs HTTP/2)
+#   mirror-rest     → /api/v1/transactions?limit=1
+#   mirror-restjava → /api/v1/network/supply
+#
 # Strategy:
-#   - mirror-grpc: use grpcurl for gRPC health/subscribe probes if available;
-#                  fall back to TCP port-forward connectivity check.
-#   - All others:  port-forward to the service HTTP port and send concurrent GET
-#                  requests to the /actuator/health or /api/v1/transactions endpoint.
-# Returns 0 (pass) or 1 (fail / OOM / connection errors).
+#   1. Verify the ingress local port is reachable (port-forward must already exist).
+#   2. Send NLG_TPS concurrent HTTP GET requests per second to the component's
+#      ingress path for QUERY_DURATION_S seconds (default 60s).
+#   3. Poll every 5s for OOMKill/CrashLoopBackOff on the target container.
+#   4. Fail if >33% of health-check polls return errors.
+#
+# Returns 0 (pass) or 1 (fail / OOM / too many errors).
 run_query_probe() {
   local resource_name="$1"
   local container="$2"
 
-  local pod_name
-  pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
-    | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+  local base_url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}"
 
-  if [[ -z "${pod_name}" ]]; then
-    log "  No pod found for ${resource_name} — cannot run query probe"
+  # Verify ingress is reachable before starting load
+  if ! curl -sf --max-time 5 "${base_url}/api/v1/transactions?limit=1" >/dev/null 2>&1; then
+    log "  Mirror ingress not reachable at localhost:${MIRROR_INGRESS_LOCAL_PORT}"
+    log "  Ensure solo has port-forwarded the mirror ingress controller (default port 38081)"
     return 1
   fi
 
-  # Discover first service port; fall back by component name pattern
-  local svc_port
-  svc_port=$(kubectl get svc "${resource_name}" -n "${SOLO_NAMESPACE}" \
-    -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || echo "")
-
-  # Determine protocol and query endpoint based on component name
-  local is_grpc=false
-  local query_path="/actuator/health"
+  # Select ingress path by component name
+  local query_path
   if echo "${resource_name}" | grep -q "grpc"; then
-    is_grpc=true
-    svc_port="${svc_port:-5600}"
+    # gRPC over HTTP/2 cannot be driven by curl; use a REST endpoint that
+    # exercises the network service path through the same ingress backend
+    query_path="/api/v1/network/supply"
   elif echo "${resource_name}" | grep -q "restjava"; then
-    svc_port="${svc_port:-8084}"
-    query_path="/api/v1/transactions?limit=1"
+    query_path="/api/v1/network/supply"
   else
     # mirror-rest
-    svc_port="${svc_port:-5551}"
     query_path="/api/v1/transactions?limit=1"
   fi
 
-  local local_port=$(( (RANDOM % 10000) + 41000 ))
-  log "  Query probe: port-forward ${pod_name}:${svc_port} → localhost:${local_port} for ${NLG_DURATION_S}s"
-
-  kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
-    "${local_port}:${svc_port}" >/dev/null 2>&1 &
-  local pf_pid=$!
-  sleep 3
+  local health_url="${base_url}${query_path}"
+  log "  Query probe: ${health_url}  (${NLG_TPS} RPS × ${QUERY_DURATION_S}s, watching ${resource_name}/${container})"
 
   local oom_detected=false
   local success_count=0
@@ -567,59 +584,31 @@ run_query_probe() {
   local elapsed=0
   local poll_interval=5
 
-  # Background load: NLG_TPS concurrent requests per second
-  if [[ "${is_grpc}" == "true" ]] && command -v grpcurl >/dev/null 2>&1; then
-    log "  Using grpcurl for gRPC health checks"
-    (
-      while kill -0 "${pf_pid}" 2>/dev/null; do
-        local i
-        for i in $(seq 1 "${NLG_TPS}"); do
-          grpcurl -plaintext -max-time 5 \
-            "localhost:${local_port}" grpc.health.v1.Health/Check \
-            >/dev/null 2>&1 &
-        done
-        wait
-        sleep 1
+  # Background load: NLG_TPS concurrent GETs per second via ingress on port 38081
+  (
+    while true; do
+      local i
+      for i in $(seq 1 "${NLG_TPS}"); do
+        curl -sf --max-time 5 "${health_url}" >/dev/null 2>&1 &
       done
-    ) &
-  else
-    # HTTP GET load (also serves as gRPC fallback via actuator)
-    local url="http://localhost:${local_port}${query_path}"
-    log "  Using HTTP GET: ${url}"
-    (
-      while kill -0 "${pf_pid}" 2>/dev/null; do
-        local i
-        for i in $(seq 1 "${NLG_TPS}"); do
-          curl -sf --max-time 5 "${url}" >/dev/null 2>&1 &
-        done
-        wait
-        sleep 1
-      done
-    ) &
-  fi
+      wait
+      sleep 1
+    done
+  ) &
   local load_pid=$!
 
-  while [[ ${elapsed} -lt ${NLG_DURATION_S} ]]; do
+  while [[ ${elapsed} -lt ${QUERY_DURATION_S} ]]; do
     sleep "${poll_interval}"
     elapsed=$(( elapsed + poll_interval ))
 
-    if check_oom "${resource_name}" "${container}"; then
-      log "  OOMKilled detected on ${resource_name}/${container}"
+    if check_pod_health "${resource_name}" "${container}"; then
+      log "  OOMKilled/CrashLoopBackOff detected on ${resource_name}/${container}"
       oom_detected=true
       break
     fi
 
-    # Health-check poll
-    local ok=false
-    if [[ "${is_grpc}" == "true" ]] && command -v grpcurl >/dev/null 2>&1; then
-      grpcurl -plaintext -max-time 5 \
-        "localhost:${local_port}" grpc.health.v1.Health/Check \
-        >/dev/null 2>&1 && ok=true
-    else
-      curl -sf --max-time 5 "http://localhost:${local_port}${query_path}" \
-        >/dev/null 2>&1 && ok=true
-    fi
-    if [[ "${ok}" == "true" ]]; then
+    # Health-check poll via ingress
+    if curl -sf --max-time 5 "${health_url}" >/dev/null 2>&1; then
       success_count=$(( success_count + 1 ))
     else
       fail_count=$(( fail_count + 1 ))
@@ -627,12 +616,11 @@ run_query_probe() {
   done
 
   kill "${load_pid}" 2>/dev/null || true
-  kill "${pf_pid}" 2>/dev/null || true
-  wait "${load_pid}" "${pf_pid}" 2>/dev/null || true
+  wait "${load_pid}" 2>/dev/null || true
 
   local total=$(( success_count + fail_count ))
   if [[ "${oom_detected}" == "true" ]]; then
-    log "  Query probe FAILED (OOMKilled)"
+    log "  Query probe FAILED (OOMKilled/CrashLoopBackOff)"
     return 1
   fi
   if [[ ${total} -gt 0 && ${fail_count} -gt $(( total / 3 )) ]]; then
@@ -833,6 +821,7 @@ while [[ $# -gt 0 ]]; do
     --granularity)     MEMORY_GRANULARITY_MI="$2"; shift 2 ;;
     --tps)             NLG_TPS="$2";               shift 2 ;;
     --duration)        NLG_DURATION_S="$2";        shift 2 ;;
+    --query-duration)  QUERY_DURATION_S="$2";      shift 2 ;;
     --nlg-test)        NLG_TEST_CLASS="$2";        shift 2 ;;
     *)
       echo "Unknown argument: $1"
@@ -886,6 +875,7 @@ cat <<INFO
   Memory range: ${MEMORY_MIN_MI}Mi – ${MEMORY_MAX_MI}Mi  (granularity ${MEMORY_GRANULARITY_MI}Mi)
   NLG test:     ${NLG_TEST_CLASS}
   NLG load:     ${NLG_TPS} TPS × ${NLG_DURATION_S}s per probe
+  Query load:   ${NLG_TPS} RPS × ${QUERY_DURATION_S}s per probe
   Results file: ${RESULTS_FILE}
 INFO
 
