@@ -98,7 +98,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -161,7 +161,7 @@ jobs:
       max-parallel: 3
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -407,7 +407,7 @@ jobs:
           echo "Task completed successfully"
 
       - name: Send Slack Notification on Failure
-        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && failure() }}
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'schedule' && !cancelled() && failure() }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
