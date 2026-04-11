@@ -62,6 +62,16 @@ jobs:
       max-parallel: 2
 
     steps:
+      - name: Pre-job Cleanup
+        if: always()
+        run: |
+          # Remove any Kind cluster and Docker containers left over from a previous run on this runner.
+          kind delete cluster --name solo-cluster 2>/dev/null || true
+          docker rm --force --volumes \
+            $(docker ps -aq --filter label=io.x-k8s.kind.cluster=solo-cluster 2>/dev/null) \
+            2>/dev/null || true
+          rm -rf ~/.solo
+
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:

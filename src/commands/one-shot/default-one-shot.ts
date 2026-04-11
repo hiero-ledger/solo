@@ -357,12 +357,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
               config.deployment = config.deployment || 'one-shot';
               // Do not inherit the namespace auto-detected from the current K8s context.
-              // The middleware may inject the runner pod's namespace; one-shot must always
-              // use the deployment-specific namespace so that the remote config (which
-              // stores the cluster namespace) stays consistent across interrupted/recovery runs.
-              config.namespace = argv[flags.namespace.name]
-                ? NamespaceName.of(argv[flags.namespace.name] as string)
-                : NamespaceName.of('one-shot');
+              // The Yargs middleware runs applyPrecedence() before command handlers, which
+              // may inject a NamespaceName object (the runner pod's namespace) into argv.
+              // Only use the argv value if it is an explicit user-supplied plain string;
+              // otherwise always default to 'one-shot' so the namespace stored in the remote
+              // config stays consistent across interrupted and recovery runs.
+              {
+                const rawNamespace: unknown = argv[flags.namespace.name];
+                config.namespace =
+                  typeof rawNamespace === 'string' && rawNamespace
+                    ? NamespaceName.of(rawNamespace)
+                    : NamespaceName.of('one-shot');
+              }
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
