@@ -53,7 +53,7 @@ SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo}"
 MEMORY_MIN_MI="${MEMORY_MIN_MI:-64}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
-MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-64}"
+MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-16}"
 NLG_TPS="${NLG_TPS:-100}"
 NLG_DURATION_S="${NLG_DURATION_S:-300}"
 QUERY_DURATION_S="${QUERY_DURATION_S:-60}"
@@ -112,21 +112,25 @@ COMPONENT_REGISTRY=(
   "network-node|statefulset|^network-node[0-9]||8192|both"
 
   # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → mirror-importer ──
-  "mirror-importer|deployment|mirror.*importer||596|nlg"
-  "postgres|statefulset|solo-shared-resources-postgres|postgresql|1000|nlg"
-  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|512|nlg"
+  "mirror-importer|deployment|mirror.*importer||540|nlg"
+  "postgres|statefulset|solo-shared-resources-postgres|postgresql|300|nlg"
+  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|180|nlg"
 
   # ── Query path: client read requests → mirror REST/gRPC services ──────────────
   # mirror-grpc memory is driven by concurrent gRPC subscriptions, not writes
   # mirror-rest / mirror-restjava memory is driven by concurrent GET requests
-  "mirror-grpc|deployment|mirror.*grpc||1000|query"
-  "mirror-rest|deployment|mirror.*-rest$||500|query"
-  "mirror-restjava|deployment|mirror.*restjava||500|query"
+  "mirror-grpc|deployment|mirror.*grpc||350|query"
+  "mirror-rest|deployment|mirror.*-rest$||365|query"
+  "mirror-restjava|deployment|mirror.*restjava||466|query"
 
-  # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay → gRPC / mirror-web3 ─
+  # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay ─────────────────────
   "relay|deployment|^relay-[0-9]+$||512|relay-rpc"
   "relay-ws|deployment|^relay-[0-9]+-ws$||512|relay-rpc"
-  "mirror-web3|deployment|mirror.*web3||1000|relay-rpc"
+
+  # ── mirror-web3: serves POST /api/v1/contracts/call via ingress ──────────────
+  # Memory driven by EVM simulation requests; probed via actuator/health on pod
+  # port 8545 (not relay JSON-RPC — web3 is an internal mirror service)
+  "mirror-web3|deployment|mirror.*web3||600|query"
 
   # ── No meaningful transaction-load impact; apply limit for observation only ───
   "mirror-monitor|deployment|mirror.*monitor||1000|none"
@@ -196,6 +200,32 @@ auto_discover_container() {
   local name="$2"
   kubectl get "${kind}/${name}" -n "${SOLO_NAMESPACE}" \
     -o jsonpath='{.spec.template.spec.containers[0].name}' 2>/dev/null || echo ""
+}
+
+# Read the current memory limit (in Mi) for a named container from the live workload spec.
+# Handles values in Mi ("512Mi") and Gi ("2Gi"). Returns empty string on failure.
+get_current_memory_limit_mi() {
+  local kind="$1"
+  local name="$2"
+  local container="$3"
+  local raw
+  raw=$(kubectl get "${kind}/${name}" -n "${SOLO_NAMESPACE}" -o json 2>/dev/null \
+    | jq -r --arg c "${container}" '
+        .spec.template.spec.containers[]?
+        | select(.name == $c)
+        | .resources.limits.memory // ""
+      ' 2>/dev/null || echo "")
+  [[ -z "${raw}" ]] && echo "" && return
+
+  # Convert to Mi: accept plain Mi, Gi, M, G
+  if echo "${raw}" | grep -qiE '^[0-9]+Gi?$'; then
+    local gi; gi=$(echo "${raw}" | tr -d 'GiG')
+    echo $(( gi * 1024 ))
+  elif echo "${raw}" | grep -qiE '^[0-9]+Mi?$'; then
+    echo "${raw}" | tr -d 'MiM'
+  else
+    echo ""
+  fi
 }
 
 # Return the 0-based index of a named container in the pod template
@@ -532,70 +562,160 @@ run_relay_rpc_probe() {
   return 0
 }
 
-# Run a read-query load against a mirror service via the mirror ingress controller.
+# Run a read-query load against a mirror service using the documented probe methods.
 #
-# All mirror client traffic is routed through the ingress controller. Solo
-# port-forwards the ingress controller to localhost:MIRROR_INGRESS_LOCAL_PORT (38081).
-# Path routing (from ingress rules):
-#   mirror-grpc     → /api/v1/network/supply  (REST fallback; gRPC needs HTTP/2)
-#   mirror-rest     → /api/v1/transactions?limit=1
-#   mirror-restjava → /api/v1/network/supply
+# Probe methods per component (refs: hiero-mirror-node/docs/*/README.md):
+#
+#   mirror-grpc:
+#     grpcurl (if available) → NetworkService/getNodes on pod port 5600
+#       grpcurl -plaintext -d '{"file_id":{"fileNum":102},"limit":1}' \
+#               <pod>:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
+#     Fallback (no grpcurl) → GET /api/v1/network/exchangerate via ingress port 38081
+#       (exercises the same REST path that gRPC clients also read from)
+#
+#   mirror-rest:
+#     GET /api/v1/network/exchangerate   — single row from file_data, minimal joins
+#     via mirror ingress controller localhost:38081
+#
+#   mirror-restjava:
+#     GET /api/v1/network/supply         — served by restjava, lightweight single row
+#     via mirror ingress controller localhost:38081
 #
 # Strategy:
-#   1. Verify the ingress local port is reachable (port-forward must already exist).
-#   2. Send NLG_TPS concurrent HTTP GET requests per second to the component's
-#      ingress path for QUERY_DURATION_S seconds (default 60s).
-#   3. Poll every 5s for OOMKill/CrashLoopBackOff on the target container.
-#   4. Fail if >33% of health-check polls return errors.
+#   1. For grpc: port-forward pod:5600 and use grpcurl; fall back to REST via ingress.
+#   2. For rest/restjava: use the existing solo ingress port-forward (38081).
+#   3. Send NLG_TPS concurrent requests per second for QUERY_DURATION_S seconds.
+#   4. Poll every 5s for OOMKill/CrashLoopBackOff on the target container.
+#   5. Fail if >33% of health-check polls return errors.
 #
 # Returns 0 (pass) or 1 (fail / OOM / too many errors).
 run_query_probe() {
   local resource_name="$1"
   local container="$2"
 
-  local base_url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}"
-
-  # Verify ingress is reachable before starting load
-  if ! curl -sf --max-time 5 "${base_url}/api/v1/transactions?limit=1" >/dev/null 2>&1; then
-    log "  Mirror ingress not reachable at localhost:${MIRROR_INGRESS_LOCAL_PORT}"
-    log "  Ensure solo has port-forwarded the mirror ingress controller (default port 38081)"
-    return 1
-  fi
-
-  # Select ingress path by component name
-  local query_path
-  if echo "${resource_name}" | grep -q "grpc"; then
-    # gRPC over HTTP/2 cannot be driven by curl; use a REST endpoint that
-    # exercises the network service path through the same ingress backend
-    query_path="/api/v1/network/supply"
-  elif echo "${resource_name}" | grep -q "restjava"; then
-    query_path="/api/v1/network/supply"
-  else
-    # mirror-rest
-    query_path="/api/v1/transactions?limit=1"
-  fi
-
-  local health_url="${base_url}${query_path}"
-  log "  Query probe: ${health_url}  (${NLG_TPS} RPS × ${QUERY_DURATION_S}s, watching ${resource_name}/${container})"
-
   local oom_detected=false
   local success_count=0
   local fail_count=0
   local elapsed=0
   local poll_interval=5
+  local load_pid=""
+  local pf_pid=""
 
-  # Background load: NLG_TPS concurrent GETs per second via ingress on port 38081
-  (
-    while true; do
-      local i
-      for i in $(seq 1 "${NLG_TPS}"); do
-        curl -sf --max-time 5 "${health_url}" >/dev/null 2>&1 &
+  # ── Determine probe method and set up connectivity ───────────────────────────
+
+  local health_cmd=""   # command string used for the per-poll health check
+
+  if echo "${resource_name}" | grep -q "grpc"; then
+    # gRPC probe: port-forward to the grpc pod's HTTP management port (8081).
+    # The actuator/health endpoint is the authoritative liveness indicator for the
+    # grpc service and exercises its internal state under concurrent polling load.
+    local grpc_pod
+    grpc_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+      | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+
+    if [[ -z "${grpc_pod}" ]]; then
+      log "  No pod found for ${resource_name} — cannot run grpc query probe"
+      return 1
+    fi
+
+    local grpc_local_port=$(( (RANDOM % 10000) + 42000 ))
+    log "  gRPC probe: port-forward ${grpc_pod}:8081 → localhost:${grpc_local_port} (actuator/health)"
+
+    kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${grpc_pod}" \
+      "${grpc_local_port}:8081" >/dev/null 2>&1 &
+    pf_pid=$!
+    sleep 3
+
+    local grpc_health_url="http://localhost:${grpc_local_port}/actuator/health"
+    health_cmd="curl -sf --max-time 5 ${grpc_health_url}"
+
+    (
+      while kill -0 "${pf_pid}" 2>/dev/null; do
+        local i
+        for i in $(seq 1 "${NLG_TPS}"); do
+          curl -sf --max-time 5 "${grpc_health_url}" >/dev/null 2>&1 &
+        done
+        wait
+        sleep 1
       done
-      wait
-      sleep 1
-    done
-  ) &
-  local load_pid=$!
+    ) &
+    load_pid=$!
+
+  elif echo "${resource_name}" | grep -q "web3"; then
+    # mirror-web3: port-forward pod:8545 and hit /actuator/health.
+    # The web3 service handles EVM simulation (POST /api/v1/contracts/call) via
+    # the ingress, but actuator/health on port 8545 is the authoritative liveness
+    # probe and generates real memory pressure under concurrent polling.
+    local web3_pod
+    web3_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+      | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
+
+    if [[ -z "${web3_pod}" ]]; then
+      log "  No pod found for ${resource_name} — cannot run web3 query probe"
+      return 1
+    fi
+
+    local web3_local_port=$(( (RANDOM % 10000) + 43000 ))
+    log "  web3 probe: port-forward ${web3_pod}:8545 → localhost:${web3_local_port} (actuator/health)"
+
+    kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${web3_pod}" \
+      "${web3_local_port}:8545" >/dev/null 2>&1 &
+    pf_pid=$!
+    sleep 3
+
+    local web3_health_url="http://localhost:${web3_local_port}/actuator/health"
+    health_cmd="curl -sf --max-time 5 ${web3_health_url}"
+
+    (
+      while kill -0 "${pf_pid}" 2>/dev/null; do
+        local i
+        for i in $(seq 1 "${NLG_TPS}"); do
+          curl -sf --max-time 5 "${web3_health_url}" >/dev/null 2>&1 &
+        done
+        wait
+        sleep 1
+      done
+    ) &
+    load_pid=$!
+
+  elif echo "${resource_name}" | grep -q "restjava"; then
+    # mirror-restjava: GET /api/v1/network/supply (served exclusively by restjava)
+    local restjava_url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/supply"
+    log "  REST probe: ${restjava_url}"
+    health_cmd="curl -sf --max-time 5 ${restjava_url}"
+    (
+      while true; do
+        local i
+        for i in $(seq 1 "${NLG_TPS}"); do
+          curl -sf --max-time 5 "${restjava_url}" >/dev/null 2>&1 &
+        done
+        wait
+        sleep 1
+      done
+    ) &
+    load_pid=$!
+
+  else
+    # mirror-rest: GET /api/v1/network/exchangerate (single row, minimal joins)
+    local rest_url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/exchangerate"
+    log "  REST probe: ${rest_url}"
+    health_cmd="curl -sf --max-time 5 ${rest_url}"
+    (
+      while true; do
+        local i
+        for i in $(seq 1 "${NLG_TPS}"); do
+          curl -sf --max-time 5 "${rest_url}" >/dev/null 2>&1 &
+        done
+        wait
+        sleep 1
+      done
+    ) &
+    load_pid=$!
+  fi
+
+  log "  Running for ${QUERY_DURATION_S}s @ ${NLG_TPS} RPS, watching ${resource_name}/${container} for OOM"
+
+  # ── Monitor loop ─────────────────────────────────────────────────────────────
 
   while [[ ${elapsed} -lt ${QUERY_DURATION_S} ]]; do
     sleep "${poll_interval}"
@@ -607,16 +727,19 @@ run_query_probe() {
       break
     fi
 
-    # Health-check poll via ingress
-    if curl -sf --max-time 5 "${health_url}" >/dev/null 2>&1; then
+    # Health-check poll using the same method as the load
+    if eval "${health_cmd}" >/dev/null 2>&1; then
       success_count=$(( success_count + 1 ))
     else
       fail_count=$(( fail_count + 1 ))
     fi
   done
 
-  kill "${load_pid}" 2>/dev/null || true
-  wait "${load_pid}" 2>/dev/null || true
+  # ── Cleanup ──────────────────────────────────────────────────────────────────
+
+  [[ -n "${load_pid}" ]] && kill "${load_pid}" 2>/dev/null || true
+  [[ -n "${pf_pid}" ]]   && kill "${pf_pid}"   2>/dev/null || true
+  wait "${load_pid}" "${pf_pid}" 2>/dev/null || true
 
   local total=$(( success_count + fail_count ))
   if [[ "${oom_detected}" == "true" ]]; then
@@ -670,23 +793,49 @@ run_probe() {
 }
 
 # Binary-search minimum viable memory for one (workload, container) pair.
-# $4 = max_mi override (falls back to global MEMORY_MAX_MI when absent)
+# $4 = registry max_mi (used only as fallback when live limit is unavailable)
 # $5 = probe_type (defaults to nlg)
+#
+# Search bounds are derived from the pod's CURRENT live memory limit:
+#   high = current live limit  (we know the pod works here)
+#   low  = 20% of current live limit  (aggressive floor; OOM below this is expected)
+# Falls back to [MEMORY_MIN_MI, registry max_mi] if live limit cannot be read.
 optimize_one() {
   local kind="$1"
   local name="$2"
   local container="$3"
-  local max_mi="${4:-${MEMORY_MAX_MI}}"
+  local registry_max_mi="${4:-${MEMORY_MAX_MI}}"
   local probe_type="${5:-nlg}"
 
-  header "Optimizing ${kind}/${name}  container: ${container}  probe: ${probe_type}  [${MEMORY_MIN_MI}–${max_mi}Mi]"
+  # Discover live memory limit and derive search bounds
+  local live_limit_mi
+  live_limit_mi=$(get_current_memory_limit_mi "${kind}" "${name}" "${container}")
 
-  local low="${MEMORY_MIN_MI}"
-  local high="${max_mi}"
+  local high low
+  if [[ -n "${live_limit_mi}" && "${live_limit_mi}" -gt 0 ]]; then
+    high=$(( live_limit_mi * 6 / 5 ))  # 120% of current live limit — headroom above known-good
+    low="${MEMORY_GRANULARITY_MI}"     # 64Mi floor
+    log "Live memory limit: ${live_limit_mi}Mi → 120% = ${high}Mi — search range [${low}–${high}Mi]"
+  else
+    log "Could not read live memory limit for ${kind}/${name} [${container}] — using registry/global defaults"
+    high="${registry_max_mi}"
+    low="${MEMORY_GRANULARITY_MI}"
+  fi
+
+  # If the range is already ≤ granularity (e.g. 20% window is narrow), scale down
+  # the effective granularity to half the range so at least one iteration runs.
+  local effective_granularity="${MEMORY_GRANULARITY_MI}"
+  if [[ $(( high - low )) -le ${effective_granularity} ]]; then
+    effective_granularity=$(( (high - low) / 2 ))
+    [[ ${effective_granularity} -lt 1 ]] && effective_granularity=1
+    log "Range [${low}–${high}]Mi < granularity ${MEMORY_GRANULARITY_MI}Mi — using effective granularity ${effective_granularity}Mi"
+  fi
+
+  header "Optimizing ${kind}/${name}  container: ${container}  probe: ${probe_type}  [${low}–${high}Mi]"
   local best_mi=0
   local iteration=0
 
-  while [[ $(( high - low )) -gt "${MEMORY_GRANULARITY_MI}" ]]; do
+  while [[ $(( high - low )) -gt ${effective_granularity} ]]; do
     iteration=$(( iteration + 1 ))
     local mid=$(( (low + high) / 2 ))
     log "Iter ${iteration}: testing ${mid}Mi  [range ${low}–${high}]"
@@ -707,15 +856,20 @@ optimize_one() {
     fi
   done
 
+  local prev_display="${live_limit_mi:+${live_limit_mi}Mi}"
+  prev_display="${prev_display:-unknown}"
+
   if [[ "${best_mi}" -gt 0 ]]; then
-    log "Converged: optimal = ${best_mi}Mi for ${kind}/${name} [${container}]"
+    log "Converged: optimal = ${best_mi}Mi for ${kind}/${name} [${container}]  (was ${prev_display})"
     set_memory_limit "${kind}" "${name}" "${container}" "${best_mi}"
-    printf "%-14s  %-40s  %-20s  %s\n" "OK" "${kind}/${name}" "${container}" "${best_mi}Mi" \
+    printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
+      "OK" "${kind}/${name}" "${container}" "${prev_display}" "${best_mi}Mi" \
       >> "${RESULTS_FILE}"
   else
-    log "WARNING: no passing value found in [${MEMORY_MIN_MI},${MEMORY_MAX_MI}]Mi for ${kind}/${name} [${container}]"
-    printf "%-14s  %-40s  %-20s  %s\n" "NOT FOUND" "${kind}/${name}" "${container}" \
-      ">(${MEMORY_MAX_MI}Mi)" >> "${RESULTS_FILE}"
+    log "WARNING: no passing value found in [${low},${high}]Mi for ${kind}/${name} [${container}]  (was ${prev_display})"
+    printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
+      "NOT FOUND" "${kind}/${name}" "${container}" "${prev_display}" ">(${high}Mi)" \
+      >> "${RESULTS_FILE}"
   fi
 }
 
@@ -745,7 +899,7 @@ optimize_alias() {
 
   if [[ ${#resource_names[@]} -eq 0 ]]; then
     log "No live ${kind} matching '${pattern}' in namespace ${SOLO_NAMESPACE} — skipping ${alias}"
-    printf "%-14s  %-40s  %-20s  %s\n" "SKIPPED" "${kind}/${pattern}" "(not found)" "" \
+    printf "%-14s  %-40s  %-20s  %-18s  %s\n" "SKIPPED" "${kind}/${pattern}" "(not found)" "-" "" \
       >> "${RESULTS_FILE}"
     return 0
   fi
@@ -888,8 +1042,8 @@ INFO
   echo "Deployment: ${SOLO_DEPLOYMENT}"
   echo "NLG TPS:    ${NLG_TPS}"
   echo ""
-  printf "%-14s  %-40s  %-20s  %s\n" "STATUS" "RESOURCE" "CONTAINER" "MIN MEMORY"
-  printf "%-14s  %-40s  %-20s  %s\n" "------" "--------" "---------" "----------"
+  printf "%-14s  %-40s  %-20s  %-18s  %s\n" "STATUS" "RESOURCE" "CONTAINER" "PREV LIMIT" "MIN MEMORY"
+  printf "%-14s  %-40s  %-20s  %-18s  %s\n" "------" "--------" "---------" "----------" "----------"
 } > "${RESULTS_FILE}"
 
 # Optimize selected components one at a time
