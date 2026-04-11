@@ -22,7 +22,7 @@ import {
   type SoloListrTaskWrapper,
 } from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
-import {inject, injectable} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
@@ -58,7 +58,7 @@ import {
   TopicInfoQuery,
 } from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
+import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable, sleep} from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
@@ -71,7 +71,9 @@ import {SharedResourceManager} from '../../core/shared-resources/shared-resource
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
-import {type Pod} from '../../integration/kube/resources/pod/pod.js';
+import {NetworkNodes} from '../../core/network-nodes.js';
+import {NodeStatusCodes} from '../../core/enumerations.js';
+import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
@@ -803,7 +805,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             },
                           },
                           {
-                            title: 'Restart consensus node pod for clean gRPC initialisation',
+                            title: 'Wait for consensus node ACTIVE without restart in recovery',
                             skip: (): boolean => {
                               if (!this.oneShotState.isActive() || !this.remoteConfig.isLoaded()) {
                                 return true;
@@ -818,29 +820,63 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               );
                             },
                             task: async (): Promise<void> => {
-                              const k8: K8 = this.k8Factory.getK8(config.context);
-                              const networkNodePods: Pod[] = await k8
-                                .pods()
-                                .list(config.namespace, ['solo.hedera.com/type=network-node']);
-                              for (const pod of networkNodePods) {
-                                await k8.pods().readByReference(pod.podReference).killPod();
-                              }
-                              await k8.pods().waitForRunningPhase(
-                                config.namespace,
-                                ['solo.hedera.com/type=network-node'],
-                                constants.PODS_RUNNING_MAX_ATTEMPTS,
-                                constants.PODS_RUNNING_DELAY,
+                              const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(
+                                InjectTokens.NetworkNodes,
                               );
-                              // Reset phase to REQUESTED so that node setup re-runs on the
-                              // freshly created pod (the old setup artefacts were lost on deletion).
                               const consensusNodes: ConsensusNodeStateSchema[] =
                                 this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
                                   ComponentTypes.ConsensusNode,
                                 );
-                              for (const node of consensusNodes) {
-                                if (node.metadata.phase === DeploymentPhase.CONFIGURED) {
-                                  node.metadata.phase = DeploymentPhase.REQUESTED;
+                              const configuredNodes: ConsensusNodeStateSchema[] = consensusNodes.filter(
+                                (node: ConsensusNodeStateSchema): boolean =>
+                                  node.metadata.phase === DeploymentPhase.CONFIGURED,
+                              );
+                              for (const node of configuredNodes) {
+                                const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(
+                                  Number(node.metadata.id),
+                                );
+                                const podReference: PodReference = PodReference.of(
+                                  config.namespace,
+                                  Templates.renderNetworkPodName(nodeAlias),
+                                );
+                                let attempt: number = 0;
+                                let active: boolean = false;
+                                while (attempt < constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS) {
+                                  try {
+                                    const response: string = await networkNodes.getNetworkNodePodStatus(
+                                      podReference,
+                                      config.context,
+                                    );
+                                    const statusLine: string | undefined = response
+                                      .split('\n')
+                                      .find((line: string): boolean =>
+                                        line.startsWith('platform_PlatformStatus'),
+                                      );
+                                    if (statusLine) {
+                                      const statusNumber: number = Number.parseInt(
+                                        statusLine.split(' ').pop(),
+                                      );
+                                      if (statusNumber === NodeStatusCodes.ACTIVE) {
+                                        active = true;
+                                        break;
+                                      }
+                                    }
+                                  } catch {
+                                    // ignore and retry
+                                  }
+                                  attempt++;
+                                  await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_DELAY));
                                 }
+                                if (!active) {
+                                  throw new SoloError(
+                                    `node '${nodeAlias}' did not become ACTIVE in recovery` +
+                                      ` [attempt = ${attempt}/${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}]`,
+                                  );
+                                }
+                                // Platform is running and ACTIVE; reset phase to STARTED so that node
+                                // start is skipped, avoiding a platform restart that would cause the
+                                // mirror node to miss genesis record files.
+                                node.metadata.phase = DeploymentPhase.STARTED;
                               }
                               await this.remoteConfig.persist();
                             },
