@@ -1323,6 +1323,28 @@ export class NetworkCommand extends BaseCommand {
                     'Solo chart version',
                   );
                   showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+
+                  // If any consensus node is still in the REQUESTED phase it was never set
+                  // up.  The pod started without platform software and may be crash-looping,
+                  // which would prevent node-setup from succeeding.  Delete every
+                  // network-node pod now so the StatefulSet recreates clean pods before
+                  // node-setup runs.  Pods whose nodes have already been set up
+                  // (CONFIGURED / STARTED / ACTIVE) are not affected because that phase is
+                  // only reached after a successful node-setup run.
+                  const anyUnsetupNode: boolean = this.remoteConfig.configuration.components
+                    .getComponentByType<BaseStateSchema>(ComponentTypes.ConsensusNode)
+                    .some((node: BaseStateSchema): boolean => node.metadata.phase === DeploymentPhase.REQUESTED);
+
+                  if (anyUnsetupNode) {
+                    const k8: K8 = this.k8Factory.getK8(clusterRefs.get(clusterReference));
+                    const networkNodePods: Pod[] = await k8
+                      .pods()
+                      .list(namespace, ['solo.hedera.com/type=network-node']);
+                    for (const pod of networkNodePods) {
+                      await k8.pods().readByReference(pod.podReference).killPod();
+                    }
+                  }
+
                   continue;
                 }
 

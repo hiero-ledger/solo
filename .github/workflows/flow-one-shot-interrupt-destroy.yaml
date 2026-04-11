@@ -125,6 +125,15 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- deployment diagnostics logs -q --dev --deployment one-shot-recover || true
 
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() && always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: 5
+        with:
+          name: solo-logs-${{ matrix.interrupt_seconds }}s
+          path: ~/.solo/logs/*
+          if-no-files-found: warn
+
       - name: Cleanup Deployment
         if: always()
         timeout-minutes: 15

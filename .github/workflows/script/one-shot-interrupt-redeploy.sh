@@ -113,11 +113,15 @@ SECOND_DEPLOY_LOG="$(mktemp /tmp/solo-redeploy-XXXXXX.log)"
 log "Running second deploy; output captured to ${SECOND_DEPLOY_LOG}"
 log "Running: ${SOLO_COMMAND} one-shot single deploy --deployment '${DEPLOYMENT}' --quiet-mode"
 
+SECOND_DEPLOY_START=$(date +%s)
 set +e
 ${SOLO_COMMAND} one-shot single deploy --deployment "${DEPLOYMENT}" --quiet-mode \
   2>&1 | tee "${SECOND_DEPLOY_LOG}"
 SECOND_RC=${PIPESTATUS[0]}
 set -e
+SECOND_DEPLOY_END=$(date +%s)
+SECOND_DEPLOY_ELAPSED=$(( SECOND_DEPLOY_END - SECOND_DEPLOY_START ))
+log "Step 2 redeployment finished in ${SECOND_DEPLOY_ELAPSED}s ($(( SECOND_DEPLOY_ELAPSED / 60 ))m $(( SECOND_DEPLOY_ELAPSED % 60 ))s)"
 
 # ---------------------------------------------------------------------------
 # Step 3 – analyse results
