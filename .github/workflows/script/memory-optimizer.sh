@@ -73,7 +73,7 @@ SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo}"
 MEMORY_MIN_MI="${MEMORY_MIN_MI:-64}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
-MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-16}"
+MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-8}"
 NLG_TPS="${NLG_TPS:-100}"
 NLG_DURATION_S="${NLG_DURATION_S:-300}"
 QUERY_DURATION_S="${QUERY_DURATION_S:-60}"
@@ -1014,14 +1014,14 @@ optimize_one() {
   local live_limit_mi
   live_limit_mi=$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")
 
-  # High bound = registry max_mi * 120% — a fixed ceiling derived from the known
+  # High bound = registry max_mi * 110% — a fixed ceiling derived from the known
   # safe maximum, independent of whatever live limit happens to be set right now.
-  local high=$(( registry_max_mi * 6 / 5 ))
+  local high=$(( registry_max_mi * 11 / 10 ))
   local low="${MEMORY_GRANULARITY_MI}"
   if [[ -n "${live_limit_mi}" && "${live_limit_mi}" -gt 0 ]]; then
-    log "Live memory limit: ${live_limit_mi}Mi  registry max: ${registry_max_mi}Mi → high=120%=${high}Mi  search range [${low}–${high}Mi]"
+    log "Live memory limit: ${live_limit_mi}Mi  registry max: ${registry_max_mi}Mi → high=110%=${high}Mi  search range [${low}–${high}Mi]"
   else
-    log "Could not read live memory limit for ${kind}/${name} [${container}] — using registry max: ${registry_max_mi}Mi → high=120%=${high}Mi  search range [${low}–${high}Mi]"
+    log "Could not read live memory limit for ${kind}/${name} [${container}] — using registry max: ${registry_max_mi}Mi → high=110%=${high}Mi  search range [${low}–${high}Mi]"
   fi
 
   # If the range is already ≤ granularity (e.g. 20% window is narrow), scale down
@@ -1193,7 +1193,7 @@ cg_discover_components() {
       local container
       for container in "${containers[@]}"; do
         local live_mi; live_mi="$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")"
-        local high=$(( registry_max * 6 / 5 ))
+        local high=$(( registry_max * 11 / 10 ))
         local low="${MEMORY_GRANULARITY_MI}"
         local prev_display="${live_mi:+${live_mi}Mi}"; prev_display="${prev_display:-unknown}"
 
@@ -1291,6 +1291,85 @@ _cg_traffic_pids=()
 _cg_traffic_pf_pid=""
 _cg_traffic_log=""
 _cg_comp_pf_pids=()   # indexed by _cg_count position, for query per-component pf cleanup
+_cg_relay_pod_name=""
+_cg_relay_local_port=""
+_cg_relay_rpc_port=""
+_cg_relay_worker_count=0
+_cg_relay_worker_sleep="0"
+
+# Start (or restart) relay-rpc POST workers targeting localhost:${_cg_relay_local_port}.
+# Kills any existing worker pids in _cg_traffic_pids before launching fresh ones.
+# Workers send eth_getBlockByNumber(latest,true) to exercise the relay's memory footprint.
+_start_relay_workers() {
+  # Kill any previously running workers
+  local pid
+  for pid in "${_cg_traffic_pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
+  _cg_traffic_pids=()
+  local work_payload='{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["latest",true],"id":1}'
+  local url="http://localhost:${_cg_relay_local_port}"
+  local w
+  for w in $(seq 1 "${_cg_relay_worker_count}"); do
+    (
+      while true; do
+        curl -s -X POST -H "Content-Type: application/json" \
+          --data "${work_payload}" --max-time 5 "${url}" >/dev/null 2>&1 || true
+        sleep "${_cg_relay_worker_sleep}"
+      done
+    ) &
+    local worker_pid=$!
+    disown "${worker_pid}"   # suppress bash "Terminated" job-control messages on kill
+    _cg_traffic_pids+=("${worker_pid}")
+  done
+  log "  relay-rpc: ${_cg_relay_worker_count} POST workers started (pids: ${_cg_traffic_pids[*]}) → localhost:${_cg_relay_local_port}"
+}
+
+# Kill ALL kubectl port-forward processes targeting relay pods, plus the tracked pid.
+# Call this before a pod restart so no stale tunnels linger across pod lifecycle.
+_kill_relay_portforwards() {
+  pkill -f "kubectl.*port-forward.*relay" 2>/dev/null || true
+  [[ -n "${_cg_traffic_pf_pid}" ]] && kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+  _cg_traffic_pf_pid=""
+  _cg_relay_local_port=""
+  log "  relay-rpc: killed existing port-forward processes"
+}
+
+# After a pod rollout, establish a fresh port-forward to the Running relay pod.
+# Sets _cg_relay_pod_name, _cg_relay_rpc_port, _cg_relay_local_port, _cg_traffic_pf_pid.
+# Returns 1 if no Running pod is found or port-forward is not reachable.
+_setup_relay_portforward() {
+  local new_pod
+  new_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+    | awk '$3=="Running"{print $1}' | grep "^relay-[0-9]" | grep -v "\-ws-" | head -1 || true)
+  if [[ -z "${new_pod}" ]]; then
+    log "  relay-rpc: no Running relay pod found — cannot set up port-forward"
+    return 1
+  fi
+  _cg_relay_pod_name="${new_pod}"
+  _cg_relay_rpc_port=$(kubectl get pod "${_cg_relay_pod_name}" -n "${SOLO_NAMESPACE}" \
+    -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "7546")
+  _cg_relay_local_port=$(( (RANDOM % 10000) + 40000 ))
+  # Ensure the traffic log file exists before redirecting port-forward output into it.
+  # _setup_relay_portforward runs before start_category_traffic, so we create it here;
+  # start_category_traffic will reuse it rather than creating a new one.
+  [[ -z "${_cg_traffic_log}" || ! -f "${_cg_traffic_log}" ]] && _cg_traffic_log="$(mktemp)"
+  log "  relay-rpc: port-forwarding pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} → localhost:${_cg_relay_local_port}"
+  kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${_cg_relay_pod_name}" \
+    "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >"${_cg_traffic_log}" 2>&1 &
+  _cg_traffic_pf_pid=$!
+  sleep 3
+  local check_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+  local test_resp
+  test_resp=$(curl -s -X POST -H "Content-Type: application/json" \
+    --data "${check_payload}" --max-time 10 "http://localhost:${_cg_relay_local_port}" 2>/dev/null || true)
+  if [[ -z "${test_resp}" ]]; then
+    log "  relay-rpc: port-forward not reachable on localhost:${_cg_relay_local_port} — aborting"
+    kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+    _cg_traffic_pf_pid=""
+    _cg_relay_local_port=""
+    return 1
+  fi
+  log "  relay-rpc: port-forward ready localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} — ${test_resp}"
+}
 
 # Start workers for a single query component (by _cg index i).
 # Appends worker pids to _cg_traffic_pids and pf pid to _cg_comp_pf_pids[i].
@@ -1381,7 +1460,8 @@ start_category_traffic() {
   local probe_type="$1"
   _cg_traffic_pids=()
   _cg_traffic_pf_pid=""
-  _cg_traffic_log="$(mktemp)"
+  # Reuse existing log file if _setup_relay_portforward already created one.
+  [[ -z "${_cg_traffic_log}" || ! -f "${_cg_traffic_log}" ]] && _cg_traffic_log="$(mktemp)"
   _cg_comp_pf_pids=()
 
   case "${probe_type}" in
@@ -1400,40 +1480,15 @@ start_category_traffic() {
       ;;
 
     relay-rpc)
-      local pod_name; pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
-        | awk '{print $1}' | grep "^relay-[0-9]" | grep -v "\-ws-" | head -1 || true)
-      [[ -z "${pod_name}" ]] && log "  No relay pod found for relay-rpc traffic" && return 1
-      pkill -f "port-forward.*${pod_name}" 2>/dev/null || true
-      sleep 1
-      local rpc_port; rpc_port=$(kubectl get pod "${pod_name}" -n "${SOLO_NAMESPACE}" \
-        -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "7546")
-      local local_port=$(( (RANDOM % 10000) + 40000 ))
-      kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
-        "${local_port}:${rpc_port}" >"${_cg_traffic_log}" 2>&1 &
-      _cg_traffic_pf_pid=$!
-      sleep 3
-      local rpc_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-      local url="http://localhost:${local_port}"
-      if ! curl -sf -X POST -H "Content-Type: application/json" \
-          --data "${rpc_payload}" --max-time 10 "${url}" >/dev/null 2>&1; then
-        log "  relay-rpc: port-forward not reachable — cannot start traffic"
-        kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+      # Port-forward is already established by _setup_relay_portforward() before this call.
+      if [[ -z "${_cg_relay_local_port}" ]]; then
+        log "  relay-rpc: no port-forward established — cannot start workers"
         return 1
       fi
-      local RELAY_WORKERS="${RELAY_WORKERS:-5}"
-      local worker_sleep; worker_sleep=$(awk "BEGIN{printf \"%.3f\", ${RELAY_WORKERS}/${NLG_TPS}}")
-      log "  Category traffic: relay-rpc ${RELAY_WORKERS} workers × sleep ${worker_sleep}s ≈ ${NLG_TPS} RPS"
-      local pf_pid_ref="${_cg_traffic_pf_pid}"
-      for w in $(seq 1 "${RELAY_WORKERS}"); do
-        (
-          while kill -0 "${pf_pid_ref}" 2>/dev/null; do
-            curl -sf -X POST -H "Content-Type: application/json" \
-              --data "${rpc_payload}" --max-time 5 "${url}" >/dev/null 2>&1 || true
-            sleep "${worker_sleep}"
-          done
-        ) &
-        _cg_traffic_pids+=($!)
-      done
+      _cg_relay_worker_count="${RELAY_WORKERS:-5}"
+      _cg_relay_worker_sleep="$(awk "BEGIN{printf \"%.3f\", ${_cg_relay_worker_count}/${NLG_TPS}}")"
+      log "  Category traffic: relay-rpc ${_cg_relay_worker_count} workers × sleep ${_cg_relay_worker_sleep}s ≈ ${NLG_TPS} RPS → localhost:${_cg_relay_local_port} (eth_getBlockByNumber)"
+      _start_relay_workers
       ;;
 
     query)
@@ -1467,6 +1522,11 @@ stop_category_traffic() {
   _cg_traffic_pf_pid=""
   _cg_traffic_log=""
   _cg_comp_pf_pids=()
+  _cg_relay_pod_name=""
+  _cg_relay_local_port=""
+  _cg_relay_rpc_port=""
+  _cg_relay_worker_count=0
+  _cg_relay_worker_sleep="0"
 }
 
 # Run parallel binary search for all components in a probe_type group.
@@ -1518,6 +1578,12 @@ optimize_category_group() {
       _cg_crashed[$i]=false
     done
 
+    # For relay-rpc: kill all existing port-forwards before touching the pod.
+    # The pod will restart with a new hash — old tunnels would become invalid anyway.
+    if [[ "${probe_type}" == "relay-rpc" ]]; then
+      _kill_relay_portforwards
+    fi
+
     # Compute mid and set memory for all non-converged components
     local rollout_args=()
     for i in $(seq 0 $(( _cg_count - 1 ))); do
@@ -1568,6 +1634,15 @@ optimize_category_group() {
     # Snapshot restart counts before probe
     cg_snapshot_restarts
 
+    # For relay-rpc: pod is now Running — establish a fresh port-forward with a new port.
+    # Workers will use this port; if setup fails, skip this round's probe.
+    if [[ "${probe_type}" == "relay-rpc" ]]; then
+      if ! _setup_relay_portforward; then
+        log "  relay-rpc: skipping probe this round — no port-forward available"
+        continue
+      fi
+    fi
+
     # Start shared traffic for this category
     start_category_traffic "${probe_type}"
 
@@ -1587,18 +1662,71 @@ optimize_category_group() {
           any_crashed=true
         fi
       done
+      # Early exit: once every non-converged component has crashed there is no more
+      # information to gather this round — break immediately so the binary search
+      # can raise floors and start the next round without waiting out the full duration.
+      local all_probed_crashed=true
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_converged[$i]}" == "true" ]] && continue
+        [[ "${_cg_crashed[$i]}" != "true" ]] && all_probed_crashed=false && break
+      done
+      if [[ "${all_probed_crashed}" == "true" ]]; then
+        log "  All components crashed — exiting probe early at ${elapsed}s"
+        break
+      fi
+      # For relay-rpc: verify port-forward is still alive every poll cycle.
+      # Workers suppress curl errors silently, so we must probe here to detect a dead tunnel.
+      # Always check — even after a crash, so we can reconnect when the pod recovers.
+      if [[ "${probe_type}" == "relay-rpc" && -n "${_cg_relay_local_port}" ]]; then
+        local relay_url="http://localhost:${_cg_relay_local_port}"
+        local relay_check_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+        local relay_check_resp
+        relay_check_resp=$(curl -s -X POST -H "Content-Type: application/json" \
+          --data "${relay_check_payload}" --max-time 3 "${relay_url}" 2>/dev/null || true)
+        if [[ -n "${relay_check_resp}" ]]; then
+          log "  relay-rpc: tunnel OK at ${elapsed}s (localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port})"
+        else
+          # Tunnel is dead — kill the stale port-forward process.
+          kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+          _cg_traffic_pf_pid=""
+          # Find the current Running relay pod (name changes after every OOMKill restart).
+          local current_pod
+          current_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
+            | awk '$3=="Running"{print $1}' | grep "^relay-[0-9]" | grep -v "\-ws-" | head -1 || true)
+          if [[ -z "${current_pod}" ]]; then
+            log "  relay-rpc: no Running relay pod at ${elapsed}s — waiting (port localhost:${_cg_relay_local_port} reserved)"
+          else
+            if [[ "${current_pod}" != "${_cg_relay_pod_name}" ]]; then
+              log "  relay-rpc: pod changed ${_cg_relay_pod_name} → ${current_pod}"
+              _cg_relay_pod_name="${current_pod}"
+            fi
+            # Always reuse the same local port so workers connect through the new tunnel.
+            log "  relay-rpc: (re)starting port-forward localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port}"
+            kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${_cg_relay_pod_name}" \
+              "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >"${_cg_traffic_log}" 2>&1 &
+            _cg_traffic_pf_pid=$!
+            sleep 2
+            relay_check_resp=$(curl -s -X POST -H "Content-Type: application/json" \
+              --data "${relay_check_payload}" --max-time 3 "${relay_url}" 2>/dev/null || true)
+            if [[ -n "${relay_check_resp}" ]]; then
+              log "  relay-rpc: port-forward OK localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} — restarting POST workers"
+              _start_relay_workers
+            else
+              log "  relay-rpc: port-forward started, relay not yet responding on localhost:${_cg_relay_local_port} — pod may still be initializing"
+            fi
+          fi
+        fi
+      fi
       # Keep running even if some crashed — gather data for all components this round
     done
 
     stop_category_traffic
 
-    # For relay-rpc: if port-forward died, check restart counts after a brief wait
-    if [[ "${probe_type}" == "relay-rpc" && -z "${_cg_traffic_pf_pid}" ]]; then
-      sleep 5
-      cg_check_crashes
-    fi
-
-    # Update binary search state
+    # Update binary search state.
+    # Rule: if ANY component crashed this round, only raise floors for crashed ones;
+    # survivors hold their bounds (the shared load was disrupted, so their "pass"
+    # is not a valid data point).  Only when ALL components pass do survivors lower
+    # their ceiling and record a new best.
     for i in $(seq 0 $(( _cg_count - 1 ))); do
       [[ "${_cg_converged[$i]}" == "true" ]] && continue
       local mid="${_cg_mid[$i]}"
@@ -1606,6 +1734,8 @@ optimize_category_group() {
       if [[ "${_cg_crashed[$i]}" == "true" ]]; then
         log "  FAIL ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — raising floor"
         _cg_low[$i]="${mid}"
+      elif [[ "${any_crashed}" == "true" ]]; then
+        log "  PASS ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — holding bounds (another component crashed this round)"
       else
         log "  PASS ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — lowering ceiling, new best"
         _cg_high[$i]="${mid}"
