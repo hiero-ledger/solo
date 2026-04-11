@@ -17,6 +17,7 @@ import * as yaml from 'yaml';
 import {type AnyObject} from '../types/aliases.js';
 import path from 'node:path';
 import {KindClient} from '../integration/kind/kind-client.js';
+import {KindCluster} from '../integration/kind/model/kind-cluster.js';
 import {ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {type ClusterCreateOptions} from '../integration/kind/model/create-cluster/cluster-create-options.js';
 import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
@@ -288,6 +289,19 @@ export class ClusterTaskManager extends ShellRunner {
       task: async (): Promise<void> => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+
+        // If the cluster already exists from an interrupted previous run, just re-export
+        // the kubeconfig so subsequent tasks can connect to it.
+        const existingClusters: KindCluster[] = await kindClient.getClusters();
+        if (existingClusters.some((cluster: KindCluster): boolean => cluster.name === constants.DEFAULT_CLUSTER)) {
+          this.logger.info(
+            `Cluster '${constants.DEFAULT_CLUSTER}' already exists; re-exporting kubeconfig for recovery`,
+          );
+          await kindClient.exportKubeConfig(constants.DEFAULT_CLUSTER);
+          parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
+          return;
+        }
+
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
           .image(constants.KIND_NODE_IMAGE)
           .config(constants.KIND_CLUSTER_CONFIG_FILE)

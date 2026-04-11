@@ -356,7 +356,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.clusterRef = config.clusterRef || 'one-shot';
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
               config.deployment = config.deployment || 'one-shot';
-              config.namespace = config.namespace || NamespaceName.of('one-shot');
+              // Do not inherit the namespace auto-detected from the current K8s context.
+              // The middleware may inject the runner pod's namespace; one-shot must always
+              // use the deployment-specific namespace so that the remote config (which
+              // stores the cluster namespace) stays consistent across interrupted/recovery runs.
+              config.namespace = argv[flags.namespace.name]
+                ? NamespaceName.of(argv[flags.namespace.name] as string)
+                : NamespaceName.of('one-shot');
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
@@ -573,6 +579,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               if (!this.remoteConfig.isLoaded()) {
                 try {
                   await this.remoteConfig.load(config.namespace, config.context);
+                  if (this.remoteConfig.isLoaded()) {
+                    // Populate cluster references so that persist() and downstream
+                    // commands that call loadAndValidate() have the correct namespace
+                    // and can write to the remote config ConfigMap.
+                    this.remoteConfig.populateClusterReferences(config.deployment);
+                  }
                 } catch {
                   // Remote config does not exist yet; proceed to create components from scratch
                 }

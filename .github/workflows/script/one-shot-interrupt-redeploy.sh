@@ -21,7 +21,7 @@ set -uo pipefail
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-INTERRUPT_SECONDS="${1:-60}"
+INTERRUPT_SECONDS="${INTERRUPT_SECONDS:-${1:-60}}"
 SOLO_COMMAND="${SOLO_COMMAND:-npm run solo --}"
 DEPLOYMENT="${DEPLOYMENT:-one-shot-recover}"
 WAIT_SECONDS="${WAIT_SECONDS:-5}"
