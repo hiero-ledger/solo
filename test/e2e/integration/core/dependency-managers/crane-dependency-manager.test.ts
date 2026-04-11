@@ -18,7 +18,7 @@ import {OperatingSystem} from '../../../../../src/business/utils/operating-syste
 import {InjectTokens} from '../../../../../src/core/dependency-injection/inject-tokens.js';
 import {ShellRunner} from '../../../../../src/core/shell-runner.js';
 import {type PackageDownloader} from '../../../../../src/core/package-downloader.js';
-import {ReleaseInfo} from '../../../../../src/types/index.js';
+import {type ReleaseInfo} from '../../../../../src/types/index.js';
 
 // Test data constants
 const CRANE_VERSION: string = version.CRANE_VERSION.replace(/^v/, '');
