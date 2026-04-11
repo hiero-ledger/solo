@@ -308,41 +308,35 @@ export class ClusterTaskManager extends ShellRunner {
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
 
-        // Proactively remove any orphaned Docker containers labelled for this cluster
-        // that may have been left behind by a previous SIGKILL'd run.  If we don't do
-        // this before calling createCluster(), kind may try to reuse the containers and
-        // hang for up to 60 minutes waiting for the broken control plane to become ready.
-        await this.run(
-          `docker rm --force --volumes $(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null) 2>/dev/null || true`,
-        ).catch((): void => {
-          // Ignore errors — containers may already be absent.
-        });
+        // Proactively remove any orphaned Docker containers/networks left behind by a
+        // previous SIGKILL'd run.  If we don't do this, kind may try to reuse broken
+        // containers and hang for up to 60 minutes.
+        await this.cleanupOrphanedKindResources(kindClient);
 
         let clusterResponse: ClusterCreateResponse;
         try {
-          clusterResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions);
+          clusterResponse = await this.createClusterWithTimeout(kindClient, clusterCreateOptions);
         } catch (error: unknown) {
-          // If the cluster creation failed because Docker containers from a partially-created
-          // cluster (interrupted mid-creation) are still present, `kind get clusters` won't list
-          // it yet, but docker run will refuse with "container name already in use".
-          // Clean up: try kind-level delete first (may be a no-op if kind's state wasn't written),
-          // then force-remove any Docker containers labelled for this cluster, then recreate.
+          // If creation failed due to leftover containers/networks, clean up and retry once.
+          // This handles cases where the proactive cleanup above ran before Docker had fully
+          // torn down state from the previous run (e.g., "already in use" or kubeconfig errors).
           const message: string = error instanceof Error ? error.message : String(error);
-          if (message.includes('already in use') || message.includes('already exist')) {
+          if (
+            message.includes('already in use') ||
+            message.includes('already exist') ||
+            message.includes('failed to get cluster internal kubeconfig') ||
+            message.includes('timed out')
+          ) {
             this.logger.info(
-              `Cluster '${constants.DEFAULT_CLUSTER}' partially exists from an interrupted run; cleaning up and recreating`,
+              `Cluster '${constants.DEFAULT_CLUSTER}' creation failed (${message.split('\n')[0]}); cleaning up and retrying`,
             );
             try {
               await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
             } catch {
               // Cluster not registered with kind; nothing to delete at the kind level.
             }
-            await this.run(
-              `docker rm --force --volumes $(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null) 2>/dev/null || true`,
-            ).catch((): void => {
-              // Ignore errors — containers may already be absent.
-            });
-            clusterResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions);
+            await this.cleanupOrphanedKindResources(kindClient);
+            clusterResponse = await this.createClusterWithTimeout(kindClient, clusterCreateOptions);
           } else {
             throw error;
           }
@@ -396,6 +390,46 @@ export class ClusterTaskManager extends ShellRunner {
         skip: this.skipKindSetup.bind(this),
       },
     ];
+  }
+
+  /**
+   * Aggressively remove all Docker containers and networks belonging to the Kind
+   * cluster that may have been left behind by a SIGKILL'd previous run.
+   * Errors are suppressed — missing containers/networks are fine.
+   */
+  private async cleanupOrphanedKindResources(kindClient: KindClient): Promise<void> {
+    // Stop + remove any containers labelled for this cluster (kind labels them at
+    // container-create time, so the label is present even for partially-initialised runs).
+    await this.run(
+      `ids=$(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null); ` +
+        `[ -n "$ids" ] && docker rm --force --volumes $ids 2>/dev/null || true`,
+    ).catch((): void => {});
+    // Remove the kind Docker bridge network if it still exists; a leftover network
+    // can cause kubeadm to fail in the freshly-created replacement container.
+    await this.run(`docker network rm kind 2>/dev/null || true`).catch((): void => {});
+    // Belt-and-suspenders: also ask kind to delete the cluster (no-op if not registered).
+    await kindClient.deleteCluster(constants.DEFAULT_CLUSTER).catch((): void => {});
+  }
+
+  /**
+   * Creates a Kind cluster with a 5-minute hard timeout.  If the kind process
+   * hangs (e.g. due to a broken control-plane container left from a prior run),
+   * this ensures the caller can detect the failure quickly and retry.
+   */
+  private async createClusterWithTimeout(
+    kindClient: KindClient,
+    clusterCreateOptions: ClusterCreateOptions,
+    timeoutMs: number = 5 * 60 * 1000,
+  ): Promise<ClusterCreateResponse> {
+    return Promise.race([
+      kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions),
+      new Promise<ClusterCreateResponse>((_, reject): void => {
+        setTimeout(
+          (): void => reject(new SoloError(`Kind cluster creation timed out after ${timeoutMs / 1000}s`)),
+          timeoutMs,
+        );
+      }),
+    ]);
   }
 
   /**
