@@ -316,7 +316,8 @@ jobs:
           mkdir -p src/data
           nohup npm start &
           echo $! > /tmp/metrics-plotter.pid
-          find ~/.solo/logs -name "timeline-metrics.json" | head -1 | xargs -I{} cp {} ./src/data/timeline.json
+          TIMELINE_SRC=$(find ~/.solo/logs -name "timeline-metrics.json" | head -1)
+          if [ -n "${TIMELINE_SRC}" ]; then cp "${TIMELINE_SRC}" ./src/data/timeline.json; fi
 
       - name: Install Puppeteer / Chrome dependencies
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -359,7 +360,7 @@ jobs:
           cd ./scripts/metrics-plotter
           SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=true\&data=timeline ~/.solo/metrics/chart-grouped.png
           SCREENSHOT_WIDTH=1920 npm run screenshot -- http://127.0.0.1:8123\?hide-controls=true\&grouped=false\&data=timeline ~/.solo/metrics/chart.png
-          cp ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json
+          if [ -f ./src/data/timeline.json ]; then cp ./src/data/timeline.json ~/.solo/metrics/timeline-metrics.json; fi
 
       - name: Stop Metrics Plotter tool
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
