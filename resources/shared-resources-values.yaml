@@ -1,0 +1,29 @@
+postgresql:
+  persistence:
+    size: 10Gi
+  primary:
+    resources:
+      requests:
+        cpu: 0
+        memory: 0
+      limits:
+        cpu: 1500m
+        memory: 300Mi
+
+redis:
+  replica:
+    resources:
+      requests:
+        cpu: 0
+        memory: 0
+      limits:
+        cpu: 1500m
+        memory: 512Mi
+  sentinel:
+    resources:
+      requests:
+        cpu: 0
+        memory: 0
+      limits:
+        cpu: 150m
+        memory: 100Mi
