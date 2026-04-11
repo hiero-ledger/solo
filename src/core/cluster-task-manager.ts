@@ -290,14 +290,15 @@ export class ClusterTaskManager extends ShellRunner {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
 
-        // If the cluster already exists from an interrupted previous run, just re-export
-        // the kubeconfig so subsequent tasks can connect to it.
+        // If the cluster already exists from an interrupted previous run, re-export
+        // the kubeconfig and wait for the API to become accessible.
         const existingClusters: KindCluster[] = await kindClient.getClusters();
         if (existingClusters.some((cluster: KindCluster): boolean => cluster.name === constants.DEFAULT_CLUSTER)) {
           this.logger.info(
             `Cluster '${constants.DEFAULT_CLUSTER}' already exists; re-exporting kubeconfig for recovery`,
           );
           await kindClient.exportKubeConfig(constants.DEFAULT_CLUSTER);
+          await this.waitForK8sApi();
           parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
           return;
         }
@@ -314,13 +315,26 @@ export class ClusterTaskManager extends ShellRunner {
           // If the cluster creation failed because Docker containers from a partially-created
           // cluster (interrupted mid-creation) are still present, `kind get clusters` won't list
           // it yet, but docker run will refuse with "container name already in use".
-          // Delete the leftover cluster fragments and retry once.
+          // Clean up: try kind-level delete first (may be a no-op if kind's state wasn't written),
+          // then force-remove any Docker containers labelled for this cluster, then recreate.
           const message: string = error instanceof Error ? error.message : String(error);
           if (message.includes('already in use') || message.includes('already exist')) {
             this.logger.info(
-              `Cluster '${constants.DEFAULT_CLUSTER}' partially exists from an interrupted run; deleting and recreating`,
+              `Cluster '${constants.DEFAULT_CLUSTER}' partially exists from an interrupted run; cleaning up and recreating`,
             );
-            await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
+            try {
+              await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
+            } catch {
+              // Cluster not registered with kind; nothing to delete at the kind level.
+            }
+            // Force-remove any Docker containers labelled for this cluster that kind may not
+            // have cleaned up (happens when the process was killed before kind wrote its state).
+            // Pass the whole pipeline as a single shell string so that $() substitution works.
+            await this.run(
+              `docker rm --force --volumes $(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null) 2>/dev/null || true`,
+            ).catch((): void => {
+              // Ignore errors — containers may already be absent.
+            });
             clusterResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions);
           } else {
             throw error;
@@ -375,6 +389,32 @@ export class ClusterTaskManager extends ShellRunner {
         skip: this.skipKindSetup.bind(this),
       },
     ];
+  }
+
+  /**
+   * Waits for the K8s API to become accessible.
+   * Used after re-exporting kubeconfig for a cluster whose control plane may
+   * still be initialising (e.g. after being interrupted mid-creation).
+   */
+  private async waitForK8sApi(maxAttempts: number = 20, intervalMs: number = 5000): Promise<void> {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const k8: K8 = this.k8Factory.default();
+        await k8.namespaces().list();
+        this.logger.info(`K8s API is accessible (attempt ${attempt}/${maxAttempts})`);
+        return;
+      } catch {
+        this.logger.info(`K8s API not yet accessible (attempt ${attempt}/${maxAttempts}); retrying in ${intervalMs}ms`);
+        if (attempt < maxAttempts) {
+          await new Promise<void>((resolve: () => void): void => {
+            setTimeout(resolve, intervalMs);
+          });
+        }
+      }
+    }
+    throw new SoloError(
+      `K8s API did not become accessible after ${maxAttempts} attempts (${(maxAttempts * intervalMs) / 1000}s)`,
+    );
   }
 
   private async skipKindSetup(): Promise<boolean> {
