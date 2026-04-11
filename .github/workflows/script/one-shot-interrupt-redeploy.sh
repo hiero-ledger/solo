@@ -47,8 +47,8 @@ banner() {
 cleanup() {
   local rc=$?
   if [[ -n "${FIRST_DEPLOY_PID}" ]] && kill -0 "${FIRST_DEPLOY_PID}" 2>/dev/null; then
-    log "Cleanup: killing first deploy process (PID ${FIRST_DEPLOY_PID})"
-    kill -SIGKILL "${FIRST_DEPLOY_PID}" 2>/dev/null || true
+    log "Cleanup: killing first deploy process group (PID ${FIRST_DEPLOY_PID})"
+    kill -SIGKILL -- "-${FIRST_DEPLOY_PID}" 2>/dev/null || true
   fi
   if [[ -n "${SECOND_DEPLOY_LOG}" && -f "${SECOND_DEPLOY_LOG}" ]]; then
     rm -f "${SECOND_DEPLOY_LOG}"
@@ -63,7 +63,10 @@ trap cleanup EXIT
 banner "Step 1: starting first deploy; will interrupt after ${INTERRUPT_SECONDS}s"
 
 log "Running: ${SOLO_COMMAND} one-shot single deploy --deployment '${DEPLOYMENT}' --quiet-mode"
-${SOLO_COMMAND} one-shot single deploy --deployment "${DEPLOYMENT}" --quiet-mode &
+# Use setsid so the first deploy runs in its own process group; this lets us
+# reliably kill the entire process tree (npm wrapper + node grandchild) by
+# sending a signal to the process group (kill -- -PGID).
+setsid ${SOLO_COMMAND} one-shot single deploy --deployment "${DEPLOYMENT}" --quiet-mode &
 FIRST_DEPLOY_PID=$!
 log "First deploy started (PID ${FIRST_DEPLOY_PID})"
 
@@ -71,13 +74,14 @@ log "Sleeping ${INTERRUPT_SECONDS}s before interrupting …"
 sleep "${INTERRUPT_SECONDS}"
 
 if kill -0 "${FIRST_DEPLOY_PID}" 2>/dev/null; then
-  log "Sending ${KILL_SIGNAL} to PID ${FIRST_DEPLOY_PID}"
-  kill -"${KILL_SIGNAL}" "${FIRST_DEPLOY_PID}" 2>/dev/null || true
-  # Give the process a moment to terminate; escalate to SIGKILL if needed
+  log "Sending ${KILL_SIGNAL} to process group ${FIRST_DEPLOY_PID}"
+  # Kill the entire process group so the node grandchild cannot outlive npm
+  kill -"${KILL_SIGNAL}" -- "-${FIRST_DEPLOY_PID}" 2>/dev/null || true
+  # Give the process group a moment to terminate; escalate to SIGKILL if needed
   sleep 2
   if kill -0 "${FIRST_DEPLOY_PID}" 2>/dev/null; then
-    log "Process still alive; sending SIGKILL"
-    kill -SIGKILL "${FIRST_DEPLOY_PID}" 2>/dev/null || true
+    log "Process group still alive; sending SIGKILL"
+    kill -SIGKILL -- "-${FIRST_DEPLOY_PID}" 2>/dev/null || true
   fi
   wait "${FIRST_DEPLOY_PID}" 2>/dev/null || true
   log "First deploy process terminated"
