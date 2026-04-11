@@ -508,12 +508,39 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare release name and block node name',
           task: async ({config}): Promise<void> => {
-            config.releaseName = this.getReleaseName();
-
-            config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
-              config.clusterRef,
-              config.namespace,
-            );
+            // In one-shot recovery the block-node component already exists in remote
+            // config with a stable ID (e.g. 1).  getReleaseName() and
+            // createNewBlockNodeComponent() both call getNewComponentId() which
+            // returns the NEXT available ID (e.g. 2), causing a new chart release
+            // (block-node-2) to be installed instead of reusing the existing one
+            // (block-node-1).  Use the existing component ID when in recovery.
+            if (this.oneShotState.isActive() && this.remoteConfig.isLoaded()) {
+              const existingBlockNodes: BlockNodeStateSchema[] =
+                this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
+                  ComponentTypes.BlockNode,
+                );
+              if (existingBlockNodes.length > 0) {
+                const existingId: ComponentId = existingBlockNodes[0].metadata.id;
+                config.releaseName = this.renderReleaseName(existingId);
+                config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponentWithId(
+                  existingId,
+                  config.clusterRef,
+                  config.namespace,
+                );
+              } else {
+                config.releaseName = this.getReleaseName();
+                config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
+                  config.clusterRef,
+                  config.namespace,
+                );
+              }
+            } else {
+              config.releaseName = this.getReleaseName();
+              config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
+                config.clusterRef,
+                config.namespace,
+              );
+            }
 
             config.newBlockNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
           },
