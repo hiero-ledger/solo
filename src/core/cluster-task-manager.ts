@@ -306,10 +306,26 @@ export class ClusterTaskManager extends ShellRunner {
           .image(constants.KIND_NODE_IMAGE)
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
-        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-          constants.DEFAULT_CLUSTER,
-          clusterCreateOptions,
-        );
+
+        let clusterResponse: ClusterCreateResponse;
+        try {
+          clusterResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions);
+        } catch (error: unknown) {
+          // If the cluster creation failed because Docker containers from a partially-created
+          // cluster (interrupted mid-creation) are still present, `kind get clusters` won't list
+          // it yet, but docker run will refuse with "container name already in use".
+          // Delete the leftover cluster fragments and retry once.
+          const message: string = error instanceof Error ? error.message : String(error);
+          if (message.includes('already in use') || message.includes('already exist')) {
+            this.logger.info(
+              `Cluster '${constants.DEFAULT_CLUSTER}' partially exists from an interrupted run; deleting and recreating`,
+            );
+            await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
+            clusterResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions);
+          } else {
+            throw error;
+          }
+        }
 
         parentTask.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
       },
