@@ -700,6 +700,32 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
           },
           {
+            title: 'Wait for storage provisioner ready',
+            task: async (_, task): Promise<void> => {
+              const kubeSystemNamespace: NamespaceName = NamespaceName.of('kube-system');
+              const labelSelector: string = 'app=local-path-provisioner';
+              const maxWaitSeconds: number = 120;
+              const pollMs: number = 2000;
+              let elapsed: number = 0;
+              while (elapsed < maxWaitSeconds * 1000) {
+                try {
+                  await this.k8Factory
+                    .getK8(config.context)
+                    .pods()
+                    .waitForReadyStatus(kubeSystemNamespace, [labelSelector], 1, 0);
+                  task.title = `Wait for storage provisioner ready [${elapsed / 1000}s]`;
+                  return;
+                } catch {
+                  // provisioner not ready yet — keep polling
+                }
+                task.title = `Wait for storage provisioner ready [${elapsed / 1000}s / ${maxWaitSeconds}s] …`;
+                await sleep(Duration.ofMillis(pollMs));
+                elapsed += pollMs;
+              }
+              this.logger.warn(`local-path-provisioner not Ready after ${maxWaitSeconds}s; proceeding anyway`);
+            },
+          },
+          {
             title: 'Deploy Consensus Nodes',
             task: (_, task): SoloListr<OneShotSingleDeployContext> => {
               if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true') {
@@ -849,13 +875,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     );
                                     const statusLine: string | undefined = response
                                       .split('\n')
-                                      .find((line: string): boolean =>
-                                        line.startsWith('platform_PlatformStatus'),
-                                      );
+                                      .find((line: string): boolean => line.startsWith('platform_PlatformStatus'));
                                     if (statusLine) {
-                                      const statusNumber: number = Number.parseInt(
-                                        statusLine.split(' ').pop(),
-                                      );
+                                      const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
                                       if (statusNumber === NodeStatusCodes.ACTIVE) {
                                         active = true;
                                         break;
@@ -1166,8 +1188,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       } catch (error: unknown) {
                                         // On recovery, accounts may already exist from the interrupted
                                         // first deploy.  Skip gracefully so the second deploy succeeds.
-                                        const message: string =
-                                          error instanceof Error ? error.message : String(error);
+                                        const message: string = error instanceof Error ? error.message : String(error);
                                         if (message.includes('ALIAS_ALREADY_ASSIGNED')) {
                                           subTask.title = `Account ${index} already exists, skipping`;
                                           return;
