@@ -28,6 +28,9 @@ import {MissingActiveContextError} from '../integration/kube/errors/missing-acti
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type GitClient} from '../integration/git/git-client.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {sleep} from './helpers.js';
+import {Duration} from './time/duration.js';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -299,6 +302,8 @@ export class ClusterTaskManager extends ShellRunner {
           );
           await kindClient.exportKubeConfig(constants.DEFAULT_CLUSTER);
           await this.waitForK8sApi();
+          parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for storage provisioner …`;
+          await this.waitForStorageProvisioner(parentTask);
           parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
           return;
         }
@@ -402,11 +407,11 @@ export class ClusterTaskManager extends ShellRunner {
     // container-create time, so the label is present even for partially-initialised runs).
     await this.run(
       `ids=$(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null); ` +
-        `[ -n "$ids" ] && docker rm --force --volumes $ids 2>/dev/null || true`,
+        '[ -n "$ids" ] && docker rm --force --volumes $ids 2>/dev/null || true',
     ).catch((): void => {});
     // Remove the kind Docker bridge network if it still exists; a leftover network
     // can cause kubeadm to fail in the freshly-created replacement container.
-    await this.run(`docker network rm kind 2>/dev/null || true`).catch((): void => {});
+    await this.run('docker network rm kind 2>/dev/null || true').catch((): void => {});
     // Belt-and-suspenders: also ask kind to delete the cluster (no-op if not registered).
     await kindClient.deleteCluster(constants.DEFAULT_CLUSTER).catch((): void => {});
   }
@@ -437,6 +442,29 @@ export class ClusterTaskManager extends ShellRunner {
    * Used after re-exporting kubeconfig for a cluster whose control plane may
    * still be initialising (e.g. after being interrupted mid-creation).
    */
+  private async waitForStorageProvisioner(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    maxWaitSeconds: number = 120,
+  ): Promise<void> {
+    const kubeSystemNamespace: NamespaceName = NamespaceName.of('kube-system');
+    const labelSelector: string[] = ['app=local-path-provisioner'];
+    const pollMs: number = 2000;
+    let elapsed: number = 0;
+    while (elapsed < maxWaitSeconds * 1000) {
+      try {
+        await this.k8Factory.default().pods().waitForReadyStatus(kubeSystemNamespace, labelSelector, 1, 0);
+        this.logger.info(`local-path-provisioner is Ready (waited ${elapsed / 1000}s)`);
+        return;
+      } catch {
+        // provisioner not ready yet — keep polling
+      }
+      parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for storage provisioner [${elapsed / 1000}s / ${maxWaitSeconds}s] …`;
+      await sleep(Duration.ofMillis(pollMs));
+      elapsed += pollMs;
+    }
+    this.logger.warn(`local-path-provisioner not Ready after ${maxWaitSeconds}s; proceeding anyway`);
+  }
+
   private async waitForK8sApi(maxAttempts: number = 20, intervalMs: number = 5000): Promise<void> {
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
