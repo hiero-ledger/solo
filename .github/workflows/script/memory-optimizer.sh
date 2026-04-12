@@ -215,8 +215,8 @@ register_component \
   --containers  haproxy \
   --max-mi      90 \
   --probe-type  nlg \
-  --last-good   73 \
-  --last-min    48
+  --last-good   69 \
+  --last-min    60
 
 register_component \
   --alias       envoy-proxy \
@@ -225,8 +225,8 @@ register_component \
   --containers  envoy-proxy \
   --max-mi      90 \
   --probe-type  nlg \
-  --last-good   73 \
-  --last-min    48
+  --last-good   69 \
+  --last-min    60
 
 # register_component \
 #   --alias       block-node \
@@ -244,8 +244,8 @@ register_component \
   --pattern     "mirror.*importer" \
   --max-mi      600 \
   --probe-type  nlg \
-  --last-good   450 \
-  --last-min    400 \
+  --last-good   550 \
+  --last-min    500 \
   --depends-on  postgres
 
 register_component \
@@ -253,10 +253,10 @@ register_component \
   --kind        statefulset \
   --pattern     "solo-shared-resources-postgres" \
   --containers  postgresql \
-  --max-mi      300 \
+  --max-mi      450 \
   --probe-type  nlg \
-  --last-good   200 \
-  --last-min    50
+  --last-good   300 \
+  --last-min    280
 
 register_component \
   --alias       redis \
@@ -351,45 +351,53 @@ register_component \
   --last-min    96
 
 # ── network-node sidecar containers (stream uploaders + telemetry) ────────────
-register_component \
-  --alias       blockstream-uploader \
-  --kind        statefulset \
-  --pattern     "^network-node[0-9]" \
-  --containers  blockstream-uploader \
-  --max-mi      128 \
-  --probe-type  nlg \
-  --last-good   112 \
-  --last-min    96
+# All four share the network-node StatefulSet pod. Any kubectl set resources on
+# one of them triggers a full pod rolling restart, which also restarts root-container
+# (HAPI). The s6 down file then blocks HAPI from auto-starting. Setting
+# --needs-hapi-start true ensures _start_hapi_if_needed runs after each rollout.
+# register_component \
+#   --alias             blockstream-uploader \
+#   --kind              statefulset \
+#   --pattern           "^network-node[0-9]" \
+#   --containers        blockstream-uploader \
+#   --max-mi            128 \
+#   --probe-type        nlg \
+#   --last-good         112 \
+#   --last-min          96 \
+#   --needs-hapi-start  true
 
-register_component \
-  --alias       record-stream-uploader \
-  --kind        statefulset \
-  --pattern     "^network-node[0-9]" \
-  --containers  record-stream-uploader \
-  --max-mi      128 \
-  --probe-type  nlg \
-  --last-good   112 \
-  --last-min    96
+# register_component \
+#   --alias             record-stream-uploader \
+#   --kind              statefulset \
+#   --pattern           "^network-node[0-9]" \
+#   --containers        record-stream-uploader \
+#   --max-mi            128 \
+#   --probe-type        nlg \
+#   --last-good         112 \
+#   --last-min          96 \
+#   --needs-hapi-start  true
 
-register_component \
-  --alias       event-stream-uploader \
-  --kind        statefulset \
-  --pattern     "^network-node[0-9]" \
-  --containers  event-stream-uploader \
-  --max-mi      128 \
-  --probe-type  nlg \
-  --last-good   112 \
-  --last-min    96
+# register_component \
+#   --alias             event-stream-uploader \
+#   --kind              statefulset \
+#   --pattern           "^network-node[0-9]" \
+#   --containers        event-stream-uploader \
+#   --max-mi            128 \
+#   --probe-type        nlg \
+#   --last-good         112 \
+#   --last-min          96 \
+#   --needs-hapi-start  true
 
-register_component \
-  --alias       otel-collector \
-  --kind        statefulset \
-  --pattern     "^network-node[0-9]" \
-  --containers  otel-collector \
-  --max-mi      128 \
-  --probe-type  nlg \
-  --last-good   112 \
-  --last-min    96
+# register_component \
+#   --alias             otel-collector \
+#   --kind              statefulset \
+#   --pattern           "^network-node[0-9]" \
+#   --containers        otel-collector \
+#   --max-mi            128 \
+#   --probe-type        nlg \
+#   --last-good         112 \
+#   --last-min          96 \
+#   --needs-hapi-start  true
 
 
 # ── Observation-only: no meaningful load impact ───────────────────────────────
@@ -1443,9 +1451,11 @@ start_category_traffic() {
   local probe_type="$1"
   _cg_traffic_pids=()
   _cg_traffic_pf_pid=""
-  # Always use the fixed NLG_TRAFFIC_LOG path; truncate at start of each round
-  # so `tail -f /tmp/nlg-traffic.log` always shows the current probe.
+  # Rotate the previous log to .prev before truncating so errors survive one round.
+  # `tail -f /tmp/nlg-traffic.log` shows the current probe;
+  # `cat /tmp/nlg-traffic.log.prev` shows the last round's output (including any errors).
   _cg_traffic_log="${NLG_TRAFFIC_LOG}"
+  [[ -s "${_cg_traffic_log}" ]] && cp -f "${_cg_traffic_log}" "${_cg_traffic_log}.prev" 2>/dev/null || true
   : > "${_cg_traffic_log}"
   _cg_comp_pf_pids=()
 
@@ -2036,6 +2046,9 @@ optimize_category_group() {
         log ""
         log "ERROR: NLG failed (restart limit exhausted) and no pod crashed this round."
         log "       Memory limits are unchanged — re-running this round would produce the same result."
+        log "       Last NLG output (${_cg_traffic_log}):"
+        tail -20 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _eline; do log "    ${_eline}"; done || true
+        log ""
         log "       Fix NLG (check HAPI connectivity, libsodium, network-load-generator pod logs)"
         log "       then re-run the script. Use --skip-preflight to resume at current limits."
         log ""
