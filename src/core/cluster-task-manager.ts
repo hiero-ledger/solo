@@ -304,11 +304,25 @@ export class ClusterTaskManager extends ShellRunner {
           await kindClient.exportKubeConfig(constants.DEFAULT_CLUSTER);
           await this.waitForK8sApi();
           parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for node ready …`;
-          await this.waitForNodeReady(parentTask);
+          const nodeReady: boolean = await this.waitForNodeReady(parentTask);
           parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for storage provisioner …`;
-          await this.waitForStorageProvisioner(parentTask);
-          parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
-          return;
+          const provisionerReady: boolean = await this.waitForStorageProvisioner(parentTask);
+          if (nodeReady && provisionerReady) {
+            parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
+            return;
+          }
+          // Cluster recovery is incomplete (interrupted too early for manifests to be applied).
+          // Tear it down and fall through to create a fresh cluster.
+          parentTask.title = `Cluster recovery incomplete (nodeReady=${nodeReady}, provisionerReady=${provisionerReady}); recreating cluster …`;
+          this.logger.warn(
+            `Cluster '${constants.DEFAULT_CLUSTER}' recovery incomplete; deleting and recreating (nodeReady=${nodeReady}, provisionerReady=${provisionerReady})`,
+          );
+          try {
+            await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
+          } catch {
+            // ignore — may not be fully registered
+          }
+          await this.cleanupOrphanedKindResources(kindClient);
         }
 
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
@@ -449,7 +463,7 @@ export class ClusterTaskManager extends ShellRunner {
   private async waitForNodeReady(
     parentTask: SoloListrTaskWrapper<InitContext>,
     maxWaitSeconds: number = 120,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const pollMs: number = 2000;
     let elapsed: number = 0;
     const kubeConfig: KubeConfig = new KubeConfig();
@@ -469,7 +483,7 @@ export class ClusterTaskManager extends ShellRunner {
           });
         if (allReady) {
           this.logger.info(`All nodes are Ready (waited ${elapsed / 1000}s)`);
-          return;
+          return true;
         }
       } catch {
         // K8s API not yet accessible — keep polling
@@ -478,7 +492,8 @@ export class ClusterTaskManager extends ShellRunner {
       await sleep(Duration.ofMillis(pollMs));
       elapsed += pollMs;
     }
-    this.logger.warn(`Node not Ready after ${maxWaitSeconds}s; proceeding anyway`);
+    this.logger.warn(`Node not Ready after ${maxWaitSeconds}s; cluster will be recreated`);
+    return false;
   }
 
   /**
@@ -489,7 +504,7 @@ export class ClusterTaskManager extends ShellRunner {
   private async waitForStorageProvisioner(
     parentTask: SoloListrTaskWrapper<InitContext>,
     maxWaitSeconds: number = 120,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const kubeSystemNamespace: NamespaceName = NamespaceName.of('kube-system');
     const labelSelector: string[] = ['app=local-path-provisioner'];
     const pollMs: number = 2000;
@@ -498,7 +513,7 @@ export class ClusterTaskManager extends ShellRunner {
       try {
         await this.k8Factory.default().pods().waitForReadyStatus(kubeSystemNamespace, labelSelector, 1, 0);
         this.logger.info(`local-path-provisioner is Ready (waited ${elapsed / 1000}s)`);
-        return;
+        return true;
       } catch {
         // provisioner not ready yet — keep polling
       }
@@ -506,7 +521,8 @@ export class ClusterTaskManager extends ShellRunner {
       await sleep(Duration.ofMillis(pollMs));
       elapsed += pollMs;
     }
-    this.logger.warn(`local-path-provisioner not Ready after ${maxWaitSeconds}s; proceeding anyway`);
+    this.logger.warn(`local-path-provisioner not Ready after ${maxWaitSeconds}s; cluster will be recreated`);
+    return false;
   }
 
   private async waitForK8sApi(maxAttempts: number = 20, intervalMs: number = 5000): Promise<void> {
