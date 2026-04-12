@@ -1308,44 +1308,64 @@ export class NetworkCommand extends BaseCommand {
               );
               if (isInstalled) {
                 if (this.oneShotState.isActive()) {
-                  // In one-shot recovery mode the chart is already installed.  Skip both
-                  // the uninstall and the upgrade: helm upgrade --reuse-values still causes
-                  // a StatefulSet rolling-restart (even when values are identical) which
-                  // tears down the running consensus-node pod.  Because node-setup needs
-                  // to copy platform software into that pod, the restart causes a race
-                  // where the pod disappears between identifyNetworkPods and copyTo,
-                  // producing an "Invalid pod network-node1-0" error.  Simply leave the
-                  // already-installed chart in place and proceed.
-                  config.isUpgrade = true;
-                  config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
-                    config.soloChartVersion,
-                    false,
-                    'Solo chart version',
+                  // In one-shot recovery mode the chart may be in a pending-install or
+                  // pending-upgrade state if SIGKILL hit during a prior Helm operation.
+                  // A pending release cannot be upgraded ("another operation is in progress"),
+                  // so uninstall it first and fall through to the fresh install below.
+                  const isPending: boolean = await this.chartManager.isChartPending(
+                    namespace,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    clusterRefs.get(clusterReference),
                   );
-                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+                  if (isPending) {
+                    this.logger.info(
+                      `Chart '${constants.SOLO_DEPLOYMENT_CHART}' is in pending state; uninstalling for recovery`,
+                    );
+                    await this.chartManager.uninstall(
+                      namespace,
+                      constants.SOLO_DEPLOYMENT_CHART,
+                      clusterRefs.get(clusterReference),
+                    );
+                  } else {
+                    // Chart is already cleanly installed.  Skip both the uninstall and the
+                    // upgrade: helm upgrade --reuse-values still causes a StatefulSet
+                    // rolling-restart (even when values are identical) which tears down the
+                    // running consensus-node pod.  Because node-setup needs to copy platform
+                    // software into that pod, the restart causes a race where the pod
+                    // disappears between identifyNetworkPods and copyTo, producing an
+                    // "Invalid pod network-node1-0" error.  Simply leave the already-installed
+                    // chart in place and proceed.
+                    config.isUpgrade = true;
+                    config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+                      config.soloChartVersion,
+                      false,
+                      'Solo chart version',
+                    );
+                    showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
 
-                  // If any consensus node is still in the REQUESTED phase it was never set
-                  // up.  The pod started without platform software and may be crash-looping,
-                  // which would prevent node-setup from succeeding.  Delete every
-                  // network-node pod now so the StatefulSet recreates clean pods before
-                  // node-setup runs.  Pods whose nodes have already been set up
-                  // (CONFIGURED / STARTED / ACTIVE) are not affected because that phase is
-                  // only reached after a successful node-setup run.
-                  const anyUnsetupNode: boolean = this.remoteConfig.configuration.components
-                    .getComponentByType<BaseStateSchema>(ComponentTypes.ConsensusNode)
-                    .some((node: BaseStateSchema): boolean => node.metadata.phase === DeploymentPhase.REQUESTED);
+                    // If any consensus node is still in the REQUESTED phase it was never set
+                    // up.  The pod started without platform software and may be crash-looping,
+                    // which would prevent node-setup from succeeding.  Delete every
+                    // network-node pod now so the StatefulSet recreates clean pods before
+                    // node-setup runs.  Pods whose nodes have already been set up
+                    // (CONFIGURED / STARTED / ACTIVE) are not affected because that phase is
+                    // only reached after a successful node-setup run.
+                    const anyUnsetupNode: boolean = this.remoteConfig.configuration.components
+                      .getComponentByType<BaseStateSchema>(ComponentTypes.ConsensusNode)
+                      .some((node: BaseStateSchema): boolean => node.metadata.phase === DeploymentPhase.REQUESTED);
 
-                  if (anyUnsetupNode) {
-                    const k8: K8 = this.k8Factory.getK8(clusterRefs.get(clusterReference));
-                    const networkNodePods: Pod[] = await k8
-                      .pods()
-                      .list(namespace, ['solo.hedera.com/type=network-node']);
-                    for (const pod of networkNodePods) {
-                      await k8.pods().readByReference(pod.podReference).killPod();
+                    if (anyUnsetupNode) {
+                      const k8: K8 = this.k8Factory.getK8(clusterRefs.get(clusterReference));
+                      const networkNodePods: Pod[] = await k8
+                        .pods()
+                        .list(namespace, ['solo.hedera.com/type=network-node']);
+                      for (const pod of networkNodePods) {
+                        await k8.pods().readByReference(pod.podReference).killPod();
+                      }
                     }
-                  }
 
-                  continue;
+                    continue;
+                  } // end else (chart is cleanly installed)
                 }
 
                 // Non-one-shot: uninstall then reinstall to handle Helm immutable-field changes.
@@ -1851,9 +1871,7 @@ export class NetworkCommand extends BaseCommand {
           }
 
           const existingEnvoyProxies: BaseStateSchema[] =
-            this.remoteConfig.configuration.components.getComponentByType<BaseStateSchema>(
-              ComponentTypes.EnvoyProxy,
-            );
+            this.remoteConfig.configuration.components.getComponentByType<BaseStateSchema>(ComponentTypes.EnvoyProxy);
           if (existingEnvoyProxies.length === 0) {
             this.remoteConfig.configuration.components.addNewComponent(
               this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
@@ -1862,9 +1880,7 @@ export class NetworkCommand extends BaseCommand {
           }
 
           const existingHaProxies: BaseStateSchema[] =
-            this.remoteConfig.configuration.components.getComponentByType<BaseStateSchema>(
-              ComponentTypes.HaProxy,
-            );
+            this.remoteConfig.configuration.components.getComponentByType<BaseStateSchema>(ComponentTypes.HaProxy);
           if (existingHaProxies.length === 0) {
             this.remoteConfig.configuration.components.addNewComponent(
               this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),

@@ -174,6 +174,29 @@ export class ChartManager {
     return match;
   }
 
+  /**
+   * Returns true if the named Helm release exists and is in a pending state
+   * (pending-install or pending-upgrade).  A pending release was interrupted
+   * mid-operation (e.g. by SIGKILL) and cannot be upgraded until it is
+   * uninstalled.
+   */
+  public async isChartPending(
+    namespaceName: NamespaceName,
+    chartReleaseName: string,
+    kubeContext?: string,
+  ): Promise<boolean> {
+    try {
+      const releases: ReleaseItem[] = await this.helm.listReleases(!namespaceName, namespaceName?.name, kubeContext);
+      return releases.some(
+        (release: ReleaseItem): boolean =>
+          release.name === chartReleaseName &&
+          (release.status === 'pending-install' || release.status === 'pending-upgrade'),
+      );
+    } catch {
+      return false;
+    }
+  }
+
   public async uninstall(
     namespaceName: NamespaceName,
     chartReleaseName: string,
