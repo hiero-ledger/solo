@@ -31,6 +31,7 @@ import {type GitClient} from '../integration/git/git-client.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
+import {KubeConfig, CoreV1Api, type V1Node, type V1NodeCondition, type V1NodeList} from '@kubernetes/client-node';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -302,6 +303,8 @@ export class ClusterTaskManager extends ShellRunner {
           );
           await kindClient.exportKubeConfig(constants.DEFAULT_CLUSTER);
           await this.waitForK8sApi();
+          parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for node ready …`;
+          await this.waitForNodeReady(parentTask);
           parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for storage provisioner …`;
           await this.waitForStorageProvisioner(parentTask);
           parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
@@ -435,6 +438,47 @@ export class ClusterTaskManager extends ShellRunner {
         );
       }),
     ]);
+  }
+
+  /**
+   * Waits for all Kubernetes nodes in the cluster to reach the Ready condition.
+   * After a SIGKILL mid-cluster-creation, the Kind node may still carry the
+   * node.kubernetes.io/not-ready:NoSchedule taint, which prevents user pods from
+   * being scheduled even after the local-path-provisioner pod becomes Running.
+   */
+  private async waitForNodeReady(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    maxWaitSeconds: number = 120,
+  ): Promise<void> {
+    const pollMs: number = 2000;
+    let elapsed: number = 0;
+    const kubeConfig: KubeConfig = new KubeConfig();
+    kubeConfig.loadFromDefault();
+    const coreV1: CoreV1Api = kubeConfig.makeApiClient(CoreV1Api);
+    while (elapsed < maxWaitSeconds * 1000) {
+      try {
+        const response: V1NodeList = await coreV1.listNode();
+        const nodes: V1Node[] = response.items;
+        const allReady: boolean =
+          nodes.length > 0 &&
+          nodes.every((node: V1Node): boolean => {
+            const conditions: V1NodeCondition[] = node.status?.conditions ?? [];
+            return conditions.some(
+              (condition: V1NodeCondition): boolean => condition.type === 'Ready' && condition.status === 'True',
+            );
+          });
+        if (allReady) {
+          this.logger.info(`All nodes are Ready (waited ${elapsed / 1000}s)`);
+          return;
+        }
+      } catch {
+        // K8s API not yet accessible — keep polling
+      }
+      parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for node ready [${elapsed / 1000}s / ${maxWaitSeconds}s] …`;
+      await sleep(Duration.ofMillis(pollMs));
+      elapsed += pollMs;
+    }
+    this.logger.warn(`Node not Ready after ${maxWaitSeconds}s; proceeding anyway`);
   }
 
   /**

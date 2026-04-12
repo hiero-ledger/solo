@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Full Deploy → Delete Cluster → Redeploy",
+    "script": "one-shot-full-delete-cluster-redeploy.sh",
+    "description": "Runs a complete one-shot deploy to success, deletes the Kind cluster while keeping local config, then verifies a subsequent redeploy recreates the cluster and succeeds"
+  },
+  {
+    "name": "Full Deploy → Delete Local Config → Redeploy",
+    "script": "one-shot-full-delete-local-redeploy.sh",
+    "description": "Runs a complete one-shot deploy to success, deletes ~/.solo while keeping the cluster running, then verifies a subsequent redeploy restores local config from remote and skips already-deployed steps"
+  }
+]
