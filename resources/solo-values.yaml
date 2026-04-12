@@ -36,3 +36,34 @@ minio-server:
         storageClassName: "standard"
         volumesPerServer: 1
         size: 10Gi
+haproxy:
+  maxconn: 32
+  resources:
+    requests:
+      cpu: 50m
+      memory: 50Mi
+    limits:
+      cpu: 300m
+      memory: 100Mi
+envoyProxy:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 50Mi
+    limits:
+      cpu: 500m
+      memory: 100Mi
+minio:
+  tenant:
+    pools:
+      - servers: 1
+        name: pool-1
+        volumesPerServer: 1
+        size: 1G #volume size
+        resources:
+          requests:
+            cpu: 0
+            memory: 0
+          limits:
+            cpu: 1000m
+            memory: 332Mi

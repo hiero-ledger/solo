@@ -126,6 +126,7 @@ postgresql:
   pgpool:
     replicaCount: 0
 rest:
+  enabled: false
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"

@@ -73,7 +73,7 @@ SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo}"
 MEMORY_MIN_MI="${MEMORY_MIN_MI:-64}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
-MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-8}"
+MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-96}"
 NLG_TPS="${NLG_TPS:-100}"
 NLG_DURATION_S="${NLG_DURATION_S:-300}"
 QUERY_DURATION_S="${QUERY_DURATION_S:-60}"
@@ -137,51 +137,53 @@ RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 # independently within the same probe round.
 
 COMPONENT_REGISTRY=(
-  # Registry format: alias|kind|name_pattern|containers|max_memory_mi|probe_type|namespace
+  # Registry format: alias|kind|name_pattern|containers|max_memory_mi|probe_type|namespace|last_known_good_mi|last_known_min_mi
   # Fields:
-  #   alias        — short name used with --components
-  #   kind         — kubernetes resource kind (deployment, statefulset)
-  #   name_pattern — regex matched against live resource names
-  #   containers   — comma-separated container names; empty = auto-discover first container
-  #   max_memory_mi — fallback upper bound when live limit cannot be read
-  #   probe_type   — nlg | relay-rpc | query | both | none
-  #   namespace    — (optional) override SOLO_NAMESPACE; empty = use SOLO_NAMESPACE
+  #   alias              — short name used with --components
+  #   kind               — kubernetes resource kind (deployment, statefulset)
+  #   name_pattern       — regex matched against live resource names
+  #   containers         — comma-separated container names; empty = auto-discover first container
+  #   max_memory_mi      — fallback upper bound when live limit cannot be read
+  #   probe_type         — nlg | relay-rpc | query | both | none
+  #   namespace          — (optional) override SOLO_NAMESPACE; empty = use SOLO_NAMESPACE
+  #   last_known_good_mi — starting ceiling for binary search; defaults to max_memory_mi when empty
+  #   last_known_min_mi  — starting floor for binary search; defaults to MEMORY_GRANULARITY_MI when empty
 
   # ── Both transaction paths hit network-node directly ──────────────────────────
-  "network-node|statefulset|^network-node[0-9]||8192|both"
+  "network-node|statefulset|^network-node[0-9]||8192|both||8192|"
 
   # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → ─────────────────
   #    haproxy-node → envoy-proxy → network-node → block-node → mirror-importer
-  "haproxy-node|deployment|^haproxy-node[0-9]+$|haproxy|128|nlg"
-  "envoy-proxy|deployment|^envoy-proxy-node[0-9]+$|envoy-proxy|128|nlg"
-  "block-node|statefulset|^block-node-[0-9]+$|block-node-server|512|nlg"
-  "mirror-importer|deployment|mirror.*importer||540|nlg"
-  "postgres|statefulset|solo-shared-resources-postgres|postgresql|300|nlg"
-  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|180|nlg"
-  "minio|statefulset|^minio-pool-[0-9]+$|minio|512|nlg"
+  "haproxy-node|deployment|^haproxy-node[0-9]+$|haproxy|110|nlg||98|64"
+  "envoy-proxy|deployment|^envoy-proxy-node[0-9]+$|envoy-proxy|110|nlg||98|64"
+  "block-node|statefulset|^block-node-[0-9]+$|block-node-server|200|nlg||100|80"
+  "mirror-importer|deployment|mirror.*importer||600|nlg||400|300"
+  "postgres|statefulset|solo-shared-resources-postgres|postgresql|110|nlg||100|64"
+  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|120|nlg||100|80"
+  "minio|statefulset|^minio-pool-[0-9]+$|minio|380|nlg||332|200"
 
   # ── Query path: client read requests → ingress → mirror REST/gRPC services ───
   # mirror-ingress-controller sits in front of all mirror REST queries
   # mirror-grpc memory is driven by concurrent gRPC subscriptions, not writes
   # mirror-rest / mirror-restjava memory is driven by concurrent GET requests
-  "mirror-ingress-controller|deployment|mirror-ingress-controller.*||128|query"
-  "mirror-grpc|deployment|mirror.*grpc||350|query"
-  "mirror-rest|deployment|mirror.*-rest$||365|query"
-  "mirror-restjava|deployment|mirror.*restjava||466|query"
+  "mirror-ingress-controller|deployment|mirror-ingress-controller.*||150|query|120|100|"
+  "mirror-grpc|deployment|mirror.*grpc||400|query|350|300|"
+  "mirror-rest|deployment|mirror.*-rest$||400|query|350|300|"
+  "mirror-restjava|deployment|mirror.*restjava||500|query|400|300|"
 
   # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay ─────────────────────
-  "relay|deployment|^relay-[0-9]+$||100|relay-rpc"
+  "relay|deployment|^relay-[0-9]+$||110|relay-rpc|98|80|"
 
   # ── mirror-web3: serves POST /api/v1/contracts/call via ingress ──────────────
   # Memory driven by EVM simulation requests; probed via actuator/health on pod
   # port 8545 (not relay JSON-RPC — web3 is an internal mirror service)
-  "mirror-web3|deployment|mirror.*web3||441|query"
+  "mirror-web3|deployment|mirror.*web3||150|query|100|80|"
 
   # ── No meaningful transaction-load impact; apply limit for observation only ───
-  "hiero-explorer|deployment|hiero-explorer.*|hiero-explorer-chart|250|none"
-  "mirror-monitor|deployment|mirror.*monitor||250|none"
+  "hiero-explorer|deployment|hiero-explorer.*|hiero-explorer-chart|250|none|250|100|"
+  "mirror-monitor|deployment|mirror.*monitor||600|none|470|400|"
   # minio-operator lives in the cluster-setup namespace, not the deployment namespace
-  "minio-operator|deployment|^minio-operator$|operator|128|none|solo-setup"
+  "minio-operator|deployment|^minio-operator$|operator|128|none|solo-setup|128|"
 )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────
@@ -195,7 +197,7 @@ header() {
   echo "════════════════════════════════════════════════════════════"
 }
 
-# Lookup a field (2=kind, 3=pattern, 4=containers, 5=max_memory_mi, 6=probe_type, 7=namespace) for a given alias (field 1)
+# Lookup a field (2=kind, 3=pattern, 4=containers, 5=max_memory_mi, 6=probe_type, 7=namespace, 8=last_known_good_mi, 9=last_known_min_mi) for a given alias (field 1)
 registry_field() {
   local alias="$1"
   local field="$2"
@@ -214,11 +216,11 @@ registry_field() {
 list_components() {
   echo "Available component aliases:"
   echo ""
-  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS" "PROBE" "MAX MEMORY"
-  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------"
+  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS" "PROBE" "MAX MEMORY" "LAST GOOD" "LAST MIN"
+  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------" "---------" "--------"
   local entry
   for entry in "${COMPONENT_REGISTRY[@]}"; do
-    IFS='|' read -r alias kind pattern containers max_mi probe_type <<< "${entry}"
+    IFS='|' read -r alias kind pattern containers max_mi probe_type _ns last_known_good_mi last_known_min_mi <<< "${entry}"
     containers="${containers:-<auto>}"
     local max_display
     if [[ -n "${max_mi}" ]]; then
@@ -226,8 +228,10 @@ list_components() {
     else
       max_display="${MEMORY_MAX_MI}Mi (global default)"
     fi
-    printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %s\n" \
-      "${alias}" "${kind}" "${pattern}" "${containers}" "${probe_type:-nlg}" "${max_display}"
+    local lkg_display="${last_known_good_mi:+${last_known_good_mi}Mi}"; lkg_display="${lkg_display:-same as max}"
+    local lkm_display="${last_known_min_mi:+${last_known_min_mi}Mi}"; lkm_display="${lkm_display:-granularity}"
+    printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" \
+      "${alias}" "${kind}" "${pattern}" "${containers}" "${probe_type:-nlg}" "${max_display}" "${lkg_display}" "${lkm_display}"
   done
   echo ""
 }
@@ -1152,7 +1156,7 @@ optimize_alias() {
 _cg_count=0
 _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
 _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
-_cg_registry_max=(); _cg_converged=()
+_cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
 _cg_restart_before=(); _cg_probe_start=()
 
 # Populate _cg_* arrays with all live (kind, name, container) tuples for a list of aliases.
@@ -1160,7 +1164,7 @@ cg_discover_components() {
   _cg_count=0
   _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
   _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
-  _cg_registry_max=(); _cg_converged=()
+  _cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
 
   local alias
   for alias in "$@"; do
@@ -1169,6 +1173,8 @@ cg_discover_components() {
     local containers_csv; containers_csv="$(registry_field "${alias}" 4)"
     local registry_max; registry_max="$(registry_field "${alias}" 5)"
     local ns_override; ns_override="$(registry_field "${alias}" 7)"
+    local last_known_good; last_known_good="$(registry_field "${alias}" 8)"
+    local last_known_min; last_known_min="$(registry_field "${alias}" 9)"
     local ns="${ns_override:-${SOLO_NAMESPACE}}"
     registry_max="${registry_max:-${MEMORY_MAX_MI}}"
 
@@ -1193,8 +1199,19 @@ cg_discover_components() {
       local container
       for container in "${containers[@]}"; do
         local live_mi; live_mi="$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")"
-        local high=$(( registry_max * 11 / 10 ))
-        local low="${MEMORY_GRANULARITY_MI}"
+        # Use last_known_good as the initial ceiling if set; otherwise fall back to max_memory_mi.
+        local high
+        if [[ -n "${last_known_good}" && "${last_known_good}" -gt 0 ]]; then
+          high="${last_known_good}"
+        else
+          high="${registry_max}"
+        fi
+        local low
+        if [[ -n "${last_known_min}" && "${last_known_min}" -gt 0 ]]; then
+          low="${last_known_min}"
+        else
+          low="${MEMORY_GRANULARITY_MI}"
+        fi
         local prev_display="${live_mi:+${live_mi}Mi}"; prev_display="${prev_display:-unknown}"
 
         _cg_alias+=("${alias}")
@@ -1208,6 +1225,8 @@ cg_discover_components() {
         _cg_best+=(0)
         _cg_prev+=("${prev_display}")
         _cg_registry_max+=("${registry_max}")
+        _cg_last_known_good+=("${last_known_good:-${registry_max}}")
+        _cg_last_known_min+=("${last_known_min:-${MEMORY_GRANULARITY_MI}}")
         _cg_converged+=(false)
         _cg_count=$(( _cg_count + 1 ))
         log "  Registered ${alias} → ${kind}/${name} [${container}]  ns=${ns}  range=[${low}–${high}Mi]  prev=${prev_display}"
@@ -1558,6 +1577,26 @@ optimize_category_group() {
     return 0
   fi
 
+  # Pre-flight: if a component's live limit differs from last_known_good, apply last_known_good
+  # before the binary search starts, so round 1 begins from a known-stable baseline.
+  # Binary search range is then [last_known_min, max_memory_mi].
+  local i
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    local lkg="${_cg_last_known_good[$i]}"
+    local lkm="${_cg_last_known_min[$i]}"
+    local live_mi; live_mi="$(get_current_memory_limit_mi \
+      "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}")"
+    if [[ -n "${lkg}" && "${lkg}" -gt 0 && "${live_mi}" != "${lkg}" ]]; then
+      log "  Pre-flight: ${_cg_name[$i]}/${_cg_container[$i]} live=${live_mi}Mi ≠ last_known_good=${lkg}Mi — applying last_known_good"
+      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${lkg}" "${_cg_ns[$i]}" || true
+    else
+      log "  Pre-flight: ${_cg_name[$i]}/${_cg_container[$i]} live=${live_mi}Mi = last_known_good=${lkg}Mi — no change needed"
+    fi
+    # Binary search between [last_known_min, max_memory_mi]
+    _cg_low[$i]="${lkm}"
+    _cg_high[$i]="${_cg_registry_max[$i]}"
+  done
+
   local effective_granularity="${MEMORY_GRANULARITY_MI}"
   local round=0
 
@@ -1852,8 +1891,12 @@ elif [[ "${MODE}" == "by-probe-type" ]]; then
     exit 1
   fi
   for entry in "${COMPONENT_REGISTRY[@]}"; do
-    IFS='|' read -r alias _ _ _ _ probe_type <<< "${entry}"
-    if [[ "${probe_type}" == "${FILTER_PROBE_TYPE}" ]]; then
+    alias="$(cut -d'|' -f1 <<< "${entry}")"
+    probe_type="$(cut -d'|' -f6 <<< "${entry}")"
+    probe_type="${probe_type:-nlg}"
+    # A component with probe_type=both belongs to both nlg and relay-rpc groups.
+    if [[ "${probe_type}" == "${FILTER_PROBE_TYPE}" ]] || \
+       [[ "${probe_type}" == "both" && ( "${FILTER_PROBE_TYPE}" == "nlg" || "${FILTER_PROBE_TYPE}" == "relay-rpc" ) ]]; then
       SELECTED+=("${alias}")
     fi
   done
@@ -1898,7 +1941,11 @@ for probe_type in nlg relay-rpc query; do
   for alias in "${SELECTED[@]}"; do
     local_probe_type="$(registry_field "${alias}" 6)"
     local_probe_type="${local_probe_type:-nlg}"
-    [[ "${local_probe_type}" == "${probe_type}" ]] && filtered+=("${alias}")
+    # probe_type=both: include in both nlg and relay-rpc groups
+    if [[ "${local_probe_type}" == "${probe_type}" ]] || \
+       [[ "${local_probe_type}" == "both" && ( "${probe_type}" == "nlg" || "${probe_type}" == "relay-rpc" ) ]]; then
+      filtered+=("${alias}")
+    fi
   done
   [[ ${#filtered[@]} -gt 0 ]] && optimize_category_group "${probe_type}" "${filtered[@]}"
 done

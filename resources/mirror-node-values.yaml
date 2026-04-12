@@ -129,6 +129,7 @@ postgresql:
   pgpool:
     replicaCount: 0
 rest:
+  enabled: false
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -181,7 +182,7 @@ restjava:
       memory: 0
     limits:
       cpu: 500m
-      memory: 466Mi
+      memory: 500Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -211,7 +212,7 @@ web3:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 441Mi
+      memory: 100Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -245,7 +246,7 @@ monitor:
       memory: 0
     limits:
       cpu: 500m
-      memory: 250Mi
+      memory: 470Mi
   envFrom:
     - secretRef:
         name: mirror-passwords

@@ -5,4 +5,4 @@ controller:
     requests:
       memory: 0
     limits:
-      memory: 512Mi
+      memory: 128Mi

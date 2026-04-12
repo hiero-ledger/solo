@@ -238,36 +238,29 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
-    valuesArgument += ' --set ws.enabled=true';
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
 
-    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
 
     if (chainId) {
       valuesArgument += ` --set relay.config.CHAIN_ID=${chainId}`;
-      valuesArgument += ` --set ws.config.CHAIN_ID=${chainId}`;
     }
 
     if (relayReleaseTag) {
       relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
       valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
-      valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }
 
     if (replicaCount) {
       valuesArgument += ` --set relay.replicaCount=${replicaCount}`;
-      valuesArgument += ` --set ws.replicaCount=${replicaCount}`;
     }
 
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
     valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
-    valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
     if (operatorKey) {
       // use user provided operatorKey if available
       valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKey}`;
-      valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
         const secrets: Secret[] = await this.k8Factory
@@ -277,12 +270,10 @@ export class RelayCommand extends BaseCommand {
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
           valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
         } else {
           this.logger.info('Using operator key from k8s secret');
           const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
           valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
         }
       } catch (error) {
         throw new SoloError(`Error getting operator key: ${error.message}`, error);
@@ -298,7 +289,6 @@ export class RelayCommand extends BaseCommand {
       ? `"${networkJsonString.replaceAll('"', String.raw`\"`)}"`
       : `'${networkJsonString}'`;
     valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
-    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
 
     if (domainName) {
       valuesArgument += helpers.populateHelmArguments({
