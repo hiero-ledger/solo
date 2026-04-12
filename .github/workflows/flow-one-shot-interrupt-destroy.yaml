@@ -103,7 +103,7 @@ jobs:
         run: task build:compile
 
       - name: Run Interrupt Redeploy Script
-        timeout-minutes: 60
+        timeout-minutes: 20
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
