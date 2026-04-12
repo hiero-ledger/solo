@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        interrupt_seconds: [30, 60, 90, 120, 150, 180, 200]
+        interrupt_seconds: [5, 10, 15, 30, 45, 60, 90, 120, 150, 180, 200]
       max-parallel: 2
 
     steps:
