@@ -197,15 +197,15 @@ register_component() {
 }
 
 # ── Both transaction paths ────────────────────────────────────────────────────
-register_component \
-  --alias             network-node \
-  --kind              statefulset \
-  --pattern           "^network-node[0-9]" \
-  --max-mi            3000 \
-  --probe-type        both \
-  --last-good         2012 \
-  --last-min          1024 \
-  --needs-hapi-start  true
+# register_component \
+#   --alias             network-node \
+#   --kind              statefulset \
+#   --pattern           "^network-node[0-9]" \
+#   --max-mi            3000 \
+#   --probe-type        both \
+#   --last-good         2012 \
+#   --last-min          1024 \
+#   --needs-hapi-start  true
 
 # ── NLG path: CryptoTransfer → gRPC → record stream ─────────────────────────
 register_component \
@@ -228,15 +228,15 @@ register_component \
   --last-good   73 \
   --last-min    48
 
-register_component \
-  --alias       block-node \
-  --kind        statefulset \
-  --pattern     "^block-node-[0-9]+$" \
-  --containers  block-node-server \
-  --max-mi      200 \
-  --probe-type  nlg \
-  --last-good   140 \
-  --last-min    100
+# register_component \
+#   --alias       block-node \
+#   --kind        statefulset \
+#   --pattern     "^block-node-[0-9]+$" \
+#   --containers  block-node-server \
+#   --max-mi      200 \
+#   --probe-type  nlg \
+#   --last-good   140 \
+#   --last-min    100
 
 register_component \
   --alias       mirror-importer \
@@ -253,9 +253,9 @@ register_component \
   --kind        statefulset \
   --pattern     "solo-shared-resources-postgres" \
   --containers  postgresql \
-  --max-mi      150 \
+  --max-mi      300 \
   --probe-type  nlg \
-  --last-good   100 \
+  --last-good   200 \
   --last-min    50
 
 register_component \
@@ -833,12 +833,13 @@ wait_for_all_components_ready() {
       if [[ -z "${ready_den}" || "${ready_den}" == "0" || "${ready_num}" != "${ready_den}" ]]; then
         log "  Readiness: ${_cg_name[$i]} is ${ready_str} (not ready, waited ${elapsed}s/${timeout_s}s)..."
         any_not_ready=true
-        # Also check if it's now in a crash state — if so, mark it and stop waiting for it.
+        # If the pod is actively crashing (not just slow to start), mark it crashed so
+        # this round is skipped. Do NOT call _cg_recover_component here — wait_for_rollouts
+        # already applied recovery and force-deleted the pod; calling it again would
+        # interrupt the in-progress recovery restart.
         if check_pod_health "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}"; then
-          log "  CRASH detected during readiness wait: ${_cg_name[$i]}/${_cg_container[$i]} — marking crashed"
+          log "  CRASH detected during readiness wait: ${_cg_name[$i]}/${_cg_container[$i]} — marking crashed (recovery already applied by wait_for_rollouts)"
           _cg_crashed[$i]=true
-          _cg_low[$i]="${_cg_mid[$i]}"
-          _cg_recover_component "${i}"
         fi
       fi
     done
@@ -1118,18 +1119,29 @@ _start_hapi_if_needed() {
   # Derive the solo node alias from the StatefulSet name: network-node1 → node1
   local node_alias="${_cg_name[$i]#network-}"
   log "  HAPI not running in ${pod_name} — starting via 'solo consensus node start --node-aliases ${node_alias}'"
+  # Redirect stdout+stderr to suppress "could not enter ACTIVE mode" noise.
+  # The command may fail because the node started but didn't reach ACTIVE within
+  # the CLI's timeout — that's expected under constrained memory. Check Java after.
   if npm run solo -- consensus node start \
       --deployment "${SOLO_DEPLOYMENT}" \
       --node-aliases "${node_alias}" \
-      --quiet-mode 2>/dev/null; then
+      --quiet-mode >/dev/null 2>&1; then
     log "  HAPI start completed for ${pod_name}"
   else
-    log "  WARNING: solo consensus node start failed — falling back to direct s6-svc"
-    kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
-      -- rm -f /run/service/network-node/down 2>/dev/null || true
-    kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
-      -- /package/admin/s6/command/s6-svc -u /run/service/network-node 2>/dev/null || true
-    log "  s6-svc fallback issued for ${pod_name}"
+    # Check if Java started despite the ACTIVE-state timeout
+    local java_pid_after
+    java_pid_after=$(kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
+      -- pgrep -f "ServicesMain\|HapiApp\|hedera.jar" 2>/dev/null || true)
+    if [[ -n "${java_pid_after}" ]]; then
+      log "  HAPI Java is running in ${pod_name} (pid=${java_pid_after}) — node started, ACTIVE state pending"
+    else
+      log "  WARNING: solo consensus node start failed and Java not found — falling back to direct s6-svc"
+      kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
+        -- rm -f /run/service/network-node/down 2>/dev/null || true
+      kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
+        -- /package/admin/s6/command/s6-svc -u /run/service/network-node 2>/dev/null || true
+      log "  s6-svc fallback issued for ${pod_name}"
+    fi
   fi
 }
 
@@ -1713,6 +1725,7 @@ optimize_category_group() {
     [[ "${probe_type}" == "query" ]] && probe_duration="${QUERY_DURATION_S}"
     local any_crashed=false
     local nlg_restart_count=0
+    local nlg_fatal=false  # true when NLG restart limit is exhausted — probe aborts early
 
     while [[ ${elapsed} -lt ${probe_duration} ]]; do
       sleep "${poll_interval}"
@@ -1888,7 +1901,9 @@ optimize_category_group() {
             _cg_nlg_start_epoch=$(date +%s)
             log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
           else
-            log "  NLG pid cleared and restart limit reached or <30s remaining — probe continuing without NLG"
+            log "  NLG pid cleared and restart limit reached — aborting probe (no traffic, results invalid)"
+            nlg_fatal=true
+            break
           fi
         elif ! kill -0 "${nlg_pid}" 2>/dev/null; then
           local nlg_exit_code=0
@@ -1919,8 +1934,10 @@ optimize_category_group() {
               _cg_nlg_start_epoch=$(date +%s)
               log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
             else
-              log "  NLG restart limit reached or <30s remaining — probe continuing without NLG traffic"
+              log "  NLG restart limit reached — aborting probe (no traffic, results invalid)"
               _cg_traffic_pids[0]=""
+              nlg_fatal=true
+              break
             fi
           fi  # end nlg_exit_code != 0
         fi
@@ -1931,7 +1948,7 @@ optimize_category_group() {
         # Grace period: skip this check for 45s after NLG was (re)started — Java
         # needs time to initialize (JVM startup + benchmark class loading).
         local nlg_pid_now="${_cg_traffic_pids[0]:-}"
-        local nlg_java_grace=45
+        local nlg_java_grace=65  # SDK gRPC setup timeout is ~56s; give Java 65s before declaring it stuck
         local nlg_age=$(( $(date +%s) - _cg_nlg_start_epoch ))
         if [[ -n "${nlg_pid_now}" ]] && kill -0 "${nlg_pid_now}" 2>/dev/null && \
            [[ "${nlg_age}" -ge "${nlg_java_grace}" ]]; then
@@ -2004,6 +2021,31 @@ optimize_category_group() {
     done
 
     stop_category_traffic
+
+    # If NLG died permanently (restart limit exhausted), the round produced no traffic.
+    if [[ "${nlg_fatal}" == "true" ]]; then
+      # Check whether any component actually crashed this round (mid-probe crash handler
+      # already raised floors for them). If no crash occurred, no memory limit changed —
+      # retrying the same round with identical limits is pointless. Exit with an error so
+      # the operator can fix NLG (libsodium, HAPI connectivity, etc.) before re-running.
+      local any_mid_probe_crashed=false
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_mid_probe_restarted[$i]:-false}" == "true" ]] && any_mid_probe_crashed=true && break
+      done
+      if [[ "${any_mid_probe_crashed}" == "false" ]]; then
+        log ""
+        log "ERROR: NLG failed (restart limit exhausted) and no pod crashed this round."
+        log "       Memory limits are unchanged — re-running this round would produce the same result."
+        log "       Fix NLG (check HAPI connectivity, libsodium, network-load-generator pod logs)"
+        log "       then re-run the script. Use --skip-preflight to resume at current limits."
+        log ""
+        stop_category_traffic
+        exit 1
+      fi
+      # Some pods crashed mid-probe (floors already raised) — binary search can still advance.
+      log "  Round aborted (NLG fatal) — mid-probe crashes recorded; advancing to next round"
+      continue
+    fi
 
     # Update binary search state.
     # Rule: if ANY component crashed this round, only raise floors for crashed ones;
