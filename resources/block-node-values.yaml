@@ -4,7 +4,7 @@ resources:
     memory: "80Mi"
   limits:
     cpu: "1"
-    memory: "100Mi"
+    memory: "160Mi"
 
 blockNode:
   # NOTE: for Block Node logging, see this link:

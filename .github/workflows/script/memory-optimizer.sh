@@ -1315,6 +1315,29 @@ _start_relay_workers() {
   log "  relay-rpc: ${_cg_relay_worker_count} POST workers started (pids: ${_cg_traffic_pids[*]}) → localhost:${_cg_relay_local_port}"
 }
 
+# Kill any Java benchmark processes left in the NLG pod from a previous rapid-fire run.
+# Call this before each NLG restart so stale JVMs don't accumulate.
+# Background: when the npm rapid-fire process is killed, the kubectl exec session closes
+# but the Java process inside the pod may continue running independently.
+_kill_stale_nlg_java() {
+  local nlg_pod
+  nlg_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" \
+    -l "app.kubernetes.io/name=network-load-generator" \
+    --no-headers -o name 2>/dev/null | head -1 | sed 's|pod/||' || true)
+  if [[ -z "${nlg_pod}" ]]; then return 0; fi
+  local stale_pids
+  stale_pids=$(kubectl exec "${nlg_pod}" -n "${SOLO_NAMESPACE}" \
+    -- pgrep -f "network-load-generator.*\.jar" 2>/dev/null || true)
+  if [[ -n "${stale_pids}" ]]; then
+    local pid_count
+    pid_count=$(echo "${stale_pids}" | wc -l)
+    log "  NLG: killing ${pid_count} stale Java process(es) in ${nlg_pod} (pids: $(echo "${stale_pids}" | tr '\n' ' '))"
+    # shellcheck disable=SC2086
+    kubectl exec "${nlg_pod}" -n "${SOLO_NAMESPACE}" \
+      -- kill ${stale_pids} 2>/dev/null || true
+  fi
+}
+
 # Kill ALL kubectl port-forward processes targeting relay pods, plus the tracked pid.
 # Call this before a pod restart so no stale tunnels linger across pod lifecycle.
 _kill_relay_portforwards() {
@@ -1461,6 +1484,7 @@ start_category_traffic() {
 
   case "${probe_type}" in
     nlg)
+      _kill_stale_nlg_java  # ensure no Java survivors from a previous round or interrupted run
       local nlg_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${NLG_DURATION_S}"
       npm run solo -- rapid-fire load start \
         --deployment "${SOLO_DEPLOYMENT}" \
@@ -1729,17 +1753,34 @@ optimize_category_group() {
     fi
 
     # Monitor for the probe duration, checking all components every poll_interval
-    local elapsed=0
+    local elapsed=0               # wall-clock seconds since probe started
+    local probe_elapsed=0         # effective probe seconds (NLG: counts only while Java is running;
+                                  #   query/relay-rpc: same as elapsed)
     local poll_interval=10
     local probe_duration="${NLG_DURATION_S}"
     [[ "${probe_type}" == "query" ]] && probe_duration="${QUERY_DURATION_S}"
+    # Hard wall-clock cap: NLG startup can take time; give an extra 10 min beyond
+    # the probe window before forcibly aborting (nlg_fatal/restart-limit will fire first).
+    local probe_hard_limit=$(( probe_duration + 600 ))
     local any_crashed=false
     local nlg_restart_count=0
-    local nlg_fatal=false  # true when NLG restart limit is exhausted — probe aborts early
+    local nlg_fatal=false          # true when NLG restart limit is exhausted — probe aborts early
+    local nlg_java_ever_ran=false  # true once Java has been confirmed running inside the NLG pod
+    # Mirror REST heartbeat state (NLG probe only)
+    local nlg_mirror_pf_pid=""     # kubectl port-forward PID for mirror-rest service
+    local nlg_mirror_local_port="" # local port for mirror REST API
+    local nlg_mirror_last_ts=""    # latest consensus_timestamp seen from mirror API
+    local nlg_mirror_stale_count=0 # consecutive polls where consensus_timestamp did not advance
 
-    while [[ ${elapsed} -lt ${probe_duration} ]]; do
+    while [[ ${probe_elapsed} -lt ${probe_duration} && ${elapsed} -lt ${probe_hard_limit} ]]; do
       sleep "${poll_interval}"
       elapsed=$(( elapsed + poll_interval ))
+      # probe_elapsed ticks only when NLG Java is actually sending traffic.
+      # For non-NLG probe types it equals wall-clock elapsed.
+      if [[ "${probe_type}" != "nlg" && "${probe_type}" != "both" ]] || \
+         [[ "${nlg_java_ever_ran}" == "true" ]]; then
+        probe_elapsed=$(( probe_elapsed + poll_interval ))
+      fi
       cg_check_crashes
       # Heartbeat: show progress and per-component status every poll so the operator
       # can confirm traffic is running and the script has not hung.
@@ -1752,7 +1793,21 @@ optimize_category_group() {
           _status_parts+=("${_cg_name[$i]}/${_cg_container[$i]}=${_cg_mid[$i]}Mi-OK")
         fi
       done
-      log "  Probe ${elapsed}s/${probe_duration}s — $(IFS=', '; echo "${_status_parts[*]}")"
+      if [[ "${probe_type}" == "nlg" || "${probe_type}" == "both" ]]; then
+        local _mirror_tag=""
+        if [[ -n "${nlg_mirror_last_ts}" ]]; then
+          if [[ "${nlg_mirror_stale_count}" -ge 3 ]]; then
+            _mirror_tag=" [mirror-tx=STALE-$(( nlg_mirror_stale_count * poll_interval ))s]"
+          else
+            _mirror_tag=" [mirror-tx=${nlg_mirror_last_ts}]"
+          fi
+        elif [[ "${nlg_java_ever_ran}" == "true" ]]; then
+          _mirror_tag=" [mirror-tx=none]"
+        fi
+        log "  Probe ${probe_elapsed}s/${probe_duration}s (wall=${elapsed}s)${_mirror_tag} — $(IFS=', '; echo "${_status_parts[*]}")"
+      else
+        log "  Probe ${probe_elapsed}s/${probe_duration}s — $(IFS=', '; echo "${_status_parts[*]}")"
+      fi
       # Mid-probe crash recovery: for any component that newly crashed this poll,
       # immediately raise its floor and restart it at the next mid-point so it can
       # resume being useful while survivors continue the probe.
@@ -1856,7 +1911,7 @@ optimize_category_group() {
           # Refresh restart snapshot so dependents don't see the recovery restart as a new crash
           cg_snapshot_restarts
           log "  Restarting traffic for remaining probe window"
-          local nlg_remaining_after_dep=$(( probe_duration - elapsed ))
+          local nlg_remaining_after_dep=$(( probe_duration - probe_elapsed ))
           if [[ "${nlg_remaining_after_dep}" -gt 30 ]]; then
             start_category_traffic "${probe_type}"
           else
@@ -1881,7 +1936,7 @@ optimize_category_group() {
         fi
       done
       if [[ "${all_probed_handled}" == "true" ]]; then
-        log "  All components either crashed+restarted or still running — exiting probe early at ${elapsed}s"
+        log "  All components either crashed+restarted or still running — exiting probe early at ${probe_elapsed}s (wall=${elapsed}s)"
         break
       fi
       # For NLG: verify the rapid-fire background process is still alive.
@@ -1892,11 +1947,12 @@ optimize_category_group() {
         # Empty pid means traffic was cleared (e.g. by _maybe_refresh_nlg_chart after pod refresh).
         # Treat it the same as a died process — restart if budget remains.
         if [[ -z "${nlg_pid}" ]]; then
-          local nlg_remaining=$(( probe_duration - elapsed ))
+          local nlg_remaining=$(( probe_duration - probe_elapsed ))
           if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
             nlg_restart_count=$(( nlg_restart_count + 1 ))
-            log "  NLG pid cleared (haproxy refresh) — restarting (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
+            log "  NLG pid cleared (haproxy refresh) — restarting (attempt ${nlg_restart_count}/3, ${nlg_remaining}s traffic remaining)..."
             sleep 5
+            _kill_stale_nlg_java
             _maybe_refresh_nlg_chart
             local nlg_clear_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
             npm run solo -- rapid-fire load start \
@@ -1909,6 +1965,7 @@ optimize_category_group() {
               >>"${_cg_traffic_log}" 2>&1 &
             _cg_traffic_pids[0]=$!
             _cg_nlg_start_epoch=$(date +%s)
+            nlg_java_ever_ran=false  # new attempt — apply grace period again
             log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
           else
             log "  NLG pid cleared and restart limit reached — aborting probe (no traffic, results invalid)"
@@ -1918,17 +1975,18 @@ optimize_category_group() {
         elif ! kill -0 "${nlg_pid}" 2>/dev/null; then
           local nlg_exit_code=0
           wait "${nlg_pid}" 2>/dev/null || nlg_exit_code=$?
-          local nlg_remaining=$(( probe_duration - elapsed ))
+          local nlg_remaining=$(( probe_duration - probe_elapsed ))
           if [[ "${nlg_exit_code}" -eq 0 ]]; then
-            log "  NLG process (pid=${nlg_pid}) completed successfully at ${elapsed}s — probe continuing"
+            log "  NLG process (pid=${nlg_pid}) completed successfully at probe=${probe_elapsed}s wall=${elapsed}s — probe continuing"
             _cg_traffic_pids[0]=""
           else
-            log "  WARNING: NLG process (pid=${nlg_pid}) exited at ${elapsed}s (code=${nlg_exit_code})"
+            log "  WARNING: NLG process (pid=${nlg_pid}) exited at probe=${probe_elapsed}s wall=${elapsed}s (code=${nlg_exit_code})"
             tail -5 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _tline; do log "    ${_tline}"; done || true
             if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
               nlg_restart_count=$(( nlg_restart_count + 1 ))
-              log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
+              log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s traffic remaining)..."
               sleep 5
+              _kill_stale_nlg_java
               # Refresh haproxy IP before restarting — the pod may have changed IP since last start.
               _maybe_refresh_nlg_chart
               local nlg_retry_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
@@ -1942,6 +2000,7 @@ optimize_category_group() {
                 >>"${_cg_traffic_log}" 2>&1 &
               _cg_traffic_pids[0]=$!
               _cg_nlg_start_epoch=$(date +%s)
+              nlg_java_ever_ran=false  # new attempt — apply grace period again
               log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
             else
               log "  NLG restart limit reached — aborting probe (no traffic, results invalid)"
@@ -1953,12 +2012,22 @@ optimize_category_group() {
         fi
 
         # NLG Java alive check: if the rapid-fire background process is running but
-        # the Java benchmark isn't executing in the pod, rapid-fire is stuck (e.g.
-        # waiting for kubectl exec to start). Kill it to trigger the restart logic.
-        # Grace period: skip this check for 45s after NLG was (re)started — Java
-        # needs time to initialize (JVM startup + benchmark class loading).
+        # the Java benchmark isn't executing in the pod, kill it to trigger restart.
+        #
+        # Two cases:
+        #   nlg_java_ever_ran=false  Java has never been seen — apply a 120s grace
+        #     (HAPI may still be initialising; rapid-fire waits on gRPC ~56s per
+        #      attempt, so startup can legitimately take 90-120s on a fresh cluster).
+        #   nlg_java_ever_ran=true   Java was running but is now gone — the k8s exec
+        #     WebSocket was closed (server-side idle timeout or transient error) and
+        #     the JVM was killed.  No grace needed; kill npm and restart immediately.
         local nlg_pid_now="${_cg_traffic_pids[0]:-}"
-        local nlg_java_grace=65  # SDK gRPC setup timeout is ~56s; give Java 65s before declaring it stuck
+        local nlg_java_grace
+        if [[ "${nlg_java_ever_ran}" == "true" ]]; then
+          nlg_java_grace=0   # Java was running — detect exit immediately
+        else
+          nlg_java_grace=120 # Java hasn't started yet — allow HAPI startup time
+        fi
         local nlg_age=$(( $(date +%s) - _cg_nlg_start_epoch ))
         if [[ -n "${nlg_pid_now}" ]] && kill -0 "${nlg_pid_now}" 2>/dev/null && \
            [[ "${nlg_age}" -ge "${nlg_java_grace}" ]]; then
@@ -1969,13 +2038,69 @@ optimize_category_group() {
           if [[ -n "${nlg_pod_name}" ]]; then
             local java_running
             java_running=$(kubectl exec "${nlg_pod_name}" -n "${SOLO_NAMESPACE}" \
-              -- pgrep -f "CryptoTransferLoadTest\|NftTransferLoadTest\|TokenTransferLoadTest\|HCSLoadTest\|SmartContractLoadTest" \
+              -- pgrep -f "network-load-generator.*\.jar" \
               2>/dev/null || true)
-            if [[ -z "${java_running}" ]]; then
-              log "  WARNING: NLG rapid-fire (pid=${nlg_pid_now}) running but Java not found in pod ${nlg_pod_name} after ${nlg_age}s — killing to force restart"
+            if [[ -n "${java_running}" ]]; then
+              nlg_java_ever_ran=true  # Java confirmed running
+              # First confirmation: set up port-forward to mirror REST for heartbeat checks
+              if [[ -z "${nlg_mirror_pf_pid}" ]]; then
+                local _msvc
+                _msvc=$(kubectl get svc -n "${SOLO_NAMESPACE}" --no-headers 2>/dev/null \
+                  | awk '{print $1}' | grep -E "^mirror.*-rest$" | grep -v restjava | head -1 || true)
+                if [[ -n "${_msvc}" ]]; then
+                  nlg_mirror_local_port=38082
+                  kubectl port-forward -n "${SOLO_NAMESPACE}" "svc/${_msvc}" \
+                    "${nlg_mirror_local_port}:80" >/dev/null 2>&1 &
+                  nlg_mirror_pf_pid=$!
+                  log "  Mirror heartbeat: port-forward ${_msvc} → localhost:${nlg_mirror_local_port} (pid=${nlg_mirror_pf_pid})"
+                fi
+              fi
+            else
+              if [[ "${nlg_java_ever_ran}" == "true" ]]; then
+                log "  NLG Java exited in pod ${nlg_pod_name} (ran OK then stopped, age=${nlg_age}s) — last output:"
+              else
+                log "  WARNING: NLG rapid-fire (pid=${nlg_pid_now}) running but Java not found in pod ${nlg_pod_name} after ${nlg_age}s — killing to force restart"
+              fi
+              tail -10 "${_cg_traffic_log}" 2>/dev/null \
+                | while IFS= read -r _eline; do log "    ${_eline}"; done || true
               kill "${nlg_pid_now}" 2>/dev/null || true
               _cg_traffic_pids[0]=""
+              nlg_java_ever_ran=false  # reset so next attempt applies grace again
             fi
+          fi
+        fi
+      fi
+      # Mirror REST heartbeat: verify NLG transactions are reaching the mirror node.
+      # Runs every poll while Java is confirmed running; shows timestamp advance in heartbeat.
+      if [[ ( "${probe_type}" == "nlg" || "${probe_type}" == "both" ) && \
+            "${nlg_java_ever_ran}" == "true" && -n "${nlg_mirror_local_port:-}" ]]; then
+        # Restart port-forward if it died
+        if [[ -n "${nlg_mirror_pf_pid:-}" ]] && ! kill -0 "${nlg_mirror_pf_pid}" 2>/dev/null; then
+          log "  Mirror heartbeat: port-forward died — restarting"
+          local _msvc2
+          _msvc2=$(kubectl get svc -n "${SOLO_NAMESPACE}" --no-headers 2>/dev/null \
+            | awk '{print $1}' | grep -E "^mirror.*-rest$" | grep -v restjava | head -1 || true)
+          if [[ -n "${_msvc2}" ]]; then
+            kubectl port-forward -n "${SOLO_NAMESPACE}" "svc/${_msvc2}" \
+              "${nlg_mirror_local_port}:80" >/dev/null 2>&1 &
+            nlg_mirror_pf_pid=$!
+          fi
+        fi
+        local _mts
+        _mts=$(curl -sf --max-time 5 \
+          "http://localhost:${nlg_mirror_local_port}/api/v1/transactions?limit=1&order=desc" \
+          2>/dev/null \
+          | grep -o '"consensus_timestamp":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+        if [[ -n "${_mts}" && "${_mts}" != "${nlg_mirror_last_ts}" ]]; then
+          if [[ "${nlg_mirror_stale_count}" -ge 3 ]]; then
+            log "  Mirror: transaction flow RESUMED (ts=${_mts}, was stale for $(( nlg_mirror_stale_count * poll_interval ))s)"
+          fi
+          nlg_mirror_last_ts="${_mts}"
+          nlg_mirror_stale_count=0
+        elif [[ -n "${nlg_mirror_last_ts}" ]]; then
+          nlg_mirror_stale_count=$(( nlg_mirror_stale_count + 1 ))
+          if [[ $(( nlg_mirror_stale_count % 3 )) -eq 0 ]]; then
+            log "  WARNING: Mirror consensus_timestamp unchanged for $(( nlg_mirror_stale_count * poll_interval ))s — transactions may not be flowing"
           fi
         fi
       fi
@@ -2031,6 +2156,13 @@ optimize_category_group() {
     done
 
     stop_category_traffic
+
+    # Clean up mirror REST port-forward (established during probe for transaction heartbeat)
+    if [[ -n "${nlg_mirror_pf_pid:-}" ]]; then
+      kill "${nlg_mirror_pf_pid}" 2>/dev/null || true
+      nlg_mirror_pf_pid=""
+      nlg_mirror_local_port=""
+    fi
 
     # If NLG died permanently (restart limit exhausted), the round produced no traffic.
     if [[ "${nlg_fatal}" == "true" ]]; then
