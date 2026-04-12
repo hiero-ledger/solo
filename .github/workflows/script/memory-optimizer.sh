@@ -165,39 +165,47 @@ COMPONENT_REGISTRY=()
 
 # Register a component into COMPONENT_REGISTRY.
 # Required: --alias --kind --pattern --max-mi --probe-type
-# Optional: --containers (default: auto-discover)
-#           --last-good  (ceiling; default: max-mi)
-#           --last-min   (floor;   default: MEMORY_GRANULARITY_MI)
-#           --namespace  (default: SOLO_NAMESPACE)
+# Optional: --containers  (default: auto-discover)
+#           --last-good   (ceiling; default: max-mi)
+#           --last-min    (floor;   default: MEMORY_GRANULARITY_MI)
+#           --namespace   (default: SOLO_NAMESPACE)
+#           --depends-on  comma-separated aliases this component needs to be healthy
+#                         (e.g. mirror-importer depends on postgres).  When a depended-on
+#                         component crashes mid-probe, traffic is paused and the depender's
+#                         round result is held (bounds not updated) until the dependency
+#                         recovers.
 register_component() {
   local alias="" kind="" pattern="" containers="" max_mi="" probe_type=""
-  local last_good="" last_min="" namespace=""
+  local last_good="" last_min="" namespace="" depends_on="" needs_hapi_start="false"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --alias)       alias="$2";      shift 2 ;;
-      --kind)        kind="$2";       shift 2 ;;
-      --pattern)     pattern="$2";    shift 2 ;;
-      --containers)  containers="$2"; shift 2 ;;
-      --max-mi)      max_mi="$2";     shift 2 ;;
-      --probe-type)  probe_type="$2"; shift 2 ;;
-      --last-good)   last_good="$2";  shift 2 ;;
-      --last-min)    last_min="$2";   shift 2 ;;
-      --namespace)   namespace="$2";  shift 2 ;;
+      --alias)             alias="$2";            shift 2 ;;
+      --kind)              kind="$2";             shift 2 ;;
+      --pattern)           pattern="$2";          shift 2 ;;
+      --containers)        containers="$2";       shift 2 ;;
+      --max-mi)            max_mi="$2";           shift 2 ;;
+      --probe-type)        probe_type="$2";       shift 2 ;;
+      --last-good)         last_good="$2";        shift 2 ;;
+      --last-min)          last_min="$2";         shift 2 ;;
+      --namespace)         namespace="$2";        shift 2 ;;
+      --depends-on)        depends_on="$2";       shift 2 ;;
+      --needs-hapi-start)  needs_hapi_start="$2"; shift 2 ;;
       *) echo "register_component: unknown argument '$1'" >&2; return 1 ;;
     esac
   done
-  COMPONENT_REGISTRY+=("${alias}|${kind}|${pattern}|${containers}|${max_mi}|${probe_type}|${last_good}|${last_min}|${namespace}")
+  COMPONENT_REGISTRY+=("${alias}|${kind}|${pattern}|${containers}|${max_mi}|${probe_type}|${last_good}|${last_min}|${namespace}|${depends_on}|${needs_hapi_start}")
 }
 
 # ── Both transaction paths ────────────────────────────────────────────────────
 register_component \
-  --alias       network-node \
-  --kind        statefulset \
-  --pattern     "^network-node[0-9]" \
-  --max-mi      3000 \
-  --probe-type  both \
-  --last-good   2012 \
-  --last-min    1024
+  --alias             network-node \
+  --kind              statefulset \
+  --pattern           "^network-node[0-9]" \
+  --max-mi            3000 \
+  --probe-type        both \
+  --last-good         2012 \
+  --last-min          1024 \
+  --needs-hapi-start  true
 
 # ── NLG path: CryptoTransfer → gRPC → record stream ─────────────────────────
 register_component \
@@ -237,16 +245,17 @@ register_component \
   --max-mi      600 \
   --probe-type  nlg \
   --last-good   450 \
-  --last-min    400
+  --last-min    400 \
+  --depends-on  postgres
 
 register_component \
   --alias       postgres \
   --kind        statefulset \
   --pattern     "solo-shared-resources-postgres" \
   --containers  postgresql \
-  --max-mi      100 \
+  --max-mi      150 \
   --probe-type  nlg \
-  --last-good   75 \
+  --last-good   100 \
   --last-min    50
 
 register_component \
@@ -286,7 +295,8 @@ register_component \
   --max-mi      400 \
   --probe-type  query \
   --last-good   350 \
-  --last-min    300
+  --last-min    300 \
+  --depends-on  postgres
 
 register_component \
   --alias       mirror-rest \
@@ -295,7 +305,8 @@ register_component \
   --max-mi      400 \
   --probe-type  query \
   --last-good   350 \
-  --last-min    300
+  --last-min    300 \
+  --depends-on  postgres
 
 register_component \
   --alias       mirror-restjava \
@@ -304,7 +315,8 @@ register_component \
   --max-mi      500 \
   --probe-type  query \
   --last-good   400 \
-  --last-min    300
+  --last-min    300 \
+  --depends-on  postgres
 
 # ── Relay JSON-RPC path: eth_* → port 7546 → relay ───────────────────────────
 register_component \
@@ -321,10 +333,11 @@ register_component \
   --alias       mirror-web3 \
   --kind        deployment \
   --pattern     "mirror.*web3" \
-  --max-mi      150 \
+  --max-mi      500 \
   --probe-type  query \
-  --last-good   100 \
-  --last-min    80
+  --last-good   500 \
+  --last-min    400 \
+  --depends-on  postgres
 
 # ── minio sidecar (metrics/console helper, low traffic) ──────────────────────
 register_component \
@@ -757,8 +770,103 @@ wait_for_rollouts() {
     return 1
   fi
 
+  # For any component that needs HAPI started (e.g. network-node), start it now that
+  # all pods have rolled out successfully.
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    [[ "${_cg_needs_hapi_start[$i]:-false}" == "true" ]] && _start_hapi_if_needed "${i}"
+  done
+
   log "  All rollouts complete. Stabilizing ${STABILIZE_S}s..."
   sleep "${STABILIZE_S}"
+  return 0
+}
+
+# Wait for all non-converged, non-crashed components to reach X/X ready status.
+# Called before starting each probe round to gate traffic on actual readiness.
+# Components that fail to become ready within the timeout are marked crashed so
+# they are skipped this round (their floor will be raised on the next round if
+# they then OOMKill, or they'll be retried once ready).
+# Returns 0 if all components are ready (or converged/crashed), 1 if any timed out.
+wait_for_all_components_ready() {
+  local timeout_s="${1:-300}"
+  local poll_interval=10
+  local elapsed=0
+  local any_not_ready=true
+  local timed_out_any=false
+
+  # Quick first pass — if everything is already ready, skip polling entirely.
+  any_not_ready=false
+  local i
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    [[ "${_cg_converged[$i]}" == "true" ]] && continue
+    [[ "${_cg_crashed[$i]}" == "true" ]]   && continue
+    local ready_str
+    ready_str=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers 2>/dev/null \
+      | grep "^${_cg_name[$i]}-" | awk '{print $2}' | head -1 || echo "0/0")
+    local ready_num="${ready_str%%/*}"
+    local ready_den="${ready_str##*/}"
+    if [[ -z "${ready_den}" || "${ready_den}" == "0" || "${ready_num}" != "${ready_den}" ]]; then
+      any_not_ready=true
+      break
+    fi
+  done
+
+  [[ "${any_not_ready}" == "false" ]] && return 0
+
+  log "  Pre-probe readiness check: waiting up to ${timeout_s}s for all components to be ready..."
+
+  while [[ ${elapsed} -lt ${timeout_s} ]]; do
+    sleep "${poll_interval}"
+    elapsed=$(( elapsed + poll_interval ))
+
+    any_not_ready=false
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      [[ "${_cg_crashed[$i]}" == "true" ]]   && continue
+
+      local ready_str
+      ready_str=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers 2>/dev/null \
+        | grep "^${_cg_name[$i]}-" | awk '{print $2}' | head -1 || echo "0/0")
+      local ready_num="${ready_str%%/*}"
+      local ready_den="${ready_str##*/}"
+
+      if [[ -z "${ready_den}" || "${ready_den}" == "0" || "${ready_num}" != "${ready_den}" ]]; then
+        log "  Readiness: ${_cg_name[$i]} is ${ready_str} (not ready, waited ${elapsed}s/${timeout_s}s)..."
+        any_not_ready=true
+        # Also check if it's now in a crash state — if so, mark it and stop waiting for it.
+        if check_pod_health "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}"; then
+          log "  CRASH detected during readiness wait: ${_cg_name[$i]}/${_cg_container[$i]} — marking crashed"
+          _cg_crashed[$i]=true
+          _cg_low[$i]="${_cg_mid[$i]}"
+          _cg_recover_component "${i}"
+        fi
+      fi
+    done
+
+    [[ "${any_not_ready}" == "false" ]] && break
+  done
+
+  if [[ "${any_not_ready}" == "true" ]]; then
+    # Timeout — mark unready non-crashed components with _cg_readiness_skip (NOT _cg_crashed)
+    # so probe_loop skips them but post-probe does NOT raise their floor (no OOM occurred).
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      [[ "${_cg_crashed[$i]}" == "true" ]]   && continue
+      local ready_str
+      ready_str=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers 2>/dev/null \
+        | grep "^${_cg_name[$i]}-" | awk '{print $2}' | head -1 || echo "0/0")
+      local ready_num="${ready_str%%/*}"
+      local ready_den="${ready_str##*/}"
+      if [[ -z "${ready_den}" || "${ready_den}" == "0" || "${ready_num}" != "${ready_den}" ]]; then
+        log "  TIMEOUT: ${_cg_name[$i]} still not ready (${ready_str}) after ${timeout_s}s — skipping this round (floor not raised)"
+        _cg_readiness_skip[$i]=true
+        timed_out_any=true
+      fi
+    done
+  fi
+
+  log "  All target components ready — proceeding with probe"
+  [[ "${timed_out_any}" == "true" ]] && return 1
   return 0
 }
 
@@ -825,9 +933,13 @@ _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
 _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
 _cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
 _cg_crashed=()          # true if a component OOMKilled/crashed during the current round
+_cg_readiness_skip=()   # true if a component was skipped this round due to readiness timeout (not a crash — floor NOT raised)
 _cg_restart_before=(); _cg_probe_start=()
 _cg_mid_probe_restarted=()  # true once a component has been restarted mid-probe this round
+_cg_depends_on=()      # space-separated list of _cg_ indices this component depends on
+_cg_needs_hapi_start=() # true if HAPI must be started via solo after pod rolls out
 _cg_nlg_haproxy_ip=""   # last haproxy pod IP used when NLG chart was deployed
+_cg_nlg_start_epoch=0  # epoch seconds when NLG was last (re)started — Java grace period uses this
 
 # Populate _cg_* arrays with all live (kind, name, container) tuples for a list of aliases.
 cg_discover_components() {
@@ -836,7 +948,9 @@ cg_discover_components() {
   _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
   _cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
   _cg_crashed=()
+  _cg_readiness_skip=()
   _cg_mid_probe_restarted=()
+  _cg_needs_hapi_start=()
 
   local alias
   for alias in "$@"; do
@@ -900,10 +1014,37 @@ cg_discover_components() {
         _cg_last_known_good+=("${last_known_good:-${registry_max}}")
         _cg_last_known_min+=("${last_known_min:-${MEMORY_GRANULARITY_MI}}")
         _cg_converged+=(false)
+        # Store raw depends-on alias CSV; resolve to indices after all components are registered.
+        _cg_depends_on+=("$(registry_field "${alias}" 10)")
+        _cg_needs_hapi_start+=("$(registry_field "${alias}" 11)")
         _cg_count=$(( _cg_count + 1 ))
         log "  Registered ${alias} → ${kind}/${name} [${container}]  ns=${ns}  range=[${low}–${high}Mi]  prev=${prev_display}"
       done
     done
+  done
+
+  # Resolve depends-on alias names to _cg_ index lists now that all components are registered.
+  local i
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    local raw_deps="${_cg_depends_on[$i]}"
+    if [[ -z "${raw_deps}" ]]; then
+      _cg_depends_on[$i]=""
+      continue
+    fi
+    local resolved_indices=""
+    local dep_alias
+    IFS=',' read -ra dep_aliases <<< "${raw_deps}"
+    for dep_alias in "${dep_aliases[@]}"; do
+      local j
+      for j in $(seq 0 $(( _cg_count - 1 ))); do
+        if [[ "${_cg_alias[$j]}" == "${dep_alias}" ]]; then
+          resolved_indices="${resolved_indices:+${resolved_indices} }${j}"
+          break
+        fi
+      done
+    done
+    _cg_depends_on[$i]="${resolved_indices}"
+    [[ -n "${resolved_indices}" ]] && log "  Dependency: ${_cg_alias[$i]} → indices [${resolved_indices}]"
   done
 }
 
@@ -931,9 +1072,65 @@ cg_snapshot_restarts() {
 _cg_recover_component() {
   local i="$1"
   local recover_mi="${_cg_last_known_good[$i]:-${_cg_registry_max[$i]}}"
+  # last_known_good at or below the crash point means we already know it fails there.
+  # Step up to registry_max so the pod can actually restart healthy.
+  local crash_mi="${_cg_mid[$i]:-0}"
+  if [[ "${recover_mi}" -le "${crash_mi}" ]]; then
+    recover_mi="${_cg_registry_max[$i]}"
+  fi
   log "  RECOVERY: applying ${recover_mi}Mi to ${_cg_name[$i]}/${_cg_container[$i]} so pod restarts healthy"
   apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
     "${recover_mi}" "${_cg_ns[$i]}"
+  # Force-delete the pod so it restarts immediately with the new spec, bypassing the
+  # CrashLoopBackOff exponential backoff (which can reach 5+ minutes after multiple crashes).
+  # The StatefulSet/Deployment controller recreates it right away with the updated limit.
+  local recover_pod
+  recover_pod=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers -o name 2>/dev/null \
+    | sed 's|pod/||' | grep "^${_cg_name[$i]}-" | head -1 || true)
+  if [[ -n "${recover_pod}" ]]; then
+    log "  Force-deleting pod ${recover_pod} to bypass CrashLoopBackOff backoff"
+    kubectl delete pod "${recover_pod}" -n "${_cg_ns[$i]}" --grace-period=0 --force 2>/dev/null || true
+  fi
+}
+
+# After a network-node pod rolls out, the s6 supervisor's 'down' file blocks HAPI from
+# starting automatically.  This function checks whether the Java process is running and,
+# if not, invokes 'solo consensus node start' (or falls back to direct s6-svc) to start it.
+# Only called for components registered with --needs-hapi-start true.
+_start_hapi_if_needed() {
+  local i="$1"
+  [[ "${_cg_needs_hapi_start[$i]:-false}" != "true" ]] && return
+
+  local pod_name
+  pod_name=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers -o name 2>/dev/null \
+    | sed 's|pod/||' | grep "^${_cg_name[$i]}-" | head -1 || true)
+  [[ -z "${pod_name}" ]] && return
+
+  # Check if HAPI Java is already running inside the pod
+  local java_pid
+  java_pid=$(kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
+    -- pgrep -f "ServicesMain\|HapiApp\|hedera.jar" 2>/dev/null || true)
+  if [[ -n "${java_pid}" ]]; then
+    log "  HAPI already running in ${pod_name} (pid=${java_pid}) — no action needed"
+    return
+  fi
+
+  # Derive the solo node alias from the StatefulSet name: network-node1 → node1
+  local node_alias="${_cg_name[$i]#network-}"
+  log "  HAPI not running in ${pod_name} — starting via 'solo consensus node start --node-aliases ${node_alias}'"
+  if npm run solo -- consensus node start \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --node-aliases "${node_alias}" \
+      --quiet-mode 2>/dev/null; then
+    log "  HAPI start completed for ${pod_name}"
+  else
+    log "  WARNING: solo consensus node start failed — falling back to direct s6-svc"
+    kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
+      -- rm -f /run/service/network-node/down 2>/dev/null || true
+    kubectl exec "${pod_name}" -n "${_cg_ns[$i]}" -c root-container \
+      -- /package/admin/s6/command/s6-svc -u /run/service/network-node 2>/dev/null || true
+    log "  s6-svc fallback issued for ${pod_name}"
+  fi
 }
 
 # For NLG probe: if the haproxy pod IP has changed since the NLG chart was last
@@ -959,24 +1156,48 @@ _maybe_refresh_nlg_chart() {
     2>/dev/null | head -1 || true)
   haproxy_account="${haproxy_account:-0.0.3}"
 
-  log "  NLG: haproxy IP changed (${_cg_nlg_haproxy_ip:-none} → ${current_ip}) — upgrading NLG chart in-place"
-  # Use helm upgrade --reuse-values to update just the haproxy IP.
-  # Avoids destroy+reinstall which triggers "Install libraries" and pod-name race conditions.
-  helm upgrade network-load-generator \
-    -n "${SOLO_NAMESPACE}" \
-    --reuse-values \
-    --set "loadGenerator.properties[0]=${current_ip}\\:50211=${haproxy_account}" \
-    2>/dev/null || {
-      log "  NLG: helm upgrade failed — NLG chart may not be installed yet; skipping"
-      _cg_nlg_haproxy_ip="${current_ip}"
-      return
-    }
-  # Wait for the rolling update to complete.
-  log "  NLG: waiting for NLG deployment rollout..."
+  log "  NLG: haproxy IP changed (${_cg_nlg_haproxy_ip:-none} → ${current_ip}) — patching network ConfigMap"
+  # Patch the network ConfigMap directly — helm upgrade requires the chart source which
+  # is not available at runtime. ConfigMap patch is immediate and doesn't require it.
+  # The backslash before the colon is required by the NLG Java address-book format.
+  if ! kubectl patch configmap network-load-generator-network \
+      -n "${SOLO_NAMESPACE}" \
+      --type=merge \
+      -p "{\"data\":{\"network.properties\":\"${current_ip}\\\\:50211=${haproxy_account}\"}}" \
+      2>/dev/null; then
+    # ConfigMap doesn't exist yet — NLG chart not installed, retry after start_category_traffic
+    log "  NLG: ConfigMap not found — will retry after chart installation"
+    return
+  fi
+  log "  NLG: ConfigMap patched with ${current_ip}:50211=${haproxy_account}"
+  # Force-restart the NLG pod so it immediately picks up the new network.properties.
+  # Without this, kubelet may take ~60s to sync the mounted volume.
+  kubectl rollout restart deployment/network-load-generator \
+    -n "${SOLO_NAMESPACE}" 2>/dev/null || true
+  log "  NLG: waiting for NLG pod rollout..."
   kubectl rollout status deployment/network-load-generator \
     -n "${SOLO_NAMESPACE}" --timeout=120s >/dev/null 2>&1 || true
+  # Install libsodium23 in the new pod — rapid-fire load start does this on first deploy,
+  # but rollout restart creates a fresh pod without running that step.
+  # The NLG's bundled lazysodium-java-5.1.1 only has armv6 native libs; aarch64 hosts need
+  # the system libsodium23 package to be present for the JVM to load it.
+  log "  NLG: installing libsodium23 in refreshed pod..."
+  kubectl exec deployment/network-load-generator \
+    -n "${SOLO_NAMESPACE}" -- apt-get update -qq 2>/dev/null || true
+  kubectl exec deployment/network-load-generator \
+    -n "${SOLO_NAMESPACE}" -- apt-get install -y libsodium23 2>/dev/null || true
+  kubectl exec deployment/network-load-generator \
+    -n "${SOLO_NAMESPACE}" -- apt-get clean -qq 2>/dev/null || true
+  # Kill any in-flight rapid-fire process that is exec-ing into the now-gone old pod.
+  # The probe loop will detect _cg_traffic_pids[0]="" and restart NLG with the fresh pod.
+  local nlg_pid="${_cg_traffic_pids[0]:-}"
+  if [[ -n "${nlg_pid}" ]]; then
+    kill "${nlg_pid}" 2>/dev/null || true
+    _cg_traffic_pids[0]=""
+    log "  NLG: killed stale rapid-fire process (pid=${nlg_pid}) — probe loop will restart NLG"
+  fi
   _cg_nlg_haproxy_ip="${current_ip}"
-  log "  NLG: chart updated with haproxy IP ${current_ip} (account ${haproxy_account})"
+  log "  NLG: network config updated with haproxy IP ${current_ip} (account ${haproxy_account})"
 }
 
 # Check each non-converged component for a new crash during this probe round.
@@ -986,8 +1207,9 @@ cg_check_crashes() {
   local i
   for i in $(seq 0 $(( _cg_count - 1 ))); do
     [[ "${_cg_converged[$i]}" == "true" ]] && continue
-    # Already crashed this round — do not re-check or re-log
+    # Already crashed or readiness-skipped this round — do not re-check or re-log
     [[ "${_cg_crashed[$i]}" == "true" ]] && continue
+    [[ "${_cg_readiness_skip[$i]:-false}" == "true" ]] && continue
 
     # Find current pod name
     local pod_name
@@ -999,7 +1221,10 @@ cg_check_crashes() {
     if check_pod_health "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}"; then
       log "  CRASH detected: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] — OOMKilled/CrashLoopBackOff"
       _cg_crashed[$i]=true
-      _cg_recover_component "${i}"
+      # Do NOT call _cg_recover_component here — the mid-probe crash handler runs in the
+      # same poll iteration and applies the correct binary-search value (new mid or
+      # registry_max). Calling recover here would trigger a redundant rolling update that
+      # gets immediately overridden, causing two rapid spec changes and pod deletions.
       continue
     fi
 
@@ -1017,7 +1242,7 @@ cg_check_crashes() {
       if [[ -z "${finished_at}" || "${finished_at}" > "${_cg_probe_start[$i]}" ]]; then
         log "  CRASH detected: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] — restart count ${_cg_restart_before[$i]}→${rc_now} during probe"
         _cg_crashed[$i]=true
-        _cg_recover_component "${i}"
+        # Mid-probe handler (same poll iteration) applies recovery memory and force-deletes pod.
       else
         log "  Restart count ${_cg_restart_before[$i]}→${rc_now} for ${_cg_name[$i]} but finishedAt=${finished_at} predates probe — ignoring stale restart"
       fi
@@ -1224,6 +1449,7 @@ start_category_traffic() {
         --quiet-mode \
         >"${_cg_traffic_log}" 2>&1 &
       _cg_traffic_pids=($!)
+      _cg_nlg_start_epoch=$(date +%s)
       log "  Category traffic: NLG started (pid=${_cg_traffic_pids[*]}) — log: ${_cg_traffic_log}"
       ;;
 
@@ -1356,9 +1582,10 @@ optimize_category_group() {
     round=$(( round + 1 ))
     header "Round ${round} — probe_type=${probe_type}"
 
-    # Reset per-round crash flags before rollout
+    # Reset per-round crash/skip flags before rollout
     for i in $(seq 0 $(( _cg_count - 1 ))); do
       _cg_crashed[$i]=false
+      _cg_readiness_skip[$i]=false
       _cg_mid_probe_restarted[$i]=false
     done
 
@@ -1423,6 +1650,16 @@ optimize_category_group() {
       continue
     fi
 
+    # Components that crashed during rollout have already had their floor raised and
+    # recovery applied by wait_for_rollouts/_cg_recover_component. Reset their crash
+    # flag now so the probe loop monitors them again (they may stabilize or crash again
+    # at the recovered limit, and we want to detect either outcome).
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      _cg_crashed[$i]=false
+      _cg_readiness_skip[$i]=false
+      _cg_mid_probe_restarted[$i]=false
+    done
+
     # Snapshot restart counts before probe
     cg_snapshot_restarts
 
@@ -1435,13 +1672,39 @@ optimize_category_group() {
       fi
     fi
 
-    # For NLG: check haproxy IP hasn't changed; redeploy chart if it has.
+    # Gate probe start on all target components being fully ready (X/X).
+    # A component that is Running but 0/N (readiness probe failing) would waste
+    # the entire probe window — wait for it or mark it crashed/skipped.
+    if ! wait_for_all_components_ready 300; then
+      # Some component timed out on readiness — check if all non-converged are either
+      # OOM-crashed or readiness-skipped (meaning no component can actually be probed).
+      local all_unready_or_crashed=true
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_converged[$i]}" == "true" ]] && continue
+        [[ "${_cg_crashed[$i]}" == "true" ]] && continue
+        [[ "${_cg_readiness_skip[$i]:-false}" == "true" ]] && continue
+        all_unready_or_crashed=false; break
+      done
+      if [[ "${all_unready_or_crashed}" == "true" ]]; then
+        log "  All components unready/crashed — skipping probe, advancing to next round"
+        # Reset flags so next round can try again (readiness may resolve on its own)
+        for i in $(seq 0 $(( _cg_count - 1 ))); do
+          _cg_crashed[$i]=false
+          _cg_readiness_skip[$i]=false
+          _cg_mid_probe_restarted[$i]=false
+        done
+        continue
+      fi
+    fi
+
+    # Start shared traffic for this category (installs NLG chart if not yet present)
+    start_category_traffic "${probe_type}"
+
+    # For NLG: after starting traffic, update the chart with the current haproxy IP.
+    # Must run AFTER start_category_traffic so the chart exists for helm upgrade --reuse-values.
     if [[ "${probe_type}" == "nlg" || "${probe_type}" == "both" ]]; then
       _maybe_refresh_nlg_chart
     fi
-
-    # Start shared traffic for this category
-    start_category_traffic "${probe_type}"
 
     # Monitor for the probe duration, checking all components every poll_interval
     local elapsed=0
@@ -1470,6 +1733,7 @@ optimize_category_group() {
       # Mid-probe crash recovery: for any component that newly crashed this poll,
       # immediately raise its floor and restart it at the next mid-point so it can
       # resume being useful while survivors continue the probe.
+      local newly_crashed_indices=""
       for i in $(seq 0 $(( _cg_count - 1 ))); do
         [[ "${_cg_converged[$i]}" == "true" ]] && continue
         [[ "${_cg_crashed[$i]}" != "true" ]] && continue
@@ -1480,17 +1744,104 @@ optimize_category_group() {
         local crashed_new_mid=$(( (_cg_low[$i] + _cg_high[$i]) / 2 ))
         local crashed_range=$(( _cg_high[$i] - _cg_low[$i] ))
         log "  Mid-probe FAIL ${_cg_name[$i]}/${_cg_container[$i]} at ${crashed_mid}Mi — raising floor, restarting at ${crashed_new_mid}Mi"
+        local recovery_mi
         if [[ "${crashed_range}" -le "${effective_granularity}" ]]; then
           log "  ${_cg_name[$i]}/${_cg_container[$i]} converged (range=${crashed_range}Mi ≤ gran=${effective_granularity}Mi) — marking done"
           _cg_converged[$i]=true
+          # Never passed (best=0) → apply registry_max so the pod can restart healthy.
+          if [[ "${_cg_best[$i]}" -eq 0 ]]; then
+            recovery_mi="${_cg_registry_max[$i]}"
+            log "  No passing value found — applying registry_max=${recovery_mi}Mi to restore pod health"
+            apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+              "${recovery_mi}" "${_cg_ns[$i]}"
+          fi
         else
           _cg_mid[$i]="${crashed_new_mid}"
+          recovery_mi="${crashed_new_mid}"
           apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
-            "${crashed_new_mid}" "${_cg_ns[$i]}"
+            "${recovery_mi}" "${_cg_ns[$i]}"
+        fi
+        # Force-delete the pod to bypass CrashLoopBackOff exponential backoff.
+        # After multiple crashes the backoff can reach 5+ minutes; force-delete lets
+        # the StatefulSet/Deployment controller recreate the pod immediately with the
+        # new limit and zero backoff history.
+        if [[ -n "${recovery_mi:-}" ]]; then
+          local crashed_pod
+          crashed_pod=$(kubectl get pods -n "${_cg_ns[$i]}" --no-headers -o name 2>/dev/null \
+            | sed 's|pod/||' | grep "^${_cg_name[$i]}-" | head -1 || true)
+          if [[ -n "${crashed_pod}" ]]; then
+            log "  Force-deleting pod ${crashed_pod} to bypass CrashLoopBackOff backoff"
+            kubectl delete pod "${crashed_pod}" -n "${_cg_ns[$i]}" --grace-period=0 --force 2>/dev/null || true
+          fi
         fi
         _cg_mid_probe_restarted[$i]=true
         _cg_crashed[$i]=false
+        newly_crashed_indices="${newly_crashed_indices} ${i}"
       done
+
+      # Dependency recovery: if a newly-crashed component has dependents, stop traffic,
+      # wait for the recovery rollout to complete, then restart traffic.
+      # This prevents dependent components (e.g. mirror-importer depending on postgres)
+      # from accumulating errors that would invalidate their probe result.
+      if [[ -n "${newly_crashed_indices}" ]]; then
+        local dep_needs_pause=false
+        local j
+        for j in $(seq 0 $(( _cg_count - 1 ))); do
+          [[ "${_cg_converged[$j]}" == "true" ]] && continue
+          local dep_idx="${_cg_depends_on[$j]:-}"
+          [[ -z "${dep_idx}" ]] && continue
+          local dep_i
+          for dep_i in ${dep_idx}; do
+            if echo "${newly_crashed_indices}" | grep -qw "${dep_i}"; then
+              dep_needs_pause=true
+              log "  Dependency crash: ${_cg_alias[$j]} depends on ${_cg_alias[$dep_i]} which just crashed — pausing traffic for recovery"
+              break
+            fi
+          done
+          [[ "${dep_needs_pause}" == "true" ]] && break
+        done
+
+        if [[ "${dep_needs_pause}" == "true" ]]; then
+          log "  Stopping traffic while dependency recovers..."
+          stop_category_traffic "${probe_type}"
+          log "  Waiting for crashed dependency pods to become Ready (up to 120s)..."
+          local dep_wait=0
+          local dep_wait_max=600
+          while [[ "${dep_wait}" -lt "${dep_wait_max}" ]]; do
+            sleep 5; dep_wait=$(( dep_wait + 5 ))
+            local all_deps_ready=true
+            local dep_i
+            for dep_i in ${newly_crashed_indices}; do
+              local dep_ready
+              dep_ready=$(kubectl get pods -n "${_cg_ns[$dep_i]}" --no-headers 2>/dev/null \
+                | grep "^${_cg_name[$dep_i]}-" | awk '{print $2}' | head -1 || echo "0/0")
+              local dep_ready_num="${dep_ready%%/*}"
+              local dep_ready_den="${dep_ready##*/}"
+              if [[ -z "${dep_ready_den}" || "${dep_ready_num}" != "${dep_ready_den}" ]]; then
+                all_deps_ready=false; break
+              fi
+            done
+            [[ "${all_deps_ready}" == "true" ]] && break
+            log "  Still waiting for dependency recovery... (${dep_wait}s/${dep_wait_max}s)"
+          done
+          log "  Dependency recovery complete (waited ${dep_wait}s)"
+          # For any newly-crashed component that needs HAPI started (e.g. network-node), start it.
+          local dep_i
+          for dep_i in ${newly_crashed_indices}; do
+            _start_hapi_if_needed "${dep_i}"
+          done
+          # Refresh restart snapshot so dependents don't see the recovery restart as a new crash
+          cg_snapshot_restarts
+          log "  Restarting traffic for remaining probe window"
+          local nlg_remaining_after_dep=$(( probe_duration - elapsed ))
+          if [[ "${nlg_remaining_after_dep}" -gt 30 ]]; then
+            start_category_traffic "${probe_type}"
+          else
+            log "  <30s remaining after dependency recovery — skipping traffic restart"
+          fi
+        fi
+      fi
+
       # Trigger a parallel rollout wait for any mid-probe restarts just kicked off,
       # but only if there are pending rollouts (apply_memory_limit queues them).
       # We skip wait_for_rollouts here to avoid blocking traffic; rollout is async.
@@ -1512,9 +1863,34 @@ optimize_category_group() {
       fi
       # For NLG: verify the rapid-fire background process is still alive.
       # If it died early (e.g. gRPC setup timeout), log the tail and retry.
+      # Also restart if pid was cleared by _maybe_refresh_nlg_chart (haproxy IP change).
       if [[ "${probe_type}" == "nlg" || "${probe_type}" == "both" ]]; then
         local nlg_pid="${_cg_traffic_pids[0]:-}"
-        if [[ -n "${nlg_pid}" ]] && ! kill -0 "${nlg_pid}" 2>/dev/null; then
+        # Empty pid means traffic was cleared (e.g. by _maybe_refresh_nlg_chart after pod refresh).
+        # Treat it the same as a died process — restart if budget remains.
+        if [[ -z "${nlg_pid}" ]]; then
+          local nlg_remaining=$(( probe_duration - elapsed ))
+          if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
+            nlg_restart_count=$(( nlg_restart_count + 1 ))
+            log "  NLG pid cleared (haproxy refresh) — restarting (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
+            sleep 5
+            _maybe_refresh_nlg_chart
+            local nlg_clear_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
+            npm run solo -- rapid-fire load start \
+              --deployment "${SOLO_DEPLOYMENT}" \
+              --test "${NLG_TEST_CLASS}" \
+              --max-tps "${NLG_TPS}" \
+              --java-heap "${NLG_JAVA_HEAP_GB}" \
+              --args "\"${nlg_clear_args}\"" \
+              --quiet-mode \
+              >>"${_cg_traffic_log}" 2>&1 &
+            _cg_traffic_pids[0]=$!
+            _cg_nlg_start_epoch=$(date +%s)
+            log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
+          else
+            log "  NLG pid cleared and restart limit reached or <30s remaining — probe continuing without NLG"
+          fi
+        elif ! kill -0 "${nlg_pid}" 2>/dev/null; then
           local nlg_exit_code=0
           wait "${nlg_pid}" 2>/dev/null || nlg_exit_code=$?
           local nlg_remaining=$(( probe_duration - elapsed ))
@@ -1528,6 +1904,8 @@ optimize_category_group() {
               nlg_restart_count=$(( nlg_restart_count + 1 ))
               log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
               sleep 5
+              # Refresh haproxy IP before restarting — the pod may have changed IP since last start.
+              _maybe_refresh_nlg_chart
               local nlg_retry_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
               npm run solo -- rapid-fire load start \
                 --deployment "${SOLO_DEPLOYMENT}" \
@@ -1538,6 +1916,7 @@ optimize_category_group() {
                 --quiet-mode \
                 >>"${_cg_traffic_log}" 2>&1 &
               _cg_traffic_pids[0]=$!
+              _cg_nlg_start_epoch=$(date +%s)
               log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
             else
               log "  NLG restart limit reached or <30s remaining — probe continuing without NLG traffic"
@@ -1545,18 +1924,50 @@ optimize_category_group() {
             fi
           fi  # end nlg_exit_code != 0
         fi
+
+        # NLG Java alive check: if the rapid-fire background process is running but
+        # the Java benchmark isn't executing in the pod, rapid-fire is stuck (e.g.
+        # waiting for kubectl exec to start). Kill it to trigger the restart logic.
+        # Grace period: skip this check for 45s after NLG was (re)started — Java
+        # needs time to initialize (JVM startup + benchmark class loading).
+        local nlg_pid_now="${_cg_traffic_pids[0]:-}"
+        local nlg_java_grace=45
+        local nlg_age=$(( $(date +%s) - _cg_nlg_start_epoch ))
+        if [[ -n "${nlg_pid_now}" ]] && kill -0 "${nlg_pid_now}" 2>/dev/null && \
+           [[ "${nlg_age}" -ge "${nlg_java_grace}" ]]; then
+          local nlg_pod_name
+          nlg_pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" \
+            -l "app.kubernetes.io/name=network-load-generator" \
+            --no-headers -o name 2>/dev/null | head -1 | sed 's|pod/||' || true)
+          if [[ -n "${nlg_pod_name}" ]]; then
+            local java_running
+            java_running=$(kubectl exec "${nlg_pod_name}" -n "${SOLO_NAMESPACE}" \
+              -- pgrep -f "CryptoTransferLoadTest\|NftTransferLoadTest\|TokenTransferLoadTest\|HCSLoadTest\|SmartContractLoadTest" \
+              2>/dev/null || true)
+            if [[ -z "${java_running}" ]]; then
+              log "  WARNING: NLG rapid-fire (pid=${nlg_pid_now}) running but Java not found in pod ${nlg_pod_name} after ${nlg_age}s — killing to force restart"
+              kill "${nlg_pid_now}" 2>/dev/null || true
+              _cg_traffic_pids[0]=""
+            fi
+          fi
+        fi
       fi
       # For relay-rpc: verify port-forward is still alive every poll cycle.
       # Workers suppress curl errors silently, so we must probe here to detect a dead tunnel.
       # Always check — even after a crash, so we can reconnect when the pod recovers.
       if [[ "${probe_type}" == "relay-rpc" && -n "${_cg_relay_local_port}" ]]; then
+        # First check if the port-forward process itself is alive
+        if [[ -n "${_cg_traffic_pf_pid:-}" ]] && ! kill -0 "${_cg_traffic_pf_pid}" 2>/dev/null; then
+          log "  relay-rpc: port-forward process (pid=${_cg_traffic_pf_pid}) is DEAD at ${elapsed}s — reconnecting"
+          _cg_traffic_pf_pid=""
+        fi
         local relay_url="http://localhost:${_cg_relay_local_port}"
         local relay_check_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
         local relay_check_resp
         relay_check_resp=$(curl -s -X POST -H "Content-Type: application/json" \
           --data "${relay_check_payload}" --max-time 3 "${relay_url}" 2>/dev/null || true)
         if [[ -n "${relay_check_resp}" ]]; then
-          log "  relay-rpc: tunnel OK at ${elapsed}s (localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port})"
+          : # tunnel OK — silent unless debugging
         else
           # Tunnel is dead — kill the stale port-forward process.
           kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
@@ -1604,6 +2015,12 @@ optimize_category_group() {
       # Mid-probe restarts already updated low/mid for this component — skip post-probe update.
       [[ "${_cg_mid_probe_restarted[$i]:-false}" == "true" ]] && continue
       local mid="${_cg_mid[$i]}"
+      # Readiness timeout: component was not ready (not OOMKilled) — skip without raising floor.
+      if [[ "${_cg_readiness_skip[$i]:-false}" == "true" ]]; then
+        log "  SKIP ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — was not ready this round (floor unchanged)"
+        _cg_readiness_skip[$i]=false
+        continue
+      fi
       [[ "${mid}" -eq 0 ]] && continue
       if [[ "${_cg_crashed[$i]}" == "true" ]]; then
         log "  FAIL ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — raising floor"

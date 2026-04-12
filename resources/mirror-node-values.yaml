@@ -129,7 +129,6 @@ postgresql:
   pgpool:
     replicaCount: 0
 rest:
-  enabled: false
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -212,7 +211,7 @@ web3:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 100Mi
+      memory: 500Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
