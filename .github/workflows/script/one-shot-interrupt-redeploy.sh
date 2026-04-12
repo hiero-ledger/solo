@@ -103,11 +103,34 @@ fi
 FIRST_DEPLOY_PID=""
 
 # ---------------------------------------------------------------------------
-# Step 2 – wait, then re-run the deploy and check for lock errors
+# Step 2 – wait for cluster readiness, then re-run the deploy
 # ---------------------------------------------------------------------------
 banner "Step 2: waiting ${WAIT_SECONDS}s then redeploying"
 log "Sleeping ${WAIT_SECONDS}s …"
 sleep "${WAIT_SECONDS}"
+
+# If the interrupt hit during cluster creation the local-path-provisioner pod
+# may still be initializing, which causes PVC binding failures in the second
+# deploy.  Wait up to 60 s for the provisioner to become Ready before proceeding.
+KUBECONFIG_CTX="kind-solo-cluster"
+PROVISIONER_WAIT=0
+PROVISIONER_MAX=60
+log "Waiting for local-path-provisioner to be Ready (max ${PROVISIONER_MAX}s) …"
+while [[ ${PROVISIONER_WAIT} -lt ${PROVISIONER_MAX} ]]; do
+  READY=$(~/.solo/bin/kubectl --context "${KUBECONFIG_CTX}" \
+    get pods -n kube-system -l app=local-path-provisioner \
+    --no-headers 2>/dev/null \
+    | awk '{print $2}' | grep -c '^1/1$' || true)
+  if [[ "${READY}" -ge 1 ]]; then
+    log "local-path-provisioner is Ready (waited ${PROVISIONER_WAIT}s)"
+    break
+  fi
+  sleep 2
+  PROVISIONER_WAIT=$(( PROVISIONER_WAIT + 2 ))
+done
+if [[ "${PROVISIONER_WAIT}" -ge "${PROVISIONER_MAX}" ]]; then
+  log "WARN: local-path-provisioner not Ready after ${PROVISIONER_MAX}s; proceeding anyway"
+fi
 
 SECOND_DEPLOY_LOG="$(mktemp /tmp/solo-redeploy-XXXXXX.log)"
 log "Running second deploy; output captured to ${SECOND_DEPLOY_LOG}"
