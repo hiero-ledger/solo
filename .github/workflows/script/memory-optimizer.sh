@@ -42,6 +42,7 @@
 #   --duration S                        NLG probe duration seconds    (default: 300)
 #   --query-duration S                  Query probe duration seconds  (default: 60)
 #   --nlg-test TYPE                     NLG test class to run         (default: CryptoTransferLoadTest)
+#   --skip-preflight                    Skip restoring last_known_good; round 1 probes at live limits
 #                                         CryptoTransferLoadTest
 #                                         NftTransferLoadTest
 #                                         TokenTransferLoadTest
@@ -85,6 +86,8 @@ STABILIZE_S="${STABILIZE_S:-15}"
 # Port that solo port-forwards the mirror ingress controller to on localhost
 MIRROR_INGRESS_LOCAL_PORT="${MIRROR_INGRESS_LOCAL_PORT:-38081}"
 RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
+NLG_TRAFFIC_LOG="${NLG_TRAFFIC_LOG:-/tmp/nlg-traffic.log}"
+SKIP_PREFLIGHT=false  # --skip-preflight: skip pre-flight restores; round 1 probes at live limits
 
 # ── Component registry ──────────────────────────────────────────────────────────
 # Format: "alias|kind|name_pattern|containers|max_memory_mi|probe_type"
@@ -618,6 +621,23 @@ is_new_crash_since() {
   return 1
 }
 
+# Kill all persist-port-forward processes whose command line references a given
+# deployment/statefulset name (wildcard prefix match).  Solo hard-codes the pod
+# name into each process; after a pod restart the old process becomes a zombie
+# targeting a gone pod.  Kill them all before patching so they don't accumulate.
+_kill_portforwards_for() {
+  local name="$1"   # e.g. "haproxy-node1"
+  local pids
+  # Match any persist-port-forward line that contains the component name.
+  # Use grep -v grep to exclude the grep itself.
+  pids=$(ps -ef | grep "persist-port-forward" | grep "${name}" | grep -v grep \
+    | awk '{print $2}' || true)
+  if [[ -n "${pids}" ]]; then
+    log "  Killing stale port-forward processes for ${name}: ${pids}"
+    echo "${pids}" | xargs kill 2>/dev/null || true
+  fi
+}
+
 # Apply a memory limit patch to one container — does NOT wait for rollout.
 # Call wait_for_rollouts after applying all components in a round.
 apply_memory_limit() {
@@ -627,6 +647,10 @@ apply_memory_limit() {
   local memory_mi="$4"
   local ns="${5:-${SOLO_NAMESPACE}}"
   local request_mi=$(( memory_mi / 2 ))
+
+  # Kill stale port-forward processes for this component before patching.
+  # After the rollout the pod gets a new name/IP; old port-forwards become zombies.
+  _kill_portforwards_for "${name}"
 
   log "  kubectl set resources ${kind}/${name} -c ${container} --limits=memory=${memory_mi}Mi --requests=memory=${request_mi}Mi"
 
@@ -1420,6 +1444,7 @@ _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
 _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
 _cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
 _cg_restart_before=(); _cg_probe_start=()
+_cg_nlg_haproxy_ip=""   # last haproxy pod IP used when NLG chart was deployed
 
 # Populate _cg_* arrays with all live (kind, name, container) tuples for a list of aliases.
 cg_discover_components() {
@@ -1524,6 +1549,49 @@ _cg_recover_component() {
   log "  RECOVERY: applying ${recover_mi}Mi to ${_cg_name[$i]}/${_cg_container[$i]} so pod restarts healthy"
   apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
     "${recover_mi}" "${_cg_ns[$i]}"
+}
+
+# For NLG probe: if the haproxy pod IP has changed since the NLG chart was last
+# deployed, destroy the chart so the next rapid-fire load start redeploys it with
+# fresh IPs.  Haproxy gets a new pod IP on every restart (memory limit change),
+# which would cause gRPC timeouts in the NLG.
+_maybe_refresh_nlg_chart() {
+  local current_ip
+  current_ip=$(kubectl get pod -n "${SOLO_NAMESPACE}" -l "solo.hedera.com/type=haproxy" \
+    --no-headers -o custom-columns=IP:.status.podIP 2>/dev/null | head -1 || true)
+  if [[ -z "${current_ip}" ]]; then
+    log "  NLG: cannot get haproxy pod IP — skipping chart refresh"
+    return
+  fi
+  if [[ "${current_ip}" == "${_cg_nlg_haproxy_ip}" ]]; then
+    log "  NLG: haproxy IP unchanged (${current_ip}) — NLG chart still valid"
+    return
+  fi
+  # Check the account-id label on the haproxy pod for the Hedera node account.
+  local haproxy_account
+  haproxy_account=$(kubectl get pod -n "${SOLO_NAMESPACE}" -l "solo.hedera.com/type=haproxy" \
+    --no-headers -o custom-columns=ACCT:.metadata.labels."solo\.hedera\.com/account-id" \
+    2>/dev/null | head -1 || true)
+  haproxy_account="${haproxy_account:-0.0.3}"
+
+  log "  NLG: haproxy IP changed (${_cg_nlg_haproxy_ip:-none} → ${current_ip}) — upgrading NLG chart in-place"
+  # Use helm upgrade --reuse-values to update just the haproxy IP.
+  # Avoids destroy+reinstall which triggers "Install libraries" and pod-name race conditions.
+  helm upgrade network-load-generator \
+    -n "${SOLO_NAMESPACE}" \
+    --reuse-values \
+    --set "loadGenerator.properties[0]=${current_ip}\\:50211=${haproxy_account}" \
+    2>/dev/null || {
+      log "  NLG: helm upgrade failed — NLG chart may not be installed yet; skipping"
+      _cg_nlg_haproxy_ip="${current_ip}"
+      return
+    }
+  # Wait for the rolling update to complete.
+  log "  NLG: waiting for NLG deployment rollout..."
+  kubectl rollout status deployment/network-load-generator \
+    -n "${SOLO_NAMESPACE}" --timeout=120s >/dev/null 2>&1 || true
+  _cg_nlg_haproxy_ip="${current_ip}"
+  log "  NLG: chart updated with haproxy IP ${current_ip} (account ${haproxy_account})"
 }
 
 # Check each non-converged component for a new crash during this probe round.
@@ -1642,10 +1710,9 @@ _setup_relay_portforward() {
   _cg_relay_rpc_port=$(kubectl get pod "${_cg_relay_pod_name}" -n "${SOLO_NAMESPACE}" \
     -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "7546")
   _cg_relay_local_port=$(( (RANDOM % 10000) + 40000 ))
-  # Ensure the traffic log file exists before redirecting port-forward output into it.
-  # _setup_relay_portforward runs before start_category_traffic, so we create it here;
-  # start_category_traffic will reuse it rather than creating a new one.
-  [[ -z "${_cg_traffic_log}" || ! -f "${_cg_traffic_log}" ]] && _cg_traffic_log="$(mktemp)"
+  # Use the fixed NLG_TRAFFIC_LOG path (same as start_category_traffic uses).
+  _cg_traffic_log="${NLG_TRAFFIC_LOG}"
+  : > "${_cg_traffic_log}"
   log "  relay-rpc: port-forwarding pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} → localhost:${_cg_relay_local_port}"
   kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${_cg_relay_pod_name}" \
     "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >"${_cg_traffic_log}" 2>&1 &
@@ -1754,13 +1821,15 @@ start_category_traffic() {
   local probe_type="$1"
   _cg_traffic_pids=()
   _cg_traffic_pf_pid=""
-  # Reuse existing log file if _setup_relay_portforward already created one.
-  [[ -z "${_cg_traffic_log}" || ! -f "${_cg_traffic_log}" ]] && _cg_traffic_log="$(mktemp)"
+  # Always use the fixed NLG_TRAFFIC_LOG path; truncate at start of each round
+  # so `tail -f /tmp/nlg-traffic.log` always shows the current probe.
+  _cg_traffic_log="${NLG_TRAFFIC_LOG}"
+  : > "${_cg_traffic_log}"
   _cg_comp_pf_pids=()
 
   case "${probe_type}" in
     nlg)
-      local nlg_args="-c 4 -a 2000 -t ${NLG_DURATION_S}"
+      local nlg_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${NLG_DURATION_S}"
       npm run solo -- rapid-fire load start \
         --deployment "${SOLO_DEPLOYMENT}" \
         --test "${NLG_TEST_CLASS}" \
@@ -1770,7 +1839,7 @@ start_category_traffic() {
         --quiet-mode \
         >"${_cg_traffic_log}" 2>&1 &
       _cg_traffic_pids=($!)
-      log "  Category traffic: NLG started (pid=${_cg_traffic_pids[*]})"
+      log "  Category traffic: NLG started (pid=${_cg_traffic_pids[*]}) — log: ${_cg_traffic_log}"
       ;;
 
     relay-rpc)
@@ -1811,10 +1880,8 @@ stop_category_traffic() {
   for pf_pid in "${_cg_comp_pf_pids[@]}"; do
     [[ -n "${pf_pid}" ]] && kill "${pf_pid}" 2>/dev/null || true
   done
-  rm -f "${_cg_traffic_log}"
   _cg_traffic_pids=()
   _cg_traffic_pf_pid=""
-  _cg_traffic_log=""
   _cg_comp_pf_pids=()
   _cg_relay_pod_name=""
   _cg_relay_local_port=""
@@ -1852,25 +1919,42 @@ optimize_category_group() {
     return 0
   fi
 
-  # Pre-flight: if a component's live limit differs from last_known_good, apply last_known_good
-  # before the binary search starts, so round 1 begins from a known-stable baseline.
-  # Binary search range is then [last_known_min, max_memory_mi].
+  # Pre-flight: if a component's live limit differs from last_known_good, apply all changes
+  # simultaneously, then wait for all rollouts in parallel (same pattern as round loop).
+  # Skipped when --skip-preflight is set; round 1 will probe at whatever is live.
   local i
-  for i in $(seq 0 $(( _cg_count - 1 ))); do
-    local lkg="${_cg_last_known_good[$i]}"
-    local lkm="${_cg_last_known_min[$i]}"
-    local live_mi; live_mi="$(get_current_memory_limit_mi \
-      "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}")"
-    if [[ -n "${lkg}" && "${lkg}" -gt 0 && "${live_mi}" != "${lkg}" ]]; then
-      log "  Pre-flight: ${_cg_name[$i]}/${_cg_container[$i]} live=${live_mi}Mi ≠ last_known_good=${lkg}Mi — applying last_known_good"
-      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${lkg}" "${_cg_ns[$i]}" || true
-    else
-      log "  Pre-flight: ${_cg_name[$i]}/${_cg_container[$i]} live=${live_mi}Mi = last_known_good=${lkg}Mi — no change needed"
+  local skip_first_apply=false
+  if [[ "${SKIP_PREFLIGHT}" == "true" ]]; then
+    log "  Pre-flight: skipped (--skip-preflight) — round 1 will probe at live limits"
+    skip_first_apply=true
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      local lkm="${_cg_last_known_min[$i]}"
+      _cg_low[$i]="${lkm}"
+      _cg_high[$i]="${_cg_registry_max[$i]}"
+    done
+  else
+    local any_preflight=false
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      local lkg="${_cg_last_known_good[$i]}"
+      local lkm="${_cg_last_known_min[$i]}"
+      local live_mi; live_mi="$(get_current_memory_limit_mi \
+        "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}")"
+      if [[ -n "${lkg}" && "${lkg}" -gt 0 && "${live_mi}" != "${lkg}" ]]; then
+        log "  Pre-flight: ${_cg_name[$i]}/${_cg_container[$i]} live=${live_mi}Mi ≠ last_known_good=${lkg}Mi — will apply"
+        apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${lkg}" "${_cg_ns[$i]}"
+        any_preflight=true
+      else
+        log "  Pre-flight: ${_cg_name[$i]}/${_cg_container[$i]} live=${live_mi}Mi = last_known_good=${lkg}Mi — no change needed"
+      fi
+      # Binary search between [last_known_min, max_memory_mi]
+      _cg_low[$i]="${lkm}"
+      _cg_high[$i]="${_cg_registry_max[$i]}"
+    done
+    if [[ "${any_preflight}" == "true" ]]; then
+      log "  Pre-flight: waiting for all rollouts in parallel..."
+      wait_for_rollouts
     fi
-    # Binary search between [last_known_min, max_memory_mi]
-    _cg_low[$i]="${lkm}"
-    _cg_high[$i]="${_cg_registry_max[$i]}"
-  done
+  fi
 
   local effective_granularity="${MEMORY_GRANULARITY_MI}"
   local round=0
@@ -1900,6 +1984,8 @@ optimize_category_group() {
 
     # Compute mid for all non-converged components, then apply all limits at once.
     # Rollouts are triggered simultaneously; wait_for_rollouts monitors them in parallel.
+    # Round 1 with --skip-preflight: use live limits as mid, skip applying (no change).
+    local any_applied=false
     for i in $(seq 0 $(( _cg_count - 1 ))); do
       [[ "${_cg_converged[$i]}" == "true" ]] && continue
       local range=$(( _cg_high[$i] - _cg_low[$i] ))
@@ -1913,14 +1999,24 @@ optimize_category_group() {
         _cg_converged[$i]=true
         continue
       fi
-      _cg_mid[$i]=$(( (_cg_low[$i] + _cg_high[$i]) / 2 ))
-      log "  ${_cg_name[$i]}/${_cg_container[$i]}: mid=${_cg_mid[$i]}Mi  [${_cg_low[$i]}–${_cg_high[$i]}]"
-      apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
-        "${_cg_mid[$i]}" "${_cg_ns[$i]}"
+      if [[ "${skip_first_apply}" == "true" ]]; then
+        # Use the current live limit as the probe value — do not change anything.
+        local live_mid; live_mid="$(get_current_memory_limit_mi \
+          "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}")"
+        _cg_mid[$i]="${live_mid}"
+        log "  ${_cg_name[$i]}/${_cg_container[$i]}: round 1 probing at live=${live_mid}Mi (no change)  [${_cg_low[$i]}–${_cg_high[$i]}]"
+      else
+        _cg_mid[$i]=$(( (_cg_low[$i] + _cg_high[$i]) / 2 ))
+        log "  ${_cg_name[$i]}/${_cg_container[$i]}: mid=${_cg_mid[$i]}Mi  [${_cg_low[$i]}–${_cg_high[$i]}]"
+        apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+          "${_cg_mid[$i]}" "${_cg_ns[$i]}"
+        any_applied=true
+      fi
     done
+    skip_first_apply=false  # only skip on round 1
 
-    # Wait for all rollouts in parallel, with a longer stabilize after all are ready.
-    wait_for_rollouts
+    # Wait for rollouts only if any limits were actually changed.
+    [[ "${any_applied}" == "true" ]] && wait_for_rollouts
 
     # Re-check convergence after setting (some may have converged above)
     all_converged=true
@@ -1951,6 +2047,11 @@ optimize_category_group() {
         log "  relay-rpc: skipping probe this round — no port-forward available"
         continue
       fi
+    fi
+
+    # For NLG: check haproxy IP hasn't changed; redeploy chart if it has.
+    if [[ "${probe_type}" == "nlg" || "${probe_type}" == "both" ]]; then
+      _maybe_refresh_nlg_chart
     fi
 
     # Start shared traffic for this category
@@ -2011,7 +2112,7 @@ optimize_category_group() {
             nlg_restart_count=$(( nlg_restart_count + 1 ))
             log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
             sleep 5
-            local nlg_retry_args="-c 4 -a 2000 -t ${nlg_remaining}"
+            local nlg_retry_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
             npm run solo -- rapid-fire load start \
               --deployment "${SOLO_DEPLOYMENT}" \
               --test "${NLG_TEST_CLASS}" \
@@ -2021,7 +2122,6 @@ optimize_category_group() {
               --quiet-mode \
               >>"${_cg_traffic_log}" 2>&1 &
             _cg_traffic_pids[0]=$!
-            disown "${_cg_traffic_pids[0]}" 2>/dev/null || true
             log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
           else
             log "  NLG restart limit reached or <30s remaining — probe continuing without NLG traffic"
@@ -2177,6 +2277,7 @@ while [[ $# -gt 0 ]]; do
     --duration)        NLG_DURATION_S="$2";        shift 2 ;;
     --query-duration)  QUERY_DURATION_S="$2";      shift 2 ;;
     --nlg-test)        NLG_TEST_CLASS="$2";        shift 2 ;;
+    --skip-preflight)  SKIP_PREFLIGHT=true;        shift ;;
     *)
       echo "Unknown argument: $1"
       echo "Run with --list to see component aliases, or --help for usage."
@@ -2234,6 +2335,7 @@ cat <<INFO
   NLG test:     ${NLG_TEST_CLASS}
   NLG load:     ${NLG_TPS} TPS × ${NLG_DURATION_S}s per probe
   Query load:   ${NLG_TPS} RPS × ${QUERY_DURATION_S}s per probe
+  Skip preflight: ${SKIP_PREFLIGHT}
   Results file: ${RESULTS_FILE}
 INFO
 
