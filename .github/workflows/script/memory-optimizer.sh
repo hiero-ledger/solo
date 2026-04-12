@@ -35,19 +35,15 @@
 #   --list                              Print component aliases and exit
 #   --namespace  NAME                   Kubernetes namespace          (default: solo)
 #   --deployment NAME                   Solo deployment name          (default: solo)
-#   --min-memory MI                     Memory search lower bound Mi  (default: 64)
 #   --max-memory MI                     Memory search upper bound Mi  (default: 4096)
-#   --granularity MI                    Stop when range ≤ this Mi     (default: 64)
+#   --granularity MI                    Stop when range ≤ this Mi     (default: 96)
 #   --tps N                             NLG/query requests per second (default: 100)
 #   --duration S                        NLG probe duration seconds    (default: 300)
 #   --query-duration S                  Query probe duration seconds  (default: 60)
 #   --nlg-test TYPE                     NLG test class to run         (default: CryptoTransferLoadTest)
+#                                         CryptoTransferLoadTest | NftTransferLoadTest |
+#                                         TokenTransferLoadTest | HCSLoadTest | SmartContractLoadTest
 #   --skip-preflight                    Skip restoring last_known_good; round 1 probes at live limits
-#                                         CryptoTransferLoadTest
-#                                         NftTransferLoadTest
-#                                         TokenTransferLoadTest
-#                                         HCSLoadTest
-#                                         SmartContractLoadTest
 #
 # How the parallel binary search works:
 #   1. Components sharing a probe_type are grouped together.
@@ -72,7 +68,6 @@ set -eo pipefail
 
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo}"
-MEMORY_MIN_MI="${MEMORY_MIN_MI:-64}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
 MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-96}"
 NLG_TPS="${NLG_TPS:-100}"
@@ -88,6 +83,31 @@ MIRROR_INGRESS_LOCAL_PORT="${MIRROR_INGRESS_LOCAL_PORT:-38081}"
 RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 NLG_TRAFFIC_LOG="${NLG_TRAFFIC_LOG:-/tmp/nlg-traffic.log}"
 SKIP_PREFLIGHT=false  # --skip-preflight: skip pre-flight restores; round 1 probes at live limits
+
+# ── Singleton lock ───────────────────────────────────────────────────────────────
+# Prevent multiple overlapping runs: kill any prior instance that holds the lock,
+# then acquire it exclusively for this process.
+_LOCK_FILE="/tmp/memory-optimizer.lock"
+_acquire_lock() {
+  # If a prior PID is recorded and still alive, kill its entire process group.
+  if [[ -f "${_LOCK_FILE}" ]]; then
+    local old_pid
+    old_pid=$(cat "${_LOCK_FILE}" 2>/dev/null || true)
+    if [[ -n "${old_pid}" ]] && kill -0 "${old_pid}" 2>/dev/null; then
+      echo "[memory-optimizer] WARNING: killing previous instance (pid=${old_pid}) before starting." >&2
+      # Kill the process group so child subshells/npm processes also die.
+      kill -- "-${old_pid}" 2>/dev/null || kill "${old_pid}" 2>/dev/null || true
+      local wait_s=0
+      while kill -0 "${old_pid}" 2>/dev/null && [[ "${wait_s}" -lt 10 ]]; do
+        sleep 1; wait_s=$(( wait_s + 1 ))
+      done
+    fi
+  fi
+  echo $$ > "${_LOCK_FILE}"
+  # Remove the lock file on exit (normal or error).
+  trap 'rm -f "${_LOCK_FILE}"' EXIT
+}
+_acquire_lock
 
 # ── Component registry ──────────────────────────────────────────────────────────
 # Format: "alias|kind|name_pattern|containers|max_memory_mi|probe_type"
@@ -794,645 +814,6 @@ nlg_build_args() {
       ;;
   esac
 }
-
-# Run the NLG probe in the background; concurrently watch for OOMKills.
-# Returns 0 (pass) or 1 (fail / OOM).
-run_nlg_probe() {
-  local resource_name="$1"
-  local container="$2"
-
-  local nlg_args
-  nlg_args="$(nlg_build_args)"
-
-  log "  NLG probe: ${NLG_TEST_CLASS} @ ${NLG_TPS} TPS for ${NLG_DURATION_S}s (watching ${resource_name}/${container} for OOM)"
-  log "  NLG args: ${nlg_args}"
-
-  local nlg_log
-  nlg_log="$(mktemp -t nlg-probe-XXXX.log)"
-
-  npm run solo -- rapid-fire load start \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --test "${NLG_TEST_CLASS}" \
-    --max-tps "${NLG_TPS}" \
-    --java-heap "${NLG_JAVA_HEAP_GB}" \
-    --args "\"${nlg_args}\"" \
-    --quiet-mode \
-    >"${nlg_log}" 2>&1 &
-  local nlg_pid=$!
-
-  local oom_detected=false
-  local elapsed=0
-  local poll_interval=10
-  local timeout_s=$(( NLG_DURATION_S + 60 ))
-
-  while kill -0 "${nlg_pid}" 2>/dev/null; do
-    sleep "${poll_interval}"
-    elapsed=$(( elapsed + poll_interval ))
-
-    if check_pod_health "${resource_name}" "${container}"; then
-      log "  OOMKilled/crash detected on ${resource_name}/${container}"
-      oom_detected=true
-      kill "${nlg_pid}" 2>/dev/null || true
-      break
-    fi
-
-    if [[ ${elapsed} -gt ${timeout_s} ]]; then
-      log "  NLG probe timed out after ${timeout_s}s — treating as failure"
-      kill "${nlg_pid}" 2>/dev/null || true
-      break
-    fi
-  done
-
-  local nlg_exit=0
-  wait "${nlg_pid}" 2>/dev/null || nlg_exit=$?
-
-  if [[ "${oom_detected}" == "true" || "${nlg_exit}" -ne 0 ]]; then
-    log "  Probe FAILED (exit=${nlg_exit}, oom=${oom_detected})"
-    tail -20 "${nlg_log}" || true
-    rm -f "${nlg_log}"
-    return 1
-  fi
-
-  log "  Probe PASSED"
-  rm -f "${nlg_log}"
-  return 0
-}
-
-# Run a JSON-RPC load against the relay HTTP endpoint (port 7546) using concurrent
-# curl calls, then watch for OOMKill on the target container.
-# Returns 0 (pass) or 1 (fail / OOM / too many RPC errors).
-run_relay_rpc_probe() {
-  local resource_name="$1"
-  local container="$2"
-
-  # Find a running pod for this resource (pod names start with resource_name-)
-  local pod_name
-  pod_name=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
-    | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
-
-  if [[ -z "${pod_name}" ]]; then
-    log "  No pod found for ${resource_name} — cannot run relay-rpc probe"
-    return 1
-  fi
-
-  # Discover JSON-RPC container port from the pod spec; fall back to 7546.
-  # (Service port names vary by chart version: "jsonrpcrelay", "http", etc.)
-  local rpc_port
-  rpc_port=$(kubectl get pod "${pod_name}" -n "${SOLO_NAMESPACE}" \
-    -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "")
-  rpc_port="${rpc_port:-7546}"
-
-  # Kill any stale port-forwards to this pod from previous iterations — they hold
-  # the connection open and cause the new port-forward to conflict or die quickly.
-  pkill -f "port-forward.*${pod_name}" 2>/dev/null || true
-  sleep 1
-
-  local local_port=$(( (RANDOM % 10000) + 40000 ))
-
-  log "  Relay RPC probe: port-forward ${pod_name}:${rpc_port} → localhost:${local_port} for ${NLG_DURATION_S}s"
-
-  # Capture port-forward stderr to a temp file so we can diagnose unexpected exits
-  local pf_log; pf_log=$(mktemp)
-  kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${pod_name}" \
-    "${local_port}:${rpc_port}" >"${pf_log}" 2>&1 &
-  local pf_pid=$!
-  sleep 3  # Let the port-forward establish
-
-  local rpc_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-
-  # Verify port-forward is reachable before starting load.
-  # Return 2 (infrastructure error) so the caller aborts the binary search entirely
-  # rather than incorrectly treating this as an OOM and trying higher memory.
-  if ! curl -sf -X POST -H "Content-Type: application/json" \
-      --data "${rpc_payload}" --max-time 10 \
-      "http://localhost:${local_port}" >/dev/null 2>&1; then
-    log "  Cannot reach relay at localhost:${local_port} — port-forward not working, aborting component"
-    kill "${pf_pid}" 2>/dev/null || true
-    return 2
-  fi
-  # Snapshot restart count AND last-termination timestamp before load starts.
-  # After the port-forward dies we only treat a restart as a NEW crash if both:
-  #   (a) restartCount increased, AND
-  #   (b) the new lastState.terminated.finishedAt is after probe_start_time.
-  # This prevents falsely attributing a restart from a *previous* iteration's OOM
-  # to the current (higher) memory setting.
-  local probe_start_time; probe_start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-  local restart_count_before
-  restart_count_before=$(kubectl get pod "${pod_name}" -n "${SOLO_NAMESPACE}" \
-    -o jsonpath="{.status.containerStatuses[?(@.name==\"${container}\")].restartCount}" \
-    2>/dev/null || echo "0")
-  restart_count_before="${restart_count_before:-0}"
-  log "  Relay reachable — starting ${NLG_TPS} TPS load for ${NLG_DURATION_S}s (restart count: ${restart_count_before}, probe started: ${probe_start_time})"
-
-  local oom_detected=false
-  local load_died=false
-  local elapsed=0
-  local poll_interval=5
-
-  # Background load loop: use a small pool of persistent worker loops.
-  # kubectl port-forward tunnels through the API server — too many concurrent
-  # connections kill it. Each worker sends one request then sleeps, keeping
-  # total concurrency = RELAY_WORKERS (default 5) at any moment.
-  # Sleep per worker = RELAY_WORKERS / NLG_TPS seconds, so aggregate ≈ NLG_TPS RPS.
-  local RELAY_WORKERS="${RELAY_WORKERS:-5}"
-  # Use awk for float division (bash only does integers)
-  local worker_sleep
-  worker_sleep=$(awk "BEGIN{printf \"%.3f\", ${RELAY_WORKERS}/${NLG_TPS}}")
-  log "  Load workers: ${RELAY_WORKERS} workers × sleep ${worker_sleep}s ≈ ${NLG_TPS} RPS"
-
-  local worker_pids=()
-  for w in $(seq 1 "${RELAY_WORKERS}"); do
-    (
-      while kill -0 "${pf_pid}" 2>/dev/null; do
-        curl -sf -X POST \
-          -H "Content-Type: application/json" \
-          --data "${rpc_payload}" \
-          --max-time 5 \
-          "http://localhost:${local_port}" >/dev/null 2>&1 || true
-        sleep "${worker_sleep}"
-      done
-    ) &
-    worker_pids+=($!)
-  done
-  # Sentinel: if ALL workers die, load_pid wait will return
-  (
-    for wpid in "${worker_pids[@]}"; do wait "${wpid}" 2>/dev/null || true; done
-  ) &
-  local load_pid=$!
-
-  # Poll for OOMKill/crash and also check the load loop is still running.
-  # Connectivity health-checks via the same port-forward are unreliable under high
-  # concurrent load and produce false failures even when the pod is healthy.
-  while [[ ${elapsed} -lt ${NLG_DURATION_S} ]]; do
-    sleep "${poll_interval}"
-    elapsed=$(( elapsed + poll_interval ))
-
-    if check_pod_health "${resource_name}" "${container}"; then
-      log "  OOMKilled/crash detected on ${resource_name}/${container}"
-      oom_detected=true
-      break
-    fi
-
-    # If the port-forward died, all workers will follow. The most likely cause is
-    # the pod OOMKilled and restarted — check pod health before deciding.
-    if ! kill -0 "${pf_pid}" 2>/dev/null; then
-      log "  Port-forward exited early — last output: $(tail -3 "${pf_log}" 2>/dev/null | tr '\n' ' ')"
-      load_died=true
-      break
-    fi
-  done
-
-  # Kill all workers, the sentinel, and the port-forward
-  for wpid in "${worker_pids[@]}"; do kill "${wpid}" 2>/dev/null || true; done
-  kill "${load_pid}" 2>/dev/null || true
-  kill "${pf_pid}" 2>/dev/null || true
-  wait "${pf_pid}" 2>/dev/null || true
-  rm -f "${pf_log}"
-
-  # When the port-forward dies, determine whether the container crashed or it was
-  # a genuine infrastructure failure.  Two signals — checked in order:
-  #
-  # 1. Restart count increased — the container definitely restarted (crashed under
-  #    load). This is detectable even while the pod still shows "Running" because
-  #    the process exited faster than Kubernetes updates containerStatuses.
-  #    "Connection refused" in port-forward output is the typical symptom.
-  #
-  # 2. OOM state in containerStatuses — poll for up to 60s because Kubernetes can
-  #    take 10-30s+ to propagate CrashLoopBackOff / OOMKilled after a restart.
-  if [[ "${load_died}" == "true" ]]; then
-    local new_restart_count
-    if new_restart_count=$(is_new_crash_since "${pod_name}" "${container}" \
-        "${restart_count_before}" "${probe_start_time}" "${SOLO_NAMESPACE}"); then
-      log "  New restart detected (${restart_count_before} → ${new_restart_count}) during this probe — container crashed under load"
-      check_last_termination_oom "${pod_name}" "${container}" "${SOLO_NAMESPACE}" || \
-        log "  Last termination: not OOMKilled (process crash) — treating as memory failure"
-      oom_detected=true
-    else
-      local oom_wait=0
-      local oom_wait_max=60
-      local oom_wait_interval=5
-      log "  Port-forward exited, no new restart yet (count=${new_restart_count}) — polling for up to ${oom_wait_max}s"
-      while [[ ${oom_wait} -lt ${oom_wait_max} ]]; do
-        sleep "${oom_wait_interval}"
-        oom_wait=$(( oom_wait + oom_wait_interval ))
-        if new_restart_count=$(is_new_crash_since "${pod_name}" "${container}" \
-            "${restart_count_before}" "${probe_start_time}" "${SOLO_NAMESPACE}"); then
-          log "  New restart detected after ${oom_wait}s (${restart_count_before} → ${new_restart_count}) — container crashed under load"
-          check_last_termination_oom "${pod_name}" "${container}" "${SOLO_NAMESPACE}" || \
-            log "  Last termination: not OOMKilled (process crash) — treating as memory failure"
-          oom_detected=true
-          break
-        fi
-        if check_pod_health "${resource_name}" "${container}"; then
-          log "  OOMKilled/crash status confirmed after ${oom_wait}s"
-          oom_detected=true
-          break
-        fi
-        log "  No crash signal at ${oom_wait}s (restarts=${new_restart_count}) — waiting..."
-      done
-      if [[ "${oom_detected}" == "false" ]]; then
-        log "  No crash signal after ${oom_wait_max}s — treating as infrastructure error"
-      fi
-    fi
-  fi
-
-  if [[ "${oom_detected}" == "true" ]]; then
-    log "  Relay RPC probe FAILED (OOMKilled/crash)"
-    return 1
-  fi
-  if [[ "${load_died}" == "true" ]]; then
-    # Load loop died but pod is healthy — true infrastructure failure (e.g. port-forward
-    # dropped for unrelated reasons). Abort rather than falsely trying higher memory.
-    log "  Relay RPC probe FAILED (load loop died, pod healthy — infrastructure error)"
-    return 2
-  fi
-
-  log "  Relay RPC probe PASSED (no OOMKill/crash in ${NLG_DURATION_S}s under ${NLG_TPS} TPS load)"
-  return 0
-}
-
-# Run a read-query load against a mirror service using the documented probe methods.
-#
-# Probe methods per component (refs: hiero-mirror-node/docs/*/README.md):
-#
-#   mirror-grpc:
-#     grpcurl (if available) → NetworkService/getNodes on pod port 5600
-#       grpcurl -plaintext -d '{"file_id":{"fileNum":102},"limit":1}' \
-#               <pod>:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
-#     Fallback (no grpcurl) → GET /api/v1/network/exchangerate via ingress port 38081
-#       (exercises the same REST path that gRPC clients also read from)
-#
-#   mirror-rest:
-#     GET /api/v1/network/exchangerate   — single row from file_data, minimal joins
-#     via mirror ingress controller localhost:38081
-#
-#   mirror-restjava:
-#     GET /api/v1/network/supply         — served by restjava, lightweight single row
-#     via mirror ingress controller localhost:38081
-#
-# Strategy:
-#   1. For grpc: port-forward pod:5600 and use grpcurl; fall back to REST via ingress.
-#   2. For rest/restjava: use the existing solo ingress port-forward (38081).
-#   3. Send NLG_TPS concurrent requests per second for QUERY_DURATION_S seconds.
-#   4. Poll every 5s for OOMKill/CrashLoopBackOff on the target container.
-#   5. Fail if >33% of health-check polls return errors.
-#
-# Returns 0 (pass) or 1 (fail / OOM / too many errors).
-run_query_probe() {
-  local resource_name="$1"
-  local container="$2"
-
-  local oom_detected=false
-  local success_count=0
-  local fail_count=0
-  local elapsed=0
-  local poll_interval=5
-  local load_pid=""
-  local pf_pid=""
-
-  # ── Determine probe method and set up connectivity ───────────────────────────
-
-  local health_cmd=""   # command string used for the per-poll health check
-
-  if echo "${resource_name}" | grep -q "grpc"; then
-    # gRPC probe: port-forward to the grpc pod's HTTP management port (8081).
-    # The actuator/health endpoint is the authoritative liveness indicator for the
-    # grpc service and exercises its internal state under concurrent polling load.
-    local grpc_pod
-    grpc_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
-      | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
-
-    if [[ -z "${grpc_pod}" ]]; then
-      log "  No pod found for ${resource_name} — cannot run grpc query probe"
-      return 1
-    fi
-
-    local grpc_local_port=$(( (RANDOM % 10000) + 42000 ))
-    log "  gRPC probe: port-forward ${grpc_pod}:8081 → localhost:${grpc_local_port} (actuator/health)"
-
-    kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${grpc_pod}" \
-      "${grpc_local_port}:8081" >/dev/null 2>&1 &
-    pf_pid=$!
-    sleep 3
-
-    local grpc_health_url="http://localhost:${grpc_local_port}/actuator/health"
-    health_cmd="curl -sf --max-time 5 ${grpc_health_url}"
-
-    (
-      while kill -0 "${pf_pid}" 2>/dev/null; do
-        local i
-        for i in $(seq 1 "${NLG_TPS}"); do
-          curl -sf --max-time 5 "${grpc_health_url}" >/dev/null 2>&1 &
-        done
-        wait
-        sleep 1
-      done
-    ) &
-    load_pid=$!
-
-  elif echo "${resource_name}" | grep -q "web3"; then
-    # mirror-web3: port-forward pod:8545 and hit /actuator/health.
-    # The web3 service handles EVM simulation (POST /api/v1/contracts/call) via
-    # the ingress, but actuator/health on port 8545 is the authoritative liveness
-    # probe and generates real memory pressure under concurrent polling.
-    local web3_pod
-    web3_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
-      | awk '{print $1}' | grep "^${resource_name}-" | head -1 || true)
-
-    if [[ -z "${web3_pod}" ]]; then
-      log "  No pod found for ${resource_name} — cannot run web3 query probe"
-      return 1
-    fi
-
-    local web3_local_port=$(( (RANDOM % 10000) + 43000 ))
-    log "  web3 probe: port-forward ${web3_pod}:8545 → localhost:${web3_local_port} (actuator/health)"
-
-    kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${web3_pod}" \
-      "${web3_local_port}:8545" >/dev/null 2>&1 &
-    pf_pid=$!
-    sleep 3
-
-    local web3_health_url="http://localhost:${web3_local_port}/actuator/health"
-    health_cmd="curl -sf --max-time 5 ${web3_health_url}"
-
-    (
-      while kill -0 "${pf_pid}" 2>/dev/null; do
-        local i
-        for i in $(seq 1 "${NLG_TPS}"); do
-          curl -sf --max-time 5 "${web3_health_url}" >/dev/null 2>&1 &
-        done
-        wait
-        sleep 1
-      done
-    ) &
-    load_pid=$!
-
-  elif echo "${resource_name}" | grep -q "restjava"; then
-    # mirror-restjava: GET /api/v1/network/supply (served exclusively by restjava)
-    local restjava_url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/supply"
-    log "  REST probe: ${restjava_url}"
-    health_cmd="curl -sf --max-time 5 ${restjava_url}"
-    (
-      while true; do
-        local i
-        for i in $(seq 1 "${NLG_TPS}"); do
-          curl -sf --max-time 5 "${restjava_url}" >/dev/null 2>&1 &
-        done
-        wait
-        sleep 1
-      done
-    ) &
-    load_pid=$!
-
-  else
-    # mirror-rest: GET /api/v1/network/exchangerate (single row, minimal joins)
-    local rest_url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/exchangerate"
-    log "  REST probe: ${rest_url}"
-    health_cmd="curl -sf --max-time 5 ${rest_url}"
-    (
-      while true; do
-        local i
-        for i in $(seq 1 "${NLG_TPS}"); do
-          curl -sf --max-time 5 "${rest_url}" >/dev/null 2>&1 &
-        done
-        wait
-        sleep 1
-      done
-    ) &
-    load_pid=$!
-  fi
-
-  log "  Running for ${QUERY_DURATION_S}s @ ${NLG_TPS} RPS, watching ${resource_name}/${container} for OOM"
-
-  # ── Monitor loop ─────────────────────────────────────────────────────────────
-
-  while [[ ${elapsed} -lt ${QUERY_DURATION_S} ]]; do
-    sleep "${poll_interval}"
-    elapsed=$(( elapsed + poll_interval ))
-
-    if check_pod_health "${resource_name}" "${container}"; then
-      log "  OOMKilled/CrashLoopBackOff detected on ${resource_name}/${container}"
-      oom_detected=true
-      break
-    fi
-
-    # Health-check poll using the same method as the load
-    if eval "${health_cmd}" >/dev/null 2>&1; then
-      success_count=$(( success_count + 1 ))
-    else
-      fail_count=$(( fail_count + 1 ))
-    fi
-  done
-
-  # ── Cleanup ──────────────────────────────────────────────────────────────────
-
-  [[ -n "${load_pid}" ]] && kill "${load_pid}" 2>/dev/null || true
-  [[ -n "${pf_pid}" ]]   && kill "${pf_pid}"   2>/dev/null || true
-  wait "${load_pid}" "${pf_pid}" 2>/dev/null || true
-
-  local total=$(( success_count + fail_count ))
-  if [[ "${oom_detected}" == "true" ]]; then
-    log "  Query probe FAILED (OOMKilled/CrashLoopBackOff)"
-    return 1
-  fi
-  if [[ ${total} -gt 0 && ${fail_count} -gt $(( total / 3 )) ]]; then
-    log "  Query probe FAILED (${fail_count}/${total} health checks failed)"
-    return 1
-  fi
-
-  log "  Query probe PASSED (${success_count}/${total} health checks ok)"
-  return 0
-}
-
-# Dispatcher: run the appropriate probe(s) based on probe_type.
-#   nlg       → NLG CryptoTransfer load (consensus write path)
-#   relay-rpc → curl eth_blockNumber loop (relay JSON-RPC path)
-#   query     → concurrent HTTP GET / grpcurl reads (mirror read path)
-#   both      → NLG first, then relay-rpc; both must pass
-#   none      → skip load; always return pass (limit applied for observation)
-run_probe() {
-  local probe_type="$1"
-  local resource_name="$2"
-  local container="$3"
-  local rc
-
-  case "${probe_type}" in
-    nlg)
-      run_nlg_probe "${resource_name}" "${container}"
-      ;;
-    relay-rpc)
-      run_relay_rpc_probe "${resource_name}" "${container}"
-      ;;
-    query)
-      run_query_probe "${resource_name}" "${container}"
-      ;;
-    both)
-      log "  probe=both: running NLG then relay-rpc (both must pass)"
-      run_nlg_probe "${resource_name}" "${container}"
-      rc=$?
-      [[ ${rc} -ne 0 ]] && return "${rc}"
-      run_relay_rpc_probe "${resource_name}" "${container}"
-      ;;
-    none)
-      log "  probe=none: skipping load test (memory limit applied for observation)"
-      return 0
-      ;;
-    *)
-      log "  Unknown probe_type '${probe_type}' — defaulting to nlg"
-      run_nlg_probe "${resource_name}" "${container}"
-      ;;
-  esac
-}
-
-# Binary-search minimum viable memory for one (workload, container) pair.
-# $4 = registry max_mi (used only as fallback when live limit is unavailable)
-# $5 = probe_type (defaults to nlg)
-#
-# Search bounds are derived from the pod's CURRENT live memory limit:
-#   high = current live limit  (we know the pod works here)
-#   low  = 20% of current live limit  (aggressive floor; OOM below this is expected)
-# Falls back to [MEMORY_MIN_MI, registry max_mi] if live limit cannot be read.
-optimize_one() {
-  local kind="$1"
-  local name="$2"
-  local container="$3"
-  local registry_max_mi="${4:-${MEMORY_MAX_MI}}"
-  local probe_type="${5:-nlg}"
-  local ns="${6:-${SOLO_NAMESPACE}}"
-
-  # Discover live memory limit and derive search bounds
-  local live_limit_mi
-  live_limit_mi=$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")
-
-  # High bound = registry max_mi * 110% — a fixed ceiling derived from the known
-  # safe maximum, independent of whatever live limit happens to be set right now.
-  local high=$(( registry_max_mi * 11 / 10 ))
-  local low="${MEMORY_GRANULARITY_MI}"
-  if [[ -n "${live_limit_mi}" && "${live_limit_mi}" -gt 0 ]]; then
-    log "Live memory limit: ${live_limit_mi}Mi  registry max: ${registry_max_mi}Mi → high=110%=${high}Mi  search range [${low}–${high}Mi]"
-  else
-    log "Could not read live memory limit for ${kind}/${name} [${container}] — using registry max: ${registry_max_mi}Mi → high=110%=${high}Mi  search range [${low}–${high}Mi]"
-  fi
-
-  # If the range is already ≤ granularity (e.g. 20% window is narrow), scale down
-  # the effective granularity to half the range so at least one iteration runs.
-  local effective_granularity="${MEMORY_GRANULARITY_MI}"
-  if [[ $(( high - low )) -le ${effective_granularity} ]]; then
-    effective_granularity=$(( (high - low) / 2 ))
-    [[ ${effective_granularity} -lt 1 ]] && effective_granularity=1
-    log "Range [${low}–${high}]Mi < granularity ${MEMORY_GRANULARITY_MI}Mi — using effective granularity ${effective_granularity}Mi"
-  fi
-
-  local prev_display="${live_limit_mi:+${live_limit_mi}Mi}"
-  prev_display="${prev_display:-unknown}"
-
-  header "Optimizing ${kind}/${name}  container: ${container}  probe: ${probe_type}  [${low}–${high}Mi]"
-  local best_mi=0
-  local iteration=0
-
-  while [[ $(( high - low )) -gt ${effective_granularity} ]]; do
-    iteration=$(( iteration + 1 ))
-    local mid=$(( (low + high) / 2 ))
-    log "Iter ${iteration}: testing ${mid}Mi  [range ${low}–${high}]"
-
-    if ! set_memory_limit "${kind}" "${name}" "${container}" "${mid}" "${ns}"; then
-      log "FAILURE at ${mid}Mi — pod crashed during startup (OOMKilled/CrashLoopBackOff)"
-      low="${mid}"
-      continue
-    fi
-
-    local probe_rc
-    run_probe "${probe_type}" "${name}" "${container}" && probe_rc=0 || probe_rc=$?
-
-    if [[ ${probe_rc} -eq 2 ]]; then
-      # Infrastructure error (port-forward failure, load loop died, etc.) — not OOM.
-      # Retrying at higher memory won't help; abort this component entirely.
-      log "ABORT ${name}/${container}: probe infrastructure error — skipping component"
-      printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
-        "PROBE_ERROR" "${kind}/${name}" "${container}" "${prev_display}" "(aborted)" \
-        >> "${RESULTS_FILE}"
-      return 1
-    elif [[ ${probe_rc} -eq 0 ]]; then
-      log "SUCCESS at ${mid}Mi — trying lower"
-      best_mi="${mid}"
-      high="${mid}"
-    else
-      log "FAILURE at ${mid}Mi — trying higher"
-      low="${mid}"
-    fi
-  done
-
-  if [[ "${best_mi}" -gt 0 ]]; then
-    log "Converged: optimal = ${best_mi}Mi for ${kind}/${name} [${container}]  (was ${prev_display})"
-    set_memory_limit "${kind}" "${name}" "${container}" "${best_mi}" "${ns}"
-    printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
-      "OK" "${kind}/${name}" "${container}" "${prev_display}" "${best_mi}Mi" \
-      >> "${RESULTS_FILE}"
-  else
-    log "WARNING: no passing value found in [${low},${high}]Mi for ${kind}/${name} [${container}]  (was ${prev_display})"
-    printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
-      "NOT FOUND" "${kind}/${name}" "${container}" "${prev_display}" ">(${high}Mi)" \
-      >> "${RESULTS_FILE}"
-  fi
-}
-
-# Resolve alias → discover live resource(s) → optimize each (container pair)
-optimize_alias() {
-  local alias="$1"
-  local kind; kind="$(registry_field "${alias}" 2)"
-  local pattern; pattern="$(registry_field "${alias}" 3)"
-  local containers_csv; containers_csv="$(registry_field "${alias}" 4)"
-  local component_max_mi; component_max_mi="$(registry_field "${alias}" 5)"
-  local probe_type; probe_type="$(registry_field "${alias}" 6)"
-  probe_type="${probe_type:-nlg}"
-  # Field 7: optional namespace override (empty = use SOLO_NAMESPACE)
-  local ns_override; ns_override="$(registry_field "${alias}" 7)"
-  local ns="${ns_override:-${SOLO_NAMESPACE}}"
-  # Use component-specific max if defined, otherwise fall back to global --max-memory
-  local effective_max_mi="${component_max_mi:-${MEMORY_MAX_MI}}"
-
-  if [[ -z "${kind}" ]]; then
-    log "Unknown component alias '${alias}' — use --list to see valid aliases"
-    return 1
-  fi
-
-  log "Component ${alias}: max=${effective_max_mi}Mi probe=${probe_type} namespace=${ns}"
-
-  resource_names=()
-  while IFS= read -r line; do
-    [[ -n "${line}" ]] && resource_names+=("${line}")
-  done < <(discover_resources "${kind}" "${pattern}" "${ns}")
-
-  if [[ ${#resource_names[@]} -eq 0 ]]; then
-    log "No live ${kind} matching '${pattern}' in namespace ${ns} — skipping ${alias}"
-    printf "%-14s  %-40s  %-20s  %-18s  %s\n" "SKIPPED" "${kind}/${pattern}" "(not found)" "-" "" \
-      >> "${RESULTS_FILE}"
-    return 0
-  fi
-
-  local name
-  for name in "${resource_names[@]}"; do
-    # Build container list: explicit CSV or auto-discover
-    local containers_to_test=()
-    if [[ -n "${containers_csv}" ]]; then
-      IFS=',' read -ra containers_to_test <<< "${containers_csv}"
-    else
-      local discovered
-      discovered="$(auto_discover_container "${kind}" "${name}" "${ns}")"
-      if [[ -z "${discovered}" ]]; then
-        log "Cannot determine container for ${kind}/${name} — skipping"
-        continue
-      fi
-      containers_to_test=("${discovered}")
-    fi
-
-    local container
-    for container in "${containers_to_test[@]}"; do
-      optimize_one "${kind}" "${name}" "${container}" "${effective_max_mi}" "${probe_type}" "${ns}"
-    done
-  done
-}
-
 # Parallel binary search across all components sharing the same probe_type.
 # Each component gets its own [low, high, best] state updated per round.
 # One shared probe run per round — if a component crashes, raise its memory;
@@ -1443,7 +824,9 @@ _cg_count=0
 _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
 _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
 _cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
+_cg_crashed=()          # true if a component OOMKilled/crashed during the current round
 _cg_restart_before=(); _cg_probe_start=()
+_cg_mid_probe_restarted=()  # true once a component has been restarted mid-probe this round
 _cg_nlg_haproxy_ip=""   # last haproxy pod IP used when NLG chart was deployed
 
 # Populate _cg_* arrays with all live (kind, name, container) tuples for a list of aliases.
@@ -1452,6 +835,8 @@ cg_discover_components() {
   _cg_alias=(); _cg_kind=(); _cg_name=(); _cg_container=(); _cg_ns=()
   _cg_low=(); _cg_high=(); _cg_mid=(); _cg_best=(); _cg_prev=()
   _cg_registry_max=(); _cg_last_known_good=(); _cg_last_known_min=(); _cg_converged=()
+  _cg_crashed=()
+  _cg_mid_probe_restarted=()
 
   local alias
   for alias in "$@"; do
@@ -1952,7 +1337,7 @@ optimize_category_group() {
     done
     if [[ "${any_preflight}" == "true" ]]; then
       log "  Pre-flight: waiting for all rollouts in parallel..."
-      wait_for_rollouts
+      wait_for_rollouts || true
     fi
   fi
 
@@ -1974,6 +1359,7 @@ optimize_category_group() {
     # Reset per-round crash flags before rollout
     for i in $(seq 0 $(( _cg_count - 1 ))); do
       _cg_crashed[$i]=false
+      _cg_mid_probe_restarted[$i]=false
     done
 
     # For relay-rpc: kill all existing port-forwards before touching the pod.
@@ -2016,7 +1402,7 @@ optimize_category_group() {
     skip_first_apply=false  # only skip on round 1
 
     # Wait for rollouts only if any limits were actually changed.
-    [[ "${any_applied}" == "true" ]] && wait_for_rollouts
+    [[ "${any_applied}" == "true" ]] && { wait_for_rollouts || true; }
 
     # Re-check convergence after setting (some may have converged above)
     all_converged=true
@@ -2081,21 +1467,47 @@ optimize_category_group() {
         fi
       done
       log "  Probe ${elapsed}s/${probe_duration}s — $(IFS=', '; echo "${_status_parts[*]}")"
-      for i in $(seq 0 $(( _cg_count - 1 ))); do
-        if [[ "${_cg_crashed[$i]}" == "true" ]]; then
-          any_crashed=true
-        fi
-      done
-      # Early exit: once every non-converged component has crashed there is no more
-      # information to gather this round — break immediately so the binary search
-      # can raise floors and start the next round without waiting out the full duration.
-      local all_probed_crashed=true
+      # Mid-probe crash recovery: for any component that newly crashed this poll,
+      # immediately raise its floor and restart it at the next mid-point so it can
+      # resume being useful while survivors continue the probe.
       for i in $(seq 0 $(( _cg_count - 1 ))); do
         [[ "${_cg_converged[$i]}" == "true" ]] && continue
-        [[ "${_cg_crashed[$i]}" != "true" ]] && all_probed_crashed=false && break
+        [[ "${_cg_crashed[$i]}" != "true" ]] && continue
+        [[ "${_cg_mid_probe_restarted[$i]:-false}" == "true" ]] && any_crashed=true && continue
+        any_crashed=true
+        local crashed_mid="${_cg_mid[$i]}"
+        _cg_low[$i]="${crashed_mid}"
+        local crashed_new_mid=$(( (_cg_low[$i] + _cg_high[$i]) / 2 ))
+        local crashed_range=$(( _cg_high[$i] - _cg_low[$i] ))
+        log "  Mid-probe FAIL ${_cg_name[$i]}/${_cg_container[$i]} at ${crashed_mid}Mi — raising floor, restarting at ${crashed_new_mid}Mi"
+        if [[ "${crashed_range}" -le "${effective_granularity}" ]]; then
+          log "  ${_cg_name[$i]}/${_cg_container[$i]} converged (range=${crashed_range}Mi ≤ gran=${effective_granularity}Mi) — marking done"
+          _cg_converged[$i]=true
+        else
+          _cg_mid[$i]="${crashed_new_mid}"
+          apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+            "${crashed_new_mid}" "${_cg_ns[$i]}"
+        fi
+        _cg_mid_probe_restarted[$i]=true
+        _cg_crashed[$i]=false
       done
-      if [[ "${all_probed_crashed}" == "true" ]]; then
-        log "  All components crashed — exiting probe early at ${elapsed}s"
+      # Trigger a parallel rollout wait for any mid-probe restarts just kicked off,
+      # but only if there are pending rollouts (apply_memory_limit queues them).
+      # We skip wait_for_rollouts here to avoid blocking traffic; rollout is async.
+
+      # Early exit: once every non-converged component has already been restarted
+      # mid-probe, there is no new data to gather — break and start next round.
+      local all_probed_handled=true
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_converged[$i]}" == "true" ]] && continue
+        # Not crashed and not yet mid-probe restarted means still running normally
+        if [[ "${_cg_crashed[$i]}" != "true" && "${_cg_mid_probe_restarted[$i]:-false}" != "true" ]]; then
+          all_probed_handled=false
+          break
+        fi
+      done
+      if [[ "${all_probed_handled}" == "true" ]]; then
+        log "  All components either crashed+restarted or still running — exiting probe early at ${elapsed}s"
         break
       fi
       # For NLG: verify the rapid-fire background process is still alive.
@@ -2105,28 +1517,33 @@ optimize_category_group() {
         if [[ -n "${nlg_pid}" ]] && ! kill -0 "${nlg_pid}" 2>/dev/null; then
           local nlg_exit_code=0
           wait "${nlg_pid}" 2>/dev/null || nlg_exit_code=$?
-          log "  WARNING: NLG process (pid=${nlg_pid}) exited at ${elapsed}s (code=${nlg_exit_code})"
-          tail -5 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _tline; do log "    ${_tline}"; done || true
           local nlg_remaining=$(( probe_duration - elapsed ))
-          if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
-            nlg_restart_count=$(( nlg_restart_count + 1 ))
-            log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
-            sleep 5
-            local nlg_retry_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
-            npm run solo -- rapid-fire load start \
-              --deployment "${SOLO_DEPLOYMENT}" \
-              --test "${NLG_TEST_CLASS}" \
-              --max-tps "${NLG_TPS}" \
-              --java-heap "${NLG_JAVA_HEAP_GB}" \
-              --args "\"${nlg_retry_args}\"" \
-              --quiet-mode \
-              >>"${_cg_traffic_log}" 2>&1 &
-            _cg_traffic_pids[0]=$!
-            log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
-          else
-            log "  NLG restart limit reached or <30s remaining — probe continuing without NLG traffic"
+          if [[ "${nlg_exit_code}" -eq 0 ]]; then
+            log "  NLG process (pid=${nlg_pid}) completed successfully at ${elapsed}s — probe continuing"
             _cg_traffic_pids[0]=""
-          fi
+          else
+            log "  WARNING: NLG process (pid=${nlg_pid}) exited at ${elapsed}s (code=${nlg_exit_code})"
+            tail -5 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _tline; do log "    ${_tline}"; done || true
+            if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
+              nlg_restart_count=$(( nlg_restart_count + 1 ))
+              log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
+              sleep 5
+              local nlg_retry_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
+              npm run solo -- rapid-fire load start \
+                --deployment "${SOLO_DEPLOYMENT}" \
+                --test "${NLG_TEST_CLASS}" \
+                --max-tps "${NLG_TPS}" \
+                --java-heap "${NLG_JAVA_HEAP_GB}" \
+                --args "\"${nlg_retry_args}\"" \
+                --quiet-mode \
+                >>"${_cg_traffic_log}" 2>&1 &
+              _cg_traffic_pids[0]=$!
+              log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
+            else
+              log "  NLG restart limit reached or <30s remaining — probe continuing without NLG traffic"
+              _cg_traffic_pids[0]=""
+            fi
+          fi  # end nlg_exit_code != 0
         fi
       fi
       # For relay-rpc: verify port-forward is still alive every poll cycle.
@@ -2184,6 +1601,8 @@ optimize_category_group() {
     # their ceiling and record a new best.
     for i in $(seq 0 $(( _cg_count - 1 ))); do
       [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      # Mid-probe restarts already updated low/mid for this component — skip post-probe update.
+      [[ "${_cg_mid_probe_restarted[$i]:-false}" == "true" ]] && continue
       local mid="${_cg_mid[$i]}"
       [[ "${mid}" -eq 0 ]] && continue
       if [[ "${_cg_crashed[$i]}" == "true" ]]; then
@@ -2270,7 +1689,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --namespace|-n)    SOLO_NAMESPACE="$2";        shift 2 ;;
     --deployment|-d)   SOLO_DEPLOYMENT="$2";       shift 2 ;;
-    --min-memory)      MEMORY_MIN_MI="$2";         shift 2 ;;
     --max-memory)      MEMORY_MAX_MI="$2";         shift 2 ;;
     --granularity)     MEMORY_GRANULARITY_MI="$2"; shift 2 ;;
     --tps)             NLG_TPS="$2";               shift 2 ;;
@@ -2331,7 +1749,7 @@ cat <<INFO
   Deployment:   ${SOLO_DEPLOYMENT}
   Mode:         ${MODE}
   Components:   ${SELECTED[*]}
-  Memory range: ${MEMORY_MIN_MI}Mi – ${MEMORY_MAX_MI}Mi  (granularity ${MEMORY_GRANULARITY_MI}Mi)
+  Memory max:   ${MEMORY_MAX_MI}Mi  (granularity ${MEMORY_GRANULARITY_MI}Mi)
   NLG test:     ${NLG_TEST_CLASS}
   NLG load:     ${NLG_TPS} TPS × ${NLG_DURATION_S}s per probe
   Query load:   ${NLG_TPS} RPS × ${QUERY_DURATION_S}s per probe
