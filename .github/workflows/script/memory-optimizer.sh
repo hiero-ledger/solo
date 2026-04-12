@@ -136,55 +136,256 @@ RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 # When multiple containers are listed (e.g. redis,sentinel) each is binary-searched
 # independently within the same probe round.
 
-COMPONENT_REGISTRY=(
-  # Registry format: alias|kind|name_pattern|containers|max_memory_mi|probe_type|namespace|last_known_good_mi|last_known_min_mi
-  # Fields:
-  #   alias              — short name used with --components
-  #   kind               — kubernetes resource kind (deployment, statefulset)
-  #   name_pattern       — regex matched against live resource names
-  #   containers         — comma-separated container names; empty = auto-discover first container
-  #   max_memory_mi      — fallback upper bound when live limit cannot be read
-  #   probe_type         — nlg | relay-rpc | query | both | none
-  #   namespace          — (optional) override SOLO_NAMESPACE; empty = use SOLO_NAMESPACE
-  #   last_known_good_mi — starting ceiling for binary search; defaults to max_memory_mi when empty
-  #   last_known_min_mi  — starting floor for binary search; defaults to MEMORY_GRANULARITY_MI when empty
+# Internal format: alias|kind|pattern|containers|max_mi|probe_type|last_good_mi|last_min_mi|namespace
+# Use register_component below — never write entries directly.
+COMPONENT_REGISTRY=()
 
-  # ── Both transaction paths hit network-node directly ──────────────────────────
-  "network-node|statefulset|^network-node[0-9]||8192|both||8192|"
+# Register a component into COMPONENT_REGISTRY.
+# Required: --alias --kind --pattern --max-mi --probe-type
+# Optional: --containers (default: auto-discover)
+#           --last-good  (ceiling; default: max-mi)
+#           --last-min   (floor;   default: MEMORY_GRANULARITY_MI)
+#           --namespace  (default: SOLO_NAMESPACE)
+register_component() {
+  local alias="" kind="" pattern="" containers="" max_mi="" probe_type=""
+  local last_good="" last_min="" namespace=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --alias)       alias="$2";      shift 2 ;;
+      --kind)        kind="$2";       shift 2 ;;
+      --pattern)     pattern="$2";    shift 2 ;;
+      --containers)  containers="$2"; shift 2 ;;
+      --max-mi)      max_mi="$2";     shift 2 ;;
+      --probe-type)  probe_type="$2"; shift 2 ;;
+      --last-good)   last_good="$2";  shift 2 ;;
+      --last-min)    last_min="$2";   shift 2 ;;
+      --namespace)   namespace="$2";  shift 2 ;;
+      *) echo "register_component: unknown argument '$1'" >&2; return 1 ;;
+    esac
+  done
+  COMPONENT_REGISTRY+=("${alias}|${kind}|${pattern}|${containers}|${max_mi}|${probe_type}|${last_good}|${last_min}|${namespace}")
+}
 
-  # ── NLG path: CryptoTransfer → gRPC 50211 → record stream → ─────────────────
-  #    haproxy-node → envoy-proxy → network-node → block-node → mirror-importer
-  "haproxy-node|deployment|^haproxy-node[0-9]+$|haproxy|110|nlg||98|64"
-  "envoy-proxy|deployment|^envoy-proxy-node[0-9]+$|envoy-proxy|110|nlg||98|64"
-  "block-node|statefulset|^block-node-[0-9]+$|block-node-server|200|nlg||100|80"
-  "mirror-importer|deployment|mirror.*importer||600|nlg||400|300"
-  "postgres|statefulset|solo-shared-resources-postgres|postgresql|110|nlg||100|64"
-  "redis|statefulset|solo-shared-resources-redis-node|redis,sentinel|120|nlg||100|80"
-  "minio|statefulset|^minio-pool-[0-9]+$|minio|380|nlg||332|200"
+# ── Both transaction paths ────────────────────────────────────────────────────
+register_component \
+  --alias       network-node \
+  --kind        statefulset \
+  --pattern     "^network-node[0-9]" \
+  --max-mi      3000 \
+  --probe-type  both \
+  --last-good   2012 \
+  --last-min    1024
 
-  # ── Query path: client read requests → ingress → mirror REST/gRPC services ───
-  # mirror-ingress-controller sits in front of all mirror REST queries
-  # mirror-grpc memory is driven by concurrent gRPC subscriptions, not writes
-  # mirror-rest / mirror-restjava memory is driven by concurrent GET requests
-  "mirror-ingress-controller|deployment|mirror-ingress-controller.*||150|query|120|100|"
-  "mirror-grpc|deployment|mirror.*grpc||400|query|350|300|"
-  "mirror-rest|deployment|mirror.*-rest$||400|query|350|300|"
-  "mirror-restjava|deployment|mirror.*restjava||500|query|400|300|"
+# ── NLG path: CryptoTransfer → gRPC → record stream ─────────────────────────
+register_component \
+  --alias       haproxy-node \
+  --kind        deployment \
+  --pattern     "^haproxy-node[0-9]+$" \
+  --containers  haproxy \
+  --max-mi      90 \
+  --probe-type  nlg \
+  --last-good   73 \
+  --last-min    48
 
-  # ── Relay JSON-RPC path: eth_* → port 7546/7547 → relay ─────────────────────
-  "relay|deployment|^relay-[0-9]+$||110|relay-rpc|98|80|"
+register_component \
+  --alias       envoy-proxy \
+  --kind        deployment \
+  --pattern     "^envoy-proxy-node[0-9]+$" \
+  --containers  envoy-proxy \
+  --max-mi      90 \
+  --probe-type  nlg \
+  --last-good   73 \
+  --last-min    48
 
-  # ── mirror-web3: serves POST /api/v1/contracts/call via ingress ──────────────
-  # Memory driven by EVM simulation requests; probed via actuator/health on pod
-  # port 8545 (not relay JSON-RPC — web3 is an internal mirror service)
-  "mirror-web3|deployment|mirror.*web3||150|query|100|80|"
+register_component \
+  --alias       block-node \
+  --kind        statefulset \
+  --pattern     "^block-node-[0-9]+$" \
+  --containers  block-node-server \
+  --max-mi      200 \
+  --probe-type  nlg \
+  --last-good   140 \
+  --last-min    100
 
-  # ── No meaningful transaction-load impact; apply limit for observation only ───
-  "hiero-explorer|deployment|hiero-explorer.*|hiero-explorer-chart|250|none|250|100|"
-  "mirror-monitor|deployment|mirror.*monitor||600|none|470|400|"
-  # minio-operator lives in the cluster-setup namespace, not the deployment namespace
-  "minio-operator|deployment|^minio-operator$|operator|128|none|solo-setup|128|"
-)
+register_component \
+  --alias       mirror-importer \
+  --kind        deployment \
+  --pattern     "mirror.*importer" \
+  --max-mi      600 \
+  --probe-type  nlg \
+  --last-good   450 \
+  --last-min    400
+
+register_component \
+  --alias       postgres \
+  --kind        statefulset \
+  --pattern     "solo-shared-resources-postgres" \
+  --containers  postgresql \
+  --max-mi      100 \
+  --probe-type  nlg \
+  --last-good   75 \
+  --last-min    50
+
+register_component \
+  --alias       redis \
+  --kind        statefulset \
+  --pattern     "solo-shared-resources-redis-node" \
+  --containers  "redis,sentinel" \
+  --max-mi      110 \
+  --probe-type  nlg \
+  --last-good   90 \
+  --last-min    70
+
+register_component \
+  --alias       minio \
+  --kind        statefulset \
+  --pattern     "^minio-pool-[0-9]+$" \
+  --containers  minio \
+  --max-mi      300 \
+  --probe-type  nlg \
+  --last-good   250 \
+  --last-min    210
+
+# ── Query path: client reads → ingress → mirror REST/gRPC ────────────────────
+register_component \
+  --alias       mirror-ingress-controller \
+  --kind        deployment \
+  --pattern     "mirror-ingress-controller.*" \
+  --max-mi      150 \
+  --probe-type  query \
+  --last-good   120 \
+  --last-min    100
+
+register_component \
+  --alias       mirror-grpc \
+  --kind        deployment \
+  --pattern     "mirror.*grpc" \
+  --max-mi      400 \
+  --probe-type  query \
+  --last-good   350 \
+  --last-min    300
+
+register_component \
+  --alias       mirror-rest \
+  --kind        deployment \
+  --pattern     "mirror.*-rest$" \
+  --max-mi      400 \
+  --probe-type  query \
+  --last-good   350 \
+  --last-min    300
+
+register_component \
+  --alias       mirror-restjava \
+  --kind        deployment \
+  --pattern     "mirror.*restjava" \
+  --max-mi      500 \
+  --probe-type  query \
+  --last-good   400 \
+  --last-min    300
+
+# ── Relay JSON-RPC path: eth_* → port 7546 → relay ───────────────────────────
+register_component \
+  --alias       relay \
+  --kind        deployment \
+  --pattern     "^relay-[0-9]+$" \
+  --max-mi      110 \
+  --probe-type  relay-rpc \
+  --last-good   98 \
+  --last-min    80
+
+# ── mirror-web3: EVM simulation requests → pod:8545 ──────────────────────────
+register_component \
+  --alias       mirror-web3 \
+  --kind        deployment \
+  --pattern     "mirror.*web3" \
+  --max-mi      150 \
+  --probe-type  query \
+  --last-good   100 \
+  --last-min    80
+
+# ── minio sidecar (metrics/console helper, low traffic) ──────────────────────
+register_component \
+  --alias       minio-sidecar \
+  --kind        statefulset \
+  --pattern     "^minio-pool-[0-9]+$" \
+  --containers  sidecar \
+  --max-mi      128 \
+  --probe-type  nlg \
+  --last-good   112 \
+  --last-min    96
+
+# ── network-node sidecar containers (stream uploaders + telemetry) ────────────
+register_component \
+  --alias       blockstream-uploader \
+  --kind        statefulset \
+  --pattern     "^network-node[0-9]" \
+  --containers  blockstream-uploader \
+  --max-mi      128 \
+  --probe-type  nlg \
+  --last-good   112 \
+  --last-min    96
+
+register_component \
+  --alias       record-stream-uploader \
+  --kind        statefulset \
+  --pattern     "^network-node[0-9]" \
+  --containers  record-stream-uploader \
+  --max-mi      128 \
+  --probe-type  nlg \
+  --last-good   112 \
+  --last-min    96
+
+register_component \
+  --alias       event-stream-uploader \
+  --kind        statefulset \
+  --pattern     "^network-node[0-9]" \
+  --containers  event-stream-uploader \
+  --max-mi      128 \
+  --probe-type  nlg \
+  --last-good   112 \
+  --last-min    96
+
+register_component \
+  --alias       otel-collector \
+  --kind        statefulset \
+  --pattern     "^network-node[0-9]" \
+  --containers  otel-collector \
+  --max-mi      128 \
+  --probe-type  nlg \
+  --last-good   112 \
+  --last-min    96
+
+
+# ── Observation-only: no meaningful load impact ───────────────────────────────
+register_component \
+  --alias       hiero-explorer \
+  --kind        deployment \
+  --pattern     "hiero-explorer.*" \
+  --containers  hiero-explorer-chart \
+  --max-mi      300 \
+  --probe-type  none \
+  --last-good   250 \
+  --last-min    200
+
+register_component \
+  --alias       mirror-monitor \
+  --kind        deployment \
+  --pattern     "mirror.*monitor" \
+  --max-mi      600 \
+  --probe-type  none \
+  --last-good   470 \
+  --last-min    400
+
+# minio-operator runs in a fixed cluster-setup namespace, not the deployment namespace
+register_component \
+  --alias       minio-operator \
+  --kind        deployment \
+  --pattern     "^minio-operator$" \
+  --containers  operator \
+  --max-mi      128 \
+  --probe-type  none \
+  --last-good   128 \
+  --namespace   solo-setup
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -197,7 +398,8 @@ header() {
   echo "════════════════════════════════════════════════════════════"
 }
 
-# Lookup a field (2=kind, 3=pattern, 4=containers, 5=max_memory_mi, 6=probe_type, 7=namespace, 8=last_known_good_mi, 9=last_known_min_mi) for a given alias (field 1)
+# Lookup a field by number for a given alias.
+# Field positions: 1=alias 2=kind 3=pattern 4=containers 5=max_mi 6=probe_type 7=last_good_mi 8=last_min_mi 9=namespace
 registry_field() {
   local alias="$1"
   local field="$2"
@@ -220,7 +422,7 @@ list_components() {
   printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------" "---------" "--------"
   local entry
   for entry in "${COMPONENT_REGISTRY[@]}"; do
-    IFS='|' read -r alias kind pattern containers max_mi probe_type _ns last_known_good_mi last_known_min_mi <<< "${entry}"
+    IFS='|' read -r alias kind pattern containers max_mi probe_type last_known_good_mi last_known_min_mi _ns <<< "${entry}"
     containers="${containers:-<auto>}"
     local max_display
     if [[ -n "${max_mi}" ]]; then
@@ -416,10 +618,9 @@ is_new_crash_since() {
   return 1
 }
 
-# Patch one container's memory limit + request on a workload, then wait for rollout
-# while concurrently watching for CrashLoopBackOff / OOMKilled.
-# Returns 0 on clean rollout, 1 if the pod crashed during startup.
-set_memory_limit() {
+# Apply a memory limit patch to one container — does NOT wait for rollout.
+# Call wait_for_rollouts after applying all components in a round.
+apply_memory_limit() {
   local kind="$1"
   local name="$2"
   local container="$3"
@@ -429,14 +630,12 @@ set_memory_limit() {
 
   log "  kubectl set resources ${kind}/${name} -c ${container} --limits=memory=${memory_mi}Mi --requests=memory=${request_mi}Mi"
 
-  # Primary: kubectl set resources
   if ! kubectl set resources "${kind}/${name}" \
       -n "${ns}" \
       -c "${container}" \
       --limits="memory=${memory_mi}Mi" \
       --requests="memory=${request_mi}Mi" \
       2>/dev/null; then
-    # Fallback: JSON patch using the discovered container index
     local idx
     idx="$(container_index "${kind}" "${name}" "${container}" "${ns}")"
     log "  kubectl set resources failed — falling back to json-patch at container index ${idx}"
@@ -445,39 +644,102 @@ set_memory_limit() {
       {"op":"replace","path":"/spec/template/spec/containers/%s/resources/requests/memory","value":"%sMi"}
     ]' "${idx}" "${memory_mi}" "${idx}" "${request_mi}")"
   fi
+}
 
-  log "  Waiting for rollout of ${kind}/${name} (monitoring for OOMKilled/CrashLoopBackOff)..."
+# Wait for all _cg_ components to finish rolling out in parallel, watching for crashes.
+# Populates _cg_crashed[$i]=true for any component that OOMKills during rollout.
+# Returns 1 if any component crashed, 0 if all rolled out cleanly.
+wait_for_rollouts() {
+  local ns_arg="${1:-}"
+  local rollout_pids=()
+  local i
 
-  # Run rollout status in the background; poll concurrently for crash states
-  kubectl rollout status "${kind}/${name}" -n "${ns}" --timeout=300s \
-    >/dev/null 2>&1 &
-  local rollout_pid=$!
+  # Launch all rollout-status watchers in parallel
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    [[ "${_cg_converged[$i]}" == "true" ]] && rollout_pids+=("") && continue
+    [[ "${_cg_crashed[$i]}" == "true" ]]   && rollout_pids+=("") && continue
+    kubectl rollout status "${_cg_kind[$i]}/${_cg_name[$i]}" \
+      -n "${_cg_ns[$i]}" --timeout=300s >/dev/null 2>&1 &
+    rollout_pids+=($!)
+  done
 
+  log "  Waiting for rollouts to complete (monitoring for OOMKilled/CrashLoopBackOff)..."
   local elapsed=0
   local poll_interval=5
-  local crashed=false
+  local any_still_rolling=true
 
-  while kill -0 "${rollout_pid}" 2>/dev/null; do
+  while [[ "${any_still_rolling}" == "true" ]]; do
     sleep "${poll_interval}"
     elapsed=$(( elapsed + poll_interval ))
 
-    if check_pod_health "${name}" "${container}" "${ns}"; then
-      log "  Rollout aborted — pod crashed at ${memory_mi}Mi (see above)"
-      kill "${rollout_pid}" 2>/dev/null || true
-      crashed=true
-      break
-    fi
+    # Check crashes for all non-converged, non-already-crashed components
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      [[ "${_cg_converged[$i]}" == "true" ]] && continue
+      [[ "${_cg_crashed[$i]}" == "true" ]]   && continue
+      if check_pod_health "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}"; then
+        log "  STARTUP CRASH at ${_cg_mid[$i]}Mi — raising floor for ${_cg_name[$i]}/${_cg_container[$i]}"
+        _cg_crashed[$i]=true
+        _cg_low[$i]="${_cg_mid[$i]}"
+        # Kill its rollout watcher
+        [[ -n "${rollout_pids[$i]}" ]] && kill "${rollout_pids[$i]}" 2>/dev/null || true
+        # Immediately restore last_known_good so the pod recovers in the background
+        _cg_recover_component "${i}"
+      fi
+    done
+
+    # Check if all watchers have finished
+    any_still_rolling=false
+    for i in $(seq 0 $(( _cg_count - 1 ))); do
+      local pid="${rollout_pids[$i]:-}"
+      [[ -z "${pid}" ]] && continue
+      if kill -0 "${pid}" 2>/dev/null; then
+        any_still_rolling=true
+        break
+      fi
+    done
   done
 
-  wait "${rollout_pid}" 2>/dev/null || true
+  # Reap all watcher processes
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    [[ -n "${rollout_pids[$i]:-}" ]] && wait "${rollout_pids[$i]}" 2>/dev/null || true
+  done
 
-  if [[ "${crashed}" == "true" ]]; then
+  local any_crashed=false
+  for i in $(seq 0 $(( _cg_count - 1 ))); do
+    [[ "${_cg_crashed[$i]}" == "true" ]] && any_crashed=true && break
+  done
+
+  if [[ "${any_crashed}" == "true" ]]; then
     return 1
   fi
 
-  log "  Rollout complete. Stabilizing ${STABILIZE_S}s..."
+  log "  All rollouts complete. Stabilizing ${STABILIZE_S}s..."
   sleep "${STABILIZE_S}"
   return 0
+}
+
+# Backwards-compatible wrapper: apply + wait + stabilize for a single component.
+# Used only by code paths that still set one component at a time.
+set_memory_limit() {
+  local kind="$1" name="$2" container="$3" memory_mi="$4" ns="${5:-${SOLO_NAMESPACE}}"
+  apply_memory_limit "${kind}" "${name}" "${container}" "${memory_mi}" "${ns}"
+
+  log "  Waiting for rollout of ${kind}/${name} (monitoring for OOMKilled/CrashLoopBackOff)..."
+  kubectl rollout status "${kind}/${name}" -n "${ns}" --timeout=300s >/dev/null 2>&1 &
+  local rollout_pid=$!
+  local elapsed=0 crashed=false
+  while kill -0 "${rollout_pid}" 2>/dev/null; do
+    sleep 5; elapsed=$(( elapsed + 5 ))
+    if check_pod_health "${name}" "${container}" "${ns}"; then
+      log "  Rollout aborted — pod crashed at ${memory_mi}Mi"
+      kill "${rollout_pid}" 2>/dev/null || true
+      crashed=true; break
+    fi
+  done
+  wait "${rollout_pid}" 2>/dev/null || true
+  [[ "${crashed}" == "true" ]] && return 1
+  log "  Rollout complete. Stabilizing ${STABILIZE_S}s..."
+  sleep "${STABILIZE_S}"
 }
 
 # Build the --args string for the NLG test class.
@@ -1172,9 +1434,9 @@ cg_discover_components() {
     local pattern; pattern="$(registry_field "${alias}" 3)"
     local containers_csv; containers_csv="$(registry_field "${alias}" 4)"
     local registry_max; registry_max="$(registry_field "${alias}" 5)"
-    local ns_override; ns_override="$(registry_field "${alias}" 7)"
-    local last_known_good; last_known_good="$(registry_field "${alias}" 8)"
-    local last_known_min; last_known_min="$(registry_field "${alias}" 9)"
+    local last_known_good; last_known_good="$(registry_field "${alias}" 7)"
+    local last_known_min; last_known_min="$(registry_field "${alias}" 8)"
+    local ns_override; ns_override="$(registry_field "${alias}" 9)"
     local ns="${ns_override:-${SOLO_NAMESPACE}}"
     registry_max="${registry_max:-${MEMORY_MAX_MI}}"
 
@@ -1253,14 +1515,26 @@ cg_snapshot_restarts() {
   done
 }
 
+# Apply last_known_good (or registry_max as fallback) to a crashed component so it
+# recovers while the probe continues monitoring other components.
+# Does NOT wait for rollout — fires the patch and returns immediately.
+_cg_recover_component() {
+  local i="$1"
+  local recover_mi="${_cg_last_known_good[$i]:-${_cg_registry_max[$i]}}"
+  log "  RECOVERY: applying ${recover_mi}Mi to ${_cg_name[$i]}/${_cg_container[$i]} so pod restarts healthy"
+  apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+    "${recover_mi}" "${_cg_ns[$i]}"
+}
+
 # Check each non-converged component for a new crash during this probe round.
-# Sets _cg_crashed[i]=true for any that crashed.
+# _cg_crashed[i] is STICKY — once true it stays true for the rest of the round.
+# Components already marked crashed are skipped to avoid log spam.
 cg_check_crashes() {
-  _cg_crashed=()
   local i
   for i in $(seq 0 $(( _cg_count - 1 ))); do
-    _cg_crashed+=(false)
     [[ "${_cg_converged[$i]}" == "true" ]] && continue
+    # Already crashed this round — do not re-check or re-log
+    [[ "${_cg_crashed[$i]}" == "true" ]] && continue
 
     # Find current pod name
     local pod_name
@@ -1272,6 +1546,7 @@ cg_check_crashes() {
     if check_pod_health "${_cg_name[$i]}" "${_cg_container[$i]}" "${_cg_ns[$i]}"; then
       log "  CRASH detected: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] — OOMKilled/CrashLoopBackOff"
       _cg_crashed[$i]=true
+      _cg_recover_component "${i}"
       continue
     fi
 
@@ -1282,7 +1557,6 @@ cg_check_crashes() {
       2>/dev/null || echo "0")
     rc_now="${rc_now:-0}"
     if [[ "${rc_now}" -gt "${_cg_restart_before[$i]}" ]]; then
-      # Verify it happened during this probe via finishedAt timestamp
       local finished_at
       finished_at=$(kubectl get pod "${pod_name}" -n "${_cg_ns[$i]}" \
         -o jsonpath="{.status.containerStatuses[?(@.name==\"${_cg_container[$i]}\")].lastState.terminated.finishedAt}" \
@@ -1290,6 +1564,7 @@ cg_check_crashes() {
       if [[ -z "${finished_at}" || "${finished_at}" > "${_cg_probe_start[$i]}" ]]; then
         log "  CRASH detected: ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}] — restart count ${_cg_restart_before[$i]}→${rc_now} during probe"
         _cg_crashed[$i]=true
+        _cg_recover_component "${i}"
       else
         log "  Restart count ${_cg_restart_before[$i]}→${rc_now} for ${_cg_name[$i]} but finishedAt=${finished_at} predates probe — ignoring stale restart"
       fi
@@ -1623,8 +1898,8 @@ optimize_category_group() {
       _kill_relay_portforwards
     fi
 
-    # Compute mid and set memory for all non-converged components
-    local rollout_args=()
+    # Compute mid for all non-converged components, then apply all limits at once.
+    # Rollouts are triggered simultaneously; wait_for_rollouts monitors them in parallel.
     for i in $(seq 0 $(( _cg_count - 1 ))); do
       [[ "${_cg_converged[$i]}" == "true" ]] && continue
       local range=$(( _cg_high[$i] - _cg_low[$i] ))
@@ -1640,16 +1915,12 @@ optimize_category_group() {
       fi
       _cg_mid[$i]=$(( (_cg_low[$i] + _cg_high[$i]) / 2 ))
       log "  ${_cg_name[$i]}/${_cg_container[$i]}: mid=${_cg_mid[$i]}Mi  [${_cg_low[$i]}–${_cg_high[$i]}]"
-      local rollout_rc=0
-      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
-        "${_cg_mid[$i]}" "${_cg_ns[$i]}" || rollout_rc=$?
-      if [[ ${rollout_rc} -ne 0 ]]; then
-        log "  STARTUP CRASH at ${_cg_mid[$i]}Mi — raising floor immediately for ${_cg_name[$i]}/${_cg_container[$i]}"
-        _cg_crashed[$i]=true
-        _cg_low[$i]="${_cg_mid[$i]}"
-        _cg_converged[$i]=false
-      fi
+      apply_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
+        "${_cg_mid[$i]}" "${_cg_ns[$i]}"
     done
+
+    # Wait for all rollouts in parallel, with a longer stabilize after all are ready.
+    wait_for_rollouts
 
     # Re-check convergence after setting (some may have converged above)
     all_converged=true
@@ -1691,11 +1962,24 @@ optimize_category_group() {
     local probe_duration="${NLG_DURATION_S}"
     [[ "${probe_type}" == "query" ]] && probe_duration="${QUERY_DURATION_S}"
     local any_crashed=false
+    local nlg_restart_count=0
 
     while [[ ${elapsed} -lt ${probe_duration} ]]; do
       sleep "${poll_interval}"
       elapsed=$(( elapsed + poll_interval ))
       cg_check_crashes
+      # Heartbeat: show progress and per-component status every poll so the operator
+      # can confirm traffic is running and the script has not hung.
+      local _status_parts=()
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_converged[$i]}" == "true" ]] && continue
+        if [[ "${_cg_crashed[$i]}" == "true" ]]; then
+          _status_parts+=("${_cg_name[$i]}/${_cg_container[$i]}=CRASHED")
+        else
+          _status_parts+=("${_cg_name[$i]}/${_cg_container[$i]}=${_cg_mid[$i]}Mi-OK")
+        fi
+      done
+      log "  Probe ${elapsed}s/${probe_duration}s — $(IFS=', '; echo "${_status_parts[*]}")"
       for i in $(seq 0 $(( _cg_count - 1 ))); do
         if [[ "${_cg_crashed[$i]}" == "true" ]]; then
           any_crashed=true
@@ -1712,6 +1996,38 @@ optimize_category_group() {
       if [[ "${all_probed_crashed}" == "true" ]]; then
         log "  All components crashed — exiting probe early at ${elapsed}s"
         break
+      fi
+      # For NLG: verify the rapid-fire background process is still alive.
+      # If it died early (e.g. gRPC setup timeout), log the tail and retry.
+      if [[ "${probe_type}" == "nlg" || "${probe_type}" == "both" ]]; then
+        local nlg_pid="${_cg_traffic_pids[0]:-}"
+        if [[ -n "${nlg_pid}" ]] && ! kill -0 "${nlg_pid}" 2>/dev/null; then
+          local nlg_exit_code=0
+          wait "${nlg_pid}" 2>/dev/null || nlg_exit_code=$?
+          log "  WARNING: NLG process (pid=${nlg_pid}) exited at ${elapsed}s (code=${nlg_exit_code})"
+          tail -5 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _tline; do log "    ${_tline}"; done || true
+          local nlg_remaining=$(( probe_duration - elapsed ))
+          if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
+            nlg_restart_count=$(( nlg_restart_count + 1 ))
+            log "  Restarting NLG (attempt ${nlg_restart_count}/3, ${nlg_remaining}s remaining)..."
+            sleep 5
+            local nlg_retry_args="-c 4 -a 2000 -t ${nlg_remaining}"
+            npm run solo -- rapid-fire load start \
+              --deployment "${SOLO_DEPLOYMENT}" \
+              --test "${NLG_TEST_CLASS}" \
+              --max-tps "${NLG_TPS}" \
+              --java-heap "${NLG_JAVA_HEAP_GB}" \
+              --args "\"${nlg_retry_args}\"" \
+              --quiet-mode \
+              >>"${_cg_traffic_log}" 2>&1 &
+            _cg_traffic_pids[0]=$!
+            disown "${_cg_traffic_pids[0]}" 2>/dev/null || true
+            log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
+          else
+            log "  NLG restart limit reached or <30s remaining — probe continuing without NLG traffic"
+            _cg_traffic_pids[0]=""
+          fi
+        fi
       fi
       # For relay-rpc: verify port-forward is still alive every poll cycle.
       # Workers suppress curl errors silently, so we must probe here to detect a dead tunnel.
