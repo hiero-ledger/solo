@@ -59,6 +59,7 @@ export interface RemoteConfigRuntimeStateApi {
 
   remoteConfigExists(namespace: NamespaceName, context: Context): Promise<boolean>;
   populateFromExisting(namespace: NamespaceName, context: Context): Promise<void>;
+  populateClusterReferences(deploymentName: DeploymentName): Context;
 
   loadAndValidate(
     argv: {_: string[]} & AnyObject,

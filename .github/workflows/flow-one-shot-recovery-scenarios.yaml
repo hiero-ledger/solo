@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "One Shot Interrupt Destroy"
+name: "One Shot Recovery Scenarios"
 
 on:
   workflow_dispatch:
@@ -51,21 +51,20 @@ permissions:
   actions: read
 
 jobs:
-  test-one-shot-interrupt-destroy:
-    name: Interrupt=${{ matrix.interrupt_seconds }}s
+  test-one-shot-recovery-scenarios:
+    name: ${{ matrix.name }}
     runs-on: hiero-solo-linux-large
     timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
-        interrupt_seconds: [5, 10, 15, 30, 45, 60, 90, 120, 150, 180, 200, 220, 240, 260, 280]
+        include: ${{ fromJson(inputs.matrix || '[{"name":"Full Deploy → Delete Cluster → Redeploy","script":"one-shot-full-delete-cluster-redeploy.sh"},{"name":"Full Deploy → Delete Local Config → Redeploy","script":"one-shot-full-delete-local-redeploy.sh"}]') }}
       max-parallel: 2
 
     steps:
       - name: Pre-job Cleanup
         if: always()
         run: |
-          # Remove any Kind cluster and Docker containers left over from a previous run on this runner.
           kind delete cluster --name solo-cluster 2>/dev/null || true
           docker rm --force --volumes \
             $(docker ps -aq --filter label=io.x-k8s.kind.cluster=solo-cluster 2>/dev/null) \
@@ -73,7 +72,7 @@ jobs:
           rm -rf ~/.solo
 
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -102,8 +101,8 @@ jobs:
       - name: Build Application
         run: task build:compile
 
-      - name: Run Interrupt Redeploy Script
-        timeout-minutes: 30
+      - name: Run Recovery Scenario Script
+        timeout-minutes: 40
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
@@ -113,8 +112,7 @@ jobs:
           else
             export SOLO_COMMAND="npm run solo --"
           fi
-          export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
-          bash .github/workflows/script/one-shot-interrupt-redeploy.sh
+          bash .github/workflows/script/${{ matrix.script }}
 
       - name: Collect Deployment Diagnostics Logs
         if: failure() || cancelled()
@@ -130,7 +128,7 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: 5
         with:
-          name: solo-logs-${{ matrix.interrupt_seconds }}s
+          name: solo-logs-${{ matrix.script }}
           path: ~/.solo/logs/*
           if-no-files-found: warn
 

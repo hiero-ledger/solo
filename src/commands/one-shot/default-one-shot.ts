@@ -22,7 +22,7 @@ import {
   type SoloListrTaskWrapper,
 } from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
-import {inject, injectable} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
@@ -58,7 +58,7 @@ import {
   TopicInfoQuery,
 } from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
+import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable, sleep} from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
@@ -71,6 +71,9 @@ import {SharedResourceManager} from '../../core/shared-resources/shared-resource
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
+import {NetworkNodes} from '../../core/network-nodes.js';
+import {NodeStatusCodes} from '../../core/enumerations.js';
+import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {Templates} from '../../core/templates.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
@@ -84,6 +87,7 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
+import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
@@ -355,10 +359,45 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.clusterRef = config.clusterRef || 'one-shot';
               config.context = config.context || this.k8Factory.default().contexts().readCurrent();
               config.deployment = config.deployment || 'one-shot';
-              config.namespace = config.namespace || NamespaceName.of('one-shot');
+              // Do not inherit the namespace auto-detected from the current K8s context.
+              // The Yargs middleware runs applyPrecedence() before command handlers, which
+              // may inject a NamespaceName object (the runner pod's namespace) into argv.
+              // Only use the argv value if it is an explicit user-supplied plain string;
+              // otherwise always default to 'one-shot' so the namespace stored in the remote
+              // config stays consistent across interrupted and recovery runs.
+              {
+                const rawNamespace: unknown = argv[flags.namespace.name];
+                config.namespace =
+                  typeof rawNamespace === 'string' && rawNamespace
+                    ? NamespaceName.of(rawNamespace)
+                    : NamespaceName.of('one-shot');
+              }
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
+
+              // Detect and remove a local-config deployment entry left over from a previously
+              // interrupted run (e.g. via Ctrl+C).  When a deploy is interrupted after the local-
+              // config entry has been created but before the deploy completes, re-running the command
+              // would fail because 'deployment config create' throws when the name already exists in
+              // local config.  Removing the entry here allows the deploy to proceed cleanly.
+              //
+              // Safety: any Kubernetes-level resources (namespace, remote ConfigMap) that may have
+              // been created during the interrupted run are caught by the subsequent
+              // 'Check for other deployments' task, which prompts the user before proceeding.
+              await this.localConfig.load();
+              const existingDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
+                (deployment: Deployment): boolean => deployment.name === config.deployment,
+              );
+              if (existingDeployment) {
+                this.logger.warn(
+                  `Found existing deployment '${config.deployment}' in local config. ` +
+                    'This may be left over from an interrupted previous run. ' +
+                    'Removing the local entry so the deployment can be re-created.',
+                );
+                this.localConfig.configuration.deployments.remove(existingDeployment);
+                await this.localConfig.persist();
+              }
 
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
@@ -543,84 +582,121 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Create remote config components',
             task: async (): Promise<void> => {
-              // Pre add remote config components to remote config
+              // If recovering from an interrupted run the remote config already exists in K8s
+              // but was not loaded (createOrEditRemoteConfigForNewDeployment returned early).
+              // Load it now so we can detect which components are already registered.
+              if (!this.remoteConfig.isLoaded()) {
+                try {
+                  await this.remoteConfig.load(config.namespace, config.context);
+                  if (this.remoteConfig.isLoaded()) {
+                    // Populate cluster references so that persist() and downstream
+                    // commands that call loadAndValidate() have the correct namespace
+                    // and can write to the remote config ConfigMap.
+                    this.remoteConfig.populateClusterReferences(config.deployment);
+                  }
+                } catch {
+                  // Remote config does not exist yet; proceed to create components from scratch
+                }
+              }
+
+              let changed: boolean = false;
 
               if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
-                // Add Block Node
-                const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
-                  config.clusterRef,
-                  config.namespace,
-                );
-
-                blockNode.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  blockNode,
-                  ComponentTypes.BlockNode,
-                  false,
-                  true,
-                );
-              }
-
-              // Add Explorer
-              if (config.deployExplorer) {
-                const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
-                  config.clusterRef,
-                  config.namespace,
-                );
-
-                explorer.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  explorer,
-                  ComponentTypes.Explorer,
-                  false,
-                  true,
-                );
-              }
-
-              // Add Mirror Node
-              if (config.deployMirrorNode) {
-                const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
-                  config.clusterRef,
-                  config.namespace,
-                );
-
-                mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  mirrorNode,
-                  ComponentTypes.MirrorNode,
-                  false,
-                  true,
-                );
-              }
-
-              // Add Relay
-              if (config.deployRelay) {
-                const nodeIds: NodeId[] = [];
-
-                for (const alias of Templates.renderNodeAliasesFromCount(config.numberOfConsensusNodes, 0)) {
-                  nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
+                const existingBlockNodes: BlockNodeStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
+                      ComponentTypes.BlockNode,
+                    )
+                  : [];
+                if (existingBlockNodes.length === 0) {
+                  const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
+                    config.clusterRef,
+                    config.namespace,
+                  );
+                  blockNode.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    blockNode,
+                    ComponentTypes.BlockNode,
+                    false,
+                    true,
+                  );
+                  changed = true;
                 }
-
-                const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
-                  config.clusterRef,
-                  config.namespace,
-                  nodeIds,
-                );
-
-                relay.metadata.phase = DeploymentPhase.REQUESTED;
-
-                this.remoteConfig.configuration.components.addNewComponent(
-                  relay,
-                  ComponentTypes.RelayNodes,
-                  false,
-                  true,
-                );
               }
 
-              await this.remoteConfig.persist();
+              if (config.deployExplorer) {
+                const existingExplorers: ExplorerStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<ExplorerStateSchema>(
+                      ComponentTypes.Explorer,
+                    )
+                  : [];
+                if (existingExplorers.length === 0) {
+                  const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
+                    config.clusterRef,
+                    config.namespace,
+                  );
+                  explorer.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    explorer,
+                    ComponentTypes.Explorer,
+                    false,
+                    true,
+                  );
+                  changed = true;
+                }
+              }
+
+              if (config.deployMirrorNode) {
+                const existingMirrorNodes: MirrorNodeStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<MirrorNodeStateSchema>(
+                      ComponentTypes.MirrorNode,
+                    )
+                  : [];
+                if (existingMirrorNodes.length === 0) {
+                  const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
+                    config.clusterRef,
+                    config.namespace,
+                  );
+                  mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    mirrorNode,
+                    ComponentTypes.MirrorNode,
+                    false,
+                    true,
+                  );
+                  changed = true;
+                }
+              }
+
+              if (config.deployRelay) {
+                const existingRelays: RelayNodeStateSchema[] = this.remoteConfig.isLoaded()
+                  ? this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+                      ComponentTypes.RelayNodes,
+                    )
+                  : [];
+                if (existingRelays.length === 0) {
+                  const nodeIds: NodeId[] = [];
+                  for (const alias of Templates.renderNodeAliasesFromCount(config.numberOfConsensusNodes, 0)) {
+                    nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
+                  }
+                  const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
+                    config.clusterRef,
+                    config.namespace,
+                    nodeIds,
+                  );
+                  relay.metadata.phase = DeploymentPhase.REQUESTED;
+                  this.remoteConfig.configuration.components.addNewComponent(
+                    relay,
+                    ComponentTypes.RelayNodes,
+                    false,
+                    true,
+                  );
+                  changed = true;
+                }
+              }
+
+              if (changed) {
+                await this.remoteConfig.persist();
+              }
             },
           },
           {
@@ -648,6 +724,21 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       return argvPushGlobalFlags(argv, config.cacheDir);
                     },
                     this.taskList,
+                    (): boolean => {
+                      if (!this.remoteConfig.isLoaded()) {
+                        return false;
+                      }
+                      const consensusNodes: ConsensusNodeStateSchema[] =
+                        this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                          ComponentTypes.ConsensusNode,
+                        );
+                      return consensusNodes.some(
+                        (node: ConsensusNodeStateSchema): boolean =>
+                          node.metadata.phase === DeploymentPhase.DEPLOYED ||
+                          node.metadata.phase === DeploymentPhase.CONFIGURED ||
+                          node.metadata.phase === DeploymentPhase.STARTED,
+                      );
+                    },
                   ),
                   invokeSoloCommand(
                     `solo ${BlockCommandDefinition.ADD_COMMAND}`,
@@ -663,7 +754,21 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       return argvPushGlobalFlags(argv);
                     },
                     this.taskList,
-                    (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+                    (): boolean => {
+                      if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true') {
+                        return true;
+                      }
+                      if (!this.remoteConfig.isLoaded()) {
+                        return false;
+                      }
+                      const blockNodes: BlockNodeStateSchema[] =
+                        this.remoteConfig.configuration.components.getComponentByType<BlockNodeStateSchema>(
+                          ComponentTypes.BlockNode,
+                        );
+                      return blockNodes.some(
+                        (node: BlockNodeStateSchema): boolean => node.metadata.phase === DeploymentPhase.DEPLOYED,
+                      );
+                    },
                   ),
                 ],
                 {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
@@ -699,6 +804,79 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                 : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
                             },
                           },
+                          {
+                            title: 'Wait for consensus node ACTIVE without restart in recovery',
+                            skip: (): boolean => {
+                              if (!this.oneShotState.isActive() || !this.remoteConfig.isLoaded()) {
+                                return true;
+                              }
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              return !consensusNodes.some(
+                                (node: ConsensusNodeStateSchema): boolean =>
+                                  node.metadata.phase === DeploymentPhase.CONFIGURED,
+                              );
+                            },
+                            task: async (): Promise<void> => {
+                              const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(
+                                InjectTokens.NetworkNodes,
+                              );
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              const configuredNodes: ConsensusNodeStateSchema[] = consensusNodes.filter(
+                                (node: ConsensusNodeStateSchema): boolean =>
+                                  node.metadata.phase === DeploymentPhase.CONFIGURED,
+                              );
+                              for (const node of configuredNodes) {
+                                const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(
+                                  Number(node.metadata.id),
+                                );
+                                const podReference: PodReference = PodReference.of(
+                                  config.namespace,
+                                  Templates.renderNetworkPodName(nodeAlias),
+                                );
+                                let attempt: number = 0;
+                                let active: boolean = false;
+                                while (attempt < constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS) {
+                                  try {
+                                    const response: string = await networkNodes.getNetworkNodePodStatus(
+                                      podReference,
+                                      config.context,
+                                    );
+                                    const statusLine: string | undefined = response
+                                      .split('\n')
+                                      .find((line: string): boolean => line.startsWith('platform_PlatformStatus'));
+                                    if (statusLine) {
+                                      const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
+                                      if (statusNumber === NodeStatusCodes.ACTIVE) {
+                                        active = true;
+                                        break;
+                                      }
+                                    }
+                                  } catch {
+                                    // ignore and retry
+                                  }
+                                  attempt++;
+                                  await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_DELAY));
+                                }
+                                if (!active) {
+                                  throw new SoloError(
+                                    `node '${nodeAlias}' did not become ACTIVE in recovery` +
+                                      ` [attempt = ${attempt}/${constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS}]`,
+                                  );
+                                }
+                                // Platform is running and ACTIVE; reset phase to STARTED so that node
+                                // start is skipped, avoiding a platform restart that would cause the
+                                // mirror node to miss genesis record files.
+                                node.metadata.phase = DeploymentPhase.STARTED;
+                              }
+                              await this.remoteConfig.persist();
+                            },
+                          },
                           invokeSoloCommand(
                             `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
                             ConsensusCommandDefinition.SETUP_COMMAND,
@@ -713,6 +891,23 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               return argvPushGlobalFlags(argv, config.cacheDir);
                             },
                             this.taskList,
+                            (): boolean => {
+                              if (!this.remoteConfig.isLoaded()) {
+                                return false;
+                              }
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              return (
+                                consensusNodes.length > 0 &&
+                                consensusNodes.every(
+                                  (node: ConsensusNodeStateSchema): boolean =>
+                                    node.metadata.phase === DeploymentPhase.CONFIGURED ||
+                                    node.metadata.phase === DeploymentPhase.STARTED,
+                                )
+                              );
+                            },
                           ),
                           invokeSoloCommand(
                             `solo ${ConsensusCommandDefinition.START_COMMAND}`,
@@ -728,6 +923,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                               return argvPushGlobalFlags(argv);
                             },
                             this.taskList,
+                            (): boolean => {
+                              if (!this.remoteConfig.isLoaded()) {
+                                return false;
+                              }
+                              const consensusNodes: ConsensusNodeStateSchema[] =
+                                this.remoteConfig.configuration.components.getComponentByType<ConsensusNodeStateSchema>(
+                                  ComponentTypes.ConsensusNode,
+                                );
+                              return (
+                                consensusNodes.length > 0 &&
+                                consensusNodes.every(
+                                  (node: ConsensusNodeStateSchema): boolean =>
+                                    node.metadata.phase === DeploymentPhase.STARTED,
+                                )
+                              );
+                            },
                           ),
                         ],
                         {concurrent: false, rendererOptions: {collapseSubtasks: false}},
@@ -766,7 +977,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                       return argvPushGlobalFlags(argv, config.cacheDir);
                                     },
                                     this.taskList,
-                                    (): boolean => !config.deployMirrorNode,
+                                    (): boolean => {
+                                      if (!config.deployMirrorNode) {
+                                        return true;
+                                      }
+                                      if (!this.remoteConfig.isLoaded()) {
+                                        return false;
+                                      }
+                                      const mirrorNodes: MirrorNodeStateSchema[] =
+                                        this.remoteConfig.configuration.components.getComponentByType<MirrorNodeStateSchema>(
+                                          ComponentTypes.MirrorNode,
+                                        );
+                                      return mirrorNodes.some(
+                                        (node: MirrorNodeStateSchema): boolean =>
+                                          node.metadata.phase === DeploymentPhase.DEPLOYED,
+                                      );
+                                    },
                                   ),
                                   {
                                     title: 'Deploy Extensions',
@@ -795,7 +1021,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                               return argvPushGlobalFlags(argv, config.cacheDir);
                                             },
                                             this.taskList,
-                                            (): boolean => !config.deployExplorer,
+                                            (): boolean => {
+                                              if (!config.deployExplorer) {
+                                                return true;
+                                              }
+                                              if (!this.remoteConfig.isLoaded()) {
+                                                return false;
+                                              }
+                                              const explorers: ExplorerStateSchema[] =
+                                                this.remoteConfig.configuration.components.getComponentByType<ExplorerStateSchema>(
+                                                  ComponentTypes.Explorer,
+                                                );
+                                              return explorers.some(
+                                                (node: ExplorerStateSchema): boolean =>
+                                                  node.metadata.phase === DeploymentPhase.DEPLOYED,
+                                              );
+                                            },
                                           ),
                                           invokeSoloCommand(
                                             `solo ${RelayCommandDefinition.ADD_COMMAND}`,
@@ -819,7 +1060,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                               return argvPushGlobalFlags(argv);
                                             },
                                             this.taskList,
-                                            (): boolean => !config.deployRelay,
+                                            (): boolean => {
+                                              if (!config.deployRelay) {
+                                                return true;
+                                              }
+                                              if (!this.remoteConfig.isLoaded()) {
+                                                return false;
+                                              }
+                                              const relays: RelayNodeStateSchema[] =
+                                                this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+                                                  ComponentTypes.RelayNodes,
+                                                );
+                                              return relays.some(
+                                                (node: RelayNodeStateSchema): boolean =>
+                                                  node.metadata.phase === DeploymentPhase.DEPLOYED,
+                                              );
+                                            },
                                           ),
                                         ],
                                         {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
@@ -888,19 +1144,31 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     ): Promise<void> => {
                                       await helpers.sleep(Duration.ofMillis(100 * index));
 
-                                      const createdAccount: {
+                                      let createdAccount: {
                                         accountId: string;
                                         privateKey: string;
                                         publicKey: string;
                                         balance: number;
                                         accountAlias?: string;
-                                      } = await this.accountManager.createNewAccount(
-                                        context_.config.namespace,
-                                        account.privateKey,
-                                        account.balance.to(HbarUnit.Hbar).toNumber(),
-                                        account.alias,
-                                        context_.config.context,
-                                      );
+                                      };
+                                      try {
+                                        createdAccount = await this.accountManager.createNewAccount(
+                                          context_.config.namespace,
+                                          account.privateKey,
+                                          account.balance.to(HbarUnit.Hbar).toNumber(),
+                                          account.alias,
+                                          context_.config.context,
+                                        );
+                                      } catch (error: unknown) {
+                                        // On recovery, accounts may already exist from the interrupted
+                                        // first deploy.  Skip gracefully so the second deploy succeeds.
+                                        const message: string = error instanceof Error ? error.message : String(error);
+                                        if (message.includes('ALIAS_ALREADY_ASSIGNED')) {
+                                          subTask.title = `Account ${index} already exists, skipping`;
+                                          return;
+                                        }
+                                        throw error;
+                                      }
 
                                       context_.createdAccounts.push({
                                         accountId: AccountId.fromString(createdAccount.accountId),
@@ -1229,7 +1497,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private showPortForwards(outputFile?: string): void {
     this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
 
-    if (outputFile) {
+    if (outputFile && this.logger.getMessageGroupKeys().includes(constants.PORT_FORWARDING_MESSAGE_GROUP)) {
       const messages: string[] = this.logger.getMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
       const fileData: string = messages.join('\n') + '\n';
       createDirectoryIfNotExists(outputFile);

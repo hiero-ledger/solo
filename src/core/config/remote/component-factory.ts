@@ -79,6 +79,20 @@ export class ComponentFactory implements ComponentFactoryApi {
     return new BlockNodeStateSchema(this.getMetadata(ComponentTypes.BlockNode, clusterReference, namespace));
   }
 
+  public createNewBlockNodeComponentWithId(
+    id: ComponentId,
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): BlockNodeStateSchema {
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      namespace.name,
+      clusterReference,
+      DeploymentPhase.DEPLOYED,
+    );
+    return new BlockNodeStateSchema(metadata);
+  }
+
   public createNewPostgresComponent(
     clusterReference: ClusterReferenceName,
     namespace: NamespaceName,

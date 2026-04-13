@@ -17,6 +17,7 @@ import * as yaml from 'yaml';
 import {type AnyObject} from '../types/aliases.js';
 import path from 'node:path';
 import {KindClient} from '../integration/kind/kind-client.js';
+import {KindCluster} from '../integration/kind/model/kind-cluster.js';
 import {ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {type ClusterCreateOptions} from '../integration/kind/model/create-cluster/cluster-create-options.js';
 import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
@@ -27,6 +28,10 @@ import {MissingActiveContextError} from '../integration/kube/errors/missing-acti
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type GitClient} from '../integration/git/git-client.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {sleep} from './helpers.js';
+import {Duration} from './time/duration.js';
+import {KubeConfig, CoreV1Api, type V1Node, type V1NodeCondition, type V1NodeList} from '@kubernetes/client-node';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -288,14 +293,76 @@ export class ClusterTaskManager extends ShellRunner {
       task: async (): Promise<void> => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+
+        // If the cluster already exists from an interrupted previous run, re-export
+        // the kubeconfig and wait for the API to become accessible.
+        const existingClusters: KindCluster[] = await kindClient.getClusters();
+        if (existingClusters.some((cluster: KindCluster): boolean => cluster.name === constants.DEFAULT_CLUSTER)) {
+          this.logger.info(
+            `Cluster '${constants.DEFAULT_CLUSTER}' already exists; re-exporting kubeconfig for recovery`,
+          );
+          await kindClient.exportKubeConfig(constants.DEFAULT_CLUSTER);
+          await this.waitForK8sApi();
+          parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for node ready …`;
+          const nodeReady: boolean = await this.waitForNodeReady(parentTask);
+          parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for storage provisioner …`;
+          const provisionerReady: boolean = await this.waitForStorageProvisioner(parentTask);
+          if (nodeReady && provisionerReady) {
+            parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'`;
+            return;
+          }
+          // Cluster recovery is incomplete (interrupted too early for manifests to be applied).
+          // Tear it down and fall through to create a fresh cluster.
+          parentTask.title = `Cluster recovery incomplete (nodeReady=${nodeReady}, provisionerReady=${provisionerReady}); recreating cluster …`;
+          this.logger.warn(
+            `Cluster '${constants.DEFAULT_CLUSTER}' recovery incomplete; deleting and recreating (nodeReady=${nodeReady}, provisionerReady=${provisionerReady})`,
+          );
+          try {
+            await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
+          } catch {
+            // ignore — may not be fully registered
+          }
+          await this.cleanupOrphanedKindResources(kindClient);
+        }
+
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
           .image(constants.KIND_NODE_IMAGE)
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
-        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-          constants.DEFAULT_CLUSTER,
-          clusterCreateOptions,
-        );
+
+        // Proactively remove any orphaned Docker containers/networks left behind by a
+        // previous SIGKILL'd run.  If we don't do this, kind may try to reuse broken
+        // containers and hang for up to 60 minutes.
+        await this.cleanupOrphanedKindResources(kindClient);
+
+        let clusterResponse: ClusterCreateResponse;
+        try {
+          clusterResponse = await this.createClusterWithTimeout(kindClient, clusterCreateOptions);
+        } catch (error: unknown) {
+          // If creation failed due to leftover containers/networks, clean up and retry once.
+          // This handles cases where the proactive cleanup above ran before Docker had fully
+          // torn down state from the previous run (e.g., "already in use" or kubeconfig errors).
+          const message: string = error instanceof Error ? error.message : String(error);
+          if (
+            message.includes('already in use') ||
+            message.includes('already exist') ||
+            message.includes('failed to get cluster internal kubeconfig') ||
+            message.includes('timed out')
+          ) {
+            this.logger.info(
+              `Cluster '${constants.DEFAULT_CLUSTER}' creation failed (${message.split('\n')[0]}); cleaning up and retrying`,
+            );
+            try {
+              await kindClient.deleteCluster(constants.DEFAULT_CLUSTER);
+            } catch {
+              // Cluster not registered with kind; nothing to delete at the kind level.
+            }
+            await this.cleanupOrphanedKindResources(kindClient);
+            clusterResponse = await this.createClusterWithTimeout(kindClient, clusterCreateOptions);
+          } else {
+            throw error;
+          }
+        }
 
         parentTask.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
       },
@@ -345,6 +412,138 @@ export class ClusterTaskManager extends ShellRunner {
         skip: this.skipKindSetup.bind(this),
       },
     ];
+  }
+
+  /**
+   * Aggressively remove all Docker containers and networks belonging to the Kind
+   * cluster that may have been left behind by a SIGKILL'd previous run.
+   * Errors are suppressed — missing containers/networks are fine.
+   */
+  private async cleanupOrphanedKindResources(kindClient: KindClient): Promise<void> {
+    // Stop + remove any containers labelled for this cluster (kind labels them at
+    // container-create time, so the label is present even for partially-initialised runs).
+    await this.run(
+      `ids=$(docker ps -aq --filter label=io.x-k8s.kind.cluster=${constants.DEFAULT_CLUSTER} 2>/dev/null); ` +
+        '[ -n "$ids" ] && docker rm --force --volumes $ids 2>/dev/null || true',
+    ).catch((): void => {});
+    // Remove the kind Docker bridge network if it still exists; a leftover network
+    // can cause kubeadm to fail in the freshly-created replacement container.
+    await this.run('docker network rm kind 2>/dev/null || true').catch((): void => {});
+    // Belt-and-suspenders: also ask kind to delete the cluster (no-op if not registered).
+    await kindClient.deleteCluster(constants.DEFAULT_CLUSTER).catch((): void => {});
+  }
+
+  /**
+   * Creates a Kind cluster with a 5-minute hard timeout.  If the kind process
+   * hangs (e.g. due to a broken control-plane container left from a prior run),
+   * this ensures the caller can detect the failure quickly and retry.
+   */
+  private async createClusterWithTimeout(
+    kindClient: KindClient,
+    clusterCreateOptions: ClusterCreateOptions,
+    timeoutMs: number = 3 * 60 * 1000,
+  ): Promise<ClusterCreateResponse> {
+    return Promise.race([
+      kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions),
+      new Promise<ClusterCreateResponse>((_, reject): void => {
+        setTimeout(
+          (): void => reject(new SoloError(`Kind cluster creation timed out after ${timeoutMs / 1000}s`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  }
+
+  /**
+   * Waits for all Kubernetes nodes in the cluster to reach the Ready condition.
+   * After a SIGKILL mid-cluster-creation, the Kind node may still carry the
+   * node.kubernetes.io/not-ready:NoSchedule taint, which prevents user pods from
+   * being scheduled even after the local-path-provisioner pod becomes Running.
+   */
+  private async waitForNodeReady(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    maxWaitSeconds: number = 120,
+  ): Promise<boolean> {
+    const pollMs: number = 2000;
+    let elapsed: number = 0;
+    const kubeConfig: KubeConfig = new KubeConfig();
+    kubeConfig.loadFromDefault();
+    const coreV1: CoreV1Api = kubeConfig.makeApiClient(CoreV1Api);
+    while (elapsed < maxWaitSeconds * 1000) {
+      try {
+        const response: V1NodeList = await coreV1.listNode();
+        const nodes: V1Node[] = response.items;
+        const allReady: boolean =
+          nodes.length > 0 &&
+          nodes.every((node: V1Node): boolean => {
+            const conditions: V1NodeCondition[] = node.status?.conditions ?? [];
+            return conditions.some(
+              (condition: V1NodeCondition): boolean => condition.type === 'Ready' && condition.status === 'True',
+            );
+          });
+        if (allReady) {
+          this.logger.info(`All nodes are Ready (waited ${elapsed / 1000}s)`);
+          return true;
+        }
+      } catch {
+        // K8s API not yet accessible — keep polling
+      }
+      parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for node ready [${elapsed / 1000}s / ${maxWaitSeconds}s] …`;
+      await sleep(Duration.ofMillis(pollMs));
+      elapsed += pollMs;
+    }
+    this.logger.warn(`Node not Ready after ${maxWaitSeconds}s; cluster will be recreated`);
+    return false;
+  }
+
+  /**
+   * Waits for the K8s API to become accessible.
+   * Used after re-exporting kubeconfig for a cluster whose control plane may
+   * still be initialising (e.g. after being interrupted mid-creation).
+   */
+  private async waitForStorageProvisioner(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    maxWaitSeconds: number = 120,
+  ): Promise<boolean> {
+    const kubeSystemNamespace: NamespaceName = NamespaceName.of('kube-system');
+    const labelSelector: string[] = ['app=local-path-provisioner'];
+    const pollMs: number = 2000;
+    let elapsed: number = 0;
+    while (elapsed < maxWaitSeconds * 1000) {
+      try {
+        await this.k8Factory.default().pods().waitForReadyStatus(kubeSystemNamespace, labelSelector, 1, 0);
+        this.logger.info(`local-path-provisioner is Ready (waited ${elapsed / 1000}s)`);
+        return true;
+      } catch {
+        // provisioner not ready yet — keep polling
+      }
+      parentTask.title = `Reusing existing local cluster '${constants.DEFAULT_CLUSTER}'; waiting for storage provisioner [${elapsed / 1000}s / ${maxWaitSeconds}s] …`;
+      await sleep(Duration.ofMillis(pollMs));
+      elapsed += pollMs;
+    }
+    this.logger.warn(`local-path-provisioner not Ready after ${maxWaitSeconds}s; cluster will be recreated`);
+    return false;
+  }
+
+  private async waitForK8sApi(maxAttempts: number = 20, intervalMs: number = 5000): Promise<void> {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const k8: K8 = this.k8Factory.default();
+        await k8.namespaces().list();
+        this.logger.info(`K8s API is accessible (attempt ${attempt}/${maxAttempts})`);
+        return;
+      } catch {
+        this.logger.info(`K8s API not yet accessible (attempt ${attempt}/${maxAttempts}); retrying in ${intervalMs}ms`);
+        if (attempt < maxAttempts) {
+          await new Promise<void>((resolve: () => void): void => {
+            setTimeout(resolve, intervalMs);
+          });
+        }
+      }
+    }
+    throw new SoloError(
+      `K8s API did not become accessible after ${maxAttempts} attempts (${(maxAttempts * intervalMs) / 1000}s)`,
+    );
   }
 
   private async skipKindSetup(): Promise<boolean> {
