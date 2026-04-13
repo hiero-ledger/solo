@@ -18,7 +18,8 @@ name: "One-Shot Timing Test"
 
 on:
   schedule:
-    - cron: '1 6 * * *'
+    # Skip weekends to reduce noise and focus on testing during active development days
+    - cron: '0 6 * * 1-5'
   workflow_dispatch:
     inputs:
       use-released-solo:
@@ -433,6 +434,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
           SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
           SLACK_TITLE: One-Shot Timing Results
           SLACK_MESSAGE: |
