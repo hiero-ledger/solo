@@ -150,15 +150,6 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new LoadDockerImageRequest(builder.build()), LoadDockerImageResponse);
   }
 
-  // public async loadImageArchive(
-  //   archivePath: string,
-  //   options?: LoadImageArchiveOptions,
-  // ): Promise<LoadImageArchiveResponse> {
-  //   const builder: LoadImageArchiveOptionsBuilder =
-  //     LoadImageArchiveOptionsBuilder.from(options).archivePath(archivePath);
-  //   return this.executeAsync(new LoadImageArchiveRequest(builder.build()), LoadImageArchiveResponse);
-  // }
-
   public async loadImageArchive(
     archivePath: string,
     options?: LoadImageArchiveOptions,

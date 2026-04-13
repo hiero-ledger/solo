@@ -105,8 +105,6 @@ export class CacheCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             this.configManager.update(argv);
 
-            await this.throwIfDockerUnavailable();
-
             flags.disablePrompts(CacheCommand.PULL_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
@@ -152,8 +150,6 @@ export class CacheCommand extends BaseCommand {
             await this.localConfig.load();
 
             this.configManager.update(argv);
-
-            await this.throwIfDockerUnavailable();
 
             flags.disablePrompts(CacheCommand.LOAD_FLAGS_LIST.optional);
 
@@ -201,8 +197,6 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'List cached images',
           task: async (context_): Promise<void> => {
-            await this.throwIfDockerUnavailable();
-
             const config: CacheListConfigClass = {
               imageCacheHandler: this.buildImageCacheHandler(),
             };
@@ -237,8 +231,6 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Clear image cache',
           task: async (context_): Promise<void> => {
-            await this.throwIfDockerUnavailable();
-
             const config: CacheClearConfigClass = {
               imageCacheHandler: this.buildImageCacheHandler(),
             };
@@ -264,8 +256,6 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Check cache status',
           task: async (context_): Promise<void> => {
-            await this.throwIfDockerUnavailable();
-
             const config: CacheStatusConfigClass = {
               imageCacheHandler: this.buildImageCacheHandler(),
             };
@@ -357,14 +347,6 @@ export class CacheCommand extends BaseCommand {
 
   private prepareClusterName(clusterReference: ClusterReferenceName): string {
     return clusterReference.startsWith('kind-') ? clusterReference.replace('kind-', '') : clusterReference;
-  }
-
-  private async throwIfDockerUnavailable(): Promise<void> {
-    const isDockerAvailable: boolean = await this.depManager.checkDependency(constants.DOCKER);
-
-    if (!isDockerAvailable) {
-      throw new SoloError('Docker is required for using the image cache feature');
-    }
   }
 
   private buildImageCacheHandler(): ImageCacheHandler {
