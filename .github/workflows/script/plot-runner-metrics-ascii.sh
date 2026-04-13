@@ -179,15 +179,89 @@ else
 
   # Per-pod memory snapshot at the data point where total pod memory is highest
   peak_pod_snapshot=""
+  peak_pod_snapshot_all=""
   peak_pod_snapshot_ts=""
   if [[ -f "$POD_DETAIL_FILE" ]] && [[ -n "$POD_MEM_VALUES" ]] && printf '%s\n' "$POD_MEM_VALUES" | grep -qE '^[0-9]+'; then
     peak_pod_snapshot_ts=$(jq -rs 'max_by(.pods | map(.mem_mb) | add // 0) | .timestamp' "$POD_DETAIL_FILE" 2>/dev/null || echo "")
     if [[ -n "$peak_pod_snapshot_ts" ]]; then
-      peak_pod_snapshot=$(jq -r --arg ts "$peak_pod_snapshot_ts" \
+      peak_pod_snapshot_all=$(jq -r --arg ts "$peak_pod_snapshot_ts" \
         'select(.timestamp == $ts) | .pods[] | [.mem_mb, (.ns + "/" + .pod)] | @tsv' \
         "$POD_DETAIL_FILE" 2>/dev/null \
-        | sort -rn | head -30 || echo "")
+        | sort -rn || echo "")
+      peak_pod_snapshot=$(printf '%s\n' "$peak_pod_snapshot_all" | head -30)
     fi
+  fi
+
+  # Category aggregation — uses full (untruncated) pod list
+  # Excludes: metallb-system namespace, network-load-generator pods
+  # Categories:
+  #   mirror   — mirror-* pods + solo-shared-resources-postgres/redis
+  #   relay    — relay* pods (relay, relay-ws)
+  #   block    — block-node* pods
+  #   network  — network-node* + haproxy* + envoy-proxy* + minio-pool*
+  #   kube     — kube-system namespace
+  cat_mirror=0; cat_relay=0; cat_block=0; cat_network=0; cat_kube=0; cat_total=0
+  if [[ -n "$peak_pod_snapshot_all" ]]; then
+    while IFS=$'\t' read -r _mem _ns_pod; do
+      [[ -z "$_mem" || -z "$_ns_pod" ]] && continue
+      _ns="${_ns_pod%%/*}"
+      _pod="${_ns_pod#*/}"
+      # Strip trailing pod hash suffixes for pattern matching but keep original label
+      [[ "$_ns" == "metallb-system" ]] && continue
+      [[ "$_pod" == network-load-generator* ]] && continue
+      _mem="${_mem//[^0-9]/}"
+      [[ -z "$_mem" ]] && continue
+      cat_total=$((cat_total + _mem))
+      if [[ "$_pod" == mirror-* || "$_pod" == solo-shared-resources-postgres* || "$_pod" == solo-shared-resources-redis* ]]; then
+        cat_mirror=$((cat_mirror + _mem))
+      elif [[ "$_pod" == relay* ]]; then
+        cat_relay=$((cat_relay + _mem))
+      elif [[ "$_pod" == block-node* ]]; then
+        cat_block=$((cat_block + _mem))
+      elif [[ "$_pod" == network-node* || "$_pod" == haproxy* || "$_pod" == envoy-proxy* || "$_pod" == minio-pool* ]]; then
+        cat_network=$((cat_network + _mem))
+      elif [[ "$_ns" == "kube-system" ]]; then
+        cat_kube=$((cat_kube + _mem))
+      fi
+    done < <(printf '%s\n' "$peak_pod_snapshot_all")
+  fi
+
+  # Build category summary table (ASCII) and mermaid pie chart
+  cat_table=""
+  mermaid_chart=""
+  if [[ "$cat_total" -gt 0 ]]; then
+    cat_table=$(awk \
+      -v mirror="$cat_mirror" -v relay="$cat_relay" -v block="$cat_block" \
+      -v network="$cat_network" -v kube="$cat_kube" -v total="$cat_total" \
+      'BEGIN {
+        n = 5
+        labels[0] = "Mirror Node (+ postgres/redis)"
+        labels[1] = "Relay (relay + relay-ws)"
+        labels[2] = "Block Node"
+        labels[3] = "Network Node (+ haproxy/envoy/minio)"
+        labels[4] = "kube-system"
+        vals[0] = mirror+0; vals[1] = relay+0; vals[2] = block+0
+        vals[3] = network+0; vals[4] = kube+0
+        sep  = "────────────────────────────────────────"
+        fmt  = "%-40s %10s  %7s\n"
+        printf fmt, "Category", "Memory (MB)", "Share"
+        printf fmt, sep, "──────────", "───────"
+        for (i = 0; i < n; i++) {
+          pct = (total > 0) ? vals[i] / total * 100 : 0
+          printf "%-40s %10d  %6.1f%%\n", labels[i], vals[i], pct
+        }
+        printf fmt, sep, "──────────", "───────"
+        printf "%-40s %10d  %6s\n", "Total (excl. load-gen/metallb)", total, "100.0%"
+      }' /dev/null)
+
+    mermaid_chart='```mermaid'$'\n'
+    mermaid_chart+="pie title Pod Memory by Category at Peak — ${peak_pod_snapshot_ts}"$'\n'
+    [[ "$cat_mirror"  -gt 0 ]] && mermaid_chart+="    \"Mirror Node\" : ${cat_mirror}"$'\n'
+    [[ "$cat_relay"   -gt 0 ]] && mermaid_chart+="    \"Relay\" : ${cat_relay}"$'\n'
+    [[ "$cat_block"   -gt 0 ]] && mermaid_chart+="    \"Block Node\" : ${cat_block}"$'\n'
+    [[ "$cat_network" -gt 0 ]] && mermaid_chart+="    \"Network Node\" : ${cat_network}"$'\n'
+    [[ "$cat_kube"    -gt 0 ]] && mermaid_chart+="    \"kube-system\" : ${cat_kube}"$'\n'
+    mermaid_chart+='```'
   fi
 
   # Threshold checks (CPU only; memory uses absolute MB threshold if available)
@@ -227,6 +301,12 @@ else
     ASCII+=$'\n'
   fi
 
+  if [[ -n "$cat_table" ]]; then
+    ASCII+="📊 Pod Memory by Category at Peak"$'\n'
+    ASCII+="$cat_table"$'\n'
+    ASCII+=$'\n'
+  fi
+
   if [[ "$OVER_95" -eq 1 ]]; then
     ASCII+="⚠️  WARNING: Resource usage exceeded 95% threshold!"$'\n'
     ASCII+="    Host CPU Peak: ${peak_cpu}%  |  Host Memory Peak: ${mem_label}"$'\n'
@@ -250,7 +330,18 @@ printf '%s
 ' "$ASCII"
 
 if [[ -n "$OUTPUT_FILE" ]]; then
-  printf '%s
-' "$ASCII" > "$OUTPUT_FILE"
+  printf '%s\n' "$ASCII" > "$OUTPUT_FILE"
   echo "ASCII chart saved to: $OUTPUT_FILE" >&2
+
+  if [[ -n "$mermaid_chart" ]]; then
+    MERMAID_FILE="${OUTPUT_FILE%.txt}-mermaid.md"
+    printf '%s\n' "$mermaid_chart" > "$MERMAID_FILE"
+    echo "Mermaid chart saved to: $MERMAID_FILE" >&2
+  fi
+
+  if [[ -n "$cat_table" ]]; then
+    CATEGORIES_FILE="${OUTPUT_FILE%.txt}-categories.txt"
+    printf '%s\n' "$cat_table" > "$CATEGORIES_FILE"
+    echo "Category table saved to: $CATEGORIES_FILE" >&2
+  fi
 fi
