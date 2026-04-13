@@ -26,6 +26,7 @@
 #
 #   # List available component aliases and exit:
 #   ./memory-optimizer.sh --list
+#   ./memory-optimizer.sh --list --show-live
 #
 # Options:
 #   --components ALIAS[,...]            Components to optimize (see --list)
@@ -33,10 +34,11 @@
 #                                         nlg | relay-rpc | query | both | none
 #   --auto                              Optimize all known components
 #   --list                              Print component aliases and exit
+#   --show-live                         With --list, include current live memory limits
 #   --namespace  NAME                   Kubernetes namespace          (default: solo)
 #   --deployment NAME                   Solo deployment name          (default: solo)
 #   --max-memory MI                     Memory search upper bound Mi  (default: 4096)
-#   --granularity MI                    Stop when range ≤ this Mi     (default: 96)
+#   --granularity MI                    Stop when range ≤ this Mi     (default: 16)
 #   --tps N                             NLG/query requests per second (default: 100)
 #   --duration S                        NLG probe duration seconds    (default: 300)
 #   --query-duration S                  Query probe duration seconds  (default: 60)
@@ -64,12 +66,22 @@
 
 set -eo pipefail
 
+# Read-only commands must not kill an active optimizer run just to print usage/list output.
+_READ_ONLY_ARGS=false
+for _arg in "$@"; do
+  case "${_arg}" in
+    --list|--show-live|--help|-h)
+      _READ_ONLY_ARGS=true
+      ;;
+  esac
+done
+
 # ── Defaults ────────────────────────────────────────────────────────────────────
 
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo}"
 MEMORY_MAX_MI="${MEMORY_MAX_MI:-4096}"
-MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-96}"
+MEMORY_GRANULARITY_MI="${MEMORY_GRANULARITY_MI:-16}"
 NLG_TPS="${NLG_TPS:-100}"
 NLG_DURATION_S="${NLG_DURATION_S:-300}"
 QUERY_DURATION_S="${QUERY_DURATION_S:-60}"
@@ -80,6 +92,8 @@ NLG_TEST_CLASS="${NLG_TEST_CLASS:-CryptoTransferLoadTest}"
 STABILIZE_S="${STABILIZE_S:-15}"
 # Port that solo port-forwards the mirror ingress controller to on localhost
 MIRROR_INGRESS_LOCAL_PORT="${MIRROR_INGRESS_LOCAL_PORT:-38081}"
+# Port that solo port-forwards the relay JSON-RPC to on localhost (matches solo's own mapping)
+RELAY_LOCAL_PORT="${RELAY_LOCAL_PORT:-37546}"
 RESULTS_FILE="memory-optimization-$(date '+%Y%m%d-%H%M%S').txt"
 NLG_TRAFFIC_LOG="${NLG_TRAFFIC_LOG:-/tmp/nlg-traffic.log}"
 SKIP_PREFLIGHT=false  # --skip-preflight: skip pre-flight restores; round 1 probes at live limits
@@ -107,7 +121,9 @@ _acquire_lock() {
   # Remove the lock file on exit (normal or error).
   trap 'rm -f "${_LOCK_FILE}"' EXIT
 }
-_acquire_lock
+if [[ "${_READ_ONLY_ARGS}" != "true" ]]; then
+  _acquire_lock
+fi
 
 # ── Component registry ──────────────────────────────────────────────────────────
 # Format: "alias|kind|name_pattern|containers|max_memory_mi|probe_type"
@@ -213,20 +229,20 @@ register_component \
   --kind        deployment \
   --pattern     "^haproxy-node[0-9]+$" \
   --containers  haproxy \
-  --max-mi      90 \
+  --max-mi      80 \
   --probe-type  nlg \
-  --last-good   69 \
-  --last-min    60
+  --last-good   51 \
+  --last-min    40
 
 register_component \
   --alias       envoy-proxy \
   --kind        deployment \
   --pattern     "^envoy-proxy-node[0-9]+$" \
   --containers  envoy-proxy \
-  --max-mi      90 \
+  --max-mi      80 \
   --probe-type  nlg \
-  --last-good   69 \
-  --last-min    60
+  --last-good   51 \
+  --last-min    40
 
 # register_component \
 #   --alias       block-node \
@@ -234,18 +250,18 @@ register_component \
 #   --pattern     "^block-node-[0-9]+$" \
 #   --containers  block-node-server \
 #   --max-mi      200 \
-#   --probe-type  nlg \
-#   --last-good   140 \
-#   --last-min    100
+#   --probe-type  both \
+#   --last-good   160 \
+#   --last-min    128
 
 register_component \
   --alias       mirror-importer \
   --kind        deployment \
   --pattern     "mirror.*importer" \
-  --max-mi      600 \
+  --max-mi      700 \
   --probe-type  nlg \
-  --last-good   550 \
-  --last-min    500 \
+  --last-good   551 \
+  --last-min    450 \
   --depends-on  postgres
 
 register_component \
@@ -253,40 +269,40 @@ register_component \
   --kind        statefulset \
   --pattern     "solo-shared-resources-postgres" \
   --containers  postgresql \
-  --max-mi      450 \
+  --max-mi      320 \
   --probe-type  nlg \
-  --last-good   300 \
-  --last-min    280
+  --last-good   262 \
+  --last-min    200
 
 register_component \
   --alias       redis \
   --kind        statefulset \
   --pattern     "solo-shared-resources-redis-node" \
   --containers  "redis,sentinel" \
-  --max-mi      110 \
+  --max-mi      95 \
   --probe-type  nlg \
-  --last-good   90 \
-  --last-min    70
+  --last-good   41 \
+  --last-min    32
 
 register_component \
   --alias       minio \
   --kind        statefulset \
   --pattern     "^minio-pool-[0-9]+$" \
   --containers  minio \
-  --max-mi      300 \
+  --max-mi      380 \
   --probe-type  nlg \
-  --last-good   250 \
-  --last-min    210
+  --last-good   332 \
+  --last-min    250
 
 # ── Query path: client reads → ingress → mirror REST/gRPC ────────────────────
 register_component \
   --alias       mirror-ingress-controller \
   --kind        deployment \
   --pattern     "mirror-ingress-controller.*" \
-  --max-mi      150 \
+  --max-mi      100 \
   --probe-type  query \
-  --last-good   120 \
-  --last-min    100
+  --last-good   65 \
+  --last-min    60
 
 register_component \
   --alias       mirror-grpc \
@@ -294,7 +310,7 @@ register_component \
   --pattern     "mirror.*grpc" \
   --max-mi      400 \
   --probe-type  query \
-  --last-good   350 \
+  --last-good   331 \
   --last-min    300 \
   --depends-on  postgres
 
@@ -302,20 +318,20 @@ register_component \
   --alias       mirror-rest \
   --kind        deployment \
   --pattern     "mirror.*-rest$" \
-  --max-mi      400 \
+  --max-mi      250 \
   --probe-type  query \
-  --last-good   350 \
-  --last-min    300 \
+  --last-good   201 \
+  --last-min    150 \
   --depends-on  postgres
 
 register_component \
   --alias       mirror-restjava \
   --kind        deployment \
   --pattern     "mirror.*restjava" \
-  --max-mi      500 \
+  --max-mi      520 \
   --probe-type  query \
-  --last-good   400 \
-  --last-min    300 \
+  --last-good   475 \
+  --last-min    400 \
   --depends-on  postgres
 
 # ── Relay JSON-RPC path: eth_* → port 7546 → relay ───────────────────────────
@@ -323,20 +339,20 @@ register_component \
   --alias       relay \
   --kind        deployment \
   --pattern     "^relay-[0-9]+$" \
-  --max-mi      110 \
+  --max-mi      420 \
   --probe-type  relay-rpc \
-  --last-good   98 \
-  --last-min    80
+  --last-good   350 \
+  --last-min    300
 
 # ── mirror-web3: EVM simulation requests → pod:8545 ──────────────────────────
 register_component \
   --alias       mirror-web3 \
   --kind        deployment \
   --pattern     "mirror.*web3" \
-  --max-mi      500 \
+  --max-mi      450 \
   --probe-type  query \
-  --last-good   500 \
-  --last-min    400 \
+  --last-good   431 \
+  --last-min    200 \
   --depends-on  postgres
 
 # ── minio sidecar (metrics/console helper, low traffic) ──────────────────────
@@ -345,10 +361,10 @@ register_component \
   --kind        statefulset \
   --pattern     "^minio-pool-[0-9]+$" \
   --containers  sidecar \
-  --max-mi      128 \
+  --max-mi      120 \
   --probe-type  nlg \
-  --last-good   112 \
-  --last-min    96
+  --last-good   104 \
+  --last-min    40
 
 # ── network-node sidecar containers (stream uploaders + telemetry) ────────────
 # All four share the network-node StatefulSet pod. Any kubectl set resources on
@@ -361,7 +377,7 @@ register_component \
 #   --pattern           "^network-node[0-9]" \
 #   --containers        blockstream-uploader \
 #   --max-mi            128 \
-#   --probe-type        nlg \
+#   --probe-type        both \
 #   --last-good         112 \
 #   --last-min          96 \
 #   --needs-hapi-start  true
@@ -372,7 +388,7 @@ register_component \
 #   --pattern           "^network-node[0-9]" \
 #   --containers        record-stream-uploader \
 #   --max-mi            128 \
-#   --probe-type        nlg \
+#   --probe-type        both \
 #   --last-good         112 \
 #   --last-min          96 \
 #   --needs-hapi-start  true
@@ -383,7 +399,7 @@ register_component \
 #   --pattern           "^network-node[0-9]" \
 #   --containers        event-stream-uploader \
 #   --max-mi            128 \
-#   --probe-type        nlg \
+#   --probe-type        both \
 #   --last-good         112 \
 #   --last-min          96 \
 #   --needs-hapi-start  true
@@ -394,7 +410,7 @@ register_component \
 #   --pattern           "^network-node[0-9]" \
 #   --containers        otel-collector \
 #   --max-mi            128 \
-#   --probe-type        nlg \
+#   --probe-type        both \
 #   --last-good         112 \
 #   --last-min          96 \
 #   --needs-hapi-start  true
@@ -406,19 +422,19 @@ register_component \
   --kind        deployment \
   --pattern     "hiero-explorer.*" \
   --containers  hiero-explorer-chart \
-  --max-mi      300 \
+  --max-mi      100 \
   --probe-type  none \
-  --last-good   250 \
-  --last-min    200
+  --last-good   17 \
+  --last-min    8
 
 register_component \
   --alias       mirror-monitor \
   --kind        deployment \
   --pattern     "mirror.*monitor" \
-  --max-mi      600 \
+  --max-mi      330 \
   --probe-type  none \
-  --last-good   470 \
-  --last-min    400
+  --last-good   281 \
+  --last-min    240
 
 # minio-operator runs in a fixed cluster-setup namespace, not the deployment namespace
 register_component \
@@ -426,9 +442,10 @@ register_component \
   --kind        deployment \
   --pattern     "^minio-operator$" \
   --containers  operator \
-  --max-mi      128 \
+  --max-mi      22 \
   --probe-type  none \
-  --last-good   128 \
+  --last-good   17 \
+  --last-min    12 \
   --namespace   solo-setup
 
 # ── Helpers ──────────────────────────────────────────────────────────────────────
@@ -460,13 +477,19 @@ registry_field() {
 
 # Print all aliases
 list_components() {
+  local show_live="${1:-false}"
   echo "Available component aliases:"
   echo ""
-  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS" "PROBE" "MAX MEMORY" "LAST GOOD" "LAST MIN"
-  printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------" "---------" "--------"
+  if [[ "${show_live}" == "true" ]]; then
+    printf "  %-26s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %-12s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS" "PROBE" "MAX MEMORY" "LAST GOOD" "LAST MIN" "LIVE MEMORY"
+    printf "  %-26s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------" "---------" "--------" "-----------"
+  else
+    printf "  %-26s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "ALIAS" "KIND" "NAME PATTERN" "CONTAINERS" "PROBE" "MAX MEMORY" "LAST GOOD" "LAST MIN"
+    printf "  %-26s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" "-----" "----" "------------" "----------" "-----" "----------" "---------" "--------"
+  fi
   local entry
   for entry in "${COMPONENT_REGISTRY[@]}"; do
-    IFS='|' read -r alias kind pattern containers max_mi probe_type last_known_good_mi last_known_min_mi _ns <<< "${entry}"
+    IFS='|' read -r alias kind pattern containers max_mi probe_type last_known_good_mi last_known_min_mi ns_override _depends_on _needs_hapi_start <<< "${entry}"
     containers="${containers:-<auto>}"
     local max_display
     if [[ -n "${max_mi}" ]]; then
@@ -476,8 +499,52 @@ list_components() {
     fi
     local lkg_display="${last_known_good_mi:+${last_known_good_mi}Mi}"; lkg_display="${lkg_display:-same as max}"
     local lkm_display="${last_known_min_mi:+${last_known_min_mi}Mi}"; lkm_display="${lkm_display:-granularity}"
-    printf "  %-18s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" \
-      "${alias}" "${kind}" "${pattern}" "${containers}" "${probe_type:-nlg}" "${max_display}" "${lkg_display}" "${lkm_display}"
+    if [[ "${show_live}" == "true" ]]; then
+      local ns="${ns_override:-${SOLO_NAMESPACE}}"
+      local live_display="not found"
+      local names=()
+      while IFS= read -r line; do
+        [[ -n "${line}" ]] && names+=("${line}")
+      done < <(discover_resources "${kind}" "${pattern}" "${ns}")
+      if [[ ${#names[@]} -gt 0 ]]; then
+        local live_parts=()
+        local total_live_targets=0
+        local name
+        for name in "${names[@]}"; do
+          local live_containers=()
+          if [[ "${containers}" != "<auto>" ]]; then
+            IFS=',' read -ra live_containers <<< "${containers}"
+          else
+            local discovered; discovered="$(auto_discover_container "${kind}" "${name}" "${ns}")"
+            [[ -n "${discovered}" ]] && live_containers=("${discovered}")
+          fi
+          local container
+          for container in "${live_containers[@]}"; do
+            local live_mi; live_mi="$(get_current_memory_limit_mi "${kind}" "${name}" "${container}" "${ns}")"
+            total_live_targets=$(( total_live_targets + 1 ))
+            local live_val="${live_mi:+${live_mi}Mi}"; live_val="${live_val:-unset}"
+            if [[ ${#names[@]} -eq 1 && ${#live_containers[@]} -eq 1 ]]; then
+              # single resource, single container — bare value
+              live_parts+=("${live_val}")
+            elif [[ ${#names[@]} -eq 1 ]]; then
+              # single resource, multiple containers — omit resource name prefix
+              live_parts+=("${container}=${live_val}")
+            else
+              # multiple resources — include resource name for disambiguation
+              live_parts+=("${name}/${container}=${live_val}")
+            fi
+          done
+        done
+        if [[ ${#live_parts[@]} -gt 0 ]]; then
+          live_display="$(IFS='; '; echo "${live_parts[*]}")"
+        fi
+      fi
+      printf "  %-26s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %-12s  %s\n" \
+        "${alias}" "${kind}" "${pattern}" "${containers}" "${probe_type:-nlg}" "${max_display}" "${lkg_display}" "${lkm_display}" "${live_display}"
+    else
+      printf "  %-26s  %-12s  %-34s  %-20s  %-12s  %-12s  %-12s  %s\n" \
+        "${alias}" "${kind}" "${pattern}" "${containers}" "${probe_type:-nlg}" "${max_display}" "${lkg_display}" "${lkm_display}"
+    fi
   done
   echo ""
 }
@@ -677,6 +744,15 @@ _kill_portforwards_for() {
     log "  Killing stale port-forward processes for ${name}: ${pids}"
     echo "${pids}" | xargs kill 2>/dev/null || true
   fi
+}
+
+_has_any_portforward_process() {
+  ps -ef | grep -E "[k]ubectl .*port-forward|[p]ersist-port-forward" >/dev/null 2>&1
+}
+
+_refresh_all_portforwards() {
+  log "  Refreshing all port-forward processes for deployment ${SOLO_DEPLOYMENT}"
+  npm run solo-test -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
 }
 
 # Apply a memory limit patch to one container — does NOT wait for rollout.
@@ -913,7 +989,8 @@ set_memory_limit() {
 #   NftTransferLoadTest   -T <nfts-per-account>  -n <nft-class-count>  -S flat  -p <percent-nft>
 #   TokenTransferLoadTest -T <tokens-per-account> -A <associations-per-account>
 nlg_build_args() {
-  local base="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -R -t ${NLG_DURATION_S}"
+  local duration="${1:-${NLG_DURATION_S}}"
+  local base="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -R -t ${duration}"
   case "${NLG_TEST_CLASS}" in
     NftTransferLoadTest)
       local nfts="${NLG_NFTS:-10}"
@@ -949,6 +1026,7 @@ _cg_depends_on=()      # space-separated list of _cg_ indices this component dep
 _cg_needs_hapi_start=() # true if HAPI must be started via solo after pod rolls out
 _cg_nlg_haproxy_ip=""   # last haproxy pod IP used when NLG chart was deployed
 _cg_nlg_start_epoch=0  # epoch seconds when NLG was last (re)started — Java grace period uses this
+_cg_nlg_pid_cleared_by_refresh=false
 
 # Populate _cg_* arrays with all live (kind, name, container) tuples for a list of aliases.
 cg_discover_components() {
@@ -959,6 +1037,7 @@ cg_discover_components() {
   _cg_crashed=()
   _cg_readiness_skip=()
   _cg_mid_probe_restarted=()
+  _cg_depends_on=()
   _cg_needs_hapi_start=()
 
   local alias
@@ -1034,8 +1113,11 @@ cg_discover_components() {
 
   # Resolve depends-on alias names to _cg_ index lists now that all components are registered.
   local i
-  for i in $(seq 0 $(( _cg_count - 1 ))); do
-    local raw_deps="${_cg_depends_on[$i]}"
+  for (( i=0; i<_cg_count; i++ )); do
+    local raw_deps=""
+    if [[ ${#_cg_depends_on[@]} -gt ${i} ]]; then
+      raw_deps="${_cg_depends_on[$i]}"
+    fi
     if [[ -z "${raw_deps}" ]]; then
       _cg_depends_on[$i]=""
       continue
@@ -1045,7 +1127,7 @@ cg_discover_components() {
     IFS=',' read -ra dep_aliases <<< "${raw_deps}"
     for dep_alias in "${dep_aliases[@]}"; do
       local j
-      for j in $(seq 0 $(( _cg_count - 1 ))); do
+      for (( j=0; j<_cg_count; j++ )); do
         if [[ "${_cg_alias[$j]}" == "${dep_alias}" ]]; then
           resolved_indices="${resolved_indices:+${resolved_indices} }${j}"
           break
@@ -1053,7 +1135,9 @@ cg_discover_components() {
       done
     done
     _cg_depends_on[$i]="${resolved_indices}"
-    [[ -n "${resolved_indices}" ]] && log "  Dependency: ${_cg_alias[$i]} → indices [${resolved_indices}]"
+    if [[ -n "${resolved_indices}" ]]; then
+      log "  Dependency: ${_cg_alias[$i]} → indices [${resolved_indices}]"
+    fi
   done
 }
 
@@ -1214,6 +1298,7 @@ _maybe_refresh_nlg_chart() {
   if [[ -n "${nlg_pid}" ]]; then
     kill "${nlg_pid}" 2>/dev/null || true
     _cg_traffic_pids[0]=""
+    _cg_nlg_pid_cleared_by_refresh=true
     log "  NLG: killed stale rapid-fire process (pid=${nlg_pid}) — probe loop will restart NLG"
   fi
   _cg_nlg_haproxy_ip="${current_ip}"
@@ -1338,19 +1423,29 @@ _kill_stale_nlg_java() {
   fi
 }
 
-# Kill ALL kubectl port-forward processes targeting relay pods, plus the tracked pid.
+# Kill ALL processes holding the relay local port and any kubectl port-forward to relay pods.
+# Uses lsof to catch solo's own background port-forward watcher in addition to kubectl ones.
 # Call this before a pod restart so no stale tunnels linger across pod lifecycle.
 _kill_relay_portforwards() {
   pkill -f "kubectl.*port-forward.*relay" 2>/dev/null || true
   [[ -n "${_cg_traffic_pf_pid}" ]] && kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
+  # Also kill anything holding the fixed relay port by port number (catches solo's watcher)
+  local port_holders
+  port_holders=$(lsof -ti:"${RELAY_LOCAL_PORT}" 2>/dev/null || true)
+  if [[ -n "${port_holders}" ]]; then
+    echo "${port_holders}" | xargs kill 2>/dev/null || true
+  fi
   _cg_traffic_pf_pid=""
   _cg_relay_local_port=""
   log "  relay-rpc: killed existing port-forward processes"
 }
 
 # After a pod rollout, establish a fresh port-forward to the Running relay pod.
+# Uses a fixed local port (RELAY_LOCAL_PORT=37546) matching solo's own mapping so that
+# the workers always target the same URL regardless of which round they're in.
+# Retries for up to 60s waiting for the relay process to start serving JSON-RPC.
 # Sets _cg_relay_pod_name, _cg_relay_rpc_port, _cg_relay_local_port, _cg_traffic_pf_pid.
-# Returns 1 if no Running pod is found or port-forward is not reachable.
+# Returns 1 if no Running pod is found or port-forward is not reachable after retries.
 _setup_relay_portforward() {
   local new_pod
   new_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
@@ -1362,27 +1457,51 @@ _setup_relay_portforward() {
   _cg_relay_pod_name="${new_pod}"
   _cg_relay_rpc_port=$(kubectl get pod "${_cg_relay_pod_name}" -n "${SOLO_NAMESPACE}" \
     -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null || echo "7546")
-  _cg_relay_local_port=$(( (RANDOM % 10000) + 40000 ))
-  # Use the fixed NLG_TRAFFIC_LOG path (same as start_category_traffic uses).
-  _cg_traffic_log="${NLG_TRAFFIC_LOG}"
-  : > "${_cg_traffic_log}"
+  _cg_relay_local_port="${RELAY_LOCAL_PORT}"
+
+  # Kill ALL processes holding the fixed local port — including solo's own background
+  # port-forward watcher which may have restored it between _kill_relay_portforwards
+  # and this call. Pattern-based pkill is not enough; use lsof to find by port number.
+  local stale_pids
+  stale_pids=$(lsof -ti:"${_cg_relay_local_port}" 2>/dev/null || true)
+  if [[ -n "${stale_pids}" ]]; then
+    log "  relay-rpc: killing $(echo "${stale_pids}" | wc -l | tr -d ' ') process(es) holding port ${_cg_relay_local_port}"
+    echo "${stale_pids}" | xargs kill 2>/dev/null || true
+    sleep 2  # give the OS time to release the port
+  fi
+
   log "  relay-rpc: port-forwarding pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} → localhost:${_cg_relay_local_port}"
   kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${_cg_relay_pod_name}" \
-    "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >"${_cg_traffic_log}" 2>&1 &
+    "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >/dev/null 2>&1 &
   _cg_traffic_pf_pid=$!
-  sleep 3
+
+  # Relay.js takes a few seconds after the pod becomes Running to bind its HTTP server.
+  # Retry for up to 60s so we don't skip valid rounds just because startup is slow.
   local check_payload='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-  local test_resp
-  test_resp=$(curl -s -X POST -H "Content-Type: application/json" \
-    --data "${check_payload}" --max-time 10 "http://localhost:${_cg_relay_local_port}" 2>/dev/null || true)
+  local test_resp="" waited=0
+  while [[ ${waited} -lt 60 ]]; do
+    sleep 3; waited=$(( waited + 3 ))
+    if ! kill -0 "${_cg_traffic_pf_pid}" 2>/dev/null; then
+      log "  relay-rpc: port-forward process died after ${waited}s — aborting"
+      _cg_traffic_pf_pid=""
+      _cg_relay_local_port=""
+      return 1
+    fi
+    test_resp=$(curl -s -X POST -H "Content-Type: application/json" \
+      --data "${check_payload}" --max-time 5 "http://localhost:${_cg_relay_local_port}" 2>/dev/null || true)
+    if [[ -n "${test_resp}" ]]; then
+      break
+    fi
+    log "  relay-rpc: waiting for relay to accept connections (${waited}s)..."
+  done
   if [[ -z "${test_resp}" ]]; then
-    log "  relay-rpc: port-forward not reachable on localhost:${_cg_relay_local_port} — aborting"
+    log "  relay-rpc: relay not reachable on localhost:${_cg_relay_local_port} after ${waited}s — aborting"
     kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
     _cg_traffic_pf_pid=""
     _cg_relay_local_port=""
     return 1
   fi
-  log "  relay-rpc: port-forward ready localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} — ${test_resp}"
+  log "  relay-rpc: port-forward ready localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} (pid=${_cg_traffic_pf_pid}) — ${test_resp}"
 }
 
 # Start workers for a single query component (by _cg index i).
@@ -1403,20 +1522,25 @@ _start_query_component_traffic() {
       log "  [${resource_name}] No pod found — skipping query traffic"
       return
     fi
+    # Kill anything already holding this port range before binding
     local local_port=$(( (RANDOM % 10000) + 42000 ))
+    lsof -ti:"${local_port}" 2>/dev/null | xargs kill 2>/dev/null || true
     kubectl port-forward -n "${ns}" "pod/${pod_name}" \
       "${local_port}:8081" >/dev/null 2>&1 &
     _cg_comp_pf_pids[$i]=$!
     sleep 2
     local url="http://localhost:${local_port}/actuator/health"
     log "  [${resource_name}] grpc traffic: ${QUERY_WORKERS} workers → ${url}"
-    local pf_ref="${_cg_comp_pf_pids[$i]}"
+    local pf_pid="${_cg_comp_pf_pids[$i]}"
+    local w
     for w in $(seq 1 "${QUERY_WORKERS}"); do
-      ( while kill -0 "${pf_ref}" 2>/dev/null; do
+      ( while true; do
           curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
           sleep "${worker_sleep}"
         done ) &
-      _cg_traffic_pids+=($!)
+      local wpid=$!
+      disown "${wpid}"
+      _cg_traffic_pids+=("${wpid}")
     done
 
   elif echo "${resource_name}" | grep -q "web3"; then
@@ -1428,31 +1552,37 @@ _start_query_component_traffic() {
       return
     fi
     local local_port=$(( (RANDOM % 10000) + 43000 ))
+    lsof -ti:"${local_port}" 2>/dev/null | xargs kill 2>/dev/null || true
     kubectl port-forward -n "${ns}" "pod/${pod_name}" \
       "${local_port}:8545" >/dev/null 2>&1 &
     _cg_comp_pf_pids[$i]=$!
     sleep 2
     local url="http://localhost:${local_port}/actuator/health"
     log "  [${resource_name}] web3 traffic: ${QUERY_WORKERS} workers → ${url}"
-    local pf_ref="${_cg_comp_pf_pids[$i]}"
+    local w
     for w in $(seq 1 "${QUERY_WORKERS}"); do
-      ( while kill -0 "${pf_ref}" 2>/dev/null; do
+      ( while true; do
           curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
           sleep "${worker_sleep}"
         done ) &
-      _cg_traffic_pids+=($!)
+      local wpid=$!
+      disown "${wpid}"
+      _cg_traffic_pids+=("${wpid}")
     done
 
   elif echo "${resource_name}" | grep -q "restjava"; then
     # mirror-restjava: GET /api/v1/network/supply via ingress (restjava-only path)
     local url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/supply"
     log "  [${resource_name}] restjava traffic: ${QUERY_WORKERS} workers → ${url}"
+    local w
     for w in $(seq 1 "${QUERY_WORKERS}"); do
       ( while true; do
           curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
           sleep "${worker_sleep}"
         done ) &
-      _cg_traffic_pids+=($!)
+      local wpid=$!
+      disown "${wpid}"
+      _cg_traffic_pids+=("${wpid}")
     done
 
   else
@@ -1460,12 +1590,15 @@ _start_query_component_traffic() {
     # GET /api/v1/network/exchangerate via ingress (served by mirror-rest)
     local url="http://localhost:${MIRROR_INGRESS_LOCAL_PORT}/api/v1/network/exchangerate"
     log "  [${resource_name}] rest/ingress traffic: ${QUERY_WORKERS} workers → ${url}"
+    local w
     for w in $(seq 1 "${QUERY_WORKERS}"); do
       ( while true; do
           curl -sf --max-time 5 "${url}" >/dev/null 2>&1 || true
           sleep "${worker_sleep}"
         done ) &
-      _cg_traffic_pids+=($!)
+      local wpid=$!
+      disown "${wpid}"
+      _cg_traffic_pids+=("${wpid}")
     done
   fi
 }
@@ -1473,7 +1606,11 @@ _start_query_component_traffic() {
 start_category_traffic() {
   local probe_type="$1"
   _cg_traffic_pids=()
-  _cg_traffic_pf_pid=""
+  # For relay-rpc, _cg_traffic_pf_pid is already set by _setup_relay_portforward()
+  # before this call — preserve it so the probe loop can track the process.
+  if [[ "${probe_type}" != "relay-rpc" ]]; then
+    _cg_traffic_pf_pid=""
+  fi
   # Rotate the previous log to .prev before truncating so errors survive one round.
   # `tail -f /tmp/nlg-traffic.log` shows the current probe;
   # `cat /tmp/nlg-traffic.log.prev` shows the last round's output (including any errors).
@@ -1481,11 +1618,12 @@ start_category_traffic() {
   [[ -s "${_cg_traffic_log}" ]] && cp -f "${_cg_traffic_log}" "${_cg_traffic_log}.prev" 2>/dev/null || true
   : > "${_cg_traffic_log}"
   _cg_comp_pf_pids=()
+  _cg_nlg_pid_cleared_by_refresh=false
 
   case "${probe_type}" in
     nlg)
       _kill_stale_nlg_java  # ensure no Java survivors from a previous round or interrupted run
-      local nlg_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${NLG_DURATION_S}"
+      local nlg_args; nlg_args="$(nlg_build_args)"
       npm run solo -- rapid-fire load start \
         --deployment "${SOLO_DEPLOYMENT}" \
         --test "${NLG_TEST_CLASS}" \
@@ -1563,18 +1701,6 @@ optimize_category_group() {
   fi
 
   # Handle probe=none: apply registry max (no probing needed)
-  if [[ "${probe_type}" == "none" ]]; then
-    local i
-    for i in $(seq 0 $(( _cg_count - 1 ))); do
-      log "probe=none: applying max limit ${_cg_registry_max[$i]}Mi to ${_cg_kind[$i]}/${_cg_name[$i]} [${_cg_container[$i]}]"
-      set_memory_limit "${_cg_kind[$i]}" "${_cg_name[$i]}" "${_cg_container[$i]}" \
-        "${_cg_registry_max[$i]}" "${_cg_ns[$i]}"
-      printf "%-14s  %-40s  %-20s  %-18s  %s\n" \
-        "OBSERVED" "${_cg_kind[$i]}/${_cg_name[$i]}" "${_cg_container[$i]}" \
-        "${_cg_prev[$i]}" "${_cg_registry_max[$i]}Mi" >> "${RESULTS_FILE}"
-    done
-    return 0
-  fi
 
   # Pre-flight: if a component's live limit differs from last_known_good, apply all changes
   # simultaneously, then wait for all rollouts in parallel (same pattern as round loop).
@@ -1696,6 +1822,40 @@ optimize_category_group() {
       continue
     fi
 
+    # For probe_type=none: rollout success/crash is the only binary-search signal.
+    # Skip the traffic probe entirely — apply batch rollout and use _cg_crashed[] flags.
+    if [[ "${probe_type}" == "none" ]]; then
+      local any_crashed=false
+      local i
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_crashed[$i]}" == "true" ]] && any_crashed=true && break
+      done
+      for i in $(seq 0 $(( _cg_count - 1 ))); do
+        [[ "${_cg_converged[$i]}" == "true" ]] && continue
+        local mid="${_cg_mid[$i]}"
+        [[ "${mid}" -eq 0 ]] && continue
+        if [[ "${_cg_crashed[$i]}" == "true" ]]; then
+          log "  FAIL ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — raising floor"
+          _cg_low[$i]="${mid}"
+        elif [[ "${any_crashed}" == "true" ]]; then
+          log "  PASS ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — holding bounds (another component crashed)"
+        else
+          log "  PASS ${_cg_name[$i]}/${_cg_container[$i]} at ${mid}Mi — lowering ceiling, new best"
+          _cg_high[$i]="${mid}"
+          _cg_best[$i]="${mid}"
+        fi
+        local range=$(( _cg_high[$i] - _cg_low[$i] ))
+        local eff_gran="${effective_granularity}"
+        [[ ${range} -le ${eff_gran} ]] && eff_gran=$(( range / 2 ))
+        [[ ${eff_gran} -lt 1 ]] && eff_gran=1
+        if [[ ${range} -le ${eff_gran} ]]; then
+          log "  ${_cg_name[$i]}/${_cg_container[$i]} converged at best=${_cg_best[$i]}Mi"
+          _cg_converged[$i]=true
+        fi
+      done
+      continue
+    fi
+
     # Components that crashed during rollout have already had their floor raised and
     # recovery applied by wait_for_rollouts/_cg_recover_component. Reset their crash
     # flag now so the probe loop monitors them again (they may stabilize or crash again
@@ -1765,20 +1925,42 @@ optimize_category_group() {
     local any_crashed=false
     local nlg_restart_count=0
     local nlg_fatal=false          # true when NLG restart limit is exhausted — probe aborts early
+    local nlg_fatal_reason=""      # non-empty when the round is invalid and must stop
     local nlg_java_ever_ran=false  # true once Java has been confirmed running inside the NLG pod
+    local nlg_traffic_completed=false  # true after a clean NLG exit; do not restart
+    local nlg_current_run_duration="${probe_duration}"    # requested duration for the current NLG run
+    local nlg_run_start_probe_elapsed=0                   # probe_elapsed when the current NLG run started
     # Mirror REST heartbeat state (NLG probe only)
     local nlg_mirror_pf_pid=""     # kubectl port-forward PID for mirror-rest service
     local nlg_mirror_local_port="" # local port for mirror REST API
     local nlg_mirror_last_ts=""    # latest consensus_timestamp seen from mirror API
     local nlg_mirror_stale_count=0 # consecutive polls where consensus_timestamp did not advance
+    local nlg_mirror_fail_count=0  # consecutive polls where heartbeat port-forward/API was unavailable
+    local nlg_mirror_stale_limit="${NLG_MIRROR_STALE_POLLS:-3}"
+    local nlg_mirror_fail_limit="${NLG_MIRROR_FAIL_POLLS:-2}"
 
     while [[ ${probe_elapsed} -lt ${probe_duration} && ${elapsed} -lt ${probe_hard_limit} ]]; do
       sleep "${poll_interval}"
       elapsed=$(( elapsed + poll_interval ))
-      # probe_elapsed ticks only when NLG Java is actually sending traffic.
-      # For non-NLG probe types it equals wall-clock elapsed.
-      if [[ "${probe_type}" != "nlg" && "${probe_type}" != "both" ]] || \
-         [[ "${nlg_java_ever_ran}" == "true" ]]; then
+      # For NLG, synchronize probe_elapsed to the requested duration of the
+      # currently running rapid-fire process rather than delaying the clock
+      # behind Java-start/heartbeat detection.
+      if [[ "${probe_type}" == "nlg" || "${probe_type}" == "both" ]]; then
+        local nlg_pid_for_time="${_cg_traffic_pids[0]:-}"
+        if [[ "${nlg_traffic_completed}" == "true" ]]; then
+          probe_elapsed="${probe_duration}"
+        elif [[ -n "${nlg_pid_for_time}" ]] && kill -0 "${nlg_pid_for_time}" 2>/dev/null; then
+          local nlg_run_elapsed=$(( $(date +%s) - _cg_nlg_start_epoch ))
+          [[ "${nlg_run_elapsed}" -lt 0 ]] && nlg_run_elapsed=0
+          if [[ "${nlg_run_elapsed}" -gt "${nlg_current_run_duration}" ]]; then
+            nlg_run_elapsed="${nlg_current_run_duration}"
+          fi
+          probe_elapsed=$(( nlg_run_start_probe_elapsed + nlg_run_elapsed ))
+          if [[ "${probe_elapsed}" -gt "${probe_duration}" ]]; then
+            probe_elapsed="${probe_duration}"
+          fi
+        fi
+      else
         probe_elapsed=$(( probe_elapsed + poll_interval ))
       fi
       cg_check_crashes
@@ -1946,15 +2128,19 @@ optimize_category_group() {
         local nlg_pid="${_cg_traffic_pids[0]:-}"
         # Empty pid means traffic was cleared (e.g. by _maybe_refresh_nlg_chart after pod refresh).
         # Treat it the same as a died process — restart if budget remains.
-        if [[ -z "${nlg_pid}" ]]; then
+        if [[ -z "${nlg_pid}" && "${nlg_traffic_completed}" != "true" ]]; then
           local nlg_remaining=$(( probe_duration - probe_elapsed ))
           if [[ "${nlg_restart_count}" -lt 3 && "${nlg_remaining}" -gt 30 ]]; then
             nlg_restart_count=$(( nlg_restart_count + 1 ))
-            log "  NLG pid cleared (haproxy refresh) — restarting (attempt ${nlg_restart_count}/3, ${nlg_remaining}s traffic remaining)..."
+            if [[ "${_cg_nlg_pid_cleared_by_refresh}" == "true" ]]; then
+              log "  NLG pid cleared by haproxy refresh — restarting (attempt ${nlg_restart_count}/3, ${nlg_remaining}s traffic remaining)..."
+            else
+              log "  NLG pid cleared unexpectedly — restarting (attempt ${nlg_restart_count}/3, ${nlg_remaining}s traffic remaining)..."
+            fi
             sleep 5
             _kill_stale_nlg_java
             _maybe_refresh_nlg_chart
-            local nlg_clear_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
+            local nlg_clear_args; nlg_clear_args="$(nlg_build_args "${nlg_remaining}")"
             npm run solo -- rapid-fire load start \
               --deployment "${SOLO_DEPLOYMENT}" \
               --test "${NLG_TEST_CLASS}" \
@@ -1965,20 +2151,35 @@ optimize_category_group() {
               >>"${_cg_traffic_log}" 2>&1 &
             _cg_traffic_pids[0]=$!
             _cg_nlg_start_epoch=$(date +%s)
+            nlg_current_run_duration="${nlg_remaining}"
+            nlg_run_start_probe_elapsed="${probe_elapsed}"
             nlg_java_ever_ran=false  # new attempt — apply grace period again
+            _cg_nlg_pid_cleared_by_refresh=false
             log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
           else
             log "  NLG pid cleared and restart limit reached — aborting probe (no traffic, results invalid)"
             nlg_fatal=true
             break
           fi
-        elif ! kill -0 "${nlg_pid}" 2>/dev/null; then
+        elif [[ "${nlg_traffic_completed}" != "true" ]] && ! kill -0 "${nlg_pid}" 2>/dev/null; then
           local nlg_exit_code=0
           wait "${nlg_pid}" 2>/dev/null || nlg_exit_code=$?
           local nlg_remaining=$(( probe_duration - probe_elapsed ))
+          local nlg_finished_successfully=false
+          if grep -q "Finished ${NLG_TEST_CLASS}" "${_cg_traffic_log}" 2>/dev/null; then
+            nlg_finished_successfully=true
+          fi
           if [[ "${nlg_exit_code}" -eq 0 ]]; then
-            log "  NLG process (pid=${nlg_pid}) completed successfully at probe=${probe_elapsed}s wall=${elapsed}s — probe continuing"
+            log "  NLG process (pid=${nlg_pid}) completed successfully at probe=${probe_elapsed}s wall=${elapsed}s — round traffic complete"
             _cg_traffic_pids[0]=""
+            nlg_traffic_completed=true
+            break  # probe window is done; remaining checks would have no traffic anyway
+          elif [[ "${nlg_finished_successfully}" == "true" ]]; then
+            log "  NLG wrapper exited at probe=${probe_elapsed}s wall=${elapsed}s (code=${nlg_exit_code}) after successful benchmark completion — treating round traffic as complete"
+            _cg_traffic_pids[0]=""
+            nlg_traffic_completed=true
+            probe_elapsed="${probe_duration}"
+            break
           else
             log "  WARNING: NLG process (pid=${nlg_pid}) exited at probe=${probe_elapsed}s wall=${elapsed}s (code=${nlg_exit_code})"
             tail -5 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _tline; do log "    ${_tline}"; done || true
@@ -1989,7 +2190,7 @@ optimize_category_group() {
               _kill_stale_nlg_java
               # Refresh haproxy IP before restarting — the pod may have changed IP since last start.
               _maybe_refresh_nlg_chart
-              local nlg_retry_args="-c ${NLG_CLIENTS} -a ${NLG_ACCOUNTS} -t ${nlg_remaining}"
+              local nlg_retry_args; nlg_retry_args="$(nlg_build_args "${nlg_remaining}")"
               npm run solo -- rapid-fire load start \
                 --deployment "${SOLO_DEPLOYMENT}" \
                 --test "${NLG_TEST_CLASS}" \
@@ -2000,6 +2201,8 @@ optimize_category_group() {
                 >>"${_cg_traffic_log}" 2>&1 &
               _cg_traffic_pids[0]=$!
               _cg_nlg_start_epoch=$(date +%s)
+              nlg_current_run_duration="${nlg_remaining}"
+              nlg_run_start_probe_elapsed="${probe_elapsed}"
               nlg_java_ever_ran=false  # new attempt — apply grace period again
               log "  NLG restarted (pid=${_cg_traffic_pids[0]})"
             else
@@ -2026,7 +2229,16 @@ optimize_category_group() {
         if [[ "${nlg_java_ever_ran}" == "true" ]]; then
           nlg_java_grace=0   # Java was running — detect exit immediately
         else
-          nlg_java_grace=120 # Java hasn't started yet — allow HAPI startup time
+          if [[ "${nlg_restart_count}" -gt 0 ]]; then
+            nlg_java_grace=30
+          else
+            nlg_java_grace=120
+          fi
+          local nlg_remaining_for_grace=$(( probe_duration - probe_elapsed ))
+          if [[ "${nlg_remaining_for_grace}" -lt "${nlg_java_grace}" ]]; then
+            nlg_java_grace="${nlg_remaining_for_grace}"
+          fi
+          [[ "${nlg_java_grace}" -lt 0 ]] && nlg_java_grace=0
         fi
         local nlg_age=$(( $(date +%s) - _cg_nlg_start_epoch ))
         if [[ -n "${nlg_pid_now}" ]] && kill -0 "${nlg_pid_now}" 2>/dev/null && \
@@ -2048,16 +2260,30 @@ optimize_category_group() {
                 _msvc=$(kubectl get svc -n "${SOLO_NAMESPACE}" --no-headers 2>/dev/null \
                   | awk '{print $1}' | grep -E "^mirror.*-rest$" | grep -v restjava | head -1 || true)
                 if [[ -n "${_msvc}" ]]; then
+                  if ! _has_any_portforward_process; then
+                    log "  No local port-forward processes detected — refreshing port-forwards"
+                    _refresh_all_portforwards
+                  fi
                   nlg_mirror_local_port=38082
                   kubectl port-forward -n "${SOLO_NAMESPACE}" "svc/${_msvc}" \
                     "${nlg_mirror_local_port}:80" >/dev/null 2>&1 &
                   nlg_mirror_pf_pid=$!
                   log "  Mirror heartbeat: port-forward ${_msvc} → localhost:${nlg_mirror_local_port} (pid=${nlg_mirror_pf_pid})"
+                else
+                  log "  WARNING: Mirror heartbeat service not found — will retry"
                 fi
               fi
             else
               if [[ "${nlg_java_ever_ran}" == "true" ]]; then
-                log "  NLG Java exited in pod ${nlg_pod_name} (ran OK then stopped, age=${nlg_age}s) — last output:"
+                if [[ "${nlg_age}" -ge $(( nlg_current_run_duration - 15 )) ]] || \
+                   grep -q "Finished ${NLG_TEST_CLASS}" "${_cg_traffic_log}" 2>/dev/null; then
+                  log "  NLG Java completed normally in pod ${nlg_pod_name} (age=${nlg_age}s) — round traffic complete"
+                  _cg_traffic_pids[0]=""
+                  nlg_traffic_completed=true
+                  probe_elapsed="${probe_duration}"
+                  break
+                fi
+                log "  NLG Java exited unexpectedly in pod ${nlg_pod_name} (age=${nlg_age}s) — last output:"
               else
                 log "  WARNING: NLG rapid-fire (pid=${nlg_pid_now}) running but Java not found in pod ${nlg_pod_name} after ${nlg_age}s — killing to force restart"
               fi
@@ -2073,34 +2299,68 @@ optimize_category_group() {
       # Mirror REST heartbeat: verify NLG transactions are reaching the mirror node.
       # Runs every poll while Java is confirmed running; shows timestamp advance in heartbeat.
       if [[ ( "${probe_type}" == "nlg" || "${probe_type}" == "both" ) && \
-            "${nlg_java_ever_ran}" == "true" && -n "${nlg_mirror_local_port:-}" ]]; then
-        # Restart port-forward if it died
-        if [[ -n "${nlg_mirror_pf_pid:-}" ]] && ! kill -0 "${nlg_mirror_pf_pid}" 2>/dev/null; then
-          log "  Mirror heartbeat: port-forward died — restarting"
+            "${nlg_java_ever_ran}" == "true" ]]; then
+        # Restart port-forward if it died or was never established.
+        if [[ -z "${nlg_mirror_pf_pid:-}" ]] || ! kill -0 "${nlg_mirror_pf_pid}" 2>/dev/null; then
+          log "  Mirror heartbeat: port-forward missing/dead — restarting"
+          if ! _has_any_portforward_process; then
+            log "  No local port-forward processes detected — refreshing port-forwards"
+            _refresh_all_portforwards
+          fi
           local _msvc2
           _msvc2=$(kubectl get svc -n "${SOLO_NAMESPACE}" --no-headers 2>/dev/null \
             | awk '{print $1}' | grep -E "^mirror.*-rest$" | grep -v restjava | head -1 || true)
           if [[ -n "${_msvc2}" ]]; then
+            nlg_mirror_local_port="${nlg_mirror_local_port:-38082}"
             kubectl port-forward -n "${SOLO_NAMESPACE}" "svc/${_msvc2}" \
               "${nlg_mirror_local_port}:80" >/dev/null 2>&1 &
             nlg_mirror_pf_pid=$!
+            sleep 2
+          else
+            nlg_mirror_pf_pid=""
           fi
         fi
+
+        if [[ -z "${nlg_mirror_pf_pid:-}" ]] || ! kill -0 "${nlg_mirror_pf_pid}" 2>/dev/null; then
+          nlg_mirror_fail_count=$(( nlg_mirror_fail_count + 1 ))
+          log "  WARNING: Mirror heartbeat unavailable for $(( nlg_mirror_fail_count * poll_interval ))s"
+          if [[ "${nlg_mirror_fail_count}" -ge "${nlg_mirror_fail_limit}" ]]; then
+            nlg_fatal=true
+            nlg_fatal_reason="Mirror heartbeat port-forward unavailable after NLG Java started"
+            break
+          fi
+          continue
+        fi
+
         local _mts
         _mts=$(curl -sf --max-time 5 \
           "http://localhost:${nlg_mirror_local_port}/api/v1/transactions?limit=1&order=desc" \
           2>/dev/null \
           | grep -o '"consensus_timestamp":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-        if [[ -n "${_mts}" && "${_mts}" != "${nlg_mirror_last_ts}" ]]; then
-          if [[ "${nlg_mirror_stale_count}" -ge 3 ]]; then
+        if [[ -z "${_mts}" ]]; then
+          nlg_mirror_fail_count=$(( nlg_mirror_fail_count + 1 ))
+          log "  WARNING: Mirror heartbeat API returned no transaction timestamp for $(( nlg_mirror_fail_count * poll_interval ))s"
+          if [[ "${nlg_mirror_fail_count}" -ge "${nlg_mirror_fail_limit}" ]]; then
+            nlg_fatal=true
+            nlg_fatal_reason="Mirror heartbeat API did not return transactions after NLG Java started"
+            break
+          fi
+        elif [[ "${_mts}" != "${nlg_mirror_last_ts}" ]]; then
+          if [[ "${nlg_mirror_stale_count}" -ge "${nlg_mirror_stale_limit}" ]]; then
             log "  Mirror: transaction flow RESUMED (ts=${_mts}, was stale for $(( nlg_mirror_stale_count * poll_interval ))s)"
           fi
           nlg_mirror_last_ts="${_mts}"
           nlg_mirror_stale_count=0
+          nlg_mirror_fail_count=0
         elif [[ -n "${nlg_mirror_last_ts}" ]]; then
           nlg_mirror_stale_count=$(( nlg_mirror_stale_count + 1 ))
-          if [[ $(( nlg_mirror_stale_count % 3 )) -eq 0 ]]; then
+          if [[ $(( nlg_mirror_stale_count % nlg_mirror_stale_limit )) -eq 0 ]]; then
             log "  WARNING: Mirror consensus_timestamp unchanged for $(( nlg_mirror_stale_count * poll_interval ))s — transactions may not be flowing"
+          fi
+          if [[ "${nlg_mirror_stale_count}" -ge "${nlg_mirror_stale_limit}" ]]; then
+            nlg_fatal=true
+            nlg_fatal_reason="Mirror heartbeat stalled after NLG Java started"
+            break
           fi
         fi
       fi
@@ -2121,33 +2381,33 @@ optimize_category_group() {
         if [[ -n "${relay_check_resp}" ]]; then
           : # tunnel OK — silent unless debugging
         else
-          # Tunnel is dead — kill the stale port-forward process.
+          # Tunnel is dead — kill the stale port-forward process and restart it.
           kill "${_cg_traffic_pf_pid}" 2>/dev/null || true
           _cg_traffic_pf_pid=""
-          # Find the current Running relay pod (name changes after every OOMKill restart).
+          pkill -f "kubectl.*port-forward.*${_cg_relay_local_port}:${_cg_relay_rpc_port}" 2>/dev/null || true
+          sleep 1
+          log "  relay-rpc: port-forward dead at ${elapsed}s — reconnecting to pod/${_cg_relay_pod_name}"
           local current_pod
           current_pod=$(kubectl get pods -n "${SOLO_NAMESPACE}" --no-headers \
             | awk '$3=="Running"{print $1}' | grep "^relay-[0-9]" | grep -v "\-ws-" | head -1 || true)
           if [[ -z "${current_pod}" ]]; then
-            log "  relay-rpc: no Running relay pod at ${elapsed}s — waiting (port localhost:${_cg_relay_local_port} reserved)"
+            log "  relay-rpc: no Running relay pod at ${elapsed}s — will retry next poll"
           else
             if [[ "${current_pod}" != "${_cg_relay_pod_name}" ]]; then
               log "  relay-rpc: pod changed ${_cg_relay_pod_name} → ${current_pod}"
               _cg_relay_pod_name="${current_pod}"
             fi
-            # Always reuse the same local port so workers connect through the new tunnel.
-            log "  relay-rpc: (re)starting port-forward localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port}"
             kubectl port-forward -n "${SOLO_NAMESPACE}" "pod/${_cg_relay_pod_name}" \
-              "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >"${_cg_traffic_log}" 2>&1 &
+              "${_cg_relay_local_port}:${_cg_relay_rpc_port}" >/dev/null 2>&1 &
             _cg_traffic_pf_pid=$!
             sleep 2
             relay_check_resp=$(curl -s -X POST -H "Content-Type: application/json" \
-              --data "${relay_check_payload}" --max-time 3 "${relay_url}" 2>/dev/null || true)
+              --data "${relay_check_payload}" --max-time 5 "${relay_url}" 2>/dev/null || true)
             if [[ -n "${relay_check_resp}" ]]; then
-              log "  relay-rpc: port-forward OK localhost:${_cg_relay_local_port} → pod/${_cg_relay_pod_name}:${_cg_relay_rpc_port} — restarting POST workers"
+              log "  relay-rpc: port-forward OK (pid=${_cg_traffic_pf_pid}) — restarting POST workers"
               _start_relay_workers
             else
-              log "  relay-rpc: port-forward started, relay not yet responding on localhost:${_cg_relay_local_port} — pod may still be initializing"
+              log "  relay-rpc: relay not yet responding on localhost:${_cg_relay_local_port} — pod may still be initializing"
             fi
           fi
         fi
@@ -2166,6 +2426,16 @@ optimize_category_group() {
 
     # If NLG died permanently (restart limit exhausted), the round produced no traffic.
     if [[ "${nlg_fatal}" == "true" ]]; then
+      if [[ -n "${nlg_fatal_reason}" ]]; then
+        log ""
+        log "ERROR: ${nlg_fatal_reason}."
+        log "       The probe round is invalid because NLG traffic could not be confirmed."
+        log "       Last NLG output (${_cg_traffic_log}):"
+        tail -20 "${_cg_traffic_log}" 2>/dev/null | while IFS= read -r _eline; do log "    ${_eline}"; done || true
+        log ""
+        stop_category_traffic
+        exit 1
+      fi
       # Check whether any component actually crashed this round (mid-probe crash handler
       # already raised floors for them). If no crash occurred, no memory limit changed —
       # retrying the same round with identical limits is pointless. Exit with an error so
@@ -2270,12 +2540,22 @@ on_exit() {
 MODE=""             # "auto" | "by-probe-type" | "manual"
 SELECTED=()         # aliases to optimize
 FILTER_PROBE_TYPE=""  # set by --probe-type
+SHOW_LIVE=false
+LIST_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --help|-h)
+      sed -n '/^# Usage:/,/^[^#]/{ /^[^#]/d; s/^# \{0,1\}//; p }' "$0"
+      exit 0
+      ;;
     --list)
-      list_components
-      exit 0   # exits before trap is registered — no NLG cleanup triggered
+      LIST_ONLY=true
+      shift
+      ;;
+    --show-live)
+      SHOW_LIVE=true
+      shift
       ;;
     --auto)
       MODE="auto"
@@ -2307,6 +2587,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${LIST_ONLY}" == "true" ]]; then
+  list_components "${SHOW_LIVE}"
+  exit 0   # exits before trap is registered — no NLG cleanup triggered
+fi
 
 if [[ -z "${MODE}" ]]; then
   echo "Error: specify --components ALIAS[,...], --probe-type TYPE, or --auto"
@@ -2376,7 +2661,7 @@ INFO
 
 # Group selected components by probe_type and optimize each group.
 # Use a bash 3-compatible approach (no declare -A) by iterating over known probe types.
-for probe_type in nlg relay-rpc query; do
+for probe_type in nlg relay-rpc query none; do
   filtered=()
   for alias in "${SELECTED[@]}"; do
     local_probe_type="$(registry_field "${alias}" 6)"

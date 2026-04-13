@@ -8,7 +8,7 @@ postgresql:
         memory: 0
       limits:
         cpu: 1500m
-        memory: 200Mi
+        memory: 262Mi
 
 redis:
   replica:
@@ -18,7 +18,7 @@ redis:
         memory: 0
       limits:
         cpu: 1500m
-        memory: 100Mi
+        memory: 41Mi
   sentinel:
     resources:
       requests:
@@ -26,4 +26,4 @@ redis:
         memory: 0
       limits:
         cpu: 150m
-        memory: 100Mi
+        memory: 41Mi

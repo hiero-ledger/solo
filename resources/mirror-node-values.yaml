@@ -31,7 +31,7 @@ importer:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 540Mi
+      memory: 551Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -92,7 +92,7 @@ grpc:
       memory: 0
     limits:
       cpu: 500m
-      memory: 350Mi
+      memory: 331Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -125,7 +125,7 @@ postgresql:
         memory: 0
       limits:
         cpu: 1000m
-        memory: 300Mi
+        memory: 262Mi
   pgpool:
     replicaCount: 0
 rest:
@@ -145,7 +145,7 @@ rest:
       memory: 0
     limits:
       cpu: 500m
-      memory: 365Mi
+      memory: 201Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -181,7 +181,7 @@ restjava:
       memory: 0
     limits:
       cpu: 500m
-      memory: 500Mi
+      memory: 475Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -211,7 +211,7 @@ web3:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 500Mi
+      memory: 431Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -245,7 +245,7 @@ monitor:
       memory: 0
     limits:
       cpu: 500m
-      memory: 470Mi
+      memory: 281Mi
   envFrom:
     - secretRef:
         name: mirror-passwords

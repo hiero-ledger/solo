@@ -11,7 +11,7 @@ relay:
     requests:
       memory: 0
     limits:
-      memory: 98Mi
+      memory: 350Mi
 ws:
   enabled: false
   readinessProbe:
@@ -26,4 +26,4 @@ ws:
     requests:
       memory: 0
     limits:
-      memory: 98Mi
+      memory: 350Mi

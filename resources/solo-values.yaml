@@ -51,7 +51,7 @@ haproxy:
       memory: 50Mi
     limits:
       cpu: 300m
-      memory: 100Mi
+      memory: 51Mi
 envoyProxy:
   resources:
     requests:
@@ -59,4 +59,4 @@ envoyProxy:
       memory: 50Mi
     limits:
       cpu: 500m
-      memory: 100Mi
+      memory: 51Mi
