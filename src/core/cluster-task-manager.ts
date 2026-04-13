@@ -441,7 +441,7 @@ export class ClusterTaskManager extends ShellRunner {
   private async createClusterWithTimeout(
     kindClient: KindClient,
     clusterCreateOptions: ClusterCreateOptions,
-    timeoutMs: number = 5 * 60 * 1000,
+    timeoutMs: number = 3 * 60 * 1000,
   ): Promise<ClusterCreateResponse> {
     return Promise.race([
       kindClient.createCluster(constants.DEFAULT_CLUSTER, clusterCreateOptions),
