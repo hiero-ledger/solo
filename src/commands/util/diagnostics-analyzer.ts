@@ -276,7 +276,7 @@ export class DiagnosticsAnalyzer {
         if (readyFalse) {
           evidence.push('Ready: False');
         }
-        evidence.push(...this.extractMatchSnippets(content, /^\s*(Reason|Message):\s+.+$/i, 8));
+        evidence.push(...this.extractMatchSnippetsJoiningContinuations(content, /^\s*(Reason|Message):\s+/i, 8));
 
         this.addDiagnosticsFinding(findings, {
           category: 'pod-readiness',
@@ -628,6 +628,52 @@ export class DiagnosticsAnalyzer {
           break;
         }
       }
+    }
+
+    return snippets;
+  }
+
+  /**
+   * Like {@link extractMatchSnippets} but joins indented continuation lines
+   * (YAML/kubectl-describe multi-line values) into a single evidence entry.
+   *
+   * When a matching key line is found, any immediately following lines whose
+   * leading whitespace is strictly greater than the key line's indentation are
+   * appended (space-separated) before the snippet is recorded.  This collapses
+   * a multi-line `message:` value into one readable line instead of surfacing
+   * only the truncated first line.
+   */
+  private extractMatchSnippetsJoiningContinuations(content: string, pattern: RegExp, maxMatches: number): string[] {
+    const snippets: string[] = [];
+    const lines: string[] = content.split(/\r?\n/);
+    const normalizedFlags: string = pattern.flags.includes('g') ? pattern.flags.replaceAll('g', '') : pattern.flags;
+    const matcher: RegExp = new RegExp(pattern.source, normalizedFlags);
+
+    for (let index: number = 0; index < lines.length && snippets.length < maxMatches; index++) {
+      const line: string = lines[index];
+      if (!matcher.test(line)) {
+        continue;
+      }
+
+      const keyIndent: number = (line.match(/^(\s*)/)?.[1] ?? '').length;
+      let joined: string = line.trim();
+
+      // Absorb continuation lines that are indented more than the key line.
+      let next: number = index + 1;
+      while (next < lines.length) {
+        const nextLine: string = lines[next];
+        if (nextLine.trim().length === 0) {
+          break;
+        }
+        const nextIndent: number = (nextLine.match(/^(\s*)/)?.[1] ?? '').length;
+        if (nextIndent <= keyIndent) {
+          break;
+        }
+        joined += ' ' + nextLine.trim();
+        next++;
+      }
+
+      snippets.push(`line ${index + 1}: ${joined}`);
     }
 
     return snippets;
