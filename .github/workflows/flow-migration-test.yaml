@@ -27,6 +27,13 @@ on:
       - opened
       - reopened
       - synchronize
+concurrency:
+  # One run per PR or per branch. A new push cancels any in-progress run for
+  # the same PR/branch, saving runner resources. workflow_dispatch runs are
+  # not cancelled — each manual trigger gets its own group via run_id.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'auto' }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
@@ -142,6 +149,13 @@ jobs:
             echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
             exit $RC
           fi
+
+      - name: Collect Deployment Diagnostics Logs
+        if: ${{ !cancelled() && always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
 
       - name: Upload Logs to GitHub
         if: ${{ !cancelled() && always() }}

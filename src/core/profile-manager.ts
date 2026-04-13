@@ -515,7 +515,7 @@ export class ProfileManager {
     }
 
     if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
-      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
         lines.push('tss.wrapsEnabled=true');
