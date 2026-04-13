@@ -30,15 +30,15 @@ const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
 
 const duration: number = Duration.ofMinutes(
-  Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 3,
+  Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
 ).seconds;
-const clients: number = 3;
-const accounts: number = 500;
-const tokens: number = 25;
-const associations: number = 25;
-const nfts: number = 25;
+const clients: number = 5;
+const accounts: number = 1000;
+const tokens: number = 50;
+const associations: number = 50;
+const nfts: number = 50;
 const percent: number = 50;
-const maxTps: number = 50;
+const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
@@ -167,8 +167,29 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(5).toMillis());
 
+        it('NftTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting NftTransferLoadTest');
+          await main(
+            soloRapidFire(
+              testName,
+              'NftTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+              maxTps,
+            ),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
-
+        it('TokenTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting TokenTransferLoadTest');
+          await main(
+            soloRapidFire(
+              testName,
+              'TokenTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+              maxTps,
+            ),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
@@ -177,6 +198,17 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
+        it('HCSLoadTest', async (): Promise<void> => {
+          logEvent('Starting HCSLoadTest');
+          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('SmartContractLoadTest', async (): Promise<void> => {
+          logEvent('Starting SmartContractLoadTest');
+          await main(
+            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
           logEvent('Completed all performance tests');
