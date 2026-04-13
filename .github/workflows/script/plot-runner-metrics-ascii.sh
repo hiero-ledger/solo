@@ -254,8 +254,11 @@ else
         printf "%-40s %10d  %6s\n", "Total (excl. load-gen/metallb)", total, "100.0%"
       }' /dev/null)
 
+    # pie1-pie5 map in order to: Mirror, Relay, Block, Network, kube-system
+    # Colors: blue, orange, red, emerald, violet — clearly distinct
     mermaid_chart='```mermaid'$'\n'
-    mermaid_chart+="pie title Pod Memory by Category at Peak — ${peak_pod_snapshot_ts}"$'\n'
+    mermaid_chart+="%%{init: {\"themeVariables\": {\"pie1\": \"#3B82F6\", \"pie2\": \"#F97316\", \"pie3\": \"#EF4444\", \"pie4\": \"#10B981\", \"pie5\": \"#8B5CF6\"}}}%%"$'\n'
+    mermaid_chart+="pie title Peak Pod Memory by Category"$'\n'
     [[ "$cat_mirror"  -gt 0 ]] && mermaid_chart+="    \"Mirror Node\" : ${cat_mirror}"$'\n'
     [[ "$cat_relay"   -gt 0 ]] && mermaid_chart+="    \"Relay\" : ${cat_relay}"$'\n'
     [[ "$cat_block"   -gt 0 ]] && mermaid_chart+="    \"Block Node\" : ${cat_block}"$'\n'
