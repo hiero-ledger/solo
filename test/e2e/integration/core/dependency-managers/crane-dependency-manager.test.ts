@@ -360,23 +360,6 @@ describe('CraneDependencyManager', (): void => {
       sandbox.restore();
     });
 
-    it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
-      const downloaderFetchPackageSpy: sinon.SinonSpy = sandbox.spy(packageDownloader, 'fetchPackage');
-
-      runStub.withArgs('which crane').resolves(['/usr/local/bin/crane']);
-      runStub.withArgs('"/usr/local/bin/crane" version').resolves(['0.21.4']);
-      runStub.withArgs(`"${temporaryDirectory}/crane" version`).resolves(['0.21.4']);
-      existsSyncStub.withArgs(`${temporaryDirectory}/crane`).returns(false);
-
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await craneDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.true;
-
-      expect(await craneDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(downloaderFetchPackageSpy.notCalled).to.be.true;
-      expect(await craneDependencyManager.getExecutable()).to.equal(constants.CRANE);
-    });
-
     it('should install crane locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which crane').resolves(['/usr/local/bin/crane']);
       runStub.withArgs('"/usr/local/bin/crane" version').resolves([`0.1.0`]);

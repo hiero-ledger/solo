@@ -105,6 +105,8 @@ export class CacheCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             this.configManager.update(argv);
 
+            await this.throwIfDockerUnavailable();
+
             flags.disablePrompts(CacheCommand.PULL_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
@@ -115,9 +117,7 @@ export class CacheCommand extends BaseCommand {
             await this.configManager.executePrompt(task, allFlags);
 
             context_.config = {
-              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-                .engine(this.dockerClient)
-                .build(),
+              imageCacheHandler: this.buildImageCacheHandler(),
               results: [],
             };
           },
@@ -153,6 +153,8 @@ export class CacheCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
+            await this.throwIfDockerUnavailable();
+
             flags.disablePrompts(CacheCommand.LOAD_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
@@ -166,9 +168,7 @@ export class CacheCommand extends BaseCommand {
             const context: Context = this.getClusterContext(clusterReference);
 
             context_.config = {
-              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-                .engine(this.dockerClient)
-                .build(),
+              imageCacheHandler: this.buildImageCacheHandler(),
               clusterReference,
               context,
             };
@@ -201,10 +201,10 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'List cached images',
           task: async (context_): Promise<void> => {
+            await this.throwIfDockerUnavailable();
+
             const config: CacheListConfigClass = {
-              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-                .engine(this.dockerClient)
-                .build(),
+              imageCacheHandler: this.buildImageCacheHandler(),
             };
 
             context_.config = config;
@@ -237,10 +237,10 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Clear image cache',
           task: async (context_): Promise<void> => {
+            await this.throwIfDockerUnavailable();
+
             const config: CacheClearConfigClass = {
-              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-                .engine(this.dockerClient)
-                .build(),
+              imageCacheHandler: this.buildImageCacheHandler(),
             };
 
             context_.config = config;
@@ -264,10 +264,10 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Check cache status',
           task: async (context_): Promise<void> => {
+            await this.throwIfDockerUnavailable();
+
             const config: CacheStatusConfigClass = {
-              imageCacheHandler: ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-                .engine(this.dockerClient)
-                .build(),
+              imageCacheHandler: this.buildImageCacheHandler(),
             };
 
             context_.config = config;
@@ -357,6 +357,18 @@ export class CacheCommand extends BaseCommand {
 
   private prepareClusterName(clusterReference: ClusterReferenceName): string {
     return clusterReference.startsWith('kind-') ? clusterReference.replace('kind-', '') : clusterReference;
+  }
+
+  private async throwIfDockerUnavailable(): Promise<void> {
+    const isDockerAvailable: boolean = await this.depManager.checkDependency(constants.DOCKER);
+
+    if (!isDockerAvailable) {
+      throw new SoloError('Docker is required for using the image cache feature');
+    }
+  }
+
+  private buildImageCacheHandler(): ImageCacheHandler {
+    return ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE).engine(this.dockerClient).build();
   }
 
   public async close(): Promise<void> {}
