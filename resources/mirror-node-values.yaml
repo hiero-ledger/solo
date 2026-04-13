@@ -181,7 +181,7 @@ restjava:
       memory: 0
     limits:
       cpu: 500m
-      memory: 500Mi
+      memory: 800Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
