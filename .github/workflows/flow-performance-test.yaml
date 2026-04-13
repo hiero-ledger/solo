@@ -255,6 +255,10 @@ jobs:
             if [[ -f "$CHART_FILE" && -s "$CHART_FILE" ]]; then
               echo "chart_generated=true" >> $GITHUB_OUTPUT
               echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+              MERMAID_FILE="${CHART_FILE%.txt}-mermaid.md"
+              CATEGORIES_FILE="${CHART_FILE%.txt}-categories.txt"
+              [[ -f "$MERMAID_FILE" ]]    && echo "mermaid_file=$MERMAID_FILE"       >> $GITHUB_OUTPUT
+              [[ -f "$CATEGORIES_FILE" ]] && echo "categories_file=$CATEGORIES_FILE" >> $GITHUB_OUTPUT
               echo "✅ ASCII chart generated successfully"
             else
               echo "chart_generated=false" >> $GITHUB_OUTPUT
@@ -277,6 +281,13 @@ jobs:
               echo '```' >> $GITHUB_STEP_SUMMARY
               cat "$CHART_FILE" >> $GITHUB_STEP_SUMMARY
               echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+            MERMAID_FILE="${{ steps.generate-chart.outputs.mermaid_file }}"
+            if [[ -n "$MERMAID_FILE" && -f "$MERMAID_FILE" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### Pod Memory Distribution by Category" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              cat "$MERMAID_FILE" >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "_No resource metrics collected._" >> $GITHUB_STEP_SUMMARY
@@ -319,16 +330,44 @@ jobs:
           echo "</details>" >> $LOG_FILE
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
-      - name: Comment PR with Log Metrics
-        if: >-
-          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' &&
-          steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
-        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+      - name: Write Log Metrics to Workflow Summary
+        if: ${{ !cancelled() && steps.log-metrics-file.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          mode: recreate
-          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
-          comment-tag: log-metrics-performance-test
+        run: |
+          cat "${{ steps.log-metrics-file.outputs.log_file }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Read Pod Memory Category Table
+        id: pod-categories
+        if: ${{ !cancelled() && steps.generate-chart.outputs.categories_file != '' }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          CATEGORIES_FILE="${{ steps.generate-chart.outputs.categories_file }}"
+          if [[ -f "$CATEGORIES_FILE" ]]; then
+            {
+              echo "content<<EOF_CATEGORIES"
+              cat "$CATEGORIES_FILE"
+              echo "EOF_CATEGORIES"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Pod Memory Categories to Slack
+        if: ${{ !cancelled() && steps.pod-categories.outputs.content != '' }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
+          SLACK_COLOR: good
+          SLACK_TITLE: "Performance Test — Pod Memory by Category"
+          SLACK_MESSAGE: |
+            *Branch:* `${{ github.ref_name }}`  *Commit:* `${{ github.sha }}`
+
+            ```
+            ${{ steps.pod-categories.outputs.content }}
+            ```
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
