@@ -98,7 +98,7 @@ grpc:
       memory: 0
     limits:
       cpu: 500m
-      memory: 95Mi
+      memory: 200Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1

@@ -1,0 +1,17 @@
+# Minimal dual-cluster overrides - only changes needed for dual-cluster testing
+# This file extends the base mirror-node-values.yaml with minimal changes
+
+# Increase memory limits for dual-cluster scenarios
+rest:
+  resources:
+    limits:
+      cpu: 1000m  # Increased from 500m for dual-cluster
+      memory: 1500Mi  # Increased from 500Mi to prevent OOM
+
+# Add Java heap configuration to prevent auto-scaling OOM
+restjava:
+  env:
+    - name: JAVA_OPTS
+      value: "-Xms768m -Xmx768m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+    - name: SPRING_PROFILES_ACTIVE
+      value: "dual-cluster"

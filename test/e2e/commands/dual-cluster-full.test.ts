@@ -30,6 +30,9 @@ import {destroyEnabled} from '../../test-utility.js';
 
 const testName: string = 'dual-cluster-full';
 
+// Use dual-cluster specific values file with higher memory limits to prevent OOM
+const dualClusterValuesFile: string = '../../../resources/mirror-node-values-dual-cluster-minimal.yaml';
+
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Dual Cluster Full E2E Test Suite')
@@ -90,7 +93,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options, true);
 
-        MirrorNodeTest.add(options);
+        // Use dual-cluster specific values file with higher memory limits
+        const mirrorOptionsWithValuesFile = {
+          ...options,
+          valuesFile: dualClusterValuesFile
+        };
+        MirrorNodeTest.add(mirrorOptionsWithValuesFile);
         MirrorNodeTest.pullAddressBook(options);
 
         ConsensusNodeTest.PemStop(options);

@@ -132,7 +132,7 @@ tasks:
       # Upgrade mirror node
       - cmd: |
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
-          --mirror-node-version v0.151.0
+          --mirror-node-version v0.152.0
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Upgrade network to main with local build path
