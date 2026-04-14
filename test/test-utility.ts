@@ -58,7 +58,6 @@ import {type CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
-import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
 import {HEDERA_PLATFORM_VERSION} from '../version.js';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
@@ -607,10 +606,6 @@ export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version
 
 export function hederaPlatformSupportsNonZeroRealms(): boolean {
   return new SemanticVersion<string>(HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
-}
-
-export function localHederaPlatformSupportsNonZeroRealms(): boolean {
-  return new SemanticVersion<string>(TEST_LOCAL_HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
 }
 
 export function destroyEnabled(): boolean {

@@ -30,8 +30,8 @@ importer:
       cpu: 0
       memory: 0
     limits:
-      cpu: 1000m
-      memory: 2000Mi
+      cpu: 4
+      memory: 5Gi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -91,8 +91,8 @@ grpc:
       cpu: 0
       memory: 0
     limits:
-      cpu: 500m
-      memory: 1000Mi
+      cpu: 2
+      memory: 2048Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -144,8 +144,8 @@ rest:
       cpu: 0
       memory: 0
     limits:
-      cpu: 500m
-      memory: 500Mi
+      cpu: 1100m
+      memory: 600Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -180,8 +180,8 @@ restjava:
       cpu: 0
       memory: 0
     limits:
-      cpu: 500m
-      memory: 500Mi
+      cpu: 2
+      memory: 3096Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -210,8 +210,8 @@ web3:
       cpu: 0
       memory: 0
     limits:
-      cpu: 1000m
-      memory: 1000Mi
+      cpu: 2
+      memory: 2048Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -245,7 +245,7 @@ monitor:
       memory: 0
     limits:
       cpu: 500m
-      memory: 1000Mi
+      memory: 768Mi
   envFrom:
     - secretRef:
         name: mirror-passwords
