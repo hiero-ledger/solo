@@ -262,7 +262,7 @@ web3:
 # Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
 # Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
 monitor:
-  enabled: false
+  enabled: true
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
