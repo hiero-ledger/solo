@@ -251,6 +251,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
+
       - name: Setup Posix Dependencies
         id: set-posix-dependencies
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
@@ -440,6 +441,32 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
+
+          # Skip test-e2e-dual-cluster-full if consensus version >= v0.72.0
+          if [ "${{ inputs.test-script }}" = "test-e2e-dual-cluster-full" ]; then
+            CONSENSUS_VERSION="${{ inputs.consensus-node-version }}"
+            if [ -z "$CONSENSUS_VERSION" ]; then
+              CONSENSUS_VERSION=$(grep "export const HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)'.*/\1/")
+            fi
+            version_gte() {
+              local IFS=.
+              local v1=($1) v2=($2)
+              for i in 0 1 2; do
+                local a=${v1[$i]:-0} b=${v2[$i]:-0}
+                (( 10#$a > 10#$b )) && return 0
+                (( 10#$a < 10#$b )) && return 1
+              done
+              return 0
+            }
+            CV="${CONSENSUS_VERSION#v}"
+            if version_gte "$CV" "0.72.0"; then
+              echo "Skipping test-e2e-dual-cluster-full: consensus version ${CONSENSUS_VERSION} >= v0.72.0"
+              echo "skipped=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -646,6 +673,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
+          steps.run-e2e-tests.outputs.skipped != 'true' &&
           steps.npm-deps.conclusion == 'success' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -658,11 +686,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
+          steps.run-e2e-tests.outputs.skipped != 'true' &&
           !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
+
 
       - name: Cleanup Kind Clusters
         if: ${{ always() }}

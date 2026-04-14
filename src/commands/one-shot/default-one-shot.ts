@@ -15,6 +15,7 @@ import {
 import {
   type DeploymentName,
   type Optional,
+  type PortForwardConfig,
   type Realm,
   type Shard,
   type SoloListr,
@@ -114,12 +115,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.minimalSetup,
       flags.rollback,
       flags.parallelDeploy,
+      flags.edgeEnabled,
     ],
   };
 
   public static readonly MULTI_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes],
+    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes, flags.edgeEnabled],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -142,6 +144,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployRelay,
       flags.rollback,
       flags.parallelDeploy,
+      flags.edgeEnabled,
     ],
   };
 
@@ -190,7 +193,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       return;
     }
     for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY && key !== '--deployment') {
+      if (key === '--deployment') {
+        continue;
+      }
+      if (value === false) {
+        // Boolean false must use yargs negation prefix (--no-flag) rather than --flag false
+        argv.push(key.replace(/^--/, '--no-'));
+      } else if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
         argv.push(`${key}`, value.toString());
       }
     }
@@ -956,6 +965,77 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     return true;
+  }
+
+  private getRelayOperatorAccountId(config: OneShotSingleDeployConfigClass): string {
+    const configuredOperatorId: unknown = config.relayNodeConfiguration?.[optionFromFlag(Flags.operatorId)];
+
+    if (typeof configuredOperatorId === 'string' && configuredOperatorId.length > 0) {
+      return configuredOperatorId;
+    }
+
+    return this.accountManager.getOperatorAccountId(config.deployment).toString();
+  }
+
+  private getMirrorIngressLocalPort(): number {
+    const mirrorNode: Optional<MirrorNodeStateSchema> = this.remoteConfig.configuration.components.state.mirrorNodes[0];
+    const portForwardConfig: Optional<PortForwardConfig> =
+      mirrorNode?.metadata?.portForwardConfigs?.find((config): boolean => config.podPort === 80) ??
+      mirrorNode?.metadata?.portForwardConfigs?.[0];
+
+    if (!portForwardConfig) {
+      throw new SoloError('Mirror ingress port-forward is not configured');
+    }
+
+    return portForwardConfig.localPort;
+  }
+
+  private async waitForMirrorOperatorAccountReady(
+    config: OneShotSingleDeployConfigClass,
+    argv: ArgvStruct,
+    task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+  ): Promise<void> {
+    await this.remoteConfig.loadAndValidate(argv, false);
+
+    const operatorAccountId: string = this.getRelayOperatorAccountId(config);
+    const localPort: number = this.getMirrorIngressLocalPort();
+    const maxAttempts: number = constants.PODS_READY_MAX_ATTEMPTS;
+    const delayMs: number = constants.PODS_READY_DELAY;
+    const url: string = `http://localhost:${localPort}/api/v1/accounts/${operatorAccountId}?transactions=false`;
+
+    let lastFailure: string = 'mirror account endpoint did not return a funded account';
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      task.title = `Wait for mirror operator account data [${attempt}/${maxAttempts}]`;
+
+      try {
+        const response: Response = await fetch(url);
+
+        if (response.ok) {
+          const body: AnyObject = (await response.json()) as AnyObject;
+          const balance: number = Number(body?.balance?.balance ?? 0);
+
+          if (balance > 0) {
+            task.title = `Mirror operator account data ready: ${operatorAccountId}`;
+            return;
+          }
+
+          lastFailure = `account ${operatorAccountId} has non-positive balance (${balance})`;
+        } else {
+          lastFailure = `status ${response.status}`;
+        }
+      } catch (error) {
+        lastFailure = error instanceof Error ? error.message : String(error);
+      }
+
+      if (attempt < maxAttempts) {
+        await helpers.sleep(Duration.ofMillis(delayMs));
+      }
+    }
+
+    throw new SoloError(
+      `Mirror node did not expose funded account data for ${operatorAccountId} before relay deploy: ${lastFailure} [maxAttempts = ${maxAttempts}]`,
+    );
   }
 
   private showOneShotUserNotes(

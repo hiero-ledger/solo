@@ -1,0 +1,4 @@
+network:
+  --application-properties: test/data/tss-mock-signatures.properties
+mirrorNode:
+  --values-file: test/data/mirror-record-stream-values.yaml
