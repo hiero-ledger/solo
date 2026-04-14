@@ -3,7 +3,7 @@
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {injectable, container} from 'tsyringe-neo';
-import {type ArgvStruct} from '../types/aliases.js';
+import {type ArgvStruct, NodeAlias} from '../types/aliases.js';
 import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
@@ -50,6 +50,9 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Container} from '../integration/kube/resources/container/container.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -200,7 +203,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of consensusNodes) {
-      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name as any, consensusNodes);
+      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
       const k8: K8 = this.k8Factory.getK8(context);
       this.logger.info(
         `Waiting for pod of node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
@@ -299,11 +302,11 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
-              const nodeAlias: string = node.name;
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const nodeAlias: NodeAlias = node.name;
+              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
               const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
-              await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
+              await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
           },
@@ -495,13 +498,13 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Get all pods in this context
       const k8: K8 = this.k8Factory.getK8(context);
-      const pods: any[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
       // Upload logs to each pod
       for (const logFile of logFiles) {
         // Extract pod name from log file by removing the suffix
         const podName: string = logFile.replace(constants.LOG_CONFIG_ZIP_SUFFIX, '');
-        const pod: any = pods.find((p: any): boolean => p.podReference.name.name === podName);
+        const pod: Pod = pods.find((p: any): boolean => p.podReference.name.name === podName);
 
         if (!pod) {
           this.logger.showUser(chalk.yellow(`    No matching pod found for log file: ${logFile}`));
@@ -509,9 +512,9 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         const logFilePath: string = PathEx.join(logsDirectory, logFile);
-        const podReference: any = pod.podReference;
+        const podReference: PodReference = pod.podReference;
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const container: any = await k8.containers().readByRef(containerReference);
+        const container: Container = k8.containers().readByRef(containerReference);
 
         // Upload zipped log file to pod
         this.logger.showUser(chalk.gray(`    Uploading log file: ${logFile}`));
@@ -574,9 +577,9 @@ export class BackupRestoreCommand extends BaseCommand {
             const podReferences: any = {};
 
             for (const nodeAlias of nodeAliases) {
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
-              const pods: any[] = await k8
+              const pods: Pod[] = await k8
                 .pods()
                 .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
 
