@@ -892,10 +892,12 @@ export class MirrorNodeCommand extends BaseCommand {
             ? {
                 title: 'Check Pinger',
                 labels: ['app.kubernetes.io/component=pinger', 'app.kubernetes.io/name=pinger'],
+                skip: (): boolean => !context_.config.pinger,
               }
             : {
                 title: 'Check Monitor',
                 labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
+                skip: (): boolean => !context_.config.pinger,
               },
           {
             title: 'Check Web3',
@@ -1148,22 +1150,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
+            this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
 
-            // Override values for MIRROR_NODE_VERSION < 0.152.0
-            const improvedMemoryModules = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
-            if (!hasMirrorNodeMemoryImprovements) {
-              for (const module of improvedMemoryModules) {
-                const configRoot = module.replaceAll('-', '');
-                config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
-                config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
-
-                const memoryKey = `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
-                config.valuesArg += ` --set ${configRoot}.resources.limits.memory=${constants[memoryKey]}`;
-              }
-            }
             return ListrLock.newSkippedLockTask(task);
           },
         },
@@ -1413,22 +1405,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
+            this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
 
-            // Override values for MIRROR_NODE_VERSION < 0.152.0
-            const improvedMemoryModules = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
-            if (!hasMirrorNodeMemoryImprovements) {
-              for (const module of improvedMemoryModules) {
-                const configRoot = module.replaceAll('-', '');
-                config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
-                config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
-
-                const memoryKey = `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
-                config.valuesArg += ` --set ${configRoot}.resources.limits.memory=${constants[memoryKey]}`;
-              }
-            }
             return ListrLock.newSkippedLockTask(task);
           },
         },
@@ -1488,6 +1470,31 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     return true;
+  }
+  // Override values for mirror node memory optimizations
+  private addMirrorNodeMemoryOverrides(
+    hasMirrorNodeMemoryImprovements: boolean,
+    config: MirrorNodeUpgradeConfigClass,
+  ): void {
+    const improvedMemoryModules: string[] = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
+    if (!hasMirrorNodeMemoryImprovements) {
+      for (const module of improvedMemoryModules) {
+        const configRoot = module.replaceAll('-', '');
+        config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
+        config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
+
+        const memoryKey = `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
+        config.valuesArg += ` --set ${configRoot}.resources.limits.memory=${constants[memoryKey]}`;
+      }
+    } else if (process.arch === 'arm64') {
+      /** Unable to build linux/arm64 native images due to limitation in web3j.
+       * Upstream ticket https://github.com/LFDT-web3j/web3j-sokt/issues/40
+       * will need to be resolved before we can disable this logic
+       */
+      config.valuesArg += ` --set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
+      config.valuesArg += ` --set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`;
+      config.valuesArg += ` --set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`;
+    }
   }
 
   private validateExternalDatabaseFlags(config: MirrorNodeUpgradeConfigClass): void {
