@@ -179,9 +179,6 @@ tasks:
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
             --enable-ingress --pinger -q --dev
 
-      # Seed database
-      - task: deploy-mirror-external
-
       # Deploy Block Node on Cluster 2
       - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
       - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
@@ -272,7 +269,6 @@ tasks:
     cmds:
       - task: deploy-external-database
       - cmd: $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
-      - task: deploy-mirror-external
 
   # ==================== External Database Tasks ====================
 
@@ -310,22 +306,6 @@ tasks:
           -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
 
   # ==================== Restore Tasks ====================
-  # must be called after cluster created
-  deploy-mirror-external:
-    desc: Deploy mirror node with external database
-    cmds:
-      # Copy database-seeding-query.sql to database pod"
-      - cmd: |
-          kubectl cp {{ .SOLO_USER_DIR }}/cache/database-seeding-query.sql \
-          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
-
-      # Seed database with database-seeding-query.sql"
-      - cmd: |
-          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -f /tmp/database-seeding-query.sql \
-          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
-      - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
-
   restore-config:
     desc: Restore configuration and state from backup
     cmds:
