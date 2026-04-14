@@ -428,7 +428,7 @@ jobs:
             done
             
             ./gradlew :block-node-app:createDockerImage
-            kind get clusters
+            timeout 30 kind get clusters
             kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
             ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
             cd ../solo
@@ -634,7 +634,7 @@ jobs:
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-${{ inputs.test-script }}.log
@@ -643,7 +643,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload E2E Test Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
           steps.npm-deps.conclusion == 'success' && !cancelled() && !failure() }}
@@ -655,7 +655,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish E2E Coverage Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
           !cancelled() && !failure() }}
@@ -669,7 +669,29 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
+
+          # Helper: collect docker hang diagnostics using non-Docker tools (writes to stderr)
+          collect_docker_hang_diagnostics() {
+            local hung_command="${1:-unknown command}"
+            {
+              echo "=== DOCKER HANG DIAGNOSTICS (timed out: '${hung_command}') ==="
+              systemctl status docker --no-pager -l 2>/dev/null || service docker status 2>/dev/null || echo "Unable to get docker service status"
+              ls -la /var/run/docker.sock 2>/dev/null || echo "Docker socket not found"
+              lsof /var/run/docker.sock 2>/dev/null || echo "lsof unavailable or no open handles on docker socket"
+              ps aux | grep -E '[d]ocker|[c]ontainerd|[k]ind' 2>/dev/null || true
+              free -h 2>/dev/null || true
+              journalctl -u docker --no-pager -n 30 2>/dev/null || echo "journalctl unavailable"
+              echo "=== END DOCKER HANG DIAGNOSTICS ==="
+            } >&2
+          }
+
           for i in $(seq 1 ${{ env.SOLO_CLUSTER_DUALITY }}); do
-            timeout 60 kind delete cluster -n "${{ inputs.cluster-name }}-c${i}" 2>/dev/null || true
+            timeout 60 kind delete cluster -n "${{ inputs.cluster-name }}-c${i}" || true
           done
-          docker network rm -f kind 2>/dev/null || true
+          timeout 30 docker network rm -f kind
+          exit_code=$?
+          if [[ $exit_code -eq 124 ]]; then
+            echo "WARNING: 'docker network rm kind' timed out"
+            collect_docker_hang_diagnostics "docker network rm kind"
+          fi
+          true
