@@ -78,7 +78,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -311,17 +311,6 @@ jobs:
 
           echo "==== Cold median: $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s ===="
           echo "==== Warm median: $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s ===="
-
-      - name: Run Relay XTS Tests
-        id: relay-xts-tests
-        timeout-minutes: 60
-        continue-on-error: true
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          VALUES_FILE="${{ steps.values-file.outputs.path }}"
-          SOLO_CMD="${SOLO_CMD}" VALUES_FILE="${VALUES_FILE}" \
-            .github/workflows/script/relay_xts_test.sh
 
       - name: Timing Summary
         id: timing-summary

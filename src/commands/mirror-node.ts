@@ -1097,6 +1097,8 @@ END $grant$;`;
           ComponentTypes.MirrorNode,
           'Mirror ingress controller',
           config.isChartInstalled, // Reuse existing port if chart is already installed
+          undefined,
+          true, // persist: auto-restart on failure using persist-port-forward.js
         );
         await this.remoteConfig.persist();
       },
