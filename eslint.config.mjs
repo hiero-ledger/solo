@@ -24,6 +24,7 @@ export default [
     ignores: [
       '.git/**/*', // Git files
       '.github/**/*', // GitHub files
+      '!.github/**/*.ts', // ...except TypeScript files
       '.idea/**/*', // IDE files
       'coverage/**/*', // Coverage files
       'docs/**/*', // Documentation files
@@ -94,7 +95,7 @@ export default [
       'n/hashbang': [
         'error',
         {
-          additionalExecutables: ['solo.ts'],
+          additionalExecutables: ['solo.ts', '.github/workflows/script/jdwp-tester.ts'],
         },
       ],
       'n/no-unpublished-import': [
