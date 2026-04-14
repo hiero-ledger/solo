@@ -875,6 +875,10 @@ export class MirrorNodeCommand extends BaseCommand {
     return {
       title: 'Check pods are ready',
       task: (context_, task): SoloListr<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
+        const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
+          context_.config.mirrorNodeVersion,
+        ).greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION);
+
         const subTasks: SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext>[] = [
           {
             title: 'Check REST API',
@@ -884,10 +888,17 @@ export class MirrorNodeCommand extends BaseCommand {
             title: 'Check GRPC',
             labels: ['app.kubernetes.io/component=grpc', 'app.kubernetes.io/name=grpc'],
           },
-          {
-            title: 'Check Monitor',
-            labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
-          },
+          hasMirrorNodeMemoryImprovements
+            ? {
+                title: 'Check Pinger',
+                labels: ['app.kubernetes.io/component=pinger', 'app.kubernetes.io/name=pinger'],
+                skip: (): boolean => !context_.config.pinger,
+              }
+            : {
+                title: 'Check Monitor',
+                labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
+                skip: (): boolean => !context_.config.pinger,
+              },
           {
             title: 'Check Web3',
             labels: ['app.kubernetes.io/component=web3', 'app.kubernetes.io/name=web3'],
@@ -1005,6 +1016,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
+              config.mirrorNodeVersion,
+            ).greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION);
+
             config.namespace = await this.getNamespace(task);
             config.clusterReference = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterReference);
@@ -1065,15 +1080,21 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             if (config.pinger) {
-              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=${constants.MIRROR_NODE_PINGER_TPS}`;
+              if (!hasMirrorNodeMemoryImprovements) {
+                config.valuesArg += ' --set pinger.enabled=false';
+                config.valuesArg += ' --set monitor.enabled=true';
+                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=${constants.MIRROR_NODE_PINGER_TPS}`;
+              }
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
                 config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
+                config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY=${config.operatorKey}`;
               } else {
                 try {
                   const namespace: NamespaceName = await resolveNamespaceFromDeployment(
@@ -1089,17 +1110,20 @@ export class MirrorNodeCommand extends BaseCommand {
                   if (secrets.length === 0) {
                     this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
                     config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                    config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY=${constants.OPERATOR_KEY}`;
                   } else {
                     this.logger.info('Using operator key from k8s secret');
                     const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
                     config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
+                    config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY=${operatorKeyFromK8}`;
                   }
                 } catch (error) {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
             } else {
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
+              context_.config.valuesArg += ' --set monitor.enabled=false';
+              context_.config.valuesArg += ' --set pinger.enabled=false';
             }
 
             const isQuiet: boolean = config.quiet;
@@ -1126,9 +1150,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
+            this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
+
             return ListrLock.newSkippedLockTask(task);
           },
         },
@@ -1233,6 +1260,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
+              config.mirrorNodeVersion,
+            ).greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION);
+
             config.namespace = await this.getNamespace(task);
             config.clusterReference = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterReference);
@@ -1304,15 +1335,21 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             if (config.pinger) {
-              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
+              if (!hasMirrorNodeMemoryImprovements) {
+                config.valuesArg += ' --set pinger.enabled=false';
+                config.valuesArg += ' --set monitor.enabled=true';
+                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
+              }
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
                 config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
+                config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY=${config.operatorKey}`;
               } else {
                 try {
                   const namespace: NamespaceName = await resolveNamespaceFromDeployment(
@@ -1328,17 +1365,20 @@ export class MirrorNodeCommand extends BaseCommand {
                   if (secrets.length === 0) {
                     this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
                     config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                    config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY=${constants.OPERATOR_KEY}`;
                   } else {
                     this.logger.info('Using operator key from k8s secret');
                     const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
                     config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
+                    config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY=${operatorKeyFromK8}`;
                   }
                 } catch (error) {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
             } else {
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
+              context_.config.valuesArg += ' --set monitor.enabled=false';
+              context_.config.valuesArg += ' --set pinger.enabled=false';
             }
 
             const isQuiet: boolean = config.quiet;
@@ -1365,9 +1405,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
+            this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
+
             return ListrLock.newSkippedLockTask(task);
           },
         },
@@ -1427,6 +1470,31 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     return true;
+  }
+  // Override values for mirror node memory optimizations
+  private addMirrorNodeMemoryOverrides(
+    hasMirrorNodeMemoryImprovements: boolean,
+    config: MirrorNodeUpgradeConfigClass,
+  ): void {
+    const improvedMemoryModules: string[] = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
+    if (!hasMirrorNodeMemoryImprovements) {
+      for (const module of improvedMemoryModules) {
+        const configRoot = module.replaceAll('-', '');
+        config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
+        config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
+
+        const memoryKey = `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
+        config.valuesArg += ` --set ${configRoot}.resources.limits.memory=${constants[memoryKey]}`;
+      }
+    } else if (process.arch === 'arm64') {
+      /** Unable to build linux/arm64 native images due to limitation in web3j.
+       * Upstream ticket https://github.com/LFDT-web3j/web3j-sokt/issues/40
+       * will need to be resolved before we can disable this logic
+       */
+      config.valuesArg += ` --set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
+      config.valuesArg += ` --set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`;
+      config.valuesArg += ` --set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`;
+    }
   }
 
   private validateExternalDatabaseFlags(config: MirrorNodeUpgradeConfigClass): void {
