@@ -42,6 +42,7 @@ const maxTps: number = 100;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
+let peakMemoryInMebibytes: number = 0;
 
 // When the workflow cancels this step (e.g. due to a new commit superseding the PR),
 // go-task forwards SIGTERM to this process' process group before SIGKILL reaches task.
@@ -123,38 +124,46 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
           let maxCpuMetrics: number = 0;
           let maxCpuFile: string = '';
+          let maxMemoryMetrics: number = 0;
+          let maxMemoryFile: string = '';
           for (const [fileName, metrics] of Object.entries(allMetrics)) {
             if (metrics.cpuInMillicores > maxCpuMetrics) {
               maxCpuMetrics = metrics.cpuInMillicores;
               maxCpuFile = fileName;
             }
-          }
-
-          let maxMemoryMetrics: number = 0;
-          for (const metrics of Object.values(allMetrics)) {
             if (metrics.memoryInMebibytes > maxMemoryMetrics) {
               maxMemoryMetrics = metrics.memoryInMebibytes;
+              maxMemoryFile = fileName;
             }
           }
 
-          // save the file with the max CPU metrics and inject the peak memory value
-          const maxCpuFileName: string = `${maxCpuFile}.json`;
+          // Use the max-memory snapshot as the representative record since memory
+          // pressure reflects actual workload behavior, not startup CPU spikes
+          const representativeFileName: string = `${maxMemoryFile}.json`;
+          const snapshotRecord: Record<string, unknown> = allMetrics[maxMemoryFile] as unknown as Record<
+            string,
+            unknown
+          >;
+          const {clusterMetrics: clusterMetricsData, ...summaryFields} = snapshotRecord;
           const namespaceJson: Record<string, unknown> = {
-            ...(allMetrics[maxCpuFile] as unknown as Record<string, unknown>),
+            ...summaryFields,
+            peakCpuInMillicores: maxCpuMetrics,
+            peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
             peakMemoryInMebibytes: maxMemoryMetrics,
+            peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
+            clusterMetrics: clusterMetricsData,
           };
           fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
-          // remove all files except the aggregated and max CPU files
-          const filesToKeep: Set<string> = new Set([maxCpuFileName, aggregatedMetricsFileName]);
+          // remove all snapshot files except the representative one
+          const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
           for (const file of files) {
-            const fileName: string = file.split('.')[0];
-            if (!filesToKeep.has(fileName)) {
+            if (!filesToKeep.has(file)) {
               fs.rmSync(PathEx.join(tartgetDirectory, file));
             }
           }
 
-          // copy the maxCpuFile to the main solo logs directory to be accessible by existing scripts
+          // copy the summary to the main solo logs directory to be accessible by existing scripts
           fs.copyFileSync(
             PathEx.join(tartgetDirectory, `${namespace}.json`),
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
@@ -264,6 +273,19 @@ export async function logMetrics(startTime: Date): Promise<void> {
     undefined,
     events,
   );
+
+  // Track running peak memory and inject it into the snapshot file
+  const snapshotPath: string = PathEx.join(tartgetDirectory, `${elapsedMilliseconds}.json`);
+  if (fs.existsSync(snapshotPath)) {
+    const snapshot: Record<string, unknown> = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    const snapshotMemory: number = (snapshot.memoryInMebibytes as number) ?? 0;
+    if (snapshotMemory > peakMemoryInMebibytes) {
+      peakMemoryInMebibytes = snapshotMemory;
+    }
+    snapshot.peakMemoryInMebibytes = peakMemoryInMebibytes;
+    fs.writeFileSync(snapshotPath, JSON.stringify(snapshot), 'utf8');
+  }
+
   flushEvents();
 }
 
