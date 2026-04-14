@@ -54,7 +54,7 @@ import {
 } from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
-import {TEST_UPGRADE_FROM_VERSION} from '../../../../version-test.js';
+import {TEST_UPGRADE_TO_VERSION} from '../../../../version-test.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {Zippy} from '../../../../src/core/zippy.js';
 import {type NetworkNodes} from '../../../../src/core/network-nodes.js';
@@ -263,7 +263,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       optionFromFlag(flags.quiet),
       optionFromFlag(flags.force),
       optionFromFlag(flags.upgradeVersion),
-      TEST_UPGRADE_FROM_VERSION,
+      TEST_UPGRADE_TO_VERSION,
     );
 
     if (zipFile) {
@@ -386,7 +386,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static setup(options: BaseTestOptions): void {
+  public static setup(options: BaseTestOptions, version?: string): void {
     const {
       testName,
       deployment,
@@ -401,13 +401,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
     it(`${testName}: consensus node setup`, async (): Promise<void> => {
       await main(
-        soloConsensusNodeSetupArgv(
-          testName,
-          deployment,
-          enableLocalBuildPathTesting,
-          localBuildPath,
-          localBuildReleaseTag,
-        ),
+        soloConsensusNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, version? version : localBuildReleaseTag),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -657,7 +651,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
         const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
 
         const versionLine: string = versionFile.split('\n')[0].trim();
-        expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_FROM_VERSION.replace('v', '')}`);
+        expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_TO_VERSION.replace('v', '')}`);
       }
 
       {
