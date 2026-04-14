@@ -23,7 +23,7 @@ import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-c
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
-import {TEST_UPGRADE_FROM_VERSION, TEST_UPGRADE_TO_VERSION} from '../../../version-test.js';
+import {TEST_UPGRADE_FROM_VERSION} from '../../../version-test.js';
 
 const testName: string = 'node-upgrade-test';
 

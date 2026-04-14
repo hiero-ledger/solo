@@ -401,7 +401,13 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
     it(`${testName}: consensus node setup`, async (): Promise<void> => {
       await main(
-        soloConsensusNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, version? version : localBuildReleaseTag),
+        soloConsensusNodeSetupArgv(
+          testName,
+          deployment,
+          enableLocalBuildPathTesting,
+          localBuildPath,
+          version ?? localBuildReleaseTag,
+        ),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
