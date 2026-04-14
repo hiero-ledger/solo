@@ -15,7 +15,7 @@
 #   5. Report PASS / FAIL and clean up.
 #
 # Requirements:
-#   - python3  (for JDWP test; virtually universal)
+#   - node  (for JDWP test)
 #   - kind, kubectl, helm, solo (npm run solo-test)
 #
 # Usage:
@@ -61,7 +61,7 @@ success() { printf "${txtgreen}[SUCCESS]${txtrst} %s\n" "$1"; }
 
 check_deps() {
   local missing=()
-  for cmd in python3 kind kubectl; do
+  for cmd in node kind kubectl; do
     command -v "$cmd" &>/dev/null || missing+=("$cmd")
   done
   if (( ${#missing[@]} > 0 )); then
@@ -134,7 +134,7 @@ cleanup() {
   [[ -n "${JDWP_PROBE_PID:-}" ]] && kill -KILL "$JDWP_PROBE_PID" 2>/dev/null || true
 
   # Kill any remaining Solo processes that might be hanging
-  pkill -f "jdwp_tester" 2>/dev/null || true
+  pkill -f "jdwp-tester" 2>/dev/null || true
   pkill -f "persist-port-forward" 2>/dev/null || true
   pkill -f "solo-test.*consensus.*node.*start" 2>/dev/null || true
 
@@ -204,7 +204,7 @@ info "Step 2: Starting nodes with --debug-node-alias ${DEBUG_NODE} (auto-confirm
 # Probe both the configured port and detect the actual port from logs.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 info "Starting JDWP probe in background (will connect once port-forward is ready)"
-"${SCRIPT_DIR}/jdwp_tester.py" localhost ${DEBUG_PORT} --timeout ${JDWP_PROBE_WAIT_TIMEOUT_SECONDS} > /tmp/solo-jdwp-probe.log 2>&1 &
+npx tsx "${SCRIPT_DIR}/jdwp-tester.ts" localhost ${DEBUG_PORT} --timeout ${JDWP_PROBE_WAIT_TIMEOUT_SECONDS} > /tmp/solo-jdwp-probe.log 2>&1 &
 JDWP_PROBE_PID=$!
 
 # Give the JDWP probe a moment to start probing

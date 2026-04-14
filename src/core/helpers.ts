@@ -998,23 +998,23 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
 
     const nodeValues: PerNodeExtraEnvironmentValues['hedera']['nodes'][number] = {};
     if (extraEnvironmentVariables.length > 0) {
-      nodeValues['root'] = {extraEnv: extraEnvironmentVariables};
+      nodeValues.root = {extraEnv: extraEnvironmentVariables};
     }
 
     const additionalNodeValues:
       | {name?: NodeAlias; nodeId?: NodeId; accountId?: string; blockNodesJson?: string}
       | undefined = options.additionalNodeValues?.[consensusNode.name];
     if (additionalNodeValues?.name) {
-      nodeValues['name'] = additionalNodeValues.name;
+      nodeValues.name = additionalNodeValues.name;
     }
     if (typeof additionalNodeValues?.nodeId === 'number') {
-      nodeValues['nodeId'] = additionalNodeValues.nodeId;
+      nodeValues.nodeId = additionalNodeValues.nodeId;
     }
     if (additionalNodeValues?.accountId) {
-      nodeValues['accountId'] = additionalNodeValues.accountId;
+      nodeValues.accountId = additionalNodeValues.accountId;
     }
     if (additionalNodeValues?.blockNodesJson) {
-      nodeValues['blockNodesJson'] = additionalNodeValues.blockNodesJson;
+      nodeValues.blockNodesJson = additionalNodeValues.blockNodesJson;
     }
 
     hedera.nodes[nodeIndex] = nodeValues;
@@ -1119,10 +1119,10 @@ export function extractExtraEnvironmentFromValuesFiles(
         continue;
       }
       const entryRecord: Record<string, unknown> = entry as Record<string, unknown>;
-      if (typeof entryRecord['name'] !== 'string' || typeof entryRecord['value'] !== 'string') {
+      if (typeof entryRecord.name !== 'string' || typeof entryRecord.value !== 'string') {
         continue;
       }
-      environmentVariables.push({name: entryRecord['name'], value: entryRecord['value']});
+      environmentVariables.push({name: entryRecord.name, value: entryRecord.value});
     }
     return environmentVariables;
   }
@@ -1302,19 +1302,19 @@ export function extractPerNodeIdentityFromValuesFile(
     }
     const entry: Record<string, unknown> = nodeEntry as Record<string, unknown>;
     const identity: PerNodeIdentity = {};
-    if (typeof entry['name'] === 'string') {
-      identity.name = entry['name'] as NodeAlias;
+    if (typeof entry.name === 'string') {
+      identity.name = entry.name as NodeAlias;
     }
-    if (typeof entry['nodeId'] === 'number') {
-      identity.nodeId = entry['nodeId'] as NodeId;
-    } else if (typeof entry['nodeId'] === 'string') {
-      const parsed: number = Number.parseInt(entry['nodeId'], 10);
+    if (typeof entry.nodeId === 'number') {
+      identity.nodeId = entry.nodeId as NodeId;
+    } else if (typeof entry.nodeId === 'string') {
+      const parsed: number = Number.parseInt(entry.nodeId, 10);
       if (!Number.isNaN(parsed)) {
         identity.nodeId = parsed as NodeId;
       }
     }
-    if (typeof entry['accountId'] === 'string') {
-      identity.accountId = entry['accountId'];
+    if (typeof entry.accountId === 'string') {
+      identity.accountId = entry.accountId;
     }
     result[consensusNode.name] = identity;
   }
