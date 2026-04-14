@@ -34,6 +34,7 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {type Pods} from '../integration/kube/resources/pod/pods.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -874,73 +875,94 @@ export class MirrorNodeCommand extends BaseCommand {
   private checkPodsAreReadyNodeTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check pods are ready',
-      task: (context_, task): SoloListr<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
-        const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
-          context_.config.mirrorNodeVersion,
-        ).greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION);
+      task: async (context_, task): Promise<SoloListr<MirrorNodeDeployContext | MirrorNodeUpgradeContext>> => {
+        const instanceCandidates: string[] = [
+          this.renderReleaseName(context_.config.id), // e.g. mirror-1
+          context_.config.releaseName,
+        ];
+        if (context_.config.id === 1) {
+          instanceCandidates.push(constants.MIRROR_NODE_RELEASE_NAME); // legacy release name
+        }
+
+        const podsInAllNamespaces: Pod[] = [];
+        for (const instanceName of new Set(instanceCandidates)) {
+          const candidatePods: Pod[] = await this.k8Factory
+            .getK8(context_.config.clusterContext)
+            .pods()
+            .listForAllNamespaces([`app.kubernetes.io/instance=${instanceName}`]);
+          podsInAllNamespaces.push(...candidatePods);
+        }
+
+        const podsClient: Pods = this.k8Factory.getK8(context_.config.clusterContext).pods();
+        const namespacePodReferences: PodReference[] = [
+          ...new Map(
+            podsInAllNamespaces
+              .filter((pod): boolean => pod.podReference?.namespace?.name === context_.config.namespace.name)
+              .map((pod): [string, PodReference] => [
+                `${pod.podReference.namespace.name}/${pod.podReference.name.name}`,
+                pod.podReference,
+              ]),
+          ).values(),
+        ];
+        const namespacePods: Pod[] = await Promise.all(
+          namespacePodReferences.map(
+            async (podReference: PodReference): Promise<Pod> => await podsClient.read(podReference),
+          ),
+        );
+
+        const deployedPods: Pod[] = namespacePods.filter(
+          (pod): boolean => !!pod.labels?.['app.kubernetes.io/component'] && !!pod.labels?.['app.kubernetes.io/name'],
+        );
+
+        if (deployedPods.length === 0) {
+          throw new SoloError(
+            `No deployed mirror-node pods found for release ${context_.config.releaseName} in namespace ${context_.config.namespace.name}`,
+          );
+        }
+
+        const checksBySelector: Map<string, {title: string; labels: string[]}> = new Map();
+        for (const pod of deployedPods) {
+          const component: string = pod.labels?.['app.kubernetes.io/component'];
+          const name: string = pod.labels?.['app.kubernetes.io/name'];
+          const key: string = `${component}|${name}`;
+          if (!checksBySelector.has(key)) {
+            const titleName: string = component
+              .split('-')
+              .map((word: string): string => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+            checksBySelector.set(key, {
+              title: `Check ${titleName}`,
+              labels: [
+                `app.kubernetes.io/component=${component}`,
+                `app.kubernetes.io/name=${name}`,
+                `app.kubernetes.io/instance=${pod.labels?.['app.kubernetes.io/instance']}`,
+              ],
+            });
+          }
+        }
 
         const subTasks: SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext>[] = [
-          {
-            title: 'Check REST API',
-            labels: ['app.kubernetes.io/component=rest', 'app.kubernetes.io/name=rest'],
-          },
-          {
-            title: 'Check GRPC',
-            labels: ['app.kubernetes.io/component=grpc', 'app.kubernetes.io/name=grpc'],
-          },
-          hasMirrorNodeMemoryImprovements
-            ? {
-                title: 'Check Pinger',
-                labels: ['app.kubernetes.io/component=pinger', 'app.kubernetes.io/name=pinger'],
-                skip: (): boolean => !context_.config.pinger,
-              }
-            : {
-                title: 'Check Monitor',
-                labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
-                skip: (): boolean => !context_.config.pinger,
-              },
-          {
-            title: 'Check Web3',
-            labels: ['app.kubernetes.io/component=web3', 'app.kubernetes.io/name=web3'],
-          },
-          {
-            title: 'Check Importer',
-            labels: ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'],
-          },
-          {
-            title: 'Check REST Java',
-            labels: ['app.kubernetes.io/component=rest-java', 'app.kubernetes.io/name=restjava'],
-          },
+          ...checksBySelector.values(),
         ].map(
           ({
             title,
             labels,
-            skip,
           }: {
             title: string;
             labels: string[];
-            skip?: () => boolean;
-          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
-            const task: SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> = {
-              title: title,
-              task: async (): Promise<Pod[]> =>
-                await this.k8Factory
-                  .getK8(context_.config.clusterContext)
-                  .pods()
-                  .waitForReadyStatus(
-                    context_.config.namespace,
-                    labels,
-                    constants.PODS_READY_MAX_ATTEMPTS,
-                    constants.PODS_READY_DELAY,
-                  ),
-            };
-
-            if (skip) {
-              task.skip = skip;
-            }
-
-            return task;
-          },
+          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => ({
+            title,
+            task: async (): Promise<Pod[]> =>
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .pods()
+                .waitForReadyStatus(
+                  context_.config.namespace,
+                  labels,
+                  constants.PODS_READY_MAX_ATTEMPTS,
+                  constants.PODS_READY_DELAY,
+                ),
+          }),
         );
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
@@ -1152,11 +1174,11 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
 
-            if (!this.oneShotState.isActive()) {
-              return ListrLock.newAcquireLockTask(lease, task);
-            }
+            const lockTask: SoloListr<AnyListrContext> = this.oneShotState.isActive()
+              ? ListrLock.newSkippedLockTask(task)
+              : ListrLock.newAcquireLockTask(lease, task);
 
-            return ListrLock.newSkippedLockTask(task);
+            return lockTask;
           },
         },
         this.addMirrorNodeComponents(),
@@ -1407,11 +1429,11 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
 
-            if (!this.oneShotState.isActive()) {
-              return ListrLock.newAcquireLockTask(lease, task);
-            }
+            const lockTask: SoloListr<AnyListrContext> = this.oneShotState.isActive()
+              ? ListrLock.newSkippedLockTask(task)
+              : ListrLock.newAcquireLockTask(lease, task);
 
-            return ListrLock.newSkippedLockTask(task);
+            return lockTask;
           },
         },
         this.enableSharedResourcesTask(),
