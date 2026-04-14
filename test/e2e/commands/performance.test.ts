@@ -296,6 +296,7 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
   argv.push(
     optionFromFlag(Flags.deployment),
     deployment,
+    optionFromFlag(Flags.edgeEnabled),
     optionFromFlag(Flags.valuesFile),
     'test/data/performance-test-values.yaml',
   );

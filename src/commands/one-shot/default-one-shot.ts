@@ -115,12 +115,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.minimalSetup,
       flags.rollback,
       flags.parallelDeploy,
+      flags.edgeEnabled,
     ],
   };
 
   public static readonly MULTI_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes],
+    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes, flags.edgeEnabled],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -143,6 +144,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployRelay,
       flags.rollback,
       flags.parallelDeploy,
+      flags.edgeEnabled,
     ],
   };
 
