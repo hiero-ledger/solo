@@ -170,14 +170,14 @@ tasks:
       - task: deploy-external-database
 
       # Deploy Mirror Node on Cluster 2
-      - cmd: echo "🪞 Deploying Mirror Node on Cluster 2..."
+      - cmd: echo "Deploying Mirror Node on Cluster 2..."
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --use-external-database \
             --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
             --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
-            --enable-ingress --pinger -q --dev
+            --enable-ingress --pinger -q --dev --values-file mirror-node-values-dual-cluster-minimal.yaml
 
       # Deploy Block Node on Cluster 2
       - cmd: echo "🧱 Deploying Block Node on Cluster 2..."

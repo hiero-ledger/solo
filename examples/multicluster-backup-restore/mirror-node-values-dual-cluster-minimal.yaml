@@ -17,9 +17,16 @@ restjava:
       memory: 1000Mi
 rest:
   resources:
+    limits:
+      cpu: 1000m  # Increased from 500m for dual-cluster
+      memory: 1500Mi  # Increased from 500Mi to prevent OOM
+
+# Add Java heap configuration to prevent auto-scaling OOM
+  resources:
     requests:
       cpu: 0
       memory: 0
     limits:
       cpu: 500m
       memory: 800Mi
+

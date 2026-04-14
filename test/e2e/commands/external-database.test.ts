@@ -122,7 +122,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           ...options,
           valuesFile: dualClusterValuesFile,
         };
-        MirrorNodeTest.deployWithExternalDatabase(options);
+        MirrorNodeTest.deployWithExternalDatabase(mirrorOptionsWithValuesFile);
         ExplorerTest.add(options);
         RelayTest.add(options);
         DeploymentTest.info(options);
