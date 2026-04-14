@@ -45,26 +45,74 @@ echo "Using Node version: ${NODE_VERSION}"
 NPM_VERSION=$(npm --version)
 echo "Using NPM version: ${NPM_VERSION}"
 
+##### Docker / Kind Hang Diagnostics Helpers #####
+
+# Collects system and Docker-daemon state using non-Docker tools so the function
+# still works when the Docker daemon itself is unresponsive.  Call this whenever
+# a Docker/Kind command times out (exit code 124) to aid post-mortem analysis.
+# All output is written to stderr so it is not polluted by stdout pipes.
+collect_docker_hang_diagnostics() {
+  local hung_command="${1:-unknown command}"
+  {
+    echo ""
+    echo "=== DOCKER HANG DIAGNOSTICS (timed out: '${hung_command}') ==="
+    echo "--- Docker daemon service status ---"
+    systemctl status docker --no-pager -l 2>/dev/null \
+      || service docker status 2>/dev/null \
+      || echo "Unable to retrieve docker service status"
+    echo "--- Docker socket ---"
+    ls -la /var/run/docker.sock 2>/dev/null || echo "Docker socket not found at /var/run/docker.sock"
+    echo "--- Processes holding /var/run/docker.sock (lsof) ---"
+    lsof /var/run/docker.sock 2>/dev/null || echo "lsof unavailable or no open handles found on docker socket"
+    echo "--- Docker / containerd / kind processes (ps) ---"
+    ps aux | grep -E '[d]ocker|[c]ontainerd|[k]ind' 2>/dev/null || true
+    echo "--- System memory ---"
+    free -h 2>/dev/null || true
+    echo "--- Disk space ---"
+    df -h 2>/dev/null || true
+    echo "--- Recent Docker daemon logs (last 50 lines via journalctl) ---"
+    journalctl -u docker --no-pager -n 50 2>/dev/null || echo "journalctl unavailable"
+    echo "=== END DOCKER HANG DIAGNOSTICS ==="
+    echo ""
+  } >&2
+}
+
+# Run a command with a timeout; if it times out (exit code 124) collect hang
+# diagnostics automatically before returning the non-zero exit code to the caller.
+# Usage: run_with_timeout_diag <seconds> <label> <cmd> [args...]
+run_with_timeout_diag() {
+  local timeout_seconds=$1
+  local label=$2
+  shift 2
+  timeout "${timeout_seconds}" "$@"
+  local status=$?
+  if [[ $status -eq 124 ]]; then
+    echo "WARNING: '${label}' timed out after ${timeout_seconds}s" >&2
+    collect_docker_hang_diagnostics "${label}"
+  fi
+  return $status
+}
+
 ##### Pre-cleanup Diagnostics (proves stale state from prior runs on self-hosted runners) #####
 echo "=== Existing kind clusters ==="
-kind get clusters 2>/dev/null || true
+run_with_timeout_diag 30 "kind get clusters" kind get clusters || true
 echo "=== Existing Docker networks ==="
-docker network ls 2>/dev/null || true
+run_with_timeout_diag 30 "docker network ls" docker network ls || true
 echo "=== Docker containers (all) ==="
-docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Networks}}' 2>/dev/null || true
+run_with_timeout_diag 30 "docker ps -a" docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Networks}}' || true
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
-  timeout 60 kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" 2>/dev/null || true
+  run_with_timeout_diag 60 "kind delete cluster ${SOLO_CLUSTER_NAME}-c${i}" kind delete cluster -n "${SOLO_CLUSTER_NAME}-c${i}" || true
 done
 
 # On Windows (Docker Desktop), the bridge network plugin is not available via the v1
 # plugin registry. Kind manages its own Docker network automatically on Windows, so
 # manual network creation is not needed and will fail. Skip it on Windows (msys/Git Bash).
 if [[ "$OSTYPE" != msys* ]]; then
-  docker network rm -f kind 2>/dev/null || true
-  timeout 60 docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+  run_with_timeout_diag 30 "docker network rm kind" docker network rm -f kind || true
+  run_with_timeout_diag 60 "docker network create kind" docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
 fi
-docker info | grep -i cgroup || true
+run_with_timeout_diag 30 "docker info" docker info | grep -i cgroup || true
 
 # Setup Helm Repos
 helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
