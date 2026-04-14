@@ -792,10 +792,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                                 config.deployment,
                                                 optionFromFlag(Flags.clusterRef),
                                                 config.clusterRef,
-                                                optionFromFlag(Flags.explorerVersion),
-                                                config.versions.explorer,
                                               );
                                               this.appendConfigToArgv(argv, {
+                                                [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
                                                 [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                                                 [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
                                                 ...config.explorerNodeConfiguration,

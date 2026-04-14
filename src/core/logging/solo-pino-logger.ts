@@ -98,7 +98,13 @@ export class SoloPinoLogger implements SoloLogger {
           sync: true,
         }),
       });
-      this.pinoLogger = pino(baseOptions, pino.multistream([{stream: ndjsonStream}, {stream: prettyStream}] as any));
+      this.pinoLogger = pino(
+        baseOptions,
+        pino.multistream([
+          {level: logLevel, stream: ndjsonStream},
+          {level: logLevel, stream: prettyStream},
+        ] as any),
+      );
     } else {
       this.pinoLogger = pino(baseOptions, pino.transport({targets: [ndjsonTarget, prettyTarget]}));
     }
