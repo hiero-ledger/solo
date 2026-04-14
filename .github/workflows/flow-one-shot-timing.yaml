@@ -137,7 +137,26 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           ${{ steps.solo-cmd.outputs.cmd }} init --dev
-          export PATH=~/.solo/bin:${PATH}
+          echo "${HOME}/.solo/bin" >> "$GITHUB_PATH"
+
+      - name: Preflight Runner Capabilities
+        id: preflight
+        run: |
+          CAN_RUN_TIMING=true
+          MISSING=()
+
+          if ! command -v docker >/dev/null 2>&1; then
+            CAN_RUN_TIMING=false
+            MISSING+=("docker")
+          fi
+
+          if [ "$CAN_RUN_TIMING" = "false" ]; then
+            echo "::warning::Runner ${RUNNER_OS} is missing required tools: ${MISSING[*]}. Timing cycles will be skipped."
+            echo "### Runner Preflight (${{ matrix.runner }})" >> "$GITHUB_STEP_SUMMARY"
+            echo "Missing prerequisites: ${MISSING[*]}. Timing cycles skipped on this runner." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "can-run=${CAN_RUN_TIMING}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve Versions
         id: versions
@@ -239,17 +258,25 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "==== System Calibration ===="
-          CALIBRATION_START=$SECONDS
-          tar -czf /dev/null /usr 2>/dev/null
-          BASELINE=$(( SECONDS - CALIBRATION_START ))
+          BASELINE=""
+          if command -v tar >/dev/null 2>&1 && [ -d /usr ]; then
+            CALIBRATION_START=$SECONDS
+            tar -czf /dev/null /usr 2>/dev/null || true
+            BASELINE=$(( SECONDS - CALIBRATION_START ))
+          fi
           echo "baseline=${BASELINE}" >> "$GITHUB_OUTPUT"
-          echo "Runner calibration (tar /usr): ${BASELINE}s"
-          if [ "$BASELINE" -gt 20 ]; then
+          if [ -n "$BASELINE" ]; then
+            echo "Runner calibration (tar /usr): ${BASELINE}s"
+          else
+            echo "Runner calibration skipped on this runner."
+          fi
+          if [ -n "$BASELINE" ] && [ "$BASELINE" -gt 20 ]; then
             echo "::warning::Runner appears slow (calibration=${BASELINE}s). Timing results may be unreliable."
           fi
 
       - name: "Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)"
         id: timing-cycles
+        if: ${{ steps.preflight.outputs.can-run == 'true' }}
         timeout-minutes: 360
         run: |
           export PATH=~/.solo/bin:${PATH}
@@ -322,6 +349,7 @@ jobs:
         id: timing-summary
         if: ${{ !cancelled() }}
         run: |
+          CAN_RUN_TIMING="${{ steps.preflight.outputs.can-run }}"
           COLD_MEDIAN="${{ steps.timing-cycles.outputs.cold-median }}"
           COLD_MIN="${{ steps.timing-cycles.outputs.cold-min }}"
           COLD_MAX="${{ steps.timing-cycles.outputs.cold-max }}"
@@ -336,6 +364,13 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Metric | Duration |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|----------|" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$CAN_RUN_TIMING" != "true" ]; then
+            echo "| Timing status | Skipped (missing runner prerequisites) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Cold Start |  |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Warm Start |  |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           if [ -n "$BASELINE" ]; then
             echo "| Runner Calibration (tar /usr) | ${BASELINE}s |" >> "$GITHUB_STEP_SUMMARY"
@@ -401,12 +436,17 @@ jobs:
           BASELINE="${{ steps.calibration.outputs.baseline }}"
           IMPROVEMENT_DIFF="${{ steps.timing-summary.outputs.improvement-diff }}"
           IMPROVEMENT_DIR="${{ steps.timing-summary.outputs.improvement-direction }}"
+          CAN_RUN_TIMING="${{ steps.preflight.outputs.can-run }}"
           JOB_STATUS="${{ job.status }}"
+          if [ "$CAN_RUN_TIMING" != "true" ]; then
+            JOB_STATUS="skipped-prereq"
+          fi
 
           cat > "$RESULT_FILE" <<JSON
           {
             "runner": "${RUNNER_NAME}",
             "jobStatus": "${JOB_STATUS}",
+            "canRunTiming": "${CAN_RUN_TIMING}",
             "coldMedian": "${COLD_MEDIAN}",
             "coldMin": "${COLD_MIN}",
             "coldMax": "${COLD_MAX}",
@@ -436,7 +476,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Collect Diagnostics on Failure
-        if: ${{ failure() }}
+        if: ${{ failure() && steps.preflight.outputs.can-run == 'true' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
@@ -542,8 +582,20 @@ jobs:
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - name: Check Slack Webhook Availability
+        id: slack-webhook
+        run: |
+          if [ -n "${SLACK_WEBHOOK:-}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Slack webhook not configured; skipping Slack notification."
+          fi
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+
       - name: Send Aggregated Slack Notification
-        if: ${{ !cancelled() && secrets.SLACK_TEST_WEBHOOK != '' }}
+        if: ${{ !cancelled() && steps.slack-webhook.outputs.enabled == 'true' }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
