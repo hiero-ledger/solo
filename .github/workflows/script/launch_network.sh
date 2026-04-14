@@ -60,6 +60,7 @@ export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
 export PREV_EXPLORER_VERSION=25.0.0
+export PREV_RELAY_VERSION=0.76.0
 
 KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
 KIND_CONFIG_RENDERER=".github/workflows/script/render_kind_config.sh"
@@ -106,7 +107,7 @@ solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 -
 
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version ${MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE} --dev
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --explorer-version ${PREV_EXPLORER_VERSION} -q --dev
-solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --relay-release ${PREV_RELAY_VERSION} --dev
 
 echo "::endgroup::"
 
