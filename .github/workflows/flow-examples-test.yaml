@@ -20,7 +20,8 @@ on:
   schedule:
     # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
     # Using 6 AM UTC to cover Central Daylight Time
-    - cron: '0 6 * * *'
+    # Skip weekends to reduce noise and focus on testing during active development days
+    - cron: '0 6 * * 1-5'
   workflow_dispatch:
     inputs:
       node-version:
@@ -412,6 +413,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
           SLACK_COLOR: danger
           SLACK_TITLE: Example Test Failed
           SLACK_MESSAGE: |
