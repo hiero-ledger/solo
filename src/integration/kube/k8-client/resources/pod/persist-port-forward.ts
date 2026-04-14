@@ -134,6 +134,9 @@ async function executeKubectl(
   });
 }
 
+/**
+ * Check if a cluster or name space is still available, should restart the portfolio process or exit
+ */
 async function shouldExitForMissingTarget(kubectlInstallationDirectory: string): Promise<boolean> {
   const baseArguments: string[] = CONTEXT ? ['--context', CONTEXT] : [];
 
