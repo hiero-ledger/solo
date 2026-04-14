@@ -105,8 +105,10 @@ export class DefaultSoloEventBus implements SoloEventBus {
               resolve(candidate);
               return;
             }
-          } catch {
-            // ignore predicate errors and continue searching
+          } catch (error) {
+            clearTimeout(timer);
+            this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
+            reject(new SoloError(`Error in waitFor history check predicate for event type: ${String(type)}`, error));
           }
         }
       }
