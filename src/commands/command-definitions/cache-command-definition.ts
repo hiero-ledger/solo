@@ -22,7 +22,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME: string = 'cache';
-  protected static override readonly DESCRIPTION: string = '';
+  protected static override readonly DESCRIPTION: string = 'Manage solo cached items.';
 
   public static readonly IMAGE_SUBCOMMAND_NAME: string = 'image';
 
@@ -35,11 +35,11 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(CacheCommandDefinition.COMMAND_NAME, CacheCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
-        new CommandGroup(CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME, '')
+        new CommandGroup(CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME, 'Manage image archives used by solo.')
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_PULL,
-              '',
+              'pull and caches docker images used by solo, prerequisite for `solo cache image load`.',
               this.cacheCommand,
               this.cacheCommand.pull,
               CacheCommand.PULL_FLAGS_LIST,
@@ -49,7 +49,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_LOAD,
-              '',
+              'loads the images archive into a cluster. Pulling the images with `solo cache images pull` is a prerequisite.',
               this.cacheCommand,
               this.cacheCommand.load,
               CacheCommand.LOAD_FLAGS_LIST,
@@ -59,7 +59,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_LIST,
-              '',
+              'lists all cached image archives.',
               this.cacheCommand,
               this.cacheCommand.list,
               CacheCommand.LIST_FLAGS_LIST,
@@ -69,7 +69,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_CLEAR,
-              '',
+              'clears the image archives.',
               this.cacheCommand,
               this.cacheCommand.clear,
               CacheCommand.CLEAR_FLAGS_LIST,
@@ -79,7 +79,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_STATUS,
-              '',
+              'lists all images, displays data about them and displays all missing images.',
               this.cacheCommand,
               this.cacheCommand.status,
               CacheCommand.STATUS_FLAGS_LIST,
