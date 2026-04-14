@@ -462,22 +462,6 @@ export class MirrorNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  public static runSql(options: BaseTestOptions): void {
-    it('should run SQL command', async (): Promise<void> => {
-      const {testCacheDirectory, contexts} = options;
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const k8: K8 = k8Factory.getK8(contexts[1]);
-      const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
-
-      await postgresContainer.copyTo(`${testCacheDirectory}/database-seeding-query.sql`, '/tmp');
-      await postgresContainer.execContainer([
-        '/bin/bash',
-        '-c',
-        `PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`,
-      ]);
-    });
-  }
-
   public static pullAddressBook(options: BaseTestOptions): void {
     it('should pull address book from mirror node', async (): Promise<void> => {
       const srv: number = await MirrorNodeTest.forwardRestServicePort(options.contexts, options.namespace);

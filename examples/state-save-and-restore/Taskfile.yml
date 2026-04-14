@@ -125,16 +125,6 @@ tasks:
           --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
           --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
           --enable-ingress --pinger -q --dev
-      # Copy database-seeding-query.sql to database pod"
-      - cmd: |
-          kubectl cp {{ .HOME }}/.solo/cache/database-seeding-query.sql \
-          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
-
-      # Seed database with database-seeding-query.sql"
-      - cmd: |
-          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -f /tmp/database-seeding-query.sql \
-          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
       - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
 
   # ==================== External Database Tasks ====================
