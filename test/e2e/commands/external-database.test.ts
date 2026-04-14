@@ -191,7 +191,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             contexts,
           );
         });
-      };).timeout(Duration.ofMinutes(40).toMillis());
+      }).timeout(Duration.ofMinutes(40).toMillis());
     },
   )
   .build();
