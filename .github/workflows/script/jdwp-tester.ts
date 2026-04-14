@@ -15,7 +15,7 @@ import {existsSync} from 'node:fs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {argv, exit} from 'node:process';
 
-function recvExactly(socket: Socket, numBytes: number): Promise<Buffer> {
+function recvExactly(socket: Socket, numberBytes: number): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject): void => {
     const data: Buffer[] = [];
     let totalBytes: number = 0;
@@ -24,11 +24,11 @@ function recvExactly(socket: Socket, numBytes: number): Promise<Buffer> {
       data.push(chunk);
       totalBytes += chunk.length;
 
-      if (totalBytes >= numBytes) {
+      if (totalBytes >= numberBytes) {
         socket.removeListener('data', onData);
         socket.removeListener('error', onError);
         socket.removeListener('close', onClose);
-        resolve(Buffer.concat(data, numBytes));
+        resolve(Buffer.concat(data, numberBytes));
       }
     };
 
@@ -41,7 +41,7 @@ function recvExactly(socket: Socket, numBytes: number): Promise<Buffer> {
     const onClose: () => void = (): void => {
       socket.removeListener('data', onData);
       socket.removeListener('error', onError);
-      reject(new Error(`Connection closed after ${totalBytes}/${numBytes} bytes`));
+      reject(new Error(`Connection closed after ${totalBytes}/${numberBytes} bytes`));
     };
 
     socket.on('data', onData);
@@ -110,19 +110,19 @@ async function main(): Promise<number> {
   let stopFile: string = '/tmp/solo-jdwp-stop';
 
   // Simple argument parsing
-  for (let i: number = 0; i < arguments_.length; i += 1) {
-    const argument: string = arguments_[i];
+  for (let index: number = 0; index < arguments_.length; index += 1) {
+    const argument: string = arguments_[index];
 
     if (argument === '--timeout') {
-      timeout = Number.parseInt(arguments_[i + 1], 10);
-      i += 1;
+      timeout = Number.parseInt(arguments_[index + 1], 10);
+      index += 1;
     } else if (argument === '--stop-file') {
-      stopFile = arguments_[i + 1];
-      i += 1;
-    } else if (!argument.startsWith('--') && i < 2) {
-      if (i === 0) {
+      stopFile = arguments_[index + 1];
+      index += 1;
+    } else if (!argument.startsWith('--') && index < 2) {
+      if (index === 0) {
         host = argument;
-      } else if (i === 1) {
+      } else if (index === 1) {
         port = Number.parseInt(argument, 10);
       }
     }
