@@ -74,10 +74,16 @@ env:
 
 jobs:
   one-shot-timing:
+    name: "One-Shot Timing (${{ matrix.runner }})"
     timeout-minutes: 420
-    runs-on: hiero-solo-linux-large
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [hiero-solo-linux-large, ubuntu-latest, windows-latest, macos-14]
     steps:
       - name: Harden Runner
+        if: ${{ runner.os == 'Linux' }}
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
@@ -374,10 +380,16 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Format Slack Table
-        id: slack-table
-        if: ${{ !cancelled() }}
+      - name: Export Timing Result
+        id: export-result
+        if: ${{ always() }}
         run: |
+          RUNNER_NAME="${{ matrix.runner }}"
+          SAFE_RUNNER="${RUNNER_NAME//[^a-zA-Z0-9._-]/_}"
+          RESULT_DIR="/tmp/one-shot-timing-results"
+          RESULT_FILE="${RESULT_DIR}/${SAFE_RUNNER}.json"
+          mkdir -p "$RESULT_DIR"
+
           COLD_MEDIAN="${{ steps.timing-cycles.outputs.cold-median }}"
           COLD_MIN="${{ steps.timing-cycles.outputs.cold-min }}"
           COLD_MAX="${{ steps.timing-cycles.outputs.cold-max }}"
@@ -389,60 +401,39 @@ jobs:
           BASELINE="${{ steps.calibration.outputs.baseline }}"
           IMPROVEMENT_DIFF="${{ steps.timing-summary.outputs.improvement-diff }}"
           IMPROVEMENT_DIR="${{ steps.timing-summary.outputs.improvement-direction }}"
+          JOB_STATUS="${{ job.status }}"
 
-          TABLE="\`\`\`"
-          TABLE="${TABLE}"$'\n'"Metric                          | Duration"
-          TABLE="${TABLE}"$'\n'"----------------------------------------------------"
+          cat > "$RESULT_FILE" <<JSON
+          {
+            "runner": "${RUNNER_NAME}",
+            "jobStatus": "${JOB_STATUS}",
+            "coldMedian": "${COLD_MEDIAN}",
+            "coldMin": "${COLD_MIN}",
+            "coldMax": "${COLD_MAX}",
+            "coldSamples": "${COLD_SAMPLES}",
+            "warmMedian": "${WARM_MEDIAN}",
+            "warmMin": "${WARM_MIN}",
+            "warmMax": "${WARM_MAX}",
+            "warmSamples": "${WARM_SAMPLES}",
+            "baseline": "${BASELINE}",
+            "improvementDiff": "${IMPROVEMENT_DIFF}",
+            "improvementDirection": "${IMPROVEMENT_DIR}",
+            "useReleasedSolo": "${{ inputs.use-released-solo }}",
+            "useLocalBuild": "${{ inputs.use-local-build }}",
+            "cycles": "${{ inputs.cycles || 3 }}"
+          }
+          JSON
 
-          if [ -n "$BASELINE" ]; then
-            TABLE="${TABLE}"$'\n'"Runner Calibration (tar /usr) | ${BASELINE}s"
-          fi
+          echo "result-file=${RESULT_FILE}" >> "$GITHUB_OUTPUT"
 
-          if [ -n "$COLD_MEDIAN" ]; then
-            TABLE="${TABLE}"$'\n'"Cold Start (median)           | $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s (${COLD_MEDIAN}s)"
-            TABLE="${TABLE}"$'\n'"Cold Start min                | $(( COLD_MIN / 60 ))m $(( COLD_MIN % 60 ))s (${COLD_MIN}s)"
-            TABLE="${TABLE}"$'\n'"Cold Start max                | $(( COLD_MAX / 60 ))m $(( COLD_MAX % 60 ))s (${COLD_MAX}s)"
-            TABLE="${TABLE}"$'\n'"Cold Start samples            | ${COLD_SAMPLES}"
-          else
-            TABLE="${TABLE}"$'\n'"Cold Start | Failed"
-          fi
-
-          if [ -n "$WARM_MEDIAN" ]; then
-            TABLE="${TABLE}"$'\n'"Warm Start (median)           | $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s (${WARM_MEDIAN}s)"
-            TABLE="${TABLE}"$'\n'"Warm Start min                | $(( WARM_MIN / 60 ))m $(( WARM_MIN % 60 ))s (${WARM_MIN}s)"
-            TABLE="${TABLE}"$'\n'"Warm Start max                | $(( WARM_MAX / 60 ))m $(( WARM_MAX % 60 ))s (${WARM_MAX}s)"
-            TABLE="${TABLE}"$'\n'"Warm Start samples            | ${WARM_SAMPLES}"
-          else
-            TABLE="${TABLE}"$'\n'"Warm Start | Failed or skipped"
-          fi
-
-          if [ -n "$IMPROVEMENT_DIFF" ] && [ -n "$IMPROVEMENT_DIR" ]; then
-            TABLE="${TABLE}"$'\n'"Improvement (median)          | ${IMPROVEMENT_DIFF}s ${IMPROVEMENT_DIR} on warm start"
-          fi
-
-          TABLE="${TABLE}"$'\n'"\`\`\`"
-
-          # Output with proper escaping for multiline
-          echo "table<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$TABLE" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Send Slack Notification
-        if: ${{ !cancelled() }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+      - name: Upload Timing Result Artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
-          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
-          SLACK_TITLE: One-Shot Timing Results
-          SLACK_MESSAGE: |
-            ${{ steps.slack-table.outputs.table }}
-
-            *Branch:* `${{ github.ref_name }}`
-            *Config:* use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}
-
-            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
-          SLACK_FOOTER: ${{ github.workflow }}
+        with:
+          name: one-shot-timing-result-${{ matrix.runner }}
+          path: ${{ steps.export-result.outputs.result-file }}
+          if-no-files-found: warn
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
@@ -457,9 +448,8 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          name: one-shot-timing-logs
+          name: one-shot-timing-logs-${{ matrix.runner }}
           path: ~/.solo/logs/*
-          overwrite: true
           if-no-files-found: warn
 
       - name: Final Cleanup
@@ -469,3 +459,102 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
           $SOLO_CMD one-shot falcon destroy -q || true
+
+  aggregate-results:
+    name: "Aggregate Timing Summary"
+    if: ${{ always() }}
+    needs: one-shot-timing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Timing Result Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: one-shot-timing-result-*
+          path: ./timing-results
+          merge-multiple: true
+
+      - name: Build Aggregated Summary
+        id: aggregate
+        run: |
+          RUNNERS=("hiero-solo-linux-large" "ubuntu-latest" "windows-latest" "macos-14")
+          declare -A COLD WARM BASELINE STATUS
+          for r in "${RUNNERS[@]}"; do
+            COLD["$r"]=""
+            WARM["$r"]=""
+            BASELINE["$r"]=""
+            STATUS["$r"]=""
+          done
+
+          shopt -s nullglob
+          for f in ./timing-results/*.json; do
+            runner="$(jq -r '.runner' "$f")"
+            status="$(jq -r '.jobStatus // ""' "$f")"
+            STATUS["$runner"]="$status"
+            if [ "$status" = "success" ]; then
+              cm="$(jq -r '.coldMedian // ""' "$f")"
+              wm="$(jq -r '.warmMedian // ""' "$f")"
+              bl="$(jq -r '.baseline // ""' "$f")"
+              if [ -n "$cm" ]; then
+                COLD["$runner"]="$(( cm / 60 ))m $(( cm % 60 ))s (${cm}s)"
+              fi
+              if [ -n "$wm" ]; then
+                WARM["$runner"]="$(( wm / 60 ))m $(( wm % 60 ))s (${wm}s)"
+              fi
+              if [ -n "$bl" ]; then
+                BASELINE["$runner"]="${bl}s"
+              fi
+            fi
+          done
+
+          SUMMARY_FILE="./aggregate-summary.md"
+          {
+            echo "### One-Shot Timing Results (Aggregated)"
+            echo ""
+            echo "| Metric | hiero-solo-linux-large | ubuntu-latest | windows-latest | macos-14 |"
+            echo "|---|---|---|---|---|"
+            echo "| Cold Start (median) | ${COLD[hiero-solo-linux-large]} | ${COLD[ubuntu-latest]} | ${COLD[windows-latest]} | ${COLD[macos-14]} |"
+            echo "| Warm Start (median) | ${WARM[hiero-solo-linux-large]} | ${WARM[ubuntu-latest]} | ${WARM[windows-latest]} | ${WARM[macos-14]} |"
+            echo "| Runner Calibration | ${BASELINE[hiero-solo-linux-large]} | ${BASELINE[ubuntu-latest]} | ${BASELINE[windows-latest]} | ${BASELINE[macos-14]} |"
+            echo ""
+            echo "| Runner | Job Status |"
+            echo "|---|---|"
+            for r in "${RUNNERS[@]}"; do
+              status="${STATUS[$r]}"
+              if [ -z "$status" ]; then
+                status="missing"
+              fi
+              echo "| ${r} | ${status} |"
+            done
+            echo ""
+            echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}, cycles=${{ inputs.cycles || 3 }}"
+          } > "$SUMMARY_FILE"
+
+          cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "summary-file=${SUMMARY_FILE}" >> "$GITHUB_OUTPUT"
+          echo "slack-table<<EOF" >> "$GITHUB_OUTPUT"
+          echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          echo "Metric                  | hiero-solo-linux-large | ubuntu-latest | windows-latest | macos-14" >> "$GITHUB_OUTPUT"
+          echo "-----------------------------------------------------------------------------------------------" >> "$GITHUB_OUTPUT"
+          echo "Cold Start (median)     | ${COLD[hiero-solo-linux-large]} | ${COLD[ubuntu-latest]} | ${COLD[windows-latest]} | ${COLD[macos-14]}" >> "$GITHUB_OUTPUT"
+          echo "Warm Start (median)     | ${WARM[hiero-solo-linux-large]} | ${WARM[ubuntu-latest]} | ${WARM[windows-latest]} | ${WARM[macos-14]}" >> "$GITHUB_OUTPUT"
+          echo "Runner Calibration      | ${BASELINE[hiero-solo-linux-large]} | ${BASELINE[ubuntu-latest]} | ${BASELINE[windows-latest]} | ${BASELINE[macos-14]}" >> "$GITHUB_OUTPUT"
+          echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Send Aggregated Slack Notification
+        if: ${{ !cancelled() && secrets.SLACK_TEST_WEBHOOK != '' }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: ${{ contains(needs.one-shot-timing.result, 'failure') && 'danger' || 'good' }}
+          SLACK_TITLE: One-Shot Timing Results (Aggregated)
+          SLACK_MESSAGE: |
+            ${{ steps.aggregate.outputs.slack-table }}
+
+            *Branch:* `${{ github.ref_name }}`
+            *Config:* use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}, cycles=${{ inputs.cycles || 3 }}
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>
+          SLACK_FOOTER: ${{ github.workflow }}
