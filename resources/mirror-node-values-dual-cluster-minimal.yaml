@@ -2,6 +2,14 @@
 # This file extends the base mirror-node-values.yaml with minimal changes
 
 # Increase memory limits for dual-cluster scenarios
+restjava:
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
 rest:
   resources:
     limits:
