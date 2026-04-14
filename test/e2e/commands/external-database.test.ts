@@ -31,6 +31,9 @@ import {getTemporaryDirectory} from '../../test-utility.js';
 
 const testName: string = 'external-database-test';
 
+// Use dual-cluster specific values file with higher memory limits to prevent OOM
+const dualClusterValuesFile: string = '../../../resources/mirror-node-values-dual-cluster-minimal.yaml';
+
 const configFiles: Record<string, string> = {
   'api-permission.properties': 'api-permission.properties.txt',
   'application.env': 'application.env.txt',
@@ -113,6 +116,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         // Mirror node, explorer and relay node are deployed to the second cluster
         MirrorNodeTest.installPostgres(options);
+
+        // Use dual-cluster specific values file with higher memory limits
+        const mirrorOptionsWithValuesFile = {
+          ...options,
+          valuesFile: dualClusterValuesFile,
+        };
         MirrorNodeTest.deployWithExternalDatabase(options);
         ExplorerTest.add(options);
         RelayTest.add(options);
@@ -182,7 +191,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             contexts,
           );
         });
-      }).timeout(Duration.ofMinutes(40).toMillis());
+      };).timeout(Duration.ofMinutes(40).toMillis());
     },
   )
   .build();

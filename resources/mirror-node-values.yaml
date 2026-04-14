@@ -118,7 +118,7 @@ pinger:
       cpu: 0
       memory: 0
     limits:
-      cpu: 500m
+      cpu: 100m
       memory: 15Mi
   readinessProbe:
     initialDelaySeconds: 0

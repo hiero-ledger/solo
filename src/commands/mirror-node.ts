@@ -1446,12 +1446,18 @@ export class MirrorNodeCommand extends BaseCommand {
             // Deleting the secret lets Helm recreate it cleanly without sentinel fields will
             // be configured to use the shared redis. This is needed when upgrading from a version
             // that did not use the shared redis to one that does.
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .secrets()
-              .delete(context_.config.namespace, `${context_.config.releaseName}-redis`);
+            try {
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .secrets()
+                .delete(context_.config.namespace, `${context_.config.releaseName}-redis`);
+            } catch (error: unknown) {
+              // Ignore NotFound errors - secret may not exist if this is a fresh install
+              if (!(error instanceof Error) || !error.message.includes('NotFound')) {
+                throw error;
+              }
+            }
           },
-          skip: ({config}: MirrorNodeUpgradeContext): boolean => !config.installSharedResources,
         },
         this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.initializeSharedPostgresDatabaseTask(),
