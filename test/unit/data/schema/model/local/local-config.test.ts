@@ -22,18 +22,18 @@ import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-form
 import {type ClusterReferences} from '../../../../../../src/types/index.js';
 import {SemanticVersion} from '../../../../../../src/business/utils/semantic-version.js';
 
-describe('LocalConfig', () => {
+describe('LocalConfig', (): void => {
   const schema: LocalConfigSchemaDefinition = new LocalConfigSchemaDefinition(
     new ClassToObjectMapper(ConfigKeyFormatter.instance()),
   );
   const soloVersion: string = '0.35.1';
-  const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
+  const localConfigPath: string = `test/data/v${soloVersion}-local-config.yaml`;
 
-  describe('Class Transformer', () => {
+  describe('Class Transformer', (): void => {
     let yamlData: string;
     let plainObject: object;
 
-    beforeEach(() => {
+    beforeEach((): void => {
       yamlData = readFileSync(localConfigPath, 'utf8');
       expect(yamlData).to.not.be.undefined.and.to.not.be.null;
 
@@ -41,7 +41,7 @@ describe('LocalConfig', () => {
       expect(plainObject).to.not.be.undefined.and.to.not.be.null;
     });
 
-    it('should transform plain to class', async () => {
+    it('should transform plain to class', async (): Promise<void> => {
       const lc = await schema.transform(plainObject);
       expect(lc).to.not.be.undefined.and.to.not.be.null;
       expect(lc).to.be.instanceOf(LocalConfigSchema);
@@ -60,7 +60,7 @@ describe('LocalConfig', () => {
       expect(lc.userIdentity.name).to.be.equal(os.userInfo().username);
     });
 
-    it('should transform class to plain', async () => {
+    it('should transform class to plain', async (): Promise<void> => {
       const deployments: DeploymentSchema[] = [
         new DeploymentSchema(
           'dual-cluster-full-deployment',
@@ -79,7 +79,7 @@ describe('LocalConfig', () => {
         ['e2e-cluster-2', 'kind-solo-e2e-c2'],
       ]);
 
-      const versions = new ApplicationVersionsSchema(
+      const versions: ApplicationVersionsSchema = new ApplicationVersionsSchema(
         new SemanticVersion<string>(soloVersion),
         new SemanticVersion<string>(SOLO_CHART_VERSION),
         new SemanticVersion<string>(HEDERA_PLATFORM_VERSION),
@@ -92,7 +92,7 @@ describe('LocalConfig', () => {
 
       expect(newPlainObject).to.not.be.undefined.and.to.not.be.null;
 
-      const poClone = instanceToPlain(await schema.transform(plainObject));
+      const poClone: Record<string, any> = instanceToPlain(await schema.transform(plainObject));
       expect(newPlainObject).to.deep.equal(poClone);
 
       const yaml: string = stringify(newPlainObject, {sortMapEntries: true});
