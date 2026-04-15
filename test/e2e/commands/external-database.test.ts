@@ -32,7 +32,7 @@ import {getTemporaryDirectory} from '../../test-utility.js';
 const testName: string = 'external-database-test';
 
 // Use dual-cluster specific values file with higher memory limits to prevent OOM
-const dualClusterValuesFile: string = '../../../resources/mirror-node-values-dual-cluster-minimal.yaml';
+const dualClusterValuesFile: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'mirror-node-values-dual-cluster-minimal.yaml');
 
 const configFiles: Record<string, string> = {
   'api-permission.properties': 'api-permission.properties.txt',
