@@ -177,7 +177,7 @@ tasks:
             --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
-            --enable-ingress --pinger -q --dev --values-file ./mirror-node-values-dual-cluster-minimal.yaml
+            --enable-ingress --pinger -q --dev --values-file ../examples/multicluster-backup-restore/mirror-node-values-dual-cluster-minimal.yaml
 
       # Deploy Block Node on Cluster 2
       - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
