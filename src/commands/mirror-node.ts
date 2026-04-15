@@ -1199,18 +1199,18 @@ export class MirrorNodeCommand extends BaseCommand {
           task: (_, parentTask): SoloListr<AnyListrContext> => {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
               this.enableSharedResourcesTask(),
+              this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
               this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
             ];
 
             return parentTask.newListr(subTasks, {
-              concurrent: false, // shared resources must be configured before mirror chart is installed
+              concurrent: false, // shared resources must be configured and DB initialized before mirror chart is installed
               rendererOptions: {
                 collapseSubtasks: false,
               },
             });
           },
         },
-        this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
         {
@@ -1459,8 +1459,8 @@ export class MirrorNodeCommand extends BaseCommand {
             }
           },
         },
+        this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
         this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
-        this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
