@@ -806,6 +806,26 @@ export class MirrorNodeCommand extends BaseCommand {
    *
    * Skipped when the secret already exists (upgrade path) or when using an external database.
    */
+  /**
+   * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
+   * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
+   * remove keys — stale `SPRING_DATA_REDIS_SENTINEL_NODES` values written by a previous install
+   * (using the internal chart-managed Redis) would otherwise persist and cause pods to try to
+   * resolve a non-existent hostname.
+   */
+  private deleteStaleRedisSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Delete stale mirror redis secret',
+      task: async (context_): Promise<void> => {
+        // secrets().delete() returns true for NotFound, so no try/catch needed.
+        await this.k8Factory
+          .getK8(context_.config.clusterContext)
+          .secrets()
+          .delete(context_.config.namespace, `${context_.config.releaseName}-redis`);
+      },
+    };
+  }
+
   private primePostgresSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prime mirror-node postgres secret',
@@ -822,11 +842,18 @@ export class MirrorNodeCommand extends BaseCommand {
         // Install the mirror chart with every application component disabled.  This is enough for
         // Helm to render and apply the `mirror-passwords` Secret template without starting any pods
         // that could connect to Postgres before the init script runs.
+        //
+        // redis.enabled must be false here: when true the chart writes SPRING_DATA_REDIS_SENTINEL_NODES
+        // into the <release>-redis secret using the chart default host ({{ .Release.Name }}-redis).
+        // Kubernetes strategic-merge-patch does not remove keys, so those stale sentinel values would
+        // persist through the full upgrade (which sets redis.enabled=false and skips the sentinel block).
+        // Setting redis.enabled=false in the prime install prevents the stale keys from ever being written.
         const primeValuesArgument: string =
           ' --install' +
           helpers.populateHelmArguments({
             'stackgres.enabled': false,
             'postgresql.enabled': false,
+            'redis.enabled': false,
             'db.host': `solo-shared-resources-postgres.${context_.config.namespace.name}.svc.cluster.local`,
             'db.name': 'mirror_node',
             'importer.enabled': false,
@@ -1262,6 +1289,7 @@ export class MirrorNodeCommand extends BaseCommand {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
               this.enableSharedResourcesTask(),
               this.primePostgresSecretTask(), // creates mirror-passwords secret before init reads it
+              this.deleteStaleRedisSecretTask(), // remove stale sentinel nodes left by a prior prime install
               this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
               this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
             ];
@@ -1500,28 +1528,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         this.enableSharedResourcesTask(),
-        {
-          title: 'Delete stale mirror redis secret',
-          task: async (context_): Promise<void> => {
-            // The mirror-node chart stores sentinel config in the <release>-redis secret.
-            // On 'mirror node upgrade' we want to reconfigure the mirror node to use redis from
-            // the shared resources chart if it's not doing so already.
-            // Deleting the secret lets Helm recreate it cleanly without sentinel fields will
-            // be configured to use the shared redis. This is needed when upgrading from a version
-            // that did not use the shared redis to one that does.
-            try {
-              await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .secrets()
-                .delete(context_.config.namespace, `${context_.config.releaseName}-redis`);
-            } catch (error: unknown) {
-              // Ignore NotFound errors - secret may not exist if this is a fresh install
-              if (!(error instanceof Error) || !error.message.includes('NotFound')) {
-                throw error;
-              }
-            }
-          },
-        },
+        this.deleteStaleRedisSecretTask(),
         this.primePostgresSecretTask(), // creates mirror-passwords secret if missing (e.g. re-install via upgrade)
         this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
         this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
