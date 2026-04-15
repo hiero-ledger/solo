@@ -246,6 +246,8 @@ jobs:
       - name: "Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)"
         id: timing-cycles
         timeout-minutes: 360
+        env:
+          ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"

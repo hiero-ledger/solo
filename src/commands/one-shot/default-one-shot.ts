@@ -816,6 +816,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         optionFromFlag(Flags.deployment),
                         config.deployment,
                       );
+
+                      config.blockNodeConfiguration ??= {};
+                      const existingValuesFile: string = config.blockNodeConfiguration['--values-file'];
+                      config.blockNodeConfiguration['--values-file'] = existingValuesFile
+                        ? `${existingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
+                        : constants.BLOCK_NODE_SOLO_DEV_FILE;
+
                       this.appendConfigToArgv(argv, config.blockNodeConfiguration);
                       return argvPushGlobalFlags(argv);
                     },
