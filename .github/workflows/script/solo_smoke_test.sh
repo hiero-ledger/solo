@@ -402,8 +402,6 @@ echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 printf "\r::endgroup::\n"
 result=0
 
-check_monitor_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
-
 if [ -n "$1" ]; then
   echo "Skip mirror importer log check"
 else

@@ -14,7 +14,7 @@ restjava:
       memory: 0
     limits:
       cpu: 500m
-      memory: 1000Mi
+      memory: 1500Mi
 rest:
   resources:
     requests:
