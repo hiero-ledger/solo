@@ -811,17 +811,12 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Prime mirror-node postgres secret',
       task: async (context_): Promise<void> => {
         // Skip if the secret was already created by a previous install.
-        try {
-          await this.k8Factory
-            .getK8(context_.config.clusterContext)
-            .secrets()
-            .read(context_.config.namespace, 'mirror-passwords');
+        const secretExists: boolean = await this.k8Factory
+          .getK8(context_.config.clusterContext)
+          .secrets()
+          .exists(context_.config.namespace, 'mirror-passwords');
+        if (secretExists) {
           return;
-        } catch (error: unknown) {
-          if (!(error instanceof Error) || !error.message.includes('NotFound')) {
-            throw error;
-          }
-          // Secret does not exist yet — fall through to the prime install below.
         }
 
         // Install the mirror chart with every application component disabled.  This is enough for
