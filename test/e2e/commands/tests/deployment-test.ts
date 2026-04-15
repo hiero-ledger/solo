@@ -262,4 +262,129 @@ export class DeploymentTest extends BaseCommandTest {
       testLogger.info(`${testName}: finished deployment config info output verification`);
     });
   }
+
+  private static soloDeploymentConfigPortsArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+    output?: 'json' | 'yaml' | 'wide',
+  ): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
+    const argv: string[] = newArgv();
+
+    argv.push(
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_PORTS,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+    );
+
+    if (output) {
+      argv.push(optionFromFlag(Flags.output), output);
+    }
+
+    argvPushGlobalFlags(argv, testName);
+    return argv;
+  }
+
+  public static verifyDeploymentConfigPorts(options: BaseTestOptions): void {
+    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace} = options;
+    const {soloDeploymentConfigPortsArgv, runMainAndCaptureOutputToJson} = DeploymentTest;
+
+    it(`${testName}: verify deployment config ports output`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning deployment config ports output verification`);
+
+      const clusterReference: ClusterReferenceName = clusterReferenceNameArray[0];
+
+      const wideResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
+        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'wide'),
+        {
+          testName,
+          outputFileName: 'deployment-config-ports-wide-output.json',
+          metadata: {
+            command: 'deployment config ports',
+            deployment,
+            namespace: namespace.name,
+            clusterReference,
+            output: 'wide',
+          },
+        },
+      );
+
+      expect(wideResult.stdout).to.contain('Port-forwards for deployment');
+      expect(wideResult.stdout).to.contain(deployment);
+      expect(wideResult.stdout).to.contain('Cluster:');
+      expect(wideResult.stdout).to.contain(clusterReference);
+      expect(wideResult.stdout).to.contain('Namespace:');
+      expect(wideResult.stdout).to.contain(namespace.name);
+      expect(wideResult.stdout).to.contain('Consensus node gRPC');
+      expect(wideResult.stdout).to.contain('Mirror node REST');
+      expect(wideResult.stdout).to.contain('JSON-RPC relay');
+      expect(wideResult.stdout).to.contain('Explorer');
+
+      const jsonResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
+        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'json'),
+        {
+          testName,
+          outputFileName: 'deployment-config-ports-json-output.json',
+          metadata: {
+            command: 'deployment config ports',
+            deployment,
+            namespace: namespace.name,
+            clusterReference,
+            output: 'json',
+          },
+        },
+      );
+
+      expect(jsonResult.stdout).to.contain('"deployment"');
+      expect(jsonResult.stdout).to.contain(deployment);
+      expect(jsonResult.stdout).to.contain('"clusterReference"');
+      expect(jsonResult.stdout).to.contain(clusterReference);
+      expect(jsonResult.stdout).to.contain('"namespace"');
+      expect(jsonResult.stdout).to.contain(namespace.name);
+      expect(jsonResult.stdout).to.contain('"services"');
+      expect(jsonResult.stdout).to.contain('"consensusNodeGrpc"');
+      expect(jsonResult.stdout).to.contain('"mirrorNodeRest"');
+      expect(jsonResult.stdout).to.contain('"jsonRpcRelay"');
+      expect(jsonResult.stdout).to.contain('"explorer"');
+      expect(jsonResult.stdout).to.contain('"blockNode"');
+
+      const yamlResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
+        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'yaml'),
+        {
+          testName,
+          outputFileName: 'deployment-config-ports-yaml-output.json',
+          metadata: {
+            command: 'deployment config ports',
+            deployment,
+            namespace: namespace.name,
+            clusterReference,
+            output: 'yaml',
+          },
+        },
+      );
+
+      expect(yamlResult.stdout).to.contain('deployment:');
+      expect(yamlResult.stdout).to.contain(deployment);
+      expect(yamlResult.stdout).to.contain('clusterReference:');
+      expect(yamlResult.stdout).to.contain(clusterReference);
+      expect(yamlResult.stdout).to.contain('namespace:');
+      expect(yamlResult.stdout).to.contain(namespace.name);
+      expect(yamlResult.stdout).to.contain('services:');
+      expect(yamlResult.stdout).to.contain('consensusNodeGrpc:');
+      expect(yamlResult.stdout).to.contain('mirrorNodeRest:');
+      expect(yamlResult.stdout).to.contain('jsonRpcRelay:');
+      expect(yamlResult.stdout).to.contain('explorer:');
+      expect(yamlResult.stdout).to.contain('blockNode:');
+
+      testLogger.info(`${testName}: deployment config ports wide output saved to ${wideResult.outputFilePath}`);
+      testLogger.info(`${testName}: deployment config ports json output saved to ${jsonResult.outputFilePath}`);
+      testLogger.info(`${testName}: deployment config ports yaml output saved to ${yamlResult.outputFilePath}`);
+      testLogger.info(`${testName}: finished deployment config ports output verification`);
+    });
+  }
 }

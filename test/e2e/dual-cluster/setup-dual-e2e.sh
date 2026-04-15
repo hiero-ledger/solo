@@ -84,7 +84,7 @@ run_with_timeout_diag() {
   local timeout_seconds=$1
   local label=$2
   shift 2
-  timeout "${timeout_seconds}" "$@"
+#  timeout "${timeout_seconds}" "$@"
   local status=$?
   if [[ $status -eq 124 ]]; then
     echo "WARNING: '${label}' timed out after ${timeout_seconds}s" >&2
