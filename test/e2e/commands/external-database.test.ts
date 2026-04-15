@@ -55,8 +55,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withShard(3)
-  .withRealm(2)
+  .withShard(0)
+  .withRealm(0)
   .withApiPermissionProperties(configFiles['api-permission.properties'])
   .withApplicationEnvironment(configFiles['application.env'])
   .withApplicationProperties(configFiles['application.properties'])
@@ -129,8 +129,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         it('should run smoke tests', async (): Promise<void> => {
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
-            export SHARD_NUM=3; \
-            export REALM_NUM=2; \
+            export SHARD_NUM=0; \
+            export REALM_NUM=0; \
             export NEW_NODE_ACCOUNT_ID=3.2.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
