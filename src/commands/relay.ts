@@ -495,9 +495,8 @@ export class RelayCommand extends BaseCommand {
         }
 
         const podReference: PodReference = pods[0].podReference;
-        const clusterReference: string =
-          (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-          this.k8Factory.default().clusters().readCurrent();
+        const clusterReference: string = this.getClusterReference();
+
 
         await this.remoteConfig.configuration.components.managePortForward(
           clusterReference,
