@@ -370,7 +370,13 @@ export class MirrorNodeTest extends BaseCommandTest {
       MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv: string[] = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger, valuesFile);
+      const argv: string[] = soloMirrorNodeDeployArgv(
+        testName,
+        deployment,
+        clusterReferenceNameArray[1],
+        pinger,
+        valuesFile,
+      );
 
       process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
 
