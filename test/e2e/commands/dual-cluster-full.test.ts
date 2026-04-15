@@ -31,7 +31,10 @@ import {destroyEnabled} from '../../test-utility.js';
 const testName: string = 'dual-cluster-full';
 
 // Use dual-cluster specific values file with higher memory limits to prevent OOM
-const dualClusterValuesFile: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'mirror-node-values-dual-cluster-minimal.yaml');
+const dualClusterValuesFile: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-node-values-dual-cluster-minimal.yaml',
+);
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
