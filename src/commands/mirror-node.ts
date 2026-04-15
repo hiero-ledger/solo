@@ -797,6 +797,69 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Installs the mirror chart with all application components disabled in order to create the
+   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
+   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
+   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
+   * so we use this lightweight prime install instead of a full chart install.
+   *
+   * Skipped when the secret already exists (upgrade path) or when using an external database.
+   */
+  private primePostgresSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Prime mirror-node postgres secret',
+      task: async (context_): Promise<void> => {
+        // Skip if the secret was already created by a previous install.
+        try {
+          await this.k8Factory
+            .getK8(context_.config.clusterContext)
+            .secrets()
+            .read(context_.config.namespace, 'mirror-passwords');
+          return;
+        } catch (error: unknown) {
+          if (!(error instanceof Error) || !error.message.includes('NotFound')) {
+            throw error;
+          }
+          // Secret does not exist yet — fall through to the prime install below.
+        }
+
+        // Install the mirror chart with every application component disabled.  This is enough for
+        // Helm to render and apply the `mirror-passwords` Secret template without starting any pods
+        // that could connect to Postgres before the init script runs.
+        const primeValuesArgument: string =
+          ' --install' +
+          helpers.populateHelmArguments({
+            'stackgres.enabled': false,
+            'postgresql.enabled': false,
+            'db.host': `solo-shared-resources-postgres.${context_.config.namespace.name}.svc.cluster.local`,
+            'db.name': 'mirror_node',
+            'importer.enabled': false,
+            'grpc.enabled': false,
+            'rest.enabled': false,
+            'restjava.enabled': false,
+            'web3.enabled': false,
+            'rosetta.enabled': false,
+            'graphql.enabled': false,
+            'monitor.enabled': false,
+          });
+
+        await this.chartManager.upgrade(
+          context_.config.namespace,
+          context_.config.releaseName,
+          constants.MIRROR_NODE_CHART,
+          context_.config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
+          context_.config.mirrorNodeVersion,
+          primeValuesArgument,
+          context_.config.clusterContext,
+          false,
+        );
+      },
+      skip: ({config}: MirrorNodeDeployContext): boolean =>
+        config.useExternalDatabase || !config.installSharedResources,
+    };
+  }
+
   private enableMirrorNodeTask(commandType: MirrorNodeCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
@@ -1203,6 +1266,7 @@ export class MirrorNodeCommand extends BaseCommand {
           task: (_, parentTask): SoloListr<AnyListrContext> => {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
               this.enableSharedResourcesTask(),
+              this.primePostgresSecretTask(), // creates mirror-passwords secret before init reads it
               this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
               this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
             ];
@@ -1463,6 +1527,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
           },
         },
+        this.primePostgresSecretTask(), // creates mirror-passwords secret if missing (e.g. re-install via upgrade)
         this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
         this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.checkPodsAreReadyNodeTask(),
