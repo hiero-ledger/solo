@@ -14,8 +14,10 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type PortForwardConfig,
   type Realm,
   type Shard,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
@@ -43,6 +45,8 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
+import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
+import yaml from 'yaml';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -109,6 +113,11 @@ export class DeploymentCommand extends BaseCommand {
   public static REFRESH_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.quiet],
+  };
+
+  public static PORTS_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.quiet, flags.output],
   };
 
   /**
@@ -345,7 +354,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: Listr<Context, 'default', 'default'> = new Listr(
+    const tasks: SoloListr<Context> = new Listr(
       [
         {
           title: 'Initialize',
@@ -442,6 +451,178 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public async close(): Promise<void> {} // no-op
+
+  public async ports(argv: ArgvStruct): Promise<boolean> {
+    interface PortEntry {
+      componentId: number;
+      localPort: number;
+      podPort: number;
+    }
+
+    interface PortsReport {
+      deployment: DeploymentName;
+      clusterReference: ClusterReferenceName;
+      namespace: string;
+      services: {
+        consensusNodeGrpc: PortEntry[];
+        mirrorNodeRest: PortEntry[];
+        jsonRpcRelay: PortEntry[];
+        explorer: PortEntry[];
+        blockNode: PortEntry[];
+      };
+    }
+
+    interface Config {
+      quiet: boolean;
+      namespace: NamespaceName;
+      deployment: DeploymentName;
+      clusterReference: ClusterReferenceName;
+      deploymentConfig: Deployment;
+      output: 'json' | 'yaml' | 'wide';
+    }
+
+    interface PortsContext {
+      config: Config;
+    }
+
+    const tasks: SoloListr<PortsContext> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+
+            this.configManager.update(argv);
+
+            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deploymentConfig: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+            if (!deploymentConfig) {
+              throw new SoloError(`Deployment ${deployment} not found in local config`);
+            }
+
+            let output: 'json' | 'yaml' | 'wide' = 'wide';
+
+            const rawOutput: string = this.configManager.getFlag(flags.output);
+            switch (rawOutput) {
+              case '': {
+                output = 'wide';
+                break;
+              }
+              case 'json':
+              case 'yaml':
+              case 'wide': {
+                output = rawOutput;
+                break;
+              }
+              default: {
+                throw new SoloError(`Invalid output format: ${rawOutput}. Allowed values: json, yaml, wide`);
+              }
+            }
+
+            context_.config = {
+              clusterReference: this.getClusterReference(),
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              deployment,
+              deploymentConfig,
+              namespace: NamespaceName.of(deploymentConfig.namespace),
+              output,
+            };
+          },
+        },
+        {
+          title: 'List deployment port-forwards',
+          task: async ({config}, task): Promise<void> => {
+            const {deployment, namespace, clusterReference, output} = config;
+            const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
+
+            const collectEntries: (components: BaseStateSchema[]) => PortEntry[] = (
+              components: BaseStateSchema[],
+            ): PortEntry[] => {
+              const entries: PortEntry[] = [];
+
+              for (const component of components) {
+                const portForwardConfigs: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
+
+                for (const portForwardConfig of portForwardConfigs) {
+                  entries.push({
+                    componentId: component.metadata.id,
+                    localPort: portForwardConfig.localPort,
+                    podPort: portForwardConfig.podPort,
+                  });
+                }
+              }
+
+              return entries;
+            };
+
+            const report: PortsReport = {
+              deployment,
+              clusterReference,
+              namespace: namespace.name,
+              services: {
+                consensusNodeGrpc: collectEntries(state.haProxies || []),
+                mirrorNodeRest: collectEntries(state.mirrorNodes || []),
+                jsonRpcRelay: collectEntries(state.relayNodes || []),
+                explorer: collectEntries(state.explorers || []),
+                blockNode: collectEntries(state.blockNodes || []),
+              },
+            };
+
+            if (output === 'json') {
+              this.logger.showUser(JSON.stringify(report, undefined, 2));
+            } else if (output === 'yaml') {
+              this.logger.showUser(yaml.stringify(report));
+            } else {
+              this.logger.showUser(chalk.cyan(`\n=== Port-forwards for deployment: ${deployment} ===`));
+              this.logger.showUser(`Cluster: ${clusterReference}`);
+              this.logger.showUser(`Namespace: ${namespace.name}`);
+
+              const serviceGroups: {title: string; entries: PortEntry[]}[] = [
+                {title: 'Consensus node gRPC', entries: report.services.consensusNodeGrpc},
+                {title: 'Mirror node REST', entries: report.services.mirrorNodeRest},
+                {title: 'JSON-RPC relay', entries: report.services.jsonRpcRelay},
+                {title: 'Explorer', entries: report.services.explorer},
+                {title: 'Block node', entries: report.services.blockNode},
+              ];
+
+              let foundAnyPortForwards: boolean = false;
+
+              for (const {title, entries} of serviceGroups) {
+                if (entries.length === 0) {
+                  continue;
+                }
+
+                foundAnyPortForwards = true;
+                this.logger.showList(
+                  title,
+                  entries.map(
+                    (entry): string =>
+                      `component ${entry.componentId}: localhost:${entry.localPort} -> pod:${entry.podPort}`,
+                  ),
+                );
+              }
+
+              if (!foundAnyPortForwards) {
+                this.logger.showUser(chalk.yellow('No port-forwards configured in remote config'));
+              }
+            }
+
+            task.title = `Listed port-forwards for deployment ${deployment}`;
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError('Error listing deployment ports', error);
+    }
+
+    return true;
+  }
 
   /**
    * Initializes and populates the config and context for 'deployment cluster attach'
@@ -752,7 +933,7 @@ export class DeploymentCommand extends BaseCommand {
       context?: string;
     }
 
-    const tasks: Listr<RefreshContext, 'default', 'default'> = new Listr(
+    const tasks: SoloListr<RefreshContext> = new Listr(
       [
         {
           title: 'Initialize',
@@ -977,7 +1158,7 @@ export class DeploymentCommand extends BaseCommand {
       deployments: Deployment[];
     }
 
-    const tasks: Listr<PortStatusContext, 'default', 'default'> = new Listr(
+    const tasks: SoloListr<PortStatusContext> = new Listr(
       [
         {
           title: 'Initialize',
