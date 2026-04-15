@@ -17,8 +17,6 @@
 name: "One-Shot Timing Test"
 
 on:
-  schedule:
-    - cron: '1 6 * * *'
   workflow_dispatch:
     inputs:
       use-released-solo:

@@ -21,9 +21,8 @@ name: "Nightly Extended Tests"
 
 on:
   schedule:
-    # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
-    # Using 6 AM UTC to cover Central Daylight Time
-    - cron: '0 6 * * *'
+    # Run every weekday at 6 AM UTC (covers Central Daylight Time)
+    - cron: '0 6 * * 1-5'
   workflow_dispatch:
     inputs:
       node-version:
@@ -77,12 +76,47 @@ jobs:
           timeout_minutes: 10
           command: npm ci
 
-  jvm-debugger-test:
-    name: JVM Debugger Test
-    runs-on: hiero-solo-linux-large
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
     needs:
       - prepare-setup
-    timeout-minutes: 60
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # Read JSON file
+          JSON_CONTENT=$(cat .github/workflows/support/extended_test_matrix.json | jq -c .)
+          
+          echo "JSON_CONTENT: $JSON_CONTENT"
+          
+          # Set the output variable 'matrix' with JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  matrix-tests:
+    name: Extended Test (${{ matrix.test.name }})
+    runs-on: hiero-solo-linux-large
+    needs:
+      - generate_matrix
+    timeout-minutes: ${{ matrix.test.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -112,19 +146,49 @@ jobs:
           timeout_minutes: 10
           command: npm ci
 
-      - name: Run JVM Debugger Test
-        timeout-minutes: 50
+      - name: Run Test (${{ matrix.test.name }})
+        timeout-minutes: ${{ matrix.test.timeout_minutes }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          TEST_NAME: ${{ matrix.test.name }}
+          TEST_DESCRIPTION: ${{ matrix.test.description }}
         run: |
-          chmod +x .github/workflows/script/test-jvm-debugger.sh
-          .github/workflows/script/test-jvm-debugger.sh
+          echo "Running test: ${{ matrix.test.name }}"
+          echo "Description: ${{ matrix.test.description }}"
+          echo "Type: ${{ matrix.test.type }}"
+          echo "Path: ${{ matrix.test.path }}"
+          
+          if [ "${{ matrix.test.type }}" = "script" ]; then
+            echo "Executing script: ${{ matrix.test.path }}"
+            if [ -f "${{ matrix.test.path }}" ]; then
+              chmod +x "${{ matrix.test.path }}"
+              "${{ matrix.test.path }}"
+            else
+              echo "Error: Script file not found at ${{ matrix.test.path }}"
+              exit 1
+            fi
+          elif [ "${{ matrix.test.type }}" = "workflow" ]; then
+            echo "Triggering workflow: ${{ matrix.test.path }}"
+            # Trigger the workflow using GitHub CLI
+            gh workflow run "${{ matrix.test.path }}" \
+              --field "triggered-by=nightly-extended-tests" \
+              --field "test-name=${{ matrix.test.name }}" || {
+              echo "Error: Failed to trigger workflow ${{ matrix.test.path }}"
+              exit 1
+            }
+            echo "Workflow triggered successfully"
+          else
+            echo "Error: Unknown test type '${{ matrix.test.type }}'"
+            exit 1
+          fi
 
       - name: Cleanup Kind Clusters
         if: ${{ always() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
+          echo "Cleaning up clusters for test: ${{ matrix.test.name }}"
           for cluster in $(kind get clusters 2>/dev/null); do
+            echo "Deleting cluster: $cluster"
             kind delete cluster -n "$cluster" || true
           done
           rm -rf ~/.solo
@@ -136,8 +200,11 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
           SLACK_COLOR: danger
-          SLACK_TITLE: Nightly JVM Debugger Test Failed
+          SLACK_TITLE: Nightly Extended Test Failed - ${{ matrix.test.name }}
           SLACK_MESSAGE: |
+            *Test:* ${{ matrix.test.name }}
+            *Description:* ${{ matrix.test.description }}
+            *Type:* ${{ matrix.test.type }}
             *Branch:* `${{ github.ref_name }}`
             *Commit:* ${{ github.sha }}
 
@@ -149,9 +216,10 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          name: solo-logs-jvm-debugger
+          name: solo-logs-${{ matrix.test.name }}
           path: |
             ~/.solo/logs/*
             /tmp/solo-node-start.log
             /tmp/solo-jdwp-probe.log
+            /tmp/solo-${{ matrix.test.name }}*.log
           if-no-files-found: ignore
