@@ -1507,11 +1507,11 @@ export class MirrorNodeCommand extends BaseCommand {
     const improvedMemoryModules: string[] = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
     if (!hasMirrorNodeMemoryImprovements) {
       for (const module of improvedMemoryModules) {
-        const configRoot = module.replaceAll('-', '');
+        const configRoot: string = module.replaceAll('-', '');
         config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
         config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
 
-        const memoryKey = `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
+        const memoryKey: keyof typeof constants = `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
         config.valuesArg += ` --set ${configRoot}.resources.limits.memory=${constants[memoryKey]}`;
       }
     } else if (process.arch === 'arm64') {

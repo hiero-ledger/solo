@@ -118,7 +118,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         MirrorNodeTest.installPostgres(options);
 
         // Use dual-cluster specific values file with higher memory limits
-        const mirrorOptionsWithValuesFile = {
+        const mirrorOptionsWithValuesFile: BaseTestOptions & { valuesFile: string } = {
           ...options,
           valuesFile: dualClusterValuesFile,
         };
