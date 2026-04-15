@@ -301,6 +301,19 @@ export class Flags {
     },
   };
 
+  public static readonly outputValuesFile: CommandFlag = {
+    constName: 'outputValuesFile',
+    name: 'output-values-file',
+    definition: {
+      describe:
+        'Output path for the generated falcon values YAML file. ' +
+        'Relative paths are resolved against the current working directory.',
+      defaultValue: './falcon-values.yaml',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly networkDeploymentValuesFile: CommandFlag = {
     constName: 'valuesFile',
     name: 'values-file',
@@ -2991,6 +3004,7 @@ export class Flags {
     Flags.operatorKey,
     Flags.optionsFile,
     Flags.outputDir,
+    Flags.outputValuesFile,
     Flags.persistentVolumeClaims,
     Flags.pinger,
     Flags.predefinedAccounts,
