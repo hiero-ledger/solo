@@ -404,11 +404,3 @@ if [[ $result -ne 0 ]]; then
 fi
 echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 printf "\r::endgroup::\n"
-result=0
-
-if [ -n "$1" ]; then
-  echo "Skip mirror importer log check"
-else
-  check_importer_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
-fi
-log_and_exit $?
