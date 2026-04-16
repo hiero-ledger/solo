@@ -56,9 +56,6 @@ function setup_smart_contract_test ()
     fs.writeFileSync('utils/constants.js', c);
     console.log('Patched utils/constants.js with Solo port-forward addresses');
   "
-
-  echo "Cat constants.js after patching"
-  cat utils/constants.js
   cd -
 }
 
@@ -88,8 +85,8 @@ function start_contract_test ()
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
   sleep 10
-  echo "Current port forward"
-  ps -ef |grep port-forward
+  echo "Show current port forward for debugging purpose"
+  ps -ef | grep port-forward
   echo "Run smart contract test"
   result=0
   npm run hh:test || result=$?
