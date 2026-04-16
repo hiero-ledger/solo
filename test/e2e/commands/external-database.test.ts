@@ -131,7 +131,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
             export SHARD_NUM=0; \
             export REALM_NUM=0; \
-            export NEW_NODE_ACCOUNT_ID=3.2.3; \
+            export NEW_NODE_ACCOUNT_ID=0.0.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
