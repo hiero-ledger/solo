@@ -19,7 +19,6 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
   type ClusterReferenceName,
-  type ClusterReferences,
   type ComponentId,
   type Context,
   type DeploymentName,
@@ -35,7 +34,6 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -63,6 +61,8 @@ import yaml from 'yaml';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
+import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
+import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -107,6 +107,7 @@ interface MirrorNodeDeployConfigClass {
   deployment: DeploymentName;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
   installSharedResources: boolean;
+  parallelDeploy: boolean;
 }
 
 interface MirrorNodeDeployContext {
@@ -154,6 +155,7 @@ interface MirrorNodeUpgradeConfigClass {
   soloChartVersion: string;
   installSharedResources: boolean;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
+  deployment: DeploymentName;
 }
 
 interface MirrorNodeUpgradeContext {
@@ -197,6 +199,7 @@ export class MirrorNodeCommand extends BaseCommand {
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
+    @inject(InjectTokens.SoloEventBus) private readonly eventBus?: SoloEventBus,
   ) {
     super();
 
@@ -250,6 +253,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.forcePortForward,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
+      flags.parallelDeploy,
     ],
   };
 
@@ -503,6 +507,10 @@ export class MirrorNodeCommand extends BaseCommand {
         'web3.db.password': readonlyPassword,
         'rest.db.password': readonlyPassword,
       });
+    } else {
+      valuesArgument += helpers.populateHelmArguments({
+        'db.host': `solo-shared-resources-postgres.${config.namespace.name}.svc.cluster.local`,
+      });
     }
 
     valuesArgument += this.prepareBlockNodeIntegrationValues(config);
@@ -566,6 +574,8 @@ export class MirrorNodeCommand extends BaseCommand {
       shouldReuseValues,
     );
 
+    this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
+
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
     if (commandType === MirrorNodeCommandType.ADD) {
@@ -573,6 +583,14 @@ export class MirrorNodeCommand extends BaseCommand {
         (config as MirrorNodeDeployConfigClass).newMirrorNodeComponent.metadata.id,
         ComponentTypes.MirrorNode,
         DeploymentPhase.DEPLOYED,
+      );
+
+      await this.remoteConfig.persist();
+    } else if (commandType === MirrorNodeCommandType.UPGRADE) {
+      // update mirror node version in remote config after successful upgrade
+      this.remoteConfig.updateComponentVersion(
+        ComponentTypes.MirrorNode,
+        new SemanticVersion<string>(config.mirrorNodeVersion),
       );
 
       await this.remoteConfig.persist();
@@ -719,17 +737,6 @@ export class MirrorNodeCommand extends BaseCommand {
                     );
                   },
                 },
-                {
-                  title: 'Set database connection details',
-                  task: (context_: MirrorNodeDeployContext): void => {
-                    // Only set the host. All passwords and usernames are
-                    // generated and persisted by the mirror-node chart via the mirror-passwords secret.
-                    // initializeMirrorNode() reads from that secret so everything stays consistent.
-                    context_.config.valuesArg += helpers.populateHelmArguments({
-                      'db.host': `solo-shared-resources-postgres.${context_.config.namespace.name}.svc.cluster.local`,
-                    });
-                  },
-                },
               ];
 
               // set up the sub-tasks
@@ -798,17 +805,26 @@ export class MirrorNodeCommand extends BaseCommand {
             {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
-                const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-                const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
-                context_.addressBook = await this.accountManager.prepareAddressBookBase64(
-                  context_.config.namespace,
-                  this.remoteConfig.getClusterRefs(),
-                  deployment,
-                  this.configManager.getFlag(flags.operatorId),
-                  this.configManager.getFlag(flags.operatorKey),
-                  portForward,
-                );
-                context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
+                if (this.oneShotState.isActive()) {
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
+                    PathEx.join(context_.config.cacheDir, 'keys'),
+                    context_.config.deployment,
+                  );
+
+                  context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
+                } else {
+                  const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+                  const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
+                  context_.addressBook = await this.accountManager.prepareAddressBookBase64(
+                    context_.config.namespace,
+                    this.remoteConfig.getClusterRefs(),
+                    deployment,
+                    this.configManager.getFlag(flags.operatorId),
+                    this.configManager.getFlag(flags.operatorKey),
+                    portForward,
+                  );
+                  context_.config.valuesArg += ` --set "importer.addressBook=${context_.addressBook}"`;
+                }
               },
             },
             {
@@ -918,152 +934,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
-    };
-  }
-
-  private seedDbDataTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Seed DB data',
-      skip: ({config}: MirrorNodeDeployContext): boolean => config.isChartInstalled,
-      task: (_, parentTask): SoloListr<AnyListrContext> =>
-        parentTask.newListr(
-          [
-            {
-              title: 'Insert data in public.file_data',
-              task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
-                const namespace: NamespaceName = config.namespace;
-
-                const feesFileIdNumber: number = 111;
-                const exchangeRatesFileIdNumber: number = 112;
-                const timestamp: number = Date.now();
-
-                const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-                const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-                const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
-                const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
-                const feesEntityId: string = MirrorNodeCommand.encodeEntityId(
-                  Number(shard),
-                  Number(realm),
-                  feesFileIdNumber,
-                );
-                const exchangeRatesEntityId: string = MirrorNodeCommand.encodeEntityId(
-                  Number(shard),
-                  Number(realm),
-                  exchangeRatesFileIdNumber,
-                );
-
-                const fees: string = await this.accountManager.getFileContents(
-                  namespace,
-                  feesFileIdNumber,
-                  clusterReferences,
-                  deployment,
-                  this.configManager.getFlag<boolean>(flags.forcePortForward),
-                );
-                const exchangeRates: string = await this.accountManager.getFileContents(
-                  namespace,
-                  exchangeRatesFileIdNumber,
-                  clusterReferences,
-                  deployment,
-                  this.configManager.getFlag<boolean>(flags.forcePortForward),
-                );
-
-                const importFeesQuery: string = `
-INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${fees}', 'hex'), ${timestamp + '000000'}, ${feesEntityId}, 17);`;
-                const importExchangeRatesQuery: string = `
-INSERT INTO public.file_data(file_data, consensus_timestamp, entity_id, transaction_type) 
-VALUES (decode('${exchangeRates}', 'hex'), ${timestamp + '000001'}, ${exchangeRatesEntityId}, 17);`;
-
-                // When using an external database the importer's V1.0__Init.sql migration
-                // creates mirror_rest without the readonly role, so it lacks SELECT on any
-                // table added by a migration after V1.0.  Prepend a safe grant so that
-                // whoever runs this script (manually or via runSql) gives mirror_rest the
-                // access it needs.  The DO block is idempotent: it is a no-op when the
-                // grant already exists or when either role is absent.
-                const grantReadonlyQuery: string = `DO $grant$
-BEGIN
-  IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly')
-     AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest')
-  THEN
-    GRANT readonly TO mirror_rest;
-  END IF;
-END $grant$;`;
-
-                const sqlQuery: string = config.useExternalDatabase
-                  ? [grantReadonlyQuery, importFeesQuery, importExchangeRatesQuery].join('\n')
-                  : [importFeesQuery, importExchangeRatesQuery].join('\n');
-
-                const cacheDirectory: string = config.cacheDir;
-                // Build the path
-                const databaseSeedingQueryFileName: string = 'database-seeding-query.sql';
-                const databaseSeedingQueryPath: string = PathEx.join(cacheDirectory, databaseSeedingQueryFileName);
-
-                // Write the file database seeding query inside the cache
-                fs.writeFileSync(databaseSeedingQueryPath, sqlQuery);
-
-                // When useExternalDatabase flag is enabled, the query is not executed,
-                // but exported to the specified path inside the cache directory,
-                // and the user has the responsibility to execute it manually on his own
-                if (config.useExternalDatabase) {
-                  // Notify the user
-                  this.logger.showUser(
-                    chalk.cyan(
-                      'Please run the following SQL script against the external database ' +
-                        'to enable Mirror Node to function correctly:',
-                    ),
-                    chalk.yellow(databaseSeedingQueryPath),
-                  );
-
-                  return; //! stop the execution
-                }
-
-                const containerReference: ContainerReference =
-                  await this.postgresSharedResource.resolveContainerReference(namespace, config.clusterContext);
-                const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
-
-                const secrets: Secret[] = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .secrets()
-                  .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-                const sharedPostgresPasswordsSecret: Secret = secrets.find(
-                  (secret: Secret): boolean => secret.name === 'solo-shared-resources-passwords',
-                );
-
-                const mirrorPasswordsSecrets: Secret = await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .secrets()
-                  .read(config.namespace, 'mirror-passwords');
-
-                const DB_OWNER: string = 'postgres';
-                const DB_OWNER_PASSWORD: string = Base64.decode(sharedPostgresPasswordsSecret.data['password']);
-                const MIRROR_IMPORTER_DB_NAME: string = Base64.decode(
-                  mirrorPasswordsSecrets.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`],
-                );
-
-                const targetDirectory: string = '/tmp';
-                const targetPath: string = `${targetDirectory}/${databaseSeedingQueryFileName}`;
-
-                await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference)
-                  .copyTo(databaseSeedingQueryPath, targetDirectory);
-
-                await this.k8Factory
-                  .getK8(config.clusterContext)
-                  .containers()
-                  .readByRef(containerReference)
-                  .execContainer([
-                    'psql',
-                    `postgresql://${DB_OWNER}:${DB_OWNER_PASSWORD}@127.0.0.1:5432/${MIRROR_IMPORTER_DB_NAME}`,
-                    '-f',
-                    targetPath,
-                  ]);
-              },
-            },
-          ],
-          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-        ),
     };
   }
 
@@ -1189,6 +1059,10 @@ END $grant$;`;
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
+
+            config.valuesArg += ` --set web3.config.${chartNamespace}.mirror.web3.opcode.tracer.enabled=true`;
+            config.valuesArg += ` --set web3.config.${chartNamespace}.mirror.web3.evm.network=OTHER`;
+
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -1263,7 +1137,6 @@ END $grant$;`;
           },
         },
         this.addMirrorNodeComponents(),
-        this.enableSharedResourcesTask(),
         {
           title: 'load node client',
           task: async ({config}): Promise<void> => {
@@ -1274,11 +1147,26 @@ END $grant$;`;
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
           },
+          skip: this.oneShotState.isActive(),
         },
-        this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
+        {
+          title: 'Deploy charts',
+          task: (_, parentTask): SoloListr<AnyListrContext> => {
+            const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+              this.enableSharedResourcesTask(),
+              this.enableMirrorNodeTask(MirrorNodeCommandType.ADD),
+            ];
+
+            return parentTask.newListr(subTasks, {
+              concurrent: _.config.parallelDeploy,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+        },
         this.initializeSharedPostgresDatabaseTask(),
         this.checkPodsAreReadyNodeTask(),
-        this.seedDbDataTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -1362,6 +1250,21 @@ END $grant$;`;
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
+
+            const currentMirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+              ComponentTypes.MirrorNode,
+            );
+            if (currentMirrorNodeVersion && !currentMirrorNodeVersion.equals('0.0.0')) {
+              const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
+                config.mirrorNodeVersion,
+              );
+              if (targetMirrorNodeVersion.lessThanOrEqual(currentMirrorNodeVersion)) {
+                throw new SoloError(
+                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is not newer than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
+                    'Use --mirror-node-version to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
