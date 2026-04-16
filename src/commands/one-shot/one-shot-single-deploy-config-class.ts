@@ -3,6 +3,15 @@
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type AnyObject} from '../../types/aliases.js';
 
+export interface OneShotVersionsObject {
+  soloChart: string;
+  consensus: string;
+  mirror: string;
+  explorer: string;
+  relay: string;
+  blockNode: string;
+}
+
 export interface OneShotSingleDeployConfigClass {
   relayNodeConfiguration: AnyObject;
   explorerNodeConfiguration: AnyObject;
@@ -27,4 +36,6 @@ export interface OneShotSingleDeployConfigClass {
   quiet: boolean;
   rollback: boolean;
   parallelDeploy: boolean;
+  edgeEnabled: boolean;
+  versions: OneShotVersionsObject;
 }

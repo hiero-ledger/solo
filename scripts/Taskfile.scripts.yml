@@ -351,7 +351,21 @@ tasks:
     status:
       - kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
     cmds:
-      - kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+      - |
+        KIND_CLUSTER_CONFIG_FILE="{{ .TASKFILE_DIR }}/../.github/workflows/script/kind-config.yaml"
+        KIND_CONFIG_RENDERER="{{ .TASKFILE_DIR }}/../.github/workflows/script/render_kind_config.sh"
+        if [[ -f "${KIND_CLUSTER_CONFIG_FILE}" ]]; then
+          if [[ -x "${KIND_CONFIG_RENDERER}" && -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" ]]; then
+            RENDERED_KIND_CLUSTER_CONFIG_FILE="$(mktemp -t kind-config-XXXX.yaml)"
+            "${KIND_CONFIG_RENDERER}" "${KIND_CLUSTER_CONFIG_FILE}" "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+            kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}" --config "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+            rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+          else
+            kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+          fi
+        else
+          kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+        fi
       - sleep 10 # wait for control plane to come up
       - kubectl config set-context kind-${SOLO_CLUSTER_NAME}
 

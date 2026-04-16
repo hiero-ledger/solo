@@ -66,7 +66,7 @@ export function argvPushGlobalFlags(argv: string[], cacheDirectory: string = '')
 export function invokeSoloCommand(
   title: string,
   commandName: string,
-  callback: () => string[],
+  callback: () => Promise<string[]> | string[],
   taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   skipCallback?: () => boolean,
 ): {
@@ -118,7 +118,7 @@ export function invokeSoloCommand(
 export async function subTaskSoloCommand(
   commandName: string,
   taskListWrapper: TaskListWrapper,
-  callback: () => string[],
+  callback: () => Promise<string[]> | string[],
   taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
 ): Promise<
   | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
@@ -133,7 +133,7 @@ export async function subTaskSoloCommand(
   pendingTaskNodes.push(taskNode);
   taskList.parentTaskListMap.set(commandName, pendingTaskNodes);
 
-  const newArgv: string[] = callback();
+  const newArgv: string[] = await callback();
   const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
   const scopedConfig: ReturnType<ConfigManager['cloneActiveConfig']> = configManager.cloneActiveConfig();
 
