@@ -580,6 +580,50 @@ jobs:
             echo "ℹ️  No metrics file found, skipping chart generation"
           fi
 
+      - name: Capture Runner Final Diagnostics
+        if: ${{ always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          DIAG_DIR="${HOME}/.solo/logs/runner-diagnostics"
+          mkdir -p "${DIAG_DIR}"
+          FINAL_FILE="${DIAG_DIR}/runner-freshness-final.txt"
+          {
+            echo "=== RUNNER FINAL DIAGNOSTICS ==="
+            echo "captured_at_utc: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "runner_name: ${RUNNER_NAME:-unknown}"
+            echo "runner_os: ${RUNNER_OS:-unknown}"
+            echo "runner_arch: ${RUNNER_ARCH:-unknown}"
+            echo "github_repository: ${GITHUB_REPOSITORY:-unknown}"
+            echo "github_run_id: ${GITHUB_RUN_ID:-unknown}"
+            echo "github_run_attempt: ${GITHUB_RUN_ATTEMPT:-unknown}"
+            echo "github_job: ${GITHUB_JOB:-unknown}"
+            echo "--- Host uptime ---"
+            uptime || true
+            uptime -s || true
+            who -b || true
+            cat /proc/uptime || true
+            echo "--- Docker daemon health ---"
+            timeout --signal=TERM --kill-after=5s 20s docker version || true
+            timeout --signal=TERM --kill-after=5s 20s docker info || true
+            echo "--- kind clusters (end of job) ---"
+            timeout --signal=TERM --kill-after=5s 20s kind get clusters || true
+            echo "--- Docker containers (end of job) ---"
+            timeout --signal=TERM --kill-after=5s 20s docker ps -a --no-trunc --format 'table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.CreatedAt}}' || true
+            echo "--- Docker networks (end of job) ---"
+            timeout --signal=TERM --kill-after=5s 20s docker network ls || true
+            echo "--- Docker volumes (end of job) ---"
+            timeout --signal=TERM --kill-after=5s 20s docker volume ls || true
+            echo "--- Docker/Containerd services (end of job) ---"
+            systemctl status docker --no-pager -l 2>/dev/null || service docker status 2>/dev/null || true
+            systemctl status containerd --no-pager -l 2>/dev/null || service containerd status 2>/dev/null || true
+            echo "--- journalctl docker (last 200) ---"
+            journalctl -u docker --no-pager -n 200 2>/dev/null || true
+            echo "--- journalctl containerd (last 120) ---"
+            journalctl -u containerd --no-pager -n 120 2>/dev/null || true
+            echo "=== END RUNNER FINAL DIAGNOSTICS ==="
+          } | tee "${FINAL_FILE}"
+
       - name: Write Log Metrics Message File
         id: log-metrics-file
         if: ${{ !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
@@ -639,6 +683,16 @@ jobs:
         with:
           name: solo-${{ inputs.test-script }}.log
           path: ~/.solo/logs/*
+          overwrite: true
+          if-no-files-found: warn
+
+      - name: Upload Runner Freshness Diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: runner-freshness-${{ inputs.test-script }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ~/.solo/logs/runner-diagnostics/*
           overwrite: true
           if-no-files-found: warn
 
