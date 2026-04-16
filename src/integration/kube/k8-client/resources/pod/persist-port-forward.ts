@@ -2,7 +2,7 @@
 
 /**
  * Persistently port-forward a local port to a port on a Kubernetes pod.
- * This solves an issue where a detatched port-forward can be terminated by network issues.
+ * This solves an issue where a detached port-forward can be terminated by network issues.
  * Usage: persist-port-forward <namespace> <pod> [context] <port_map> [kubectl_executable] [kubectl_installation_dir]
  * Note: <port_map> needs to be in the format <local>:<remote>.
  */
