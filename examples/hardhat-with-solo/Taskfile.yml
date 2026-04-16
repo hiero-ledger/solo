@@ -31,7 +31,7 @@ tasks:
           cd hardhat-example
           npm install
           npx hardhat compile
-          npx hardhat test
+          npx hardhat test --network my_solo_deployment
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy
