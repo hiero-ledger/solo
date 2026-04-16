@@ -51,14 +51,35 @@ permissions:
   actions: read
 
 jobs:
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          JSON_CONTENT=$(cat .github/workflows/support/one-shot-recovery-test-matrix.json | jq -c .)
+          echo "JSON_CONTENT: $JSON_CONTENT"
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
   test-one-shot-recovery-scenarios:
     name: ${{ matrix.name }}
     runs-on: hiero-solo-linux-large
+    needs: generate_matrix
     timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(inputs.matrix || '[{"name":"Full Deploy → Delete Cluster → Redeploy","script":"one-shot-full-delete-cluster-redeploy.sh"},{"name":"Full Deploy → Delete Local Config → Redeploy","script":"one-shot-full-delete-local-redeploy.sh"}]') }}
+        include: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
       max-parallel: 2
 
     steps:

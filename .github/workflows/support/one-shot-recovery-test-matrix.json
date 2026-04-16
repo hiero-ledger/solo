@@ -1,12 +1,18 @@
 [
   {
+    "name": "Interrupt → Delete Local Config → Redeploy",
+    "script": "one-shot-interrupt-delete-local-redeploy.sh"
+  },
+  {
+    "name": "Interrupt → Delete Cluster → Redeploy",
+    "script": "one-shot-interrupt-delete-cluster-redeploy.sh"
+  },
+  {
     "name": "Full Deploy → Delete Cluster → Redeploy",
-    "script": "one-shot-full-delete-cluster-redeploy.sh",
-    "description": "Runs a complete one-shot deploy to success, deletes the Kind cluster while keeping local config, then verifies a subsequent redeploy recreates the cluster and succeeds"
+    "script": "one-shot-full-delete-cluster-redeploy.sh"
   },
   {
     "name": "Full Deploy → Delete Local Config → Redeploy",
-    "script": "one-shot-full-delete-local-redeploy.sh",
-    "description": "Runs a complete one-shot deploy to success, deletes ~/.solo while keeping the cluster running, then verifies a subsequent redeploy restores local config from remote and skips already-deployed steps"
+    "script": "one-shot-full-delete-local-redeploy.sh"
   }
 ]
