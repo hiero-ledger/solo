@@ -3,7 +3,7 @@
 /**
  * Persistently port-forward a local port to a port on a Kubernetes pod.
  * This solves an issue where a detached port-forward can be terminated by network issues.
- * Usage: persist-port-forward <namespace> <pod> [context] <port_map> [kubectl_executable] [kubectl_installation_dir]
+ * Usage: persist-port-forward <namespace> <pod> <context> <port_map> [kubectl_executable] [kubectl_installation_dir]
  * Note: <port_map> needs to be in the format <local>:<remote>.
  */
 
@@ -12,15 +12,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, fourthArgument, fifthArgument, KUBECTL_EXECUTABLE, KUBECTL_INSTALLATION_DIRECTORY] =
-  process.argv;
-const hasContextArgument: boolean = !!fourthArgument && !fourthArgument.includes(':');
-const CONTEXT: string | undefined = hasContextArgument ? fourthArgument : undefined;
-const PORT_MAP: string | undefined = hasContextArgument ? fifthArgument : fourthArgument;
+const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE, KUBECTL_INSTALLATION_DIRECTORY] = process.argv;
 
-if (!NAMESPACE || !POD || !PORT_MAP) {
+if (!NAMESPACE || !POD || !CONTEXT || !PORT_MAP) {
   console.error(
-    'Usage: persist-port-forward <namespace> <pod> [context] <port_map> [kubectl_executable] [kubectl_installation_dir]',
+    'Usage: persist-port-forward <namespace> <pod> <context> <port_map> [kubectl_executable] [kubectl_installation_dir]',
   );
   // eslint-disable-next-line unicorn/no-process-exit,n/no-process-exit
   process.exit(2);
@@ -99,9 +95,15 @@ async function executeKubectl(
 
       const stderrOutput: string = stderrChunks.join('');
       const signalMessage: string = signal ? `\nProcess terminated by signal: ${signal}` : '';
+      let exitCode: number = 1;
+      if (typeof code === 'number') {
+        exitCode = code;
+      } else if (stopping && (signal === 'SIGTERM' || signal === 'SIGINT')) {
+        exitCode = 0;
+      }
 
       resolve({
-        code: typeof code === 'number' ? code : 1,
+        code: exitCode,
         stdout: stdoutChunks.join(''),
         stderr: `${stderrOutput}${signalMessage}`,
       });
