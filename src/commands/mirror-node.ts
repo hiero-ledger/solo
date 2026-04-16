@@ -1158,7 +1158,7 @@ export class MirrorNodeCommand extends BaseCommand {
             ];
 
             return parentTask.newListr(subTasks, {
-              concurrent: _.config.parallelDeploy,
+              concurrent: false, // shared resources must be configured and DB initialized before mirror chart is installed
               rendererOptions: {
                 collapseSubtasks: false,
               },
