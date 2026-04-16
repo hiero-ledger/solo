@@ -16,17 +16,17 @@ import {type SoloListrTask} from '../../../types/index.js';
 import {type AnyListrContext} from '../../../types/aliases.js';
 import chalk from 'chalk';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
-import {type FileSystemCacheCatalogStore} from './file-system-cache-catalog-store.js';
+import {type CacheCatalogStore} from '../api/cache-catalog-store.js';
 
 export class ImageCacheHandler implements CacheOperationHandler {
   public constructor(
     private readonly engine: ContainerEngineClient,
     private readonly provider: CacheTargetProvider,
-    @inject(InjectTokens.FileSystemCacheCatalogStore) public readonly store?: FileSystemCacheCatalogStore,
+    @inject(InjectTokens.CacheCatalogStore) public readonly store?: CacheCatalogStore,
     @inject(InjectTokens.CacheHealthInspector) private readonly inspector?: CacheHealthInspector,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
-    this.store = patchInject(store, InjectTokens.FileSystemCacheCatalogStore, this.constructor.name);
+    this.store = patchInject(store, InjectTokens.CacheCatalogStore, this.constructor.name);
     this.inspector = patchInject(inspector, InjectTokens.CacheHealthInspector, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }

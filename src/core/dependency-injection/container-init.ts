@@ -204,7 +204,7 @@ export class Container {
 
       // Cache
       new SingletonContainer(InjectTokens.CacheHandlerRegistry, DefaultCacheHandlerRegistry),
-      new SingletonContainer(InjectTokens.FileSystemCacheCatalogStore, FileSystemCacheCatalogStore),
+      new SingletonContainer(InjectTokens.CacheCatalogStore, FileSystemCacheCatalogStore),
       new SingletonContainer(InjectTokens.CacheHealthInspector, DefaultCacheHealthInspector),
       new SingletonContainer(InjectTokens.ImageCacheHandlerBuilder, ImageCacheHandlerBuilder),
       new SingletonContainer(InjectTokens.ContainerEngineClient, DockerClient),
