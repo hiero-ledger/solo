@@ -138,3 +138,10 @@ jobs:
         if: always()
         timeout-minutes: 5
         run: kind delete cluster --name solo-cluster 2>/dev/null || true
+
+  recovery-scenarios:
+    name: Recovery Scenarios
+    uses: ./.github/workflows/flow-one-shot-recovery-scenarios.yaml
+    with:
+      node-version: ${{ inputs.node-version || '22' }}
+      released-or-latest: ${{ inputs.released-or-latest || false }}

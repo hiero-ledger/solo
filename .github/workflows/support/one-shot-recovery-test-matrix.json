@@ -1,5 +1,9 @@
 [
   {
+    "name": "Interrupt → Redeploy",
+    "script": "one-shot-interrupt-redeploy.sh"
+  },
+  {
     "name": "Interrupt → Delete Local Config → Redeploy",
     "script": "one-shot-interrupt-delete-local-redeploy.sh"
   },
