@@ -575,8 +575,7 @@ export class BlockNodeCommand extends BaseCommand {
                 )
               : [];
             return !existingBlockNodes.some(
-              (node: BlockNodeStateSchema): boolean =>
-                node.metadata.phase === DeploymentPhase.REQUESTED,
+              (node: BlockNodeStateSchema): boolean => node.metadata.phase === DeploymentPhase.REQUESTED,
             );
           },
           task: async ({config}): Promise<void> => {
@@ -585,10 +584,7 @@ export class BlockNodeCommand extends BaseCommand {
             await this.chartManager.uninstall(namespace, releaseName, context);
             // Delete orphaned PVCs whose names end with the StatefulSet pod suffix
             // (e.g. logging-storage-block-node-1-0, archive-storage-block-node-1-0, …).
-            const allPvcNames: string[] = await this.k8Factory
-              .getK8(context)
-              .pvcs()
-              .list(namespace, []);
+            const allPvcNames: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
             const suffix: string = `-${releaseName}-0`;
             for (const pvcName of allPvcNames) {
               if (pvcName.endsWith(suffix)) {
@@ -884,6 +880,17 @@ export class BlockNodeCommand extends BaseCommand {
             config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
             config.currentVersion =
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.toString() ?? '0.0.0';
+
+            if (config.currentVersion !== '0.0.0') {
+              const currentSemVersion: SemanticVersion<string> = new SemanticVersion<string>(config.currentVersion);
+              const targetSemVersion: SemanticVersion<string> = new SemanticVersion<string>(config.upgradeVersion);
+              if (targetSemVersion.lessThanOrEqual(currentSemVersion)) {
+                throw new SoloError(
+                  `Block node upgrade target version ${config.upgradeVersion} is not newer than the current version ${config.currentVersion} stored in remote config. ` +
+                    'Use --upgrade-version to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
