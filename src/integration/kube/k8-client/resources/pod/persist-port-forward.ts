@@ -3,9 +3,8 @@
 /**
  * Persistently port-forward a local port to a port on a Kubernetes pod.
  * This solves an issue where a detatched port-forward can be terminated by network issues.
- * Usage: persist-port-forward <namespace> <pod> <port_map> [context]
- * Note: The last parameter has to be <port_map>, and it needs to be in the format <local>:<remote>.
- * This ensures compatibility with existing K8ClientPod port forwarding logic.
+ * Usage: persist-port-forward <namespace> <pod> [context] <port_map> [kubectl_executable] [kubectl_installation_dir]
+ * Note: <port_map> needs to be in the format <local>:<remote>.
  */
 
 import {spawn, type ChildProcess} from 'node:child_process';
@@ -13,10 +12,16 @@ import os from 'node:os';
 import path from 'node:path';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE] = process.argv;
+const [, , NAMESPACE, POD, fourthArgument, fifthArgument, KUBECTL_EXECUTABLE, KUBECTL_INSTALLATION_DIRECTORY] =
+  process.argv;
+const hasContextArgument: boolean = !!fourthArgument && !fourthArgument.includes(':');
+const CONTEXT: string | undefined = hasContextArgument ? fourthArgument : undefined;
+const PORT_MAP: string | undefined = hasContextArgument ? fifthArgument : fourthArgument;
 
 if (!NAMESPACE || !POD || !PORT_MAP) {
-  console.error('Usage: persist-port-forward <namespace> <pod> <local> <remote> [context]');
+  console.error(
+    'Usage: persist-port-forward <namespace> <pod> [context] <port_map> [kubectl_executable] [kubectl_installation_dir]',
+  );
   // eslint-disable-next-line unicorn/no-process-exit,n/no-process-exit
   process.exit(2);
 }
@@ -52,36 +57,6 @@ function isTerminalKubectlError(message: string): boolean {
   );
 }
 
-function prepareCommandForPlatform(
-  command: string,
-  commandArguments: string[],
-): {command: string; arguments_: string[]} {
-  if (os.platform() !== 'win32') {
-    return {command, arguments_: commandArguments};
-  }
-
-  const argumentsLength: number = commandArguments.length;
-  const quotedArguments: string[] = commandArguments.map((anArgument, index): string => {
-    if (index < argumentsLength - 1) {
-      return `"${anArgument}",`;
-    }
-    return `"${anArgument}"`;
-  });
-
-  return {
-    command: 'powershell.exe',
-    arguments_: [
-      'Start-Process',
-      '-FilePath',
-      `"${command}"`,
-      '-WindowStyle',
-      'Hidden',
-      '-ArgumentList',
-      ...quotedArguments,
-    ],
-  };
-}
-
 async function executeKubectl(
   commandArguments: string[],
   kubectlInstallationDirectory: string,
@@ -90,12 +65,9 @@ async function executeKubectl(
   return await new Promise((resolve): void => {
     const stdoutChunks: string[] = [];
     const stderrChunks: string[] = [];
-    const initialCommand: string = KUBECTL_EXECUTABLE || 'kubectl';
-    const commandInfo: {command: string; arguments_: string[]} = prepareCommandForPlatform(initialCommand, [
-      ...commandArguments,
-    ]);
+    const kubectlCommand: string = KUBECTL_EXECUTABLE || 'kubectl';
 
-    const kubectlProcess: ChildProcess = spawn(commandInfo.command, commandInfo.arguments_, {
+    const kubectlProcess: ChildProcess = spawn(kubectlCommand, commandArguments, {
       env: {...process.env, PATH: `${kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
       stdio: options.captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
       windowsHide: os.platform() === 'win32',
@@ -120,22 +92,25 @@ async function executeKubectl(
       });
     });
 
-    kubectlProcess.on('close', (code): void => {
+    kubectlProcess.on('close', (code, signal): void => {
       if (options.trackAsChild && child?.pid === kubectlProcess.pid) {
         child = undefined;
       }
 
+      const stderrOutput: string = stderrChunks.join('');
+      const signalMessage: string = signal ? `\nProcess terminated by signal: ${signal}` : '';
+
       resolve({
-        code: typeof code === 'number' ? code : 0,
+        code: typeof code === 'number' ? code : 1,
         stdout: stdoutChunks.join(''),
-        stderr: stderrChunks.join(''),
+        stderr: `${stderrOutput}${signalMessage}`,
       });
     });
   });
 }
 
 /**
- * Check if a cluster or name space is still available, should restart the portfolio process or exit
+ * Check if a cluster or namespace is still available, and whether to restart the port-forward process or exit.
  */
 async function shouldExitForMissingTarget(kubectlInstallationDirectory: string): Promise<boolean> {
   const baseArguments: string[] = CONTEXT ? ['--context', CONTEXT] : [];
@@ -202,7 +177,7 @@ function sleepSeconds(s: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const kubectlInstallationDirectory: string = process.argv[7] || '';
+  const kubectlInstallationDirectory: string = KUBECTL_INSTALLATION_DIRECTORY || '';
   while (!stopping) {
     if (await shouldExitForMissingTarget(kubectlInstallationDirectory)) {
       break;
