@@ -26,6 +26,7 @@ export default [
       '.github/**/*', // GitHub files
       '!.github/**/*.ts', // ...except TypeScript files
       '.idea/**/*', // IDE files
+      '.claude/**/*', // Claude AI files
       'coverage/**/*', // Coverage files
       'docs/**/*', // Documentation files
       'examples/**/*', // Example files
