@@ -3180,27 +3180,7 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          // add retry logic
-          const attempts: number = 5;
-          let attempt: number = 0;
-          let found: boolean = false;
-          while (attempt < attempts) {
-            this.logger.info(
-              `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
-            );
-            try {
-              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
-                found = true;
-                break;
-              }
-            } catch {
-              await new Promise(resolve => setTimeout(resolve, 2000)); // wait for 5 seconds before retrying
-              attempt++;
-            }
-            break;
-          }
-
-          if (found) {
+          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
             continue;
           }
 
