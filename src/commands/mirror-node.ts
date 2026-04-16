@@ -1112,20 +1112,6 @@ END $grant$;`;
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            try {
-              this.localConfig.configuration.realmForDeployment('sdsdsdsds');
-            } catch (error) {
-              throw SoloError.withCode(
-                SoloErrorCode.POD_NOT_READY,
-                {
-                  pod: 'POD1',
-                  namespace: 'sdsdsds',
-                  timeout: '9999',
-                },
-                error,
-              );
-            }
-
             await this.localConfig.load();
             await this.loadRemoteConfigOrWarn(argv);
             if (!this.oneShotState.isActive()) {
