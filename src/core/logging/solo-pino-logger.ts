@@ -183,6 +183,16 @@ export class SoloPinoLogger implements SoloLogger {
         console.log(chalk.yellow(line));
       }
     }
+    if (!this.developmentMode) {
+      const troubleshootingSteps: ReadonlyArray<string> | undefined =
+        error instanceof SoloError ? error.getTroubleshootingSteps() : undefined;
+      if (troubleshootingSteps && troubleshootingSteps.length > 0) {
+        console.log(chalk.cyan('─────────────────────────────── TROUBLESHOOTING ───────────────────────────────────'));
+        for (const [index, step] of troubleshootingSteps.entries()) {
+          console.log(chalk.cyan(`  ${index + 1}.`) + ' ' + step);
+        }
+      }
+    }
     console.log(chalk.red('***********************************************************************************'));
 
     // Persist the error with structure

@@ -4,6 +4,7 @@ import {type ErrorContext} from './error-context.js';
 import {type ErrorRegistryEntry} from './error-registry-entry.js';
 import {type SoloErrorCode} from './solo-error-code.js';
 import {ErrorRegistry} from './error-registry.js';
+import {LocaleRegistry} from '../locales/locale-registry.js';
 
 export class SoloError extends Error {
   public readonly statusCode?: number;
@@ -56,9 +57,24 @@ export class SoloError extends Error {
    */
   public static withCode(code: SoloErrorCode, context?: ErrorContext, cause?: Error): SoloError {
     const entry: ErrorRegistryEntry | undefined = ErrorRegistry.get(code);
-    const message: string = entry
-      ? ErrorRegistry.interpolate(entry.messageTemplate, context ?? {})
-      : ErrorRegistry.formatCode(code);
+    const template: string = entry ? LocaleRegistry.getMessage(entry.messageTemplate) : ErrorRegistry.formatCode(code);
+    const message: string = ErrorRegistry.interpolate(template, context ?? {});
     return new SoloError(message, cause ?? {}, {}, {errorCode: code, context});
+  }
+
+  /**
+   * Returns the localized, context-interpolated troubleshooting steps for this error,
+   * or undefined if none are defined in the registry.
+   */
+  public getTroubleshootingSteps(): ReadonlyArray<string> | undefined {
+    if (!this.errorCode) {
+      return undefined;
+    }
+    const entry: ErrorRegistryEntry | undefined = ErrorRegistry.get(this.errorCode);
+    if (!entry?.troubleshootingSteps) {
+      return undefined;
+    }
+    const steps: ReadonlyArray<string> | undefined = LocaleRegistry.getTroubleshootingSteps(entry.troubleshootingSteps);
+    return steps?.map((step: string): string => ErrorRegistry.interpolate(step, this.context ?? {}));
   }
 }
