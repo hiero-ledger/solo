@@ -253,7 +253,7 @@ jobs:
         # subsequent run sharing the same version.ts hash. Docker Hub is contacted at most
         # once per version bump — preventing anonymous rate-limit 429s.
         if: ${{ matrix.example.local-java-build }}
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.solo/helm-chart-cache
           key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}
