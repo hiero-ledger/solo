@@ -25,6 +25,17 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
 
+// A snapshot file on disk has AggregatedMetrics' fields plus the peakMemoryInMebibytes
+// we inject during logMetrics().
+type AugmentedSnapshot = AggregatedMetrics & {peakMemoryInMebibytes: number};
+
+// The per-namespace summary adds peak attribution on top of a representative snapshot.
+type PerformanceSummary = AugmentedSnapshot & {
+  peakCpuInMillicores: number;
+  peakCpuSnapshot: string;
+  peakMemorySnapshot: string;
+};
+
 const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
@@ -140,12 +151,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // Use the max-memory snapshot as the representative record since memory
           // pressure reflects actual workload behavior, not startup CPU spikes
           const representativeFileName: string = `${maxMemoryFile}.json`;
-          const snapshotRecord: Record<string, unknown> = allMetrics[maxMemoryFile] as unknown as Record<
-            string,
-            unknown
-          >;
-          const {clusterMetrics: clusterMetricsData, ...summaryFields} = snapshotRecord;
-          const namespaceJson: Record<string, unknown> = {
+          const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
+          const namespaceJson: PerformanceSummary = {
             ...summaryFields,
             peakCpuInMillicores: maxCpuMetrics,
             peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
@@ -277,10 +284,9 @@ export async function logMetrics(startTime: Date): Promise<void> {
   // Track running peak memory and inject it into the snapshot file
   const snapshotPath: string = PathEx.join(tartgetDirectory, `${elapsedMilliseconds}.json`);
   if (fs.existsSync(snapshotPath)) {
-    const snapshot: Record<string, unknown> = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-    const snapshotMemory: number = (snapshot.memoryInMebibytes as number) ?? 0;
-    if (snapshotMemory > peakMemoryInMebibytes) {
-      peakMemoryInMebibytes = snapshotMemory;
+    const snapshot: AugmentedSnapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    if (snapshot.memoryInMebibytes > peakMemoryInMebibytes) {
+      peakMemoryInMebibytes = snapshot.memoryInMebibytes;
     }
     snapshot.peakMemoryInMebibytes = peakMemoryInMebibytes;
     fs.writeFileSync(snapshotPath, JSON.stringify(snapshot), 'utf8');
