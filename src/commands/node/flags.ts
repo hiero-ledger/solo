@@ -214,6 +214,11 @@ export const LOGS_FLAGS: CommandFlags = {
   optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
+export const REPORT_FLAGS: CommandFlags = {
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.outputDir],
+};
+
 export const ANALYZE_FLAGS: CommandFlags = {
   required: [],
   optional: [flags.inputDir, flags.quiet],
@@ -304,6 +309,6 @@ export const COLLECT_JFR_FLAGS: CommandFlags = {
 };
 
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.devMode],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.devMode],
 };

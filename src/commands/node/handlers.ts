@@ -39,6 +39,14 @@ import {Deployment} from '../../business/runtime-state/config/local/deployment.j
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
+import {getSoloVersion} from '../../../version.js';
+import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
+import {
+  findDeploymentsFromRemoteConfig,
+  getSoloRemoteConfigMapTask,
+  type RemoteDeploymentInfo,
+} from '../util/remote-config-collector.js';
+import {type K8Factory} from '../../integration/kube/k8-factory.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -51,6 +59,7 @@ export class NodeCommandHandlers extends CommandHandler {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
+    @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
   ) {
     super();
@@ -59,6 +68,7 @@ export class NodeCommandHandlers extends CommandHandler {
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
@@ -68,7 +78,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
 
-  private resolveOutputDirectory(argv: ArgvStruct, fallback = ''): string {
+  private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
   }
@@ -649,14 +659,23 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeLogsAndConfigs(),
-        this.tasks.getHelmChartValues(),
+        this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
+        this.tasks.getHelmChartValues(outputDirectory),
+        getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
       null,
+    );
+
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠  Warning: Collected diagnostic data contains sensitive node configuration\n' +
+          '   (TLS certificates, private keys, onboard data). Store it securely and do\n' +
+          '   not share publicly without reviewing the contents first.',
+      ),
     );
 
     return true;
@@ -695,9 +714,40 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (validDeployments.length === 0) {
-      throw new SoloError(
-        `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
+      const remoteDeployments: Map<string, RemoteDeploymentInfo> = await findDeploymentsFromRemoteConfig(
+        this.k8Factory,
+        this.logger,
       );
+      if (remoteDeployments.size === 0) {
+        throw new SoloError(
+          `No deployments found in local or remote config. Please provide --${flags.deployment.name} or create a deployment first.`,
+        );
+      }
+
+      const remoteDeploymentNames: string[] = [...remoteDeployments.keys()];
+
+      let selectedFromRemote: string;
+      if (remoteDeploymentNames.length === 1) {
+        selectedFromRemote = remoteDeploymentNames[0];
+        this.logger.showUser(`Using deployment from remote config: ${selectedFromRemote}`);
+      } else if ((argv[flags.quiet.name] as boolean) === true) {
+        const names: string = remoteDeploymentNames.join(', ');
+        throw new SoloError(
+          `Multiple deployments found in remote config (${names}). Please provide --${flags.deployment.name}.`,
+        );
+      } else {
+        selectedFromRemote = (await selectPrompt({
+          message: 'Select deployment for diagnostics logs:',
+          choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
+        })) as string;
+        this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
+      }
+
+      const remoteInfo: RemoteDeploymentInfo = remoteDeployments.get(selectedFromRemote)!;
+      argv[flags.deployment.name] = selectedFromRemote;
+      argv[flags.namespace.name] = remoteInfo.namespace;
+      argv[flags.context.name] = remoteInfo.context;
+      return;
     }
 
     if (validDeployments.length === 1) {
@@ -722,18 +772,19 @@ export class NodeCommandHandlers extends CommandHandler {
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
   }
 
-  public async all(argv: ArgvStruct): Promise<boolean> {
+  public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    await this.resolveDeploymentForLogs(argv);
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeLogsAndConfigs(),
-        this.tasks.getHelmChartValues(),
+        this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
+        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
+        getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
-        this.tasks.getNodeStateFiles(),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -744,9 +795,9 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async debug(argv: ArgvStruct): Promise<boolean> {
+  public async debug(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     // First run all diagnostics
-    await this.all(argv);
+    await this.all(argv, excludeSensitiveData);
 
     // Then create a zip file from the logs directory
     const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
@@ -757,6 +808,15 @@ export class NodeCommandHandlers extends CommandHandler {
 
     this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
     this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
+    if (!excludeSensitiveData) {
+      this.logger.showUser(
+        chalk.yellow(
+          '\n⚠  Warning: The debug archive contains sensitive node configuration\n' +
+            '   (TLS certificates, private keys, onboard data). Review its contents\n' +
+            '   before sharing. Private keys under data/keys are NOT excluded.',
+        ),
+      );
+    }
 
     try {
       await this.zippy.zip(outputDirectory, zipFilePath);
@@ -771,6 +831,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async connections(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    await this.resolveDeploymentForLogs(argv);
 
     await this.commandAction(
       argv,
@@ -794,6 +855,37 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.fetchAccountFromExplorer(),
       this.tasks.testRelay(),
     ];
+  }
+
+  /**
+   * Collects a full debug archive for the deployment (logs + configs + zip) and
+   * then creates a GitHub issue using the `gh` CLI with a pre-filled title and body.
+   * The generated archive is referenced for the user to attach manually via the GitHub UI.
+   *
+   * Steps:
+   *  1. Collect logs and create a zip via `deployment diagnostics debug`
+   *  2. Verify the `gh` CLI is installed
+   *  3. Prompt the user to confirm issue creation (skipped in quiet mode)
+   *  4. Create a GitHub issue with a pre-filled title and body referencing the zip,
+   *     then instruct the user to attach the archive manually
+   */
+  public async report(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
+    // Resolve deployment before calling collectDebug() so it's available for the issue title/body
+    await this.resolveDeploymentForLogs(argv);
+
+    await DiagnosticsReporter.runDiagnosticsReport({
+      logger: this.logger,
+      deployment: this.resolveDeploymentFlag(argv),
+      outputDirectory: this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR),
+      soloVersion: getSoloVersion(),
+      isQuiet: (argv[flags.quiet.name] as boolean) === true,
+      collectDebug: async (): Promise<void> => {
+        await this.debug(argv, true);
+      },
+    });
+
+    return true;
   }
 
   public async states(argv: ArgvStruct): Promise<boolean> {
