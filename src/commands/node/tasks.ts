@@ -397,7 +397,7 @@ export class NodeCommandTasks {
             this.logger.showUser(
               chalk.yellowBright(
                 'The release tag could not be verified, please ensure that the release tag passed on the command line ' +
-                'matches the release tag of the code in the local build path directory',
+                  'matches the release tag of the code in the local build path directory',
               ),
             );
           }
@@ -526,29 +526,6 @@ export class NodeCommandTasks {
     });
   }
 
-  public waitForNodesTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Wait for nodes to be active',
-      skip: (): boolean => !this.oneShotState.isActive(),
-      task: (_, task): SoloListr<AnyListrContext> => {
-        const subTasks: SoloListrTask<AnyListrContext>[] = [];
-
-        for (const node of this.remoteConfig.getConsensusNodes()) {
-          const title: string = `Check network pod: ${chalk.yellow(node.name)}`;
-
-          subTasks.push({
-            title,
-            task: async (_, task): Promise<void> => {
-              await this.checkNetworkNodeActiveness(NamespaceName.of(node.namespace), node.name, task, title);
-            },
-          });
-        }
-
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
-      },
-    };
-  }
-
   public async checkNetworkNodeActiveness(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
@@ -629,7 +606,7 @@ export class NodeCommandTasks {
     if (!success) {
       throw new SoloError(
         `node '${nodeAlias}' is not ${NodeStatusEnums[status]}` +
-        `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
+          `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
       );
     }
 
@@ -1027,8 +1004,8 @@ export class NodeCommandTasks {
     return {
       title: 'Download generated files from an existing node',
       task: async ({
-                     config: {nodeAlias, existingNodeAliases, consensusNodes, stagingDir, keysDir, namespace},
-                   }): Promise<void> => {
+        config: {nodeAlias, existingNodeAliases, consensusNodes, stagingDir, keysDir, namespace},
+      }): Promise<void> => {
         // don't try to download from the same node we are deleting, it won't work
         const targetNodeAlias: NodeAlias =
           nodeAlias === existingNodeAliases[0] && existingNodeAliases.length > 1
@@ -1081,9 +1058,9 @@ export class NodeCommandTasks {
         await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
           ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
           : k8Container.copyFrom(
-            `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
-            `${stagingDir}/templates`,
-          ));
+              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+              `${stagingDir}/templates`,
+            ));
       },
     };
   }
@@ -1398,22 +1375,22 @@ export class NodeCommandTasks {
 
         return localBuildPath === ''
           ? this._fetchPlatformSoftware(
-            context_.config[aliasesField],
-            podRefs,
-            releaseTag,
-            task,
-            this.platformInstaller,
-            context_.config.consensusNodes,
-            context_.config.stagingDir,
-          )
+              context_.config[aliasesField],
+              podRefs,
+              releaseTag,
+              task,
+              this.platformInstaller,
+              context_.config.consensusNodes,
+              context_.config.stagingDir,
+            )
           : this._uploadPlatformSoftware(
-            context_.config[aliasesField],
-            podRefs,
-            task,
-            localBuildPath,
-            context_.config.consensusNodes,
-            releaseTag,
-          );
+              context_.config[aliasesField],
+              podRefs,
+              task,
+              localBuildPath,
+              context_.config.consensusNodes,
+              releaseTag,
+            );
       },
     };
   }
@@ -1842,15 +1819,15 @@ export class NodeCommandTasks {
               );
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
-                  'bash',
-                  '-c',
-                  '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
-                ])
+                    'bash',
+                    '-c',
+                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
+                  ])
                 : container.execContainer([
-                  'bash',
-                  '-c',
-                  'systemctl stop network-node || true && systemctl enable --now network-node',
-                ]));
+                    'bash',
+                    '-c',
+                    'systemctl stop network-node || true && systemctl enable --now network-node',
+                  ]));
             },
           });
         }
@@ -2241,7 +2218,7 @@ export class NodeCommandTasks {
         if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
-            chalk.grey('no consensus node configuration files to be updated'),
+              chalk.grey('no consensus node configuration files to be updated'),
           );
 
           return;
@@ -2376,6 +2353,7 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
+        // @ts-ignore
         const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
           {
             title: 'Update all charts',
@@ -2405,7 +2383,41 @@ export class NodeCommandTasks {
               );
             },
           },
-          this.checkAllNodesAreFrozen('existingNodeAliases'),
+          {
+            title: 'wait',
+            task: async (): Promise<void> => {
+              await sleep(Duration.ofSeconds(20));
+            },
+          },
+          {
+            title: 'Check node pods are running',
+            task: (_, task): SoloListr<NodeConnectionsContext> => {
+              const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+              for (const node of config.consensusNodes) {
+                waitSubTasks.push({
+                  title: `Check Node: ${chalk.yellow(node.name)}, Cluster: ${chalk.yellow(node.cluster)}`,
+                  task: async (): Promise<void> => {
+                    await this.k8Factory
+                      .getK8(node.context)
+                      .pods()
+                      .waitForReadyStatus(
+                        NamespaceName.of(node.namespace),
+                        [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                      );
+                  },
+                });
+              }
+
+              return task.newListr(waitSubTasks, {
+                concurrent: true,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+          },
         ];
 
         // @ts-ignore
@@ -2554,13 +2566,13 @@ export class NodeCommandTasks {
   }
 
   private validateComponentData({
-                                  portForwards,
-                                  namespace,
-                                  clusterReference,
-                                  contextName,
-                                  componentId,
-                                  componentDisplayName,
-                                }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+    portForwards,
+    namespace,
+    clusterReference,
+    contextName,
+    componentId,
+    componentDisplayName,
+  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
     return {
       title: cyan(componentDisplayName),
       task: (_, task): SoloListr<NodeConnectionsContext> | void => {
@@ -3173,7 +3185,27 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+          // add retry logic
+          const attempts: number = 5;
+          let attempt: number = 0;
+          let found: boolean = false;
+          while (attempt < attempts) {
+            this.logger.info(
+              `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+            );
+            try {
+              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+                found = true;
+                break;
+              }
+            } catch {
+              await new Promise(resolve => setTimeout(resolve, 2000)); // wait for 5 seconds before retrying
+              attempt++;
+            }
+            break;
+          }
+
+          if (found) {
             continue;
           }
 
@@ -3364,11 +3396,11 @@ export class NodeCommandTasks {
       valuesArgumentMap[clusterReference] +=
         newAccountNumber && consensusNode.name === nodeAlias
           ? ` --set "hedera.nodes[${index}].accountId=${newAccountNumber}"` +
-          ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
+            ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
+            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
           : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+            ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
+            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
 
       if (constants.ENABLE_S6_IMAGE) {
         valuesArgumentMap[clusterReference] = addRootImageValues(
