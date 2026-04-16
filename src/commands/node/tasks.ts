@@ -3180,7 +3180,7 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          const attempts: number = 5;
+          const attempts: number = 10;
           let attempt: number = 0;
           let found: boolean = false;
           while (attempt < attempts) {
