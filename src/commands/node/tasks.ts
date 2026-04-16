@@ -375,24 +375,24 @@ export class NodeCommandTasks {
 
       // The local build path points to the `data` directory itself (containing apps/ and lib/).
       // Validate that it contains jar files in each subdirectory to catch incorrect paths early.
-      const appsSubDirectory: string = path.join(localDataLibraryBuildPath, 'apps');
-      const libSubDirectory: string = path.join(localDataLibraryBuildPath, 'lib');
-      if (!fs.existsSync(appsSubDirectory) || !fs.existsSync(libSubDirectory)) {
+      const applicationsSubDirectory: string = path.join(localDataLibraryBuildPath, 'apps');
+      const librarySubDirectory: string = path.join(localDataLibraryBuildPath, 'lib');
+      if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
         throw new SoloError(
           `local build path '${localDataLibraryBuildPath}' must contain 'apps' and 'lib' subdirectories`,
         );
       }
-      const appsJarFiles: string[] = fs
-        .readdirSync(appsSubDirectory)
+      const applicationsJarFiles: string[] = fs
+        .readdirSync(applicationsSubDirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
-      if (appsJarFiles.length === 0) {
-        throw new SoloError(`No jar files found in '${appsSubDirectory}'; please check your local build path`);
+      if (applicationsJarFiles.length === 0) {
+        throw new SoloError(`No jar files found in '${applicationsSubDirectory}'; please check your local build path`);
       }
-      const libJarFiles: string[] = fs
-        .readdirSync(libSubDirectory)
+      const libraryJarFiles: string[] = fs
+        .readdirSync(librarySubDirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
-      if (libJarFiles.length === 0) {
-        throw new SoloError(`No jar files found in '${libSubDirectory}'; please check your local build path`);
+      if (libraryJarFiles.length === 0) {
+        throw new SoloError(`No jar files found in '${librarySubDirectory}'; please check your local build path`);
       }
 
       const k8: K8 = this.k8Factory.getK8(context);
