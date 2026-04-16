@@ -1885,13 +1885,11 @@ export class NodeCommandTasks {
   private buildStartNetworkNodeCommand(): string {
     const lifecycleHelperPath: string = '/command/network-node-lifecycle';
     return [
-      // Persist "enabled" state so the autostart oneshot can bring network-node back
-      // automatically when the pod restarts in later operations.
-      `touch ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
       // Fail fast when the helper is missing so callers immediately know the image
       // does not satisfy Solo's lifecycle contract.
       `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
-      `"${lifecycleHelperPath}" start`,
+      // The helper owns both service control and autostart marker semantics.
+      `"${lifecycleHelperPath}" start-and-enable-autostart`,
     ].join('\n');
   }
 
@@ -1902,12 +1900,10 @@ export class NodeCommandTasks {
   private buildStopNetworkNodeCommand(): string {
     const lifecycleHelperPath: string = '/command/network-node-lifecycle';
     return [
-      // Remove the enabled marker to prevent autostart after pod/container restarts.
-      `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`,
       `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
       // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
       // solo-container's /command/network-node-lifecycle helper.
-      `"${lifecycleHelperPath}" stop`,
+      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
     ].join('\n');
   }
 
@@ -3624,7 +3620,11 @@ export class NodeCommandTasks {
               .getK8(service.context)
               .containers()
               .readByRef(containerReference)
-              .execContainer(['bash', '-c', `rm -f ${constants.HEDERA_HAPI_PATH}/state/network-node.enabled`]);
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
           } catch {
             // Best-effort: container may already be restarting; the kill below will follow
           }
