@@ -3180,7 +3180,25 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+          const attempts: number = 5;
+          let attempt: number = 0;
+          let found: boolean = false;
+          while (attempt < attempts) {
+            try {
+              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+                found = true;
+                break;
+              }
+            } catch {
+              this.logger.info(
+                `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+              );
+              await sleep(Duration.ofSeconds(2));
+              attempt++;
+            }
+          }
+
+          if (found) {
             continue;
           }
 
@@ -3742,13 +3760,13 @@ export class NodeCommandTasks {
     return {
       title: 'Upload last saved state to new network node',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-        const nodeAlias: any = config.nodeAlias || config.nodeAliases[0];
+        const config: NodeAddConfigClass = context_.config;
+        const nodeAlias: NodeAlias = config.nodeAlias || config.nodeAliases[0];
         const newNodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const savedStateDirectory: any = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const savedStateDirectory: string = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
         const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
