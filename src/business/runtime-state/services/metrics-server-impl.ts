@@ -246,7 +246,10 @@ export class MetricsServerImpl implements MetricsServer {
     context: Context,
     postgresPodName: PodName,
   ): Promise<number> {
-    if (!namespace) {
+    if (!namespace || !postgresPodName) {
+      this.logger.debug(
+        `getNetworkTransactions skipped: namespace=${namespace?.name}, postgresPodName=${postgresPodName}`,
+      );
       return 0;
     }
 
@@ -262,7 +265,7 @@ export class MetricsServerImpl implements MetricsServer {
         ]);
       return Number.parseInt(result.trim());
     } catch (error) {
-      this.logger.debug(`error looking up transactions: ${error.message}`, error);
+      this.logger.warn(`error looking up transactions: ${error.message}`, error);
     }
     return 0;
   }
