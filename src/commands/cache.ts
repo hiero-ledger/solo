@@ -4,18 +4,18 @@ import {SoloError} from '../core/errors/solo-error.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {AnyListrContext, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type ClusterReferenceName, type Context, type SoloListr, type SoloListrTask} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
 import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {DockerClient} from '../integration/container-engine/docker-client.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CachedItem} from '../integration/cache/models/impl/cached-item.js';
 import {ArtifactHealthResult} from '../integration/cache/models/impl/artifact-health-result.js';
 import fs from 'node:fs/promises';
+import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
 
 interface CachePullConfigClass {
   imageCacheHandler: ImageCacheHandler;
@@ -62,10 +62,16 @@ interface CacheListContext {
 
 @injectable()
 export class CacheCommand extends BaseCommand {
-  public constructor(@inject(InjectTokens.DockerClient) private dockerClient?: DockerClient) {
+  public constructor(
+    @inject(InjectTokens.ContainerEngineClient) private containerEngineClient?: ContainerEngineClient,
+  ) {
     super();
 
-    this.dockerClient = patchInject(dockerClient, InjectTokens.DockerClient, this.constructor.name);
+    this.containerEngineClient = patchInject(
+      containerEngineClient,
+      InjectTokens.ContainerEngineClient,
+      this.constructor.name,
+    );
   }
 
   // ------ Flags ------ //
@@ -350,7 +356,9 @@ export class CacheCommand extends BaseCommand {
   }
 
   private buildImageCacheHandler(): ImageCacheHandler {
-    return ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE).engine(this.dockerClient).build();
+    return ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
+      .engine(this.containerEngineClient)
+      .build();
   }
 
   public async close(): Promise<void> {}

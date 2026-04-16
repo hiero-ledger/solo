@@ -110,7 +110,7 @@ export class InjectTokens {
   public static FileSystemCacheCatalogStore: symbol = Symbol.for('CacheCatalogStore');
   public static CacheHealthInspector: symbol = Symbol.for('CacheHealthInspector');
   public static ImageCacheHandlerBuilder: symbol = Symbol.for('ImageCacheHandlerBuilder');
-  public static DockerClient: symbol = Symbol.for('DockerClient');
+  public static ContainerEngineClient: symbol = Symbol.for('ContainerEngineClient');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
