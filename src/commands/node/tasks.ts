@@ -179,6 +179,7 @@ import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {Listr} from 'listr2';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2214,7 +2215,7 @@ export class NodeCommandTasks {
   public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
-      task: async ({config}, task): Promise<SoloListrTask<NodeConnectionsContext> | void> => {
+      task: async ({config}, task): Promise<Listr<NodeConnectionsContext, any, any> | void> => {
         if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
@@ -2353,7 +2354,7 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
-        // @ts-ignore
+        const upgradeTimestamp: Date = new Date();
         const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
           {
             title: 'Update all charts',
@@ -2384,12 +2385,6 @@ export class NodeCommandTasks {
             },
           },
           {
-            title: 'wait',
-            task: async (): Promise<void> => {
-              await sleep(Duration.ofSeconds(20));
-            },
-          },
-          {
             title: 'Check node pods are running',
             task: (_, task): SoloListr<NodeConnectionsContext> => {
               const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
@@ -2405,6 +2400,7 @@ export class NodeCommandTasks {
                         [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
                         constants.PODS_RUNNING_MAX_ATTEMPTS,
                         constants.PODS_RUNNING_DELAY,
+                        upgradeTimestamp,
                       );
                   },
                 });
@@ -2420,7 +2416,6 @@ export class NodeCommandTasks {
           },
         ];
 
-        // @ts-ignore
         return task.newListr(subTasks, {concurrent: false, rendererOptions: {collapseSubtasks: false}});
       },
     };
