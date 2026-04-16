@@ -5,7 +5,7 @@ import {type CacheTargetStructure} from '../models/cache-target-structure.js';
 import {type ArtifactHealthResultStructure} from '../models/artifact-health-result-structure.js';
 import {type SoloListrTask} from '../../../types/index.js';
 import {type AnyListrContext} from '../../../types/aliases.js';
-import {type CachedItem} from '../models/impl/cached-item.js';
+import {type CachedItemStructure} from '../models/cached-item-structure.js';
 
 /**
  * Strategy contract for handling one cache domain.
@@ -65,7 +65,7 @@ export interface CacheOperationHandler {
    * This is a logical listing of the artifacts the handler expects in the cache.
    * It may be used by callers to inspect or report cache contents.
    */
-  list(): Promise<readonly CachedItem[]>;
+  list(): Promise<readonly CachedItemStructure[]>;
 
   resolveRequiredArtifacts(): Promise<readonly CacheTargetStructure[]>;
 }

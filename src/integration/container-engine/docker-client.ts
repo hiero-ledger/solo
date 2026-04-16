@@ -17,7 +17,7 @@ import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-ima
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
-  private readonly sh: ShellRunner;
+  private readonly shellRunner: ShellRunner;
 
   public constructor(
     @inject(InjectTokens.KindBuilder) private readonly kindBuilder?: DefaultKindClientBuilder,
@@ -27,13 +27,13 @@ export class DockerClient implements ContainerEngineClient {
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.dependencyManager = patchInject(dependencyManager, InjectTokens.DependencyManager, this.constructor.name);
-    this.sh = new ShellRunner(this.logger);
+    this.shellRunner = new ShellRunner(this.logger);
   }
 
   public async pullImage(image: string): Promise<void> {
-    const platformArguments: string = `--platform ${this.quote(this.defaultLinuxPlatform())}`;
+    const platform: string = this.defaultLinuxPlatform();
 
-    await this.sh.run(`docker pull ${platformArguments} ${this.quote(image)}`);
+    await this.shellRunner.run('docker', ['pull', '--platform', platform, image]);
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
@@ -41,11 +41,11 @@ export class DockerClient implements ContainerEngineClient {
 
     const platform: string = this.defaultLinuxPlatform();
 
-    await this.sh.run(`crane pull --platform ${this.quote(platform)} ${this.quote(image)} ${this.quote(archivePath)}`);
+    await this.shellRunner.run('crane', ['pull', '--platform', platform, image, archivePath]);
   }
 
   public async loadImage(archivePath: string): Promise<void> {
-    await this.sh.run(`docker load --input ${this.quote(archivePath)}`);
+    await this.shellRunner.run('docker', ['load', '--input', archivePath]);
   }
 
   public async loadImageArchiveIntoCluster(archivePath: string, clusterReference?: string): Promise<void> {
@@ -61,11 +61,7 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async removeImage(image: string): Promise<void> {
-    await this.sh.run(`docker image rm ${this.quote(image)}`);
-  }
-
-  private quote(value: string): string {
-    return `"${value.replaceAll('"', String.raw`\"`)}"`;
+    await this.shellRunner.run('docker', ['image', 'rm', image]);
   }
 
   private defaultLinuxPlatform(): string {

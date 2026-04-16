@@ -2,9 +2,10 @@
 
 import {parse} from 'yaml';
 import fs from 'node:fs/promises';
-import {CacheTarget} from '../models/impl/cache-target.js';
 import {CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
+import {CacheTarget} from '../models/impl/cache-target.js';
 import {type CacheTargetProvider} from './cache-target-provider.js';
+import {type CacheTargetStructure} from '../models/cache-target-structure.js';
 
 type HelmChartTargetsFile = {
   charts?: Array<{
@@ -32,11 +33,11 @@ type HelmChartTargetsFile = {
 export class YamlHelmChartTargetProvider implements CacheTargetProvider {
   public constructor(private readonly filePath: string) {}
 
-  public async getRequiredTargets(): Promise<readonly CacheTarget[]> {
+  public async getRequiredTargets(): Promise<readonly CacheTargetStructure[]> {
     const raw: string = await fs.readFile(this.filePath, 'utf8');
     const parsed: HelmChartTargetsFile = parse(raw) as HelmChartTargetsFile;
 
-    return (parsed.charts ?? []).map((chart): CacheTarget => {
+    return (parsed.charts ?? []).map((chart): CacheTargetStructure => {
       return new CacheTarget(CacheArtifactEnum.HELM_CHART, chart.name, chart.version, chart.source);
     });
   }
