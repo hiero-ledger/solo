@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
+import {Listr} from 'listr2';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -31,6 +32,16 @@ export type DiagnosticsReportRunOptions = {
   collectDebug: () => Promise<void>;
 };
 
+type DiagnosticsReportContext = {
+  startTime: number;
+  zipSearchDirectory: string;
+  analysisDirectory: string;
+  zipFilePath?: string;
+  issueTitle?: string;
+  issueBody?: string;
+  cancelled: boolean;
+};
+
 /**
  * Utility class for the `deployment diagnostics report` command.
  * Handles gh CLI availability checks, issue body assembly, and issue creation.
@@ -43,73 +54,114 @@ export class DiagnosticsReporter {
   public static async runDiagnosticsReport(options: DiagnosticsReportRunOptions): Promise<void> {
     const {logger, deployment, outputDirectory, soloVersion, isQuiet, collectDebug} = options;
 
-    logger.showUser(chalk.cyan('\nCollecting diagnostic information...'));
+    const tasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+      [
+        {
+          title: 'Collect diagnostic information',
+          task: async (context_): Promise<void> => {
+            context_.zipSearchDirectory = PathEx.join(outputDirectory, '..');
+            context_.startTime = Date.now();
+            context_.analysisDirectory =
+              outputDirectory === constants.SOLO_LOGS_DIR
+                ? PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs')
+                : outputDirectory;
+            context_.cancelled = false;
+            await collectDebug();
+          },
+        },
+        {
+          title: 'Verify GitHub CLI availability',
+          task: async (context_): Promise<void> => {
+            if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
+              throw new SoloError(
+                'The GitHub CLI (gh) is required for this command but was not found.\n' +
+                  'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
+                  `Diagnostic logs are available at: ${context_.analysisDirectory}`,
+              );
+            }
+          },
+        },
+        {
+          title: 'Prepare GitHub issue payload',
+          task: async (context_): Promise<void> => {
+            context_.zipFilePath = DiagnosticsReporter.findLatestDebugZip(
+              context_.zipSearchDirectory,
+              deployment,
+              context_.startTime,
+            );
+            const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+            context_.issueTitle = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
+            context_.issueBody = DiagnosticsReporter.buildIssueBody({
+              soloVersion,
+              deployment,
+              timestamp,
+              analysisDirectory: context_.analysisDirectory,
+              zipFilePath: context_.zipFilePath,
+            });
+          },
+        },
+        {
+          title: 'Confirm issue creation',
+          task: async (context_): Promise<void> => {
+            if (isQuiet) {
+              return;
+            }
 
-    const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
-    const startTime: number = Date.now();
-    // DiagnosticsAnalyzer writes diagnostics-analysis.txt into the hiero-components-logs
-    // subdirectory when using the default output path, or directly into the custom directory.
-    const analysisDirectory: string =
-      outputDirectory === constants.SOLO_LOGS_DIR
-        ? PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs')
-        : outputDirectory;
+            logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
+            logger.showUser(chalk.cyan(`  Issue title: ${context_.issueTitle}`));
+            if (context_.zipFilePath) {
+              logger.showUser(chalk.cyan(`  Debug archive: ${context_.zipFilePath}`));
+            }
+            logger.showUser(
+              chalk.yellow(
+                '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
+                  '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
+                  '   Private keys under data/keys are NOT included.',
+              ),
+            );
 
-    await collectDebug();
+            const confirmed: boolean = await confirmPrompt({
+              message: 'Create a GitHub issue with the diagnostic information?',
+              default: true,
+            });
 
-    if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
-      throw new SoloError(
-        'The GitHub CLI (gh) is required for this command but was not found.\n' +
-          'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
-          `Diagnostic logs are available at: ${analysisDirectory}`,
-      );
-    }
+            if (!confirmed) {
+              context_.cancelled = true;
+              logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
+              logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${context_.analysisDirectory}`));
+              if (context_.zipFilePath) {
+                logger.showUser(chalk.cyan(`Debug archive: ${context_.zipFilePath}`));
+              }
+            }
+          },
+        },
+        {
+          title: 'Create GitHub issue',
+          task: async (context_, task): Promise<void> => {
+            if (context_.cancelled) {
+              task.skip();
+              return;
+            }
 
-    const zipFilePath: string | undefined = DiagnosticsReporter.findLatestDebugZip(
-      zipSearchDirectory,
-      deployment,
-      startTime,
+            await DiagnosticsReporter.createGitHubIssue(
+              logger,
+              context_.issueTitle ?? '',
+              context_.issueBody ?? '',
+              context_.analysisDirectory,
+              context_.zipFilePath,
+            );
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
-    const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
-    const issueTitle: string = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
-    const issueBody: string = DiagnosticsReporter.buildIssueBody({
-      soloVersion,
-      deployment,
-      timestamp,
-      analysisDirectory,
-      zipFilePath,
+
+    await tasks.run({
+      startTime: 0,
+      zipSearchDirectory: '',
+      analysisDirectory: '',
+      cancelled: false,
     });
-
-    if (!isQuiet) {
-      logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
-      logger.showUser(chalk.cyan(`  Issue title: ${issueTitle}`));
-      if (zipFilePath) {
-        logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
-      }
-      logger.showUser(
-        chalk.yellow(
-          '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
-            '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
-            '   Private keys under data/keys are NOT included.',
-        ),
-      );
-
-      const confirmed: boolean = await confirmPrompt({
-        message: 'Create a GitHub issue with the diagnostic information?',
-        default: true,
-      });
-
-      if (!confirmed) {
-        logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
-        logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${analysisDirectory}`));
-        if (zipFilePath) {
-          logger.showUser(chalk.cyan(`Debug archive: ${zipFilePath}`));
-        }
-        return;
-      }
-    }
-
-    logger.showUser(chalk.cyan('\nCreating GitHub issue...'));
-    await DiagnosticsReporter.createGitHubIssue(logger, issueTitle, issueBody, analysisDirectory, zipFilePath);
   }
 
   /**

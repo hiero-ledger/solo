@@ -41,7 +41,11 @@ import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.
 import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
-import {findDeploymentsFromRemoteConfig, type RemoteDeploymentInfo} from '../util/remote-config-collector.js';
+import {
+  findDeploymentsFromRemoteConfig,
+  getSoloRemoteConfigMapTask,
+  type RemoteDeploymentInfo,
+} from '../util/remote-config-collector.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 
 @injectable()
@@ -657,7 +661,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
         this.tasks.getHelmChartValues(outputDirectory),
-        this.tasks.getRemoteConfig(outputDirectory),
+        getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
       ],
@@ -778,7 +782,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
-        this.tasks.getRemoteConfig(outputDirectory),
+        getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed

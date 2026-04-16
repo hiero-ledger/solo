@@ -10,6 +10,8 @@ import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {type Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {type AnyListrContext} from '../../types/aliases.js';
+import {type SoloListrTask} from '../../types/index.js';
 
 /**
  * Sanitize a string for safe use as a filename on all platforms.
@@ -97,6 +99,20 @@ export async function findDeploymentsFromRemoteConfig(
   }
 
   return deploymentMap;
+}
+
+export function getSoloRemoteConfigMapTask(
+  k8Factory: K8Factory,
+  logger: SoloLogger,
+  customOutputDirectory: string = '',
+): SoloListrTask<AnyListrContext> {
+  return {
+    title: 'Get solo-remote-config ConfigMaps from all clusters',
+    task: async (): Promise<void> => {
+      const outputDirectory: string = await new RemoteConfigCollector(k8Factory, logger).collect(customOutputDirectory);
+      logger.showUser(`Remote config saved to ${outputDirectory}`);
+    },
+  };
 }
 
 export class RemoteConfigCollector {
