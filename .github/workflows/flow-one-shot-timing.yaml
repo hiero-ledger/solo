@@ -17,12 +17,6 @@
 name: "One-Shot Timing Test"
 
 on:
-<<<<<<< 03919-D-loss-java-opts
-=======
-  schedule:
-    # Skip weekends to reduce noise and focus on testing during active development days
-    - cron: '0 6 * * 1-5'
->>>>>>> main
   workflow_dispatch:
     inputs:
       use-released-solo:
