@@ -131,6 +131,15 @@ export class ChartManager {
       if (isInstalled) {
         this.logger.debug(`OK: chart is already installed:${chartReleaseName} (${chartName}) (${repoName})`);
       } else {
+        // A pending-install or pending-upgrade release (left by an interrupted prior run)
+        // cannot be installed again — helm returns "release: already exists".  Uninstall it
+        // first so the fresh install below succeeds.
+        const isPending: boolean = await this.isChartPending(namespaceName, chartReleaseName, kubeContext);
+        if (isPending) {
+          this.logger.info(`Chart '${chartReleaseName}' is in pending state; uninstalling before install`);
+          await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+        }
+
         this.logger.debug(`> installing chart:${chartName}`);
         const builder: InstallChartOptionsBuilder = InstallChartOptionsBuilder.builder()
           .version(version)
@@ -143,7 +152,25 @@ export class ChartManager {
           builder.namespace(namespaceName.name);
         }
         const options: InstallChartOptions = builder.build();
-        await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+        try {
+          await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+        } catch (installError: unknown) {
+          const message: string = String((installError as {message?: string})?.message ?? '');
+          if (message.includes('release: already exists')) {
+            // The release reached deployed state between our isChartInstalled() check and
+            // the helm install call (race condition or concurrent job on the same runner).
+            // Treat it as already installed.
+            this.logger.info(`Chart '${chartReleaseName}' already exists; treating as installed`);
+          } else if (message.includes('cannot re-use a name that is still in use')) {
+            // The release is stuck in pending-install/pending-upgrade despite the earlier
+            // isChartPending() check (race condition).  Uninstall and retry once.
+            this.logger.info(`Chart '${chartReleaseName}' is still pending; uninstalling and retrying`);
+            await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+            await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+          } else {
+            throw installError;
+          }
+        }
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
       }
     } catch (error) {
@@ -174,14 +201,52 @@ export class ChartManager {
     return match;
   }
 
+  /**
+   * Returns true if the named Helm release exists and is in a pending state
+   * (pending-install or pending-upgrade).  A pending release was interrupted
+   * mid-operation (e.g. by SIGKILL) and cannot be upgraded until it is
+   * uninstalled.
+   */
+  public async isChartPending(
+    namespaceName: NamespaceName,
+    chartReleaseName: string,
+    kubeContext?: string,
+  ): Promise<boolean> {
+    try {
+      // Pass includeAll=true so helm list shows pending-install/pending-upgrade releases,
+      // which are hidden from the default helm list output.
+      const releases: ReleaseItem[] = await this.helm.listReleases(
+        !namespaceName,
+        namespaceName?.name,
+        kubeContext,
+        true,
+      );
+      return releases.some(
+        (release: ReleaseItem): boolean =>
+          release.name === chartReleaseName &&
+          (release.status === 'pending-install' || release.status === 'pending-upgrade'),
+      );
+    } catch {
+      return false;
+    }
+  }
+
   public async uninstall(
     namespaceName: NamespaceName,
     chartReleaseName: string,
     kubeContext?: string,
   ): Promise<boolean> {
     try {
+      // Check both deployed/failed state (isChartInstalled) and pending state
+      // (isChartPending).  A pending-install release is not visible to the default
+      // helm list output, so isChartInstalled() alone would incorrectly report
+      // "not installed" and skip the helm uninstall.
       const isInstalled: boolean = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
-      if (isInstalled) {
+      const isPending: boolean = isInstalled
+        ? false
+        : await this.isChartPending(namespaceName, chartReleaseName, kubeContext);
+
+      if (isInstalled || isPending) {
         this.logger.debug(`uninstalling chart release: ${chartReleaseName}`);
         const options: UnInstallChartOptions = UnInstallChartOptionsBuilder.builder()
           .namespace(namespaceName.name)
@@ -210,6 +275,15 @@ export class ChartManager {
     reuseValues?: boolean,
   ): Promise<boolean> {
     try {
+      // A pending-install or pending-upgrade release (left by an interrupted prior run)
+      // cannot be upgraded — helm returns "release: already exists".  Uninstall it first
+      // so the helm upgrade --install below can proceed cleanly.
+      const isPending: boolean = await this.isChartPending(namespaceName, chartReleaseName, kubeContext);
+      if (isPending) {
+        this.logger.info(`Chart '${chartReleaseName}' is in pending state; uninstalling before upgrade`);
+        await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+      }
+
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
       const options: UpgradeChartOptions = new UpgradeChartOptions(
         namespaceName?.name,
@@ -219,7 +293,23 @@ export class ChartManager {
         version,
       );
       const chart: Chart = new Chart(chartName, repoName);
-      await this.helm.upgradeChart(chartReleaseName, chart, options);
+      try {
+        await this.helm.upgradeChart(chartReleaseName, chart, options);
+      } catch (upgradeError: unknown) {
+        const message: string = String((upgradeError as {message?: string})?.message ?? '');
+        if (
+          message.includes('release: already exists') ||
+          message.includes('cannot re-use a name that is still in use')
+        ) {
+          // Race condition: release entered pending state between our isChartPending() check
+          // and the helm upgrade call.  Uninstall and retry once.
+          this.logger.info(`Chart '${chartReleaseName}' is still pending (race); uninstalling and retrying`);
+          await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+          await this.helm.upgradeChart(chartReleaseName, chart, options);
+        } else {
+          throw upgradeError;
+        }
+      }
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
     } catch (error) {
       throw new SoloError(`failed to upgrade chart ${chartReleaseName}: ${error.message}`, error);

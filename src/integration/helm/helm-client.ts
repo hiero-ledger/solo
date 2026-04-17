@@ -98,7 +98,12 @@ export interface HelmClient {
    * @param kubeContext
    * @returns the list of releases.
    */
-  listReleases(allNamespaces: boolean, namespace?: string, kubeContext?: string): Promise<ReleaseItem[]>;
+  listReleases(
+    allNamespaces: boolean,
+    namespace?: string,
+    kubeContext?: string,
+    includeAll?: boolean,
+  ): Promise<ReleaseItem[]>;
 
   /**
    * Executes the Helm CLI dependency update sub-command and updates the dependencies of the specified Helm

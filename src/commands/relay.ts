@@ -586,7 +586,21 @@ export class RelayCommand extends BaseCommand {
 
             config.newRelayComponent.metadata.phase = DeploymentPhase.REQUESTED;
 
-            config.id = config.newRelayComponent.metadata.id;
+            // In one-shot recovery the relay component already exists in remote config
+            // with a stable ID (e.g. 1).  createNewRelayComponent() returns the NEXT
+            // available ID (e.g. 2), which doesn't match the pod labels set during the
+            // first deploy.  Use the existing component's ID so that readiness checks
+            // look for the correct pod (relay-1 not relay-2).
+            if (this.oneShotState.isActive() && this.remoteConfig.isLoaded()) {
+              const existingRelays: RelayNodeStateSchema[] =
+                this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+                  ComponentTypes.RelayNodes,
+                );
+              config.id =
+                existingRelays.length > 0 ? existingRelays[0].metadata.id : config.newRelayComponent.metadata.id;
+            } else {
+              config.id = config.newRelayComponent.metadata.id;
+            }
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);

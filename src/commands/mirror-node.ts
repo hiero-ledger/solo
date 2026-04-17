@@ -1138,6 +1138,46 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.addMirrorNodeComponents(),
         {
+          title: 'Clean up stuck shared resources in recovery',
+          skip: async ({config}: MirrorNodeDeployContext): Promise<boolean> => {
+            if (!this.oneShotState.isActive()) {
+              return true;
+            }
+            const isSharedResourcesInstalled: boolean = await this.chartManager.isChartInstalled(
+              config.namespace,
+              constants.SOLO_SHARED_RESOURCES_CHART,
+              config.clusterContext,
+            );
+            if (!isSharedResourcesInstalled) {
+              return true;
+            }
+            if (!this.remoteConfig.isLoaded()) {
+              return true;
+            }
+            const mirrorNodes: MirrorNodeStateSchema[] =
+              this.remoteConfig.configuration.components.getComponentByType<MirrorNodeStateSchema>(
+                ComponentTypes.MirrorNode,
+              );
+            return !mirrorNodes.some(
+              (node: MirrorNodeStateSchema): boolean => node.metadata.phase === DeploymentPhase.REQUESTED,
+            );
+          },
+          task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
+            await this.sharedResourceManager.uninstallChart(config.namespace, config.clusterContext);
+            const pvcs: string[] = await this.k8Factory
+              .getK8(config.clusterContext)
+              .pvcs()
+              .list(config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
+            for (const pvc of pvcs) {
+              await this.k8Factory
+                .getK8(config.clusterContext)
+                .pvcs()
+                .delete(PvcReference.of(config.namespace, PvcName.of(pvc)));
+            }
+          },
+        },
+        this.enableSharedResourcesTask(),
+        {
           title: 'load node client',
           task: async ({config}): Promise<void> => {
             await this.accountManager.loadNodeClient(

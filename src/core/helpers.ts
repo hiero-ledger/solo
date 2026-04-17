@@ -822,15 +822,6 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   await container.execContainer(`mkdir -p ${targetDirectory}`);
 
-  // Copy the file and rename it to block-nodes.json in the destination
-  await container.copyTo(blockNodesJsonPath, targetDirectory);
-
-  // If using node-specific files, rename the copied file to the standard name
-  const sourceFilename: string = path.basename(blockNodesJsonPath);
-  await container.execContainer(
-    `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
-  );
-
   const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
 
   const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
@@ -854,6 +845,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
     lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
   }
 
+  // Update ConfigMaps first — this is the authoritative approach for ConfigMap-mounted directories.
   await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
     ['applicationProperties']: lines.join('\n'),
     ['application.properties']: lines.join('\n'),
@@ -868,8 +860,28 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
 
-  const updatedApplicationPropertiesFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'application.properties');
+  // Best-effort: also copy files directly into the container.  This succeeds when the target
+  // directory is a regular writable mount but silently fails (exit 0) on ConfigMap-mounted
+  // directories, so we wrap both attempts in try/catch and log a warning on failure.
+  try {
+    await container.copyTo(blockNodesJsonPath, targetDirectory);
+    const sourceFilename: string = path.basename(blockNodesJsonPath);
+    await container.execContainer(
+      `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
+    );
+  } catch (copyError: unknown) {
+    logger.warn(
+      `Could not copy block-nodes.json directly to container (ConfigMap already updated): ${(copyError as Error)?.message}`,
+    );
+  }
 
+  const updatedApplicationPropertiesFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'application.properties');
   fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-  await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+  try {
+    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+  } catch (copyError: unknown) {
+    logger.warn(
+      `Could not copy application.properties directly to container (ConfigMap already updated): ${(copyError as Error)?.message}`,
+    );
+  }
 }
