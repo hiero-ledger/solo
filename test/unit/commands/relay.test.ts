@@ -28,11 +28,11 @@ describe('RelayCommand unit tests', (): void => {
 
   it('should apply imageTag override after relayReleaseTag', async (): Promise<void> => {
     sinon
-      // @ts-expect-error - to access private method
+      // @ts-ignore - to access private method
       .stub(relayCommand, 'prepareNetworkJsonString')
       .resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    // @ts-expect-error - to access private method
+    // @ts-ignore - to access private method
     const valuesArgument: string = await relayCommand.prepareValuesArgForRelay({
       valuesFile: '',
       nodeAliases: ['node1'],
@@ -50,12 +50,12 @@ describe('RelayCommand unit tests', (): void => {
       mirrorNamespace: 'solo-e2e',
     });
 
-    const relayReleaseTagFlag: string = '--set relay.image.tag=0.77.0';
-    const relayImageTagFlag: string = '--set relay.image.tag=0.77.0-SNAPSHOT';
-    expect(valuesArgument).to.include(relayReleaseTagFlag);
+    const relayImageTagMatches: RegExpMatchArray[] = [...valuesArgument.matchAll(/--set relay\.image\.tag=([^\s]+)/g)];
+    expect(relayImageTagMatches).to.have.lengthOf(2);
+    expect(relayImageTagMatches[0][1]).to.equal('0.77.0');
+    expect(relayImageTagMatches[1][1]).to.equal('0.77.0-SNAPSHOT');
+
     expect(valuesArgument).to.include('--set ws.image.tag=0.77.0');
-    expect(valuesArgument).to.include(relayImageTagFlag);
     expect(valuesArgument).to.include('--set ws.image.tag=0.77.0-SNAPSHOT');
-    expect(valuesArgument.indexOf(relayReleaseTagFlag)).to.be.lessThan(valuesArgument.indexOf(relayImageTagFlag));
   });
 });
