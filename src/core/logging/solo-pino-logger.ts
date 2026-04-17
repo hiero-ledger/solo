@@ -6,8 +6,7 @@ import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import chalk from 'chalk';
-import {type ChalkInstance} from 'chalk';
+import chalk, {type ChalkInstance} from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
@@ -230,7 +229,7 @@ export class SoloPinoLogger implements SoloLogger {
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    console.log(JSON.stringify(object, null, 2));
+    console.log(JSON.stringify(object, undefined, 2));
   }
 
   public getMessageGroup(key: string): string[] {

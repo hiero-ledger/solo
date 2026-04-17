@@ -919,6 +919,24 @@ export function sanitizeJavaOptionsForHeapSettings(javaOptions: string): string 
     .trim();
 }
 
+/**
+ * Helper function to set or update an environment variable in the extraEnvironmentVariables array
+ */
+function setExtraEnvironmentVariable(
+  extraEnvironmentVariables: EnvironmentVariable[],
+  name: string,
+  value: string,
+): void {
+  const environmentVariableIndex: number = extraEnvironmentVariables.findIndex(
+    (environmentVariable): boolean => environmentVariable.name === name,
+  );
+  if (environmentVariableIndex === -1) {
+    extraEnvironmentVariables.push({name, value});
+  } else {
+    extraEnvironmentVariables[environmentVariableIndex].value = value;
+  }
+}
+
 export function buildPerNodeExtraEnvironmentValuesStructure(
   consensusNodes: ConsensusNode[],
   options: PerNodeExtraEnvironmentOptions = {},
@@ -933,26 +951,16 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     const extraEnvironmentVariables: EnvironmentVariable[] = [
       ...(options.baseExtraEnvironmentVariables?.[consensusNode.name] ?? []),
     ];
-    const setExtraEnvironmentVariable = (name: string, value: string): void => {
-      const environmentVariableIndex: number = extraEnvironmentVariables.findIndex(
-        (environmentVariable): boolean => environmentVariable.name === name,
-      );
-      if (environmentVariableIndex === -1) {
-        extraEnvironmentVariables.push({name, value});
-      } else {
-        extraEnvironmentVariables[environmentVariableIndex].value = value;
-      }
-    };
 
     // Add JAVA_MAIN_CLASS for tools/local builds
     if (options.useJavaMainClass) {
-      setExtraEnvironmentVariable('JAVA_MAIN_CLASS', 'com.swirlds.platform.Browser');
+      setExtraEnvironmentVariable(extraEnvironmentVariables, 'JAVA_MAIN_CLASS', 'com.swirlds.platform.Browser');
     }
 
     // Add TSS wraps if enabled
     if (options.wrapsEnabled && options.tss) {
       const wrapPath: string = `${constants.HEDERA_HAPI_PATH}/${options.tss.wraps.artifactsFolderName}`;
-      setExtraEnvironmentVariable('TSS_LIB_WRAPS_ARTIFACTS_PATH', wrapPath);
+      setExtraEnvironmentVariable(extraEnvironmentVariables, 'TSS_LIB_WRAPS_ARTIFACTS_PATH', wrapPath);
     }
 
     // Override JAVA_OPTS for debug mode if this is the debug node
@@ -975,7 +983,11 @@ export function buildPerNodeExtraEnvironmentValuesStructure(
     // Add any additional env vars for this specific node (overwrite duplicates)
     if (options.additionalEnvironmentVariables && options.additionalEnvironmentVariables[consensusNode.name]) {
       for (const additionalEnvironmentVariable of options.additionalEnvironmentVariables[consensusNode.name]) {
-        setExtraEnvironmentVariable(additionalEnvironmentVariable.name, additionalEnvironmentVariable.value);
+        setExtraEnvironmentVariable(
+          extraEnvironmentVariables,
+          additionalEnvironmentVariable.name,
+          additionalEnvironmentVariable.value,
+        );
       }
     }
 
