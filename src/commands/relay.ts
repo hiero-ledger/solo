@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
+import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -44,6 +45,7 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
@@ -74,7 +76,7 @@ interface RelayDeployConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
-  imageTag: string;
+  relayImage: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -111,7 +113,7 @@ interface RelayUpgradeConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
-  imageTag: string;
+  relayImage: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -175,7 +177,7 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
-      flags.imageTag,
+      flags.relayImage,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -201,7 +203,7 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
-      flags.imageTag,
+      flags.relayImage,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -226,7 +228,7 @@ export class RelayCommand extends BaseCommand {
     nodeAliases,
     chainId,
     relayReleaseTag,
-    imageTag,
+    relayImage,
     replicaCount,
     operatorId,
     operatorKey,
@@ -260,10 +262,18 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }
 
-    if (imageTag) {
-      imageTag = SemanticVersion.getValidSemanticVersion(imageTag, false, 'Relay image tag');
-      valuesArgument += ` --set relay.image.tag=${imageTag}`;
-      valuesArgument += ` --set ws.image.tag=${imageTag}`;
+    if (relayImage) {
+      if (relayImage.includes('/') || relayImage.includes(':') || relayImage.includes('@')) {
+        const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(relayImage);
+        valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
+        valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
+        valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
+        valuesArgument += ` --set ws.image.repository=${parsedImageReference.repository}`;
+        valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
+        valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
+      } else {
+        throw new IllegalArgumentError(`Invalid relay image reference: ${relayImage}`, relayImage);
+      }
     }
 
     if (replicaCount) {
