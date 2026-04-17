@@ -76,7 +76,7 @@ interface RelayDeployConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
-  relayImage: string;
+  componentImage: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -113,7 +113,7 @@ interface RelayUpgradeConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
-  relayImage: string;
+  componentImage: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -177,7 +177,7 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
-      flags.relayImage,
+      flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -203,7 +203,7 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
-      flags.relayImage,
+      flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -228,7 +228,7 @@ export class RelayCommand extends BaseCommand {
     nodeAliases,
     chainId,
     relayReleaseTag,
-    relayImage,
+    componentImage,
     replicaCount,
     operatorId,
     operatorKey,
@@ -262,9 +262,9 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }
 
-    if (relayImage) {
-      if (relayImage.includes('/') || relayImage.includes(':') || relayImage.includes('@')) {
-        const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(relayImage);
+    if (componentImage) {
+      if (componentImage.includes('/') || componentImage.includes(':') || componentImage.includes('@')) {
+        const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(componentImage);
         valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
         valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
         valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
@@ -272,7 +272,7 @@ export class RelayCommand extends BaseCommand {
         valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
         valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
       } else {
-        throw new IllegalArgumentError(`Invalid relay image reference: ${relayImage}`, relayImage);
+        throw new IllegalArgumentError(`Invalid image reference: ${componentImage}`, componentImage);
       }
     }
 

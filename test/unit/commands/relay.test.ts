@@ -26,9 +26,9 @@ describe('RelayCommand unit tests', (): void => {
     sinon.restore();
   });
 
-  it('should include relayImage in relay add and upgrade flags', (): void => {
-    expect(RelayCommand.DEPLOY_FLAGS_LIST.optional).to.include(flags.relayImage);
-    expect(RelayCommand.UPGRADE_FLAGS_LIST.optional).to.include(flags.relayImage);
+  it('should include componentImage in relay add and upgrade flags', (): void => {
+    expect(RelayCommand.DEPLOY_FLAGS_LIST.optional).to.include(flags.componentImage);
+    expect(RelayCommand.UPGRADE_FLAGS_LIST.optional).to.include(flags.componentImage);
     expect(RelayCommand.DEPLOY_FLAGS_LIST.optional).to.not.include(flags.imageTag);
     expect(RelayCommand.UPGRADE_FLAGS_LIST.optional).to.not.include(flags.imageTag);
   });
@@ -43,7 +43,7 @@ describe('RelayCommand unit tests', (): void => {
       nodeAliases: ['node1'],
       chainId: '',
       relayReleaseTag: '0.77.0',
-      relayImage: '',
+      componentImage: '',
       replicaCount: 1,
       operatorId: '0.0.2',
       operatorKey: 'operator-key',
@@ -74,7 +74,7 @@ describe('RelayCommand unit tests', (): void => {
       nodeAliases: ['node1'],
       chainId: '',
       relayReleaseTag: '',
-      relayImage: 'docker.io/library/v400.0',
+      componentImage: 'docker.io/library/v400.0',
       replicaCount: 1,
       operatorId: '0.0.2',
       operatorKey: 'operator-key',
@@ -104,7 +104,7 @@ describe('RelayCommand unit tests', (): void => {
       nodeAliases: ['node1'],
       chainId: '',
       relayReleaseTag: '',
-      relayImage: 'redis:7',
+      componentImage: 'redis:7',
       replicaCount: 1,
       operatorId: '0.0.2',
       operatorKey: 'operator-key',
@@ -124,7 +124,7 @@ describe('RelayCommand unit tests', (): void => {
     expect(valuesArgument).to.include('--set ws.image.tag=7');
   });
 
-  it('should reject plain tag value for relayImage', async (): Promise<void> => {
+  it('should reject plain tag value for componentImage', async (): Promise<void> => {
     const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
@@ -135,7 +135,7 @@ describe('RelayCommand unit tests', (): void => {
         nodeAliases: ['node1'],
         chainId: '',
         relayReleaseTag: '',
-        relayImage: 'latest',
+        componentImage: 'latest',
         replicaCount: 1,
         operatorId: '0.0.2',
         operatorKey: 'operator-key',
@@ -148,7 +148,7 @@ describe('RelayCommand unit tests', (): void => {
       });
       expect.fail('Expected prepareValuesArgForRelay to throw');
     } catch (error: unknown) {
-      expect((error as Error).message).to.include('Invalid relay image reference: latest');
+      expect((error as Error).message).to.include('Invalid image reference: latest');
     }
   });
 });
