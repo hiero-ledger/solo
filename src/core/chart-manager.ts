@@ -152,7 +152,25 @@ export class ChartManager {
           builder.namespace(namespaceName.name);
         }
         const options: InstallChartOptions = builder.build();
-        await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+        try {
+          await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+        } catch (installError: unknown) {
+          const message: string = String((installError as {message?: string})?.message ?? '');
+          if (message.includes('release: already exists')) {
+            // The release reached deployed state between our isChartInstalled() check and
+            // the helm install call (race condition or concurrent job on the same runner).
+            // Treat it as already installed.
+            this.logger.info(`Chart '${chartReleaseName}' already exists; treating as installed`);
+          } else if (message.includes('cannot re-use a name that is still in use')) {
+            // The release is stuck in pending-install/pending-upgrade despite the earlier
+            // isChartPending() check (race condition).  Uninstall and retry once.
+            this.logger.info(`Chart '${chartReleaseName}' is still pending; uninstalling and retrying`);
+            await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+            await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+          } else {
+            throw installError;
+          }
+        }
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
       }
     } catch (error) {
