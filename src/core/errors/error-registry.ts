@@ -12,7 +12,6 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.CONFIGURATION,
     messageTemplate: 'local_config_not_found_message',
     retryable: false,
-    docUrl: `${DOC_BASE}/SOLO-1001`,
     troubleshootingSteps: 'local_config_not_found_troubleshooting_steps',
   },
   {
@@ -20,7 +19,6 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.CONFIGURATION,
     messageTemplate: 'remote_configs_mismatch_message',
     retryable: false,
-    docUrl: `${DOC_BASE}/SOLO-1012`,
     troubleshootingSteps: 'remote_configs_mismatch_troubleshooting_steps',
   },
   {
@@ -28,7 +26,6 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.DEPLOYMENT,
     messageTemplate: 'pod_not_ready_message',
     retryable: true,
-    docUrl: `${DOC_BASE}/SOLO-2004`,
     troubleshootingSteps: 'pod_not_ready_troubleshooting_steps',
   },
   {
@@ -36,7 +33,6 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.COMPONENT,
     messageTemplate: 'relay_not_ready_message',
     retryable: true,
-    docUrl: `${DOC_BASE}/SOLO-3004`,
     troubleshootingSteps: 'relay_not_ready_troubleshooting_steps',
   },
   {
@@ -44,14 +40,12 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.VALIDATION,
     messageTemplate: 'invalid_argument_message',
     retryable: false,
-    docUrl: `${DOC_BASE}/SOLO-4001`,
   },
   {
     code: SoloErrorCode.HELM_EXECUTION_FAILED,
     category: ErrorCategory.SYSTEM,
     messageTemplate: 'helm_execution_failed_message',
     retryable: false,
-    docUrl: `${DOC_BASE}/SOLO-5001`,
     troubleshootingSteps: 'helm_execution_failed_troubleshooting_steps',
   },
   {
@@ -59,7 +53,6 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.SYSTEM,
     messageTemplate: 'kubernetes_api_error_message',
     retryable: true,
-    docUrl: `${DOC_BASE}/SOLO-5004`,
     troubleshootingSteps: 'kubernetes_api_error_troubleshooting_steps',
   },
   {
@@ -67,7 +60,6 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     category: ErrorCategory.INTERNAL,
     messageTemplate: 'internal_error_message',
     retryable: false,
-    docUrl: `${DOC_BASE}/SOLO-9001`,
     troubleshootingSteps: 'internal_error_troubleshooting_steps',
   },
 ];
@@ -88,6 +80,11 @@ export class ErrorRegistry {
   /** Returns the human-readable label, e.g. "SOLO-3004" */
   public static formatCode(code: SoloErrorCode): string {
     return `SOLO-${code}`;
+  }
+
+  /** Returns the documentation URL for the given error code, e.g. "https://solo.hiero.org/docs/errors/SOLO-2004" */
+  public static getDocUrl(code: SoloErrorCode): string {
+    return `${DOC_BASE}/${ErrorRegistry.formatCode(code)}`;
   }
 
   /**
