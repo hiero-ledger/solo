@@ -47,23 +47,20 @@ describe('PackageInstaller', () => {
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
-    it('should fail if directory does not have data/app directory is empty', () => {
+    it('should fail if data/apps directory has no jar files', () => {
       const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
-      fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}/test.jar`, '');
-      // @ts-expect-error - TS2554: Expected 1 arguments, but got 0
-      expect(() => installer.validatePlatformReleaseDir()).to.throw(MissingArgumentError);
+      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
-    it('should fail if directory does not have data/apps directory is empty', () => {
+    it('should fail if data/lib directory has no jar files', () => {
       const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-app-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
       fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}/app.jar`, '');
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
-      // @ts-expect-error - TS2554: Expected 1 arguments, but got 0
-      expect(() => installer.validatePlatformReleaseDir()).to.throw(MissingArgumentError);
+      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
@@ -73,8 +70,7 @@ describe('PackageInstaller', () => {
       fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}/app.jar`, '');
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
       fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}/lib-1.jar`, '');
-      // @ts-expect-error - TS2554: Expected 1 arguments, but got 0
-      expect(() => installer.validatePlatformReleaseDir()).to.throw(MissingArgumentError);
+      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).not.to.throw();
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
   });
