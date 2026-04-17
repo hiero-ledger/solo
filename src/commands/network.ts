@@ -1065,6 +1065,23 @@ export class NetworkCommand extends BaseCommand {
       }
 
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
+
+      // Wait for the CRD to be established before continuing.  The API server must
+      // register the PodLogs API group before the solo-deployment chart can create
+      // PodLogs CRs (crs.podLog.enabled=true).
+      const PODLOGS_WAIT_TIMEOUT_MS: number = 60_000;
+      const PODLOGS_POLL_INTERVAL_MS: number = 2000;
+      const podlogsDeadline: number = Date.now() + PODLOGS_WAIT_TIMEOUT_MS;
+      this.logger.info(`Waiting for CRD '${PODLOGS_CRD}' to be established in context ${context}...`);
+      while (!(await this.crdIsEstablished(context, PODLOGS_CRD))) {
+        if (Date.now() >= podlogsDeadline) {
+          throw new SoloError(
+            `Timed out waiting for CRD '${PODLOGS_CRD}' to be established in context '${context}'`,
+          );
+        }
+        await sleep(Duration.ofMillis(PODLOGS_POLL_INTERVAL_MS));
+      }
+      this.logger.info(`CRD '${PODLOGS_CRD}' is now established in context ${context}`);
     }
   }
 
