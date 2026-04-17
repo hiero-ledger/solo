@@ -25,7 +25,17 @@ export class K8ClientManifests implements Manifests {
         continue;
       }
 
-      await this.k8sObjectApi.create(document);
+      try {
+        await this.k8sObjectApi.create(document);
+      } catch (error: unknown) {
+        // HTTP 409 means the resource already exists — treat as success (idempotent apply).
+        // This can happen when a previous interrupted deployment already created the CRD,
+        // or when concurrent tasks race to create the same resource.
+        if ((error as {response?: {statusCode?: number}})?.response?.statusCode === 409) {
+          continue;
+        }
+        throw error;
+      }
     }
   }
 
