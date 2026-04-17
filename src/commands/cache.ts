@@ -22,7 +22,6 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {CacheImageTemplateValues} from '../integration/cache/models/impl/cache-image-template-values.js';
 import * as version from '../../version.js';
 import {DefaultCacheImageTemplateResolver} from '../integration/cache/impl/default-cache-image-template-resolver.js';
-import {HEDERA_JSON_RPC_RELAY_EDGE_VERSION, HEDERA_PLATFORM_EDGE_VERSION} from '../../version.js';
 
 interface CachePullConfigClass {
   imageCacheHandler: ImageCacheHandler;
