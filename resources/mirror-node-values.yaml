@@ -224,6 +224,19 @@ web3:
     initialDelaySeconds: 0
     periodSeconds: 1
     failureThreshold: 60
+  config:
+    hiero:
+      mirror:
+        web3:
+          opcode:
+            tracer:
+              enabled: true
+          evm:
+            network: OTHER
+          cache:
+            contractState: expireAfterWrite=0s,maximumSize=0
+            entity: expireAfterWrite=0s,maximumSize=0
+            token: expireAfterWrite=0s,maximumSize=0
 
 # config for subchart hiero-mirror/monitor
 # Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
