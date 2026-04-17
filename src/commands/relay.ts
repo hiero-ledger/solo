@@ -74,6 +74,7 @@ interface RelayDeployConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
+  imageTag: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -110,6 +111,7 @@ interface RelayUpgradeConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
+  imageTag: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -173,6 +175,7 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
+      flags.imageTag,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -198,6 +201,7 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
+      flags.imageTag,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
@@ -222,6 +226,7 @@ export class RelayCommand extends BaseCommand {
     nodeAliases,
     chainId,
     relayReleaseTag,
+    imageTag,
     replicaCount,
     operatorId,
     operatorKey,
@@ -253,6 +258,12 @@ export class RelayCommand extends BaseCommand {
       relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
       valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
       valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
+    }
+
+    if (imageTag) {
+      imageTag = SemanticVersion.getValidSemanticVersion(imageTag, false, 'Relay image tag');
+      valuesArgument += ` --set relay.image.tag=${imageTag}`;
+      valuesArgument += ` --set ws.image.tag=${imageTag}`;
     }
 
     if (replicaCount) {
