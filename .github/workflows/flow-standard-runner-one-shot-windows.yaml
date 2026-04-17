@@ -76,6 +76,11 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Switch Docker to Linux Containers
+        shell: powershell
+        run: |
+          & "C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+
       - name: One-Shot Single Deploy
         timeout-minutes: 70
         run: |
