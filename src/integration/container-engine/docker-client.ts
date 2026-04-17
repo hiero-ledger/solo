@@ -14,6 +14,7 @@ import {DependencyManager} from '../../core/dependency-managers/index.js';
 import * as constants from '../../core/constants.js';
 import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/load-image-archive-options-builder.js';
 import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
+import {Architecture} from '../../business/utils/architecture.js';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
@@ -31,7 +32,7 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async pullImage(image: string): Promise<void> {
-    const platform: string = this.defaultLinuxPlatform();
+    const platform: string = Architecture.getLinuxPlatform();
 
     await this.shellRunner.run('docker', ['pull', '--platform', platform, image]);
   }
@@ -39,7 +40,7 @@ export class DockerClient implements ContainerEngineClient {
   public async saveImage(image: string, archivePath: string): Promise<void> {
     await fs.mkdir(path.dirname(archivePath), {recursive: true});
 
-    const platform: string = this.defaultLinuxPlatform();
+    const platform: string = Architecture.getLinuxPlatform();
 
     await this.shellRunner.run('crane', ['pull', '--platform', platform, image, archivePath]);
   }
@@ -62,19 +63,5 @@ export class DockerClient implements ContainerEngineClient {
 
   public async removeImage(image: string): Promise<void> {
     await this.shellRunner.run('docker', ['image', 'rm', image]);
-  }
-
-  private defaultLinuxPlatform(): string {
-    switch (process.arch) {
-      case 'arm64': {
-        return 'linux/arm64';
-      }
-      case 'x64': {
-        return 'linux/amd64';
-      }
-      default: {
-        throw new Error(`Unsupported host architecture for kind image export: ${process.arch}`);
-      }
-    }
   }
 }

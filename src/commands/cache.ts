@@ -15,11 +15,19 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CachedItem} from '../integration/cache/models/impl/cached-item.js';
 import {ArtifactHealthResult} from '../integration/cache/models/impl/artifact-health-result.js';
 import fs from 'node:fs/promises';
+import {Stats} from 'node:fs';
 import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
+import {CacheImageTargetTemplateRenderer} from '../integration/cache/impl/cache-image-target-template-renderer.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import {CacheImageTemplateValues} from '../integration/cache/models/impl/cache-image-template-values.js';
+import * as version from '../../version.js';
+import {DefaultCacheImageTemplateResolver} from '../integration/cache/impl/default-cache-image-template-resolver.js';
+import {HEDERA_JSON_RPC_RELAY_EDGE_VERSION, HEDERA_PLATFORM_EDGE_VERSION} from '../../version.js';
 
 interface CachePullConfigClass {
   imageCacheHandler: ImageCacheHandler;
   results: readonly CachedItem[];
+  edgeEnabled: boolean;
 }
 
 interface CachePullContext {
@@ -62,6 +70,9 @@ interface CacheListContext {
 
 @injectable()
 export class CacheCommand extends BaseCommand {
+  public static readonly CACHE_NOT_MATERIALIZED_ERROR_MESSAGE: string =
+    'Cache image targets have not been materialized yet. Run `solo cache image pull` first.';
+
   public constructor(
     @inject(InjectTokens.ContainerEngineClient) private containerEngineClient?: ContainerEngineClient,
   ) {
@@ -74,11 +85,13 @@ export class CacheCommand extends BaseCommand {
     );
   }
 
+  public async close(): Promise<void> {}
+
   // ------ Flags ------ //
 
   public static readonly PULL_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.edgeEnabled],
   };
 
   public static readonly LOAD_FLAGS_LIST: CommandFlags = {
@@ -120,9 +133,14 @@ export class CacheCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
+            const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
+
+            const renderedYamlPath: string = await this.renderImageTargetsFile(edgeEnabled);
+
             context_.config = {
-              imageCacheHandler: this.buildImageCacheHandler(),
+              imageCacheHandler: await this.buildImageCacheHandlerFromYaml(renderedYamlPath),
               results: [],
+              edgeEnabled,
             };
           },
         },
@@ -168,9 +186,10 @@ export class CacheCommand extends BaseCommand {
 
             const clusterReference: ClusterReferenceName = this.getClusterReference();
             const context: Context = this.getClusterContext(clusterReference);
+            const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
 
             context_.config = {
-              imageCacheHandler: this.buildImageCacheHandler(),
+              imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
               clusterReference,
               context,
             };
@@ -203,8 +222,10 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'List cached images',
           task: async (context_): Promise<void> => {
+            const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
+
             const config: CacheListConfigClass = {
-              imageCacheHandler: this.buildImageCacheHandler(),
+              imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
             };
 
             context_.config = config;
@@ -237,13 +258,28 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Clear image cache',
           task: async (context_): Promise<void> => {
-            const config: CacheClearConfigClass = {
-              imageCacheHandler: this.buildImageCacheHandler(),
-            };
+            const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
 
-            context_.config = config;
+            const renderedYamlPath: string = this.getRenderedImageTargetsFilePath(cacheDirectory);
 
-            await config.imageCacheHandler.clear();
+            try {
+              const config: CacheClearConfigClass = {
+                imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
+              };
+
+              context_.config = config;
+
+              await config.imageCacheHandler.clear();
+            } catch (error) {
+              if (
+                !(error instanceof SoloError) ||
+                error.message !== CacheCommand.CACHE_NOT_MATERIALIZED_ERROR_MESSAGE
+              ) {
+                throw error;
+              }
+            }
+
+            await fs.rm(renderedYamlPath, {force: true});
           },
         },
       ],
@@ -262,8 +298,10 @@ export class CacheCommand extends BaseCommand {
         {
           title: 'Check cache status',
           task: async (context_): Promise<void> => {
+            const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
+
             const config: CacheStatusConfigClass = {
-              imageCacheHandler: this.buildImageCacheHandler(),
+              imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
             };
 
             context_.config = config;
@@ -279,7 +317,7 @@ export class CacheCommand extends BaseCommand {
 
             for (const item of cachedItems) {
               try {
-                const stat = await fs.stat(item.localPath);
+                const stat: Stats = await fs.stat(item.localPath);
                 totalBytes += stat.size;
               } catch {
                 // missing files are already reflected by healthcheck
@@ -355,11 +393,41 @@ export class CacheCommand extends BaseCommand {
     return clusterReference.startsWith('kind-') ? clusterReference.replace('kind-', '') : clusterReference;
   }
 
-  private buildImageCacheHandler(): ImageCacheHandler {
-    return ImageCacheHandlerBuilder.fromYaml(constants.SOLO_CACHE_IMAGES_TARGET_FILE)
-      .engine(this.containerEngineClient)
-      .build();
+  private getRenderedImageTargetsFilePath(cacheDirectory: string): string {
+    return PathEx.join(cacheDirectory, 'config', CacheImageTargetTemplateRenderer.RENDERED_FILE_NAME);
   }
 
-  public async close(): Promise<void> {}
+  private async renderImageTargetsFile(edgeEnabled: boolean): Promise<string> {
+    const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
+    const renderedConfigDirectory: string = PathEx.join(cacheDirectory, 'config');
+
+    return new CacheImageTargetTemplateRenderer(
+      new DefaultCacheImageTemplateResolver(
+        new CacheImageTemplateValues(
+          edgeEnabled ? version.MIRROR_NODE_EDGE_VERSION : version.MIRROR_NODE_VERSION,
+          edgeEnabled ? version.BLOCK_NODE_EDGE_VERSION : version.BLOCK_NODE_VERSION,
+          edgeEnabled ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION : version.HEDERA_JSON_RPC_RELAY_VERSION,
+          edgeEnabled ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION,
+          version.MINIO_OPERATOR_VERSION,
+          edgeEnabled ? version.HEDERA_PLATFORM_EDGE_VERSION : version.HEDERA_PLATFORM_VERSION,
+        ),
+      ),
+    ).renderToFile(constants.SOLO_CACHE_IMAGES_TARGET_FILE, renderedConfigDirectory);
+  }
+
+  private async buildImageCacheHandlerFromYaml(filePath: string): Promise<ImageCacheHandler> {
+    return ImageCacheHandlerBuilder.fromYaml(filePath).engine(this.containerEngineClient).build();
+  }
+
+  private async buildImageCacheHandlerFromRenderedFile(cacheDirectory: string): Promise<ImageCacheHandler> {
+    const renderedYamlPath: string = this.getRenderedImageTargetsFilePath(cacheDirectory);
+
+    try {
+      await fs.access(renderedYamlPath);
+    } catch {
+      throw new SoloError(CacheCommand.CACHE_NOT_MATERIALIZED_ERROR_MESSAGE);
+    }
+
+    return this.buildImageCacheHandlerFromYaml(renderedYamlPath);
+  }
 }

@@ -39,7 +39,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_PULL,
-              'pull and caches docker images used by solo, prerequisite for `solo cache image load`.',
+              'Pull and caches docker images used by solo, prerequisite for `solo cache image load`.',
               this.cacheCommand,
               this.cacheCommand.pull,
               CacheCommand.PULL_FLAGS_LIST,
@@ -49,7 +49,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_LOAD,
-              'loads the images archive into a cluster. Pulling the images with `solo cache images pull` is a prerequisite.',
+              'Loads the images archive into a cluster. Pulling the images with `solo cache images pull` is a prerequisite.',
               this.cacheCommand,
               this.cacheCommand.load,
               CacheCommand.LOAD_FLAGS_LIST,
@@ -59,7 +59,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_LIST,
-              'lists all cached image archives.',
+              'Lists all cached image archives.',
               this.cacheCommand,
               this.cacheCommand.list,
               CacheCommand.LIST_FLAGS_LIST,
@@ -69,7 +69,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_CLEAR,
-              'clears the image archives.',
+              'Clears the image archives.',
               this.cacheCommand,
               this.cacheCommand.clear,
               CacheCommand.CLEAR_FLAGS_LIST,
@@ -79,7 +79,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               CacheCommandDefinition.IMAGE_STATUS,
-              'lists all images, displays data about them and displays all missing images.',
+              'Lists all images, displays data about them and all missing images.',
               this.cacheCommand,
               this.cacheCommand.status,
               CacheCommand.STATUS_FLAGS_LIST,

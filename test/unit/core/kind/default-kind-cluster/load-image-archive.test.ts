@@ -19,12 +19,6 @@ describe('DefaultKindClient.loadImageArchive', (): void => {
   let builderSubcommands: string[];
   let builderPositionals: string[];
   let buildStub: SinonStub;
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  let subcommandsStub: SinonStub;
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  let argumentStub: SinonStub;
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  let positionalStub: SinonStub;
   let callStub: SinonStub;
 
   beforeEach((): void => {
@@ -38,7 +32,7 @@ describe('DefaultKindClient.loadImageArchive', (): void => {
 
     buildStub = sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as never);
 
-    subcommandsStub = sinon.stub(KindExecutionBuilder.prototype, 'subcommands').callsFake(function (
+    sinon.stub(KindExecutionBuilder.prototype, 'subcommands').callsFake(function (
       this: KindExecutionBuilder,
       ...commands: string[]
     ): KindExecutionBuilder {
@@ -46,7 +40,7 @@ describe('DefaultKindClient.loadImageArchive', (): void => {
       return this;
     });
 
-    argumentStub = sinon.stub(KindExecutionBuilder.prototype, 'argument').callsFake(function (
+    sinon.stub(KindExecutionBuilder.prototype, 'argument').callsFake(function (
       this: KindExecutionBuilder,
       name: string,
       value: string,
@@ -55,7 +49,7 @@ describe('DefaultKindClient.loadImageArchive', (): void => {
       return this;
     });
 
-    positionalStub = sinon.stub(KindExecutionBuilder.prototype, 'positional').callsFake(function (
+    sinon.stub(KindExecutionBuilder.prototype, 'positional').callsFake(function (
       this: KindExecutionBuilder,
       value: string,
     ): KindExecutionBuilder {
