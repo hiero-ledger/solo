@@ -13,7 +13,13 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
+  CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
+  DEFAULT_NETWORK_NODE_NAME,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+} from '../../core/constants.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
@@ -179,6 +185,7 @@ import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {Listr} from 'listr2';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -524,29 +531,6 @@ export class NodeCommandTasks {
         collapseSubtasks: false,
       },
     });
-  }
-
-  public waitForNodesTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Wait for nodes to be active',
-      skip: (): boolean => !this.oneShotState.isActive(),
-      task: (_, task): SoloListr<AnyListrContext> => {
-        const subTasks: SoloListrTask<AnyListrContext>[] = [];
-
-        for (const node of this.remoteConfig.getConsensusNodes()) {
-          const title: string = `Check network pod: ${chalk.yellow(node.name)}`;
-
-          subTasks.push({
-            title,
-            task: async (_, task): Promise<void> => {
-              await this.checkNetworkNodeActiveness(NamespaceName.of(node.namespace), node.name, task, title);
-            },
-          });
-        }
-
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
-      },
-    };
   }
 
   public async checkNetworkNodeActiveness(
@@ -2237,7 +2221,7 @@ export class NodeCommandTasks {
   public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
-      task: async ({config}, task): Promise<void> => {
+      task: async ({config}, task): Promise<Listr<NodeConnectionsContext, any, any> | void> => {
         if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
@@ -2376,30 +2360,74 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
-        // Update all charts
-        await Promise.all(
-          clusterReferences.map(async (clusterReference: string): Promise<void> => {
-            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+        // `helm upgrade` triggers a rolling restart of the node pods when there is a change to items from the
+        // StatefulSet's pod template spec, which only includes application.env from the possible configuration files
+        // that can be updated in this task.
+        const skipRecreate: boolean = config.applicationEnv === flags.applicationEnv.definition.defaultValue;
+        const upgradeTimestamp: Date = new Date();
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
+          {
+            title: 'Update all charts',
+            task: async (): Promise<void> => {
+              await Promise.all(
+                clusterReferences.map(async (clusterReference: string): Promise<void> => {
+                  const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
-              config.soloChartVersion,
-              false,
-              'Solo chart version',
-            );
+                  config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+                    config.soloChartVersion,
+                    false,
+                    'Solo chart version',
+                  );
 
-            await this.chartManager.upgrade(
-              config.namespace,
-              constants.SOLO_DEPLOYMENT_CHART,
-              constants.SOLO_DEPLOYMENT_CHART,
-              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
-              config.soloChartVersion,
-              valuesFiles[clusterReference],
-              context,
-            );
+                  await this.chartManager.upgrade(
+                    config.namespace,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.soloChartVersion,
+                    valuesFiles[clusterReference],
+                    context,
+                  );
 
-            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
-          }),
-        );
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+                }),
+              );
+            },
+          },
+          {
+            title: 'Check node pods are running',
+            skip: (): boolean => skipRecreate,
+            task: (_, task): SoloListr<NodeConnectionsContext> => {
+              const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+              for (const node of config.consensusNodes) {
+                waitSubTasks.push({
+                  title: `Check Node: ${chalk.yellow(node.name)}, Cluster: ${chalk.yellow(node.cluster)}`,
+                  task: async (): Promise<void> => {
+                    await this.k8Factory
+                      .getK8(node.context)
+                      .pods()
+                      .waitForReadyStatus(
+                        NamespaceName.of(node.namespace),
+                        [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                        upgradeTimestamp,
+                      );
+                  },
+                });
+              }
+
+              return task.newListr(waitSubTasks, {
+                concurrent: true,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+          },
+        ];
+
+        return task.newListr(subTasks, {concurrent: false, rendererOptions: {collapseSubtasks: false}});
       },
     };
   }
@@ -3163,7 +3191,25 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+          const attempts: number = CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS;
+          let attempt: number = 0;
+          let found: boolean = false;
+          while (attempt < attempts) {
+            try {
+              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+                found = true;
+                break;
+              }
+            } catch {
+              this.logger.info(
+                `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+              );
+              await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+              attempt++;
+            }
+          }
+
+          if (found) {
             continue;
           }
 
@@ -3725,13 +3771,13 @@ export class NodeCommandTasks {
     return {
       title: 'Upload last saved state to new network node',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-        const nodeAlias: any = config.nodeAlias || config.nodeAliases[0];
+        const config: NodeAddConfigClass = context_.config;
+        const nodeAlias: NodeAlias = config.nodeAlias || config.nodeAliases[0];
         const newNodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const savedStateDirectory: any = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const savedStateDirectory: string = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
         const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
