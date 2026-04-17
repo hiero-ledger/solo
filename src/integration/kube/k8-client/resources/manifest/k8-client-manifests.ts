@@ -31,7 +31,9 @@ export class K8ClientManifests implements Manifests {
         // HTTP 409 means the resource already exists — treat as success (idempotent apply).
         // This can happen when a previous interrupted deployment already created the CRD,
         // or when concurrent tasks race to create the same resource.
-        if ((error as {response?: {statusCode?: number}})?.response?.statusCode === 409) {
+        // The @kubernetes/client-node ApiException stores the HTTP status in .code,
+        // not in .response.statusCode.
+        if ((error as {code?: number})?.code === 409) {
           continue;
         }
         throw error;

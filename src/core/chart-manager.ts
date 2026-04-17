@@ -219,8 +219,16 @@ export class ChartManager {
     kubeContext?: string,
   ): Promise<boolean> {
     try {
+      // Check both deployed/failed state (isChartInstalled) and pending state
+      // (isChartPending).  A pending-install release is not visible to the default
+      // helm list output, so isChartInstalled() alone would incorrectly report
+      // "not installed" and skip the helm uninstall.
       const isInstalled: boolean = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
-      if (isInstalled) {
+      const isPending: boolean = isInstalled
+        ? false
+        : await this.isChartPending(namespaceName, chartReleaseName, kubeContext);
+
+      if (isInstalled || isPending) {
         this.logger.debug(`uninstalling chart release: ${chartReleaseName}`);
         const options: UnInstallChartOptions = UnInstallChartOptionsBuilder.builder()
           .namespace(namespaceName.name)
