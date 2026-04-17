@@ -77,4 +77,12 @@ export class SoloError extends Error {
     const steps: ReadonlyArray<string> | undefined = LocaleRegistry.getTroubleshootingSteps(entry.troubleshootingSteps);
     return steps?.map((step: string): string => ErrorRegistry.interpolate(step, this.context ?? {}));
   }
+
+  /** Returns the documentation URL for this error code, or undefined if no code is set. */
+  public getDocumentUrl(): string | undefined {
+    if (!this.errorCode) {
+      return undefined;
+    }
+    return ErrorRegistry.getDocUrl(this.errorCode);
+  }
 }
