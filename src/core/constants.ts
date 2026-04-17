@@ -285,7 +285,6 @@ export const CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS: number =
 export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
   +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_BACKOFF_MS') || 2000;
 
-
 /**
  * Listr related
  * @returns a object that defines the default color options
