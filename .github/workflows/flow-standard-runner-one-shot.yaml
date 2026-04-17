@@ -1,0 +1,128 @@
+##
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "Standard Runner One-Shot Deploy"
+# The purpose of this workflow is to verify that Solo can successfully deploy a network
+# using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
+# This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standard-runner-one-shot-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
+jobs:
+  standard-runner-one-shot:
+    name: Standard Runner One-Shot Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile Project
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: task build:compile
+
+      - name: One-Shot Single Deploy
+        timeout-minutes: 70
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo -- one-shot single deploy
+
+      - name: Verify Mirror REST API
+        timeout-minutes: 10
+        run: |
+          echo "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
+          for i in $(seq 1 30); do
+            response=$(curl -sf http://localhost:38081/api/v1/accounts 2>/dev/null || true)
+            if echo "${response}" | grep -q '"accounts"'; then
+              echo "Mirror REST API is up and returned accounts."
+              exit 0
+            fi
+            echo "Attempt ${i}/30: not ready yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "ERROR: Mirror REST API did not become available after 5 minutes."
+          exit 1
+
+      - name: Collect Diagnostics on Failure
+        if: ${{ failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo -- deployment diagnostics logs -q --dev || true
+
+      - name: One-Shot Single Destroy
+        if: always()
+        timeout-minutes: 15
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo -- one-shot single destroy --quiet-mode || true
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: standard-runner-one-shot-logs
+          path: ~/.solo/logs/*
+          overwrite: true
+          if-no-files-found: warn
