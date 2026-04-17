@@ -14,6 +14,7 @@ import {
   type AnyListrContext,
   type NodeAlias,
   type NodeAliases,
+  type NodeId,
 } from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -215,22 +216,6 @@ export function renameAndCopyFile(
       }
     },
   );
-}
-
-/**
- * Add debug options to valuesArg used by helm chart
- * @param valuesArgument the valuesArg to update
- * @param debugNodeAlias the node ID to attach the debugger to
- * @param index the index of extraEnv to add the debug options to
- * @returns updated valuesArg
- */
-export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlias, index: number = 0): string {
-  if (debugNodeAlias) {
-    const nodeId: number = Templates.nodeIdFromNodeAlias(debugNodeAlias);
-    valuesArgument += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=JAVA_OPTS"`;
-    valuesArgument += String.raw` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=-agentlib:jdwp=transport=dt_socket\,server=y\,suspend=y\,address=*:${constants.JVM_DEBUG_PORT}"`;
-  }
-  return valuesArgument;
 }
 
 /**
@@ -872,4 +857,479 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
   await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+}
+
+/**
+ * Build comprehensive per-node environment variables structure for Helm values file.
+ * This unified function handles all extraEnv scenarios to avoid duplication and Helm --set issues.
+ *
+ * @param consensusNodes - list of consensus nodes
+ * @param options - configuration options for different extraEnv scenarios
+ * @returns Object suitable for YAML serialization with hedera.nodes[X].root.extraEnv
+ */
+type EnvironmentVariable = {name: string; value: string};
+type PerNodeExtraEnvironmentOptions = {
+  wrapsEnabled?: boolean;
+  tss?: {wraps: {artifactsFolderName: string}};
+  debugNodeAlias?: NodeAlias;
+  useJavaMainClass?: boolean; // for tools/local builds
+  additionalEnvironmentVariables?: Record<NodeAlias, EnvironmentVariable[]>;
+  /** Existing extraEnv entries read from previously-applied values files. These are used as the
+   * base so they are not lost when Helm replaces array fields. Solo-generated entries
+   * (wraps, debug, etc.) are layered on top and will override conflicts. */
+  baseExtraEnvironmentVariables?: Record<NodeAlias, EnvironmentVariable[]>;
+  additionalNodeValues?: Record<
+    NodeAlias,
+    {
+      name?: NodeAlias;
+      nodeId?: NodeId;
+      accountId?: string;
+      blockNodesJson?: string;
+    }
+  >;
+};
+type PerNodeExtraEnvironmentValues = {
+  hedera: {
+    nodes: Array<{
+      root?: {extraEnv: EnvironmentVariable[]};
+      name?: NodeAlias;
+      nodeId?: NodeId;
+      accountId?: string;
+      blockNodesJson?: string;
+    }>;
+  };
+};
+
+/**
+ * Ensures JAVA_OPTS doesn't conflict with JAVA_HEAP_MIN/MAX by removing any
+ * existing -Xms/-Xmx arguments to prevent dual heap size specifications.
+ *
+ * @param javaOptions - The current JAVA_OPTS value
+ * @returns Cleaned JAVA_OPTS without heap size arguments
+ */
+export function sanitizeJavaOptionsForHeapSettings(javaOptions: string): string {
+  // Remove any existing -Xms or -Xmx arguments to prevent conflicts
+  // with JAVA_HEAP_MIN and JAVA_HEAP_MAX environment variables.
+  // Supports both attached (-Xms512m, -Xmx2g) and spaced
+  // (-Xms 512m, -Xmx 2g) JVM option forms.
+  return javaOptions
+    .replaceAll(/(^|\s)-Xms\s*\S+/g, '$1')
+    .replaceAll(/(^|\s)-Xmx\s*\S+/g, '$1')
+    .replaceAll(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Helper function to set or update an environment variable in the extraEnvironmentVariables array
+ */
+function setExtraEnvironmentVariable(
+  extraEnvironmentVariables: EnvironmentVariable[],
+  name: string,
+  value: string,
+): void {
+  const environmentVariableIndex: number = extraEnvironmentVariables.findIndex(
+    (environmentVariable): boolean => environmentVariable.name === name,
+  );
+  if (environmentVariableIndex === -1) {
+    extraEnvironmentVariables.push({name, value});
+  } else {
+    extraEnvironmentVariables[environmentVariableIndex].value = value;
+  }
+}
+
+export function buildPerNodeExtraEnvironmentValuesStructure(
+  consensusNodes: ConsensusNode[],
+  options: PerNodeExtraEnvironmentOptions = {},
+): PerNodeExtraEnvironmentValues {
+  const hedera: PerNodeExtraEnvironmentValues['hedera'] = {nodes: []};
+
+  for (const [nodeIndex, consensusNode] of consensusNodes.entries()) {
+    // Use the cluster-local position in the provided node list as the Helm chart index.
+    // `nodeId` is not guaranteed to match `hedera.nodes[...]` array positions.
+    // Start with env vars from existing values files so Helm array replacement doesn't drop them.
+    // Solo-generated entries below will override any conflicts.
+    const extraEnvironmentVariables: EnvironmentVariable[] = [
+      ...(options.baseExtraEnvironmentVariables?.[consensusNode.name] ?? []),
+    ];
+
+    // Add JAVA_MAIN_CLASS for tools/local builds
+    if (options.useJavaMainClass) {
+      setExtraEnvironmentVariable(extraEnvironmentVariables, 'JAVA_MAIN_CLASS', 'com.swirlds.platform.Browser');
+    }
+
+    // Add TSS wraps if enabled
+    if (options.wrapsEnabled && options.tss) {
+      const wrapPath: string = `${constants.HEDERA_HAPI_PATH}/${options.tss.wraps.artifactsFolderName}`;
+      setExtraEnvironmentVariable(extraEnvironmentVariables, 'TSS_LIB_WRAPS_ARTIFACTS_PATH', wrapPath);
+    }
+
+    // Override JAVA_OPTS for debug mode if this is the debug node
+    if (options.debugNodeAlias === consensusNode.name) {
+      const debugJavaOptions: string = `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:${constants.JVM_DEBUG_PORT}`;
+      const javaOptionsIndex: number = extraEnvironmentVariables.findIndex(
+        (environmentVariable): boolean => environmentVariable.name === 'JAVA_OPTS',
+      );
+      if (javaOptionsIndex === -1) {
+        extraEnvironmentVariables.push({
+          name: 'JAVA_OPTS',
+          value: debugJavaOptions,
+        });
+      } else {
+        extraEnvironmentVariables[javaOptionsIndex].value =
+          `${debugJavaOptions} ${extraEnvironmentVariables[javaOptionsIndex].value}`.trim();
+      }
+    }
+
+    // Add any additional env vars for this specific node (overwrite duplicates)
+    if (options.additionalEnvironmentVariables && options.additionalEnvironmentVariables[consensusNode.name]) {
+      for (const additionalEnvironmentVariable of options.additionalEnvironmentVariables[consensusNode.name]) {
+        setExtraEnvironmentVariable(
+          extraEnvironmentVariables,
+          additionalEnvironmentVariable.name,
+          additionalEnvironmentVariable.value,
+        );
+      }
+    }
+
+    // Final sanitization: remove -Xms/-Xmx from JAVA_OPTS regardless of which source introduced them.
+    // This covers base values files, debug-node prepend, and additional env vars so that
+    // JAVA_HEAP_MIN/JAVA_HEAP_MAX remain the sole authoritative heap sizing source.
+    const finalJavaOptionsIndex: number = extraEnvironmentVariables.findIndex(
+      (environmentVariable): boolean => environmentVariable.name === 'JAVA_OPTS',
+    );
+    if (finalJavaOptionsIndex !== -1) {
+      extraEnvironmentVariables[finalJavaOptionsIndex].value = sanitizeJavaOptionsForHeapSettings(
+        extraEnvironmentVariables[finalJavaOptionsIndex].value,
+      );
+    }
+
+    // Ensure the hedera.nodes array has enough elements
+    while (hedera.nodes.length <= nodeIndex) {
+      hedera.nodes.push({});
+    }
+
+    const nodeValues: PerNodeExtraEnvironmentValues['hedera']['nodes'][number] = {};
+    if (extraEnvironmentVariables.length > 0) {
+      nodeValues.root = {extraEnv: extraEnvironmentVariables};
+    }
+
+    const additionalNodeValues:
+      | {name?: NodeAlias; nodeId?: NodeId; accountId?: string; blockNodesJson?: string}
+      | undefined = options.additionalNodeValues?.[consensusNode.name];
+    if (additionalNodeValues?.name) {
+      nodeValues.name = additionalNodeValues.name;
+    }
+    if (typeof additionalNodeValues?.nodeId === 'number') {
+      nodeValues.nodeId = additionalNodeValues.nodeId;
+    }
+    if (additionalNodeValues?.accountId) {
+      nodeValues.accountId = additionalNodeValues.accountId;
+    }
+    if (additionalNodeValues?.blockNodesJson) {
+      nodeValues.blockNodesJson = additionalNodeValues.blockNodesJson;
+    }
+
+    hedera.nodes[nodeIndex] = nodeValues;
+  }
+
+  return {hedera};
+}
+
+/**
+ * Generate a temporary YAML values file for per-node extraEnv configuration.
+ * Returns the file path to be used with helm --values.
+ *
+ * @param consensusNodes - list of consensus nodes
+ * @param options - extraEnv configuration options
+ * @param cacheDirectory - directory to write the temporary file
+ * @returns path to the generated YAML file
+ */
+export function generateExtraEnvironmentValuesFile(
+  consensusNodes: ConsensusNode[],
+  options: PerNodeExtraEnvironmentOptions = {},
+  cacheDirectory: string,
+): string {
+  const perNodeExtraEnvironmentValues: PerNodeExtraEnvironmentValues = buildPerNodeExtraEnvironmentValuesStructure(
+    consensusNodes,
+    options,
+  );
+
+  const filename: string = `per-node-extra-env-${Date.now()}-${Math.random().toString(36).slice(2)}.yaml`;
+  const filePath: string = PathEx.join(cacheDirectory, filename);
+
+  const yamlContent: string = yaml.stringify(perNodeExtraEnvironmentValues, {indent: 2});
+  fs.writeFileSync(filePath, yamlContent);
+
+  return filePath;
+}
+
+/**
+ * Parse `--values <path>` entries from a helm values argument string.
+ * Handles both quoted and unquoted paths.
+ */
+export function parseValuesFilePaths(valuesArgument: string): string[] {
+  const filePaths: string[] = [];
+  const regex: RegExp = /--values\s+"([^"]+)"|--values\s+(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(valuesArgument)) !== null) {
+    filePaths.push(match[1] ?? match[2]);
+  }
+  return filePaths;
+}
+
+/**
+ * Read YAML helm values files and extract extraEnv entries, keyed by node alias.
+ *
+ * Two sources are read per file (in priority order, lower → higher):
+ *  1. `defaults.root.extraEnv` — applied to every node as a baseline
+ *  2. `hedera.nodes[i].root.extraEnv` — per-node overrides
+ *
+ * Later files in the list take precedence over earlier ones for duplicate variable names,
+ * matching the same semantics as `helm --values` ordering.
+ */
+export function extractExtraEnvironmentFromValuesFiles(
+  filePaths: string[],
+  consensusNodes: ConsensusNode[],
+): Record<NodeAlias, EnvironmentVariable[]> {
+  const result: Record<NodeAlias, EnvironmentVariable[]> = {};
+
+  /**
+   * Merge a list of env vars into the accumulated result for a node alias.
+   * Later calls (later files) override earlier ones for the same variable name.
+   */
+  function mergeIntoResult(nodeAlias: NodeAlias, environmentVariables: EnvironmentVariable[]): void {
+    if (!result[nodeAlias]) {
+      result[nodeAlias] = [];
+    }
+    for (const environmentVariable of environmentVariables) {
+      const existingIndex: number = result[nodeAlias].findIndex(
+        (variable: EnvironmentVariable): boolean => variable.name === environmentVariable.name,
+      );
+      const environmentVariableClone: EnvironmentVariable = {...environmentVariable};
+      if (existingIndex === -1) {
+        result[nodeAlias].push(environmentVariableClone);
+      } else {
+        result[nodeAlias][existingIndex] = environmentVariableClone;
+      }
+    }
+  }
+
+  /**
+   * Safely extract a `root.extraEnv` array from a parsed YAML object section.
+   */
+  function extractExtraEnvironmentArray(rootSection: unknown): EnvironmentVariable[] {
+    if (!rootSection || typeof rootSection !== 'object') {
+      return [];
+    }
+    const extraEnvironmentArray: unknown = (rootSection as Record<string, unknown>)['extraEnv'];
+    if (!Array.isArray(extraEnvironmentArray)) {
+      return [];
+    }
+    const environmentVariables: EnvironmentVariable[] = [];
+    for (const entry of extraEnvironmentArray) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+      const entryRecord: Record<string, unknown> = entry as Record<string, unknown>;
+      if (typeof entryRecord.name !== 'string' || typeof entryRecord.value !== 'string') {
+        continue;
+      }
+      environmentVariables.push({name: entryRecord.name, value: entryRecord.value});
+    }
+    return environmentVariables;
+  }
+
+  for (const filePath of filePaths) {
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      continue; // file may not exist yet; skip silently
+    }
+
+    let parsedValues: unknown;
+    try {
+      parsedValues = yaml.parse(content);
+    } catch {
+      continue;
+    }
+
+    if (!parsedValues || typeof parsedValues !== 'object') {
+      continue;
+    }
+
+    const parsedRecord: Record<string, unknown> = parsedValues as Record<string, unknown>;
+
+    // 1. Extract defaults.root.extraEnv — applies to all nodes (lowest priority within this file).
+    const defaultsSection: unknown = parsedRecord['defaults'];
+    if (defaultsSection && typeof defaultsSection === 'object') {
+      const defaultsRootSection: unknown = (defaultsSection as Record<string, unknown>)['root'];
+      const defaultsEnvironmentVariables: EnvironmentVariable[] = extractExtraEnvironmentArray(defaultsRootSection);
+      if (defaultsEnvironmentVariables.length > 0) {
+        for (const consensusNode of consensusNodes) {
+          mergeIntoResult(consensusNode.name, defaultsEnvironmentVariables);
+        }
+      }
+    }
+
+    // 2. Extract hedera.nodes[i].root.extraEnv — per-node overrides (higher priority).
+    const hederaSection: unknown = parsedRecord['hedera'];
+    if (!hederaSection || typeof hederaSection !== 'object') {
+      continue;
+    }
+
+    const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+    if (!Array.isArray(nodesArray)) {
+      continue;
+    }
+
+    for (const [helmNodeIndex, consensusNode] of consensusNodes.entries()) {
+      const nodeEntry: unknown = nodesArray[helmNodeIndex];
+      if (!nodeEntry || typeof nodeEntry !== 'object') {
+        continue;
+      }
+      const nodeRootSection: unknown = (nodeEntry as Record<string, unknown>)['root'];
+      const nodeEnvironmentVariables: EnvironmentVariable[] = extractExtraEnvironmentArray(nodeRootSection);
+      if (nodeEnvironmentVariables.length > 0) {
+        mergeIntoResult(consensusNode.name, nodeEnvironmentVariables);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Read a YAML Helm values file and extract the `blockNodesJson` field for each consensus node,
+ * keyed by node alias. Uses the consensusNodes array index as the `hedera.nodes` Helm index
+ * (matching the semantics of `buildPerNodeExtraEnvironmentValuesStructure`).
+ *
+ * Returns an empty record if the file cannot be read, cannot be parsed, or contains no
+ * `hedera.nodes` array.
+ */
+export function extractPerNodeBlockNodesJsonFromValuesFile(
+  valuesFilePath: string,
+  consensusNodes: ConsensusNode[],
+): Record<NodeAlias, string> {
+  const result: Record<NodeAlias, string> = {};
+
+  let content: string;
+  try {
+    content = fs.readFileSync(valuesFilePath, 'utf8');
+  } catch {
+    return result;
+  }
+
+  let parsedValues: unknown;
+  try {
+    parsedValues = yaml.parse(content);
+  } catch {
+    return result;
+  }
+
+  if (!parsedValues || typeof parsedValues !== 'object') {
+    return result;
+  }
+
+  const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+  if (!hederaSection || typeof hederaSection !== 'object') {
+    return result;
+  }
+
+  const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+  if (!Array.isArray(nodesArray)) {
+    return result;
+  }
+
+  for (const [helmNodeIndex, consensusNode] of consensusNodes.entries()) {
+    const nodeEntry: unknown = nodesArray[helmNodeIndex];
+    if (!nodeEntry || typeof nodeEntry !== 'object') {
+      continue;
+    }
+    const blockNodesJson: unknown = (nodeEntry as Record<string, unknown>)['blockNodesJson'];
+    if (typeof blockNodesJson === 'string') {
+      result[consensusNode.name] = blockNodesJson;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Extracts per-node identity fields (name, nodeId, accountId) from a Helm values file,
+ * keyed by node alias. Uses the consensusNodes array index as the `hedera.nodes` Helm index
+ * (matching the semantics of `buildPerNodeExtraEnvironmentValuesStructure`).
+ *
+ * This allows callers to re-use the configured account IDs from a previously generated
+ * profile values file instead of recomputing defaults, preserving any customisations made
+ * via node transactions.
+ *
+ * Returns an empty record if the file cannot be read, cannot be parsed, or contains no
+ * `hedera.nodes` array.
+ */
+export interface PerNodeIdentity {
+  name?: NodeAlias;
+  nodeId?: NodeId;
+  accountId?: string;
+}
+
+export function extractPerNodeIdentityFromValuesFile(
+  valuesFilePath: string,
+  consensusNodes: ConsensusNode[],
+): Record<NodeAlias, PerNodeIdentity> {
+  const result: Record<NodeAlias, PerNodeIdentity> = {};
+
+  let content: string;
+  try {
+    content = fs.readFileSync(valuesFilePath, 'utf8');
+  } catch {
+    return result;
+  }
+
+  let parsedValues: unknown;
+  try {
+    parsedValues = yaml.parse(content);
+  } catch {
+    return result;
+  }
+
+  if (!parsedValues || typeof parsedValues !== 'object') {
+    return result;
+  }
+
+  const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+  if (!hederaSection || typeof hederaSection !== 'object') {
+    return result;
+  }
+
+  const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+  if (!Array.isArray(nodesArray)) {
+    return result;
+  }
+
+  for (const [helmNodeIndex, consensusNode] of consensusNodes.entries()) {
+    const nodeEntry: unknown = nodesArray[helmNodeIndex];
+    if (!nodeEntry || typeof nodeEntry !== 'object') {
+      continue;
+    }
+    const entry: Record<string, unknown> = nodeEntry as Record<string, unknown>;
+    const identity: PerNodeIdentity = {};
+    if (typeof entry.name === 'string') {
+      identity.name = entry.name as NodeAlias;
+    }
+    if (typeof entry.nodeId === 'number') {
+      identity.nodeId = entry.nodeId as NodeId;
+    } else if (typeof entry.nodeId === 'string') {
+      const parsed: number = Number.parseInt(entry.nodeId, 10);
+      if (!Number.isNaN(parsed)) {
+        identity.nodeId = parsed as NodeId;
+      }
+    }
+    if (typeof entry.accountId === 'string') {
+      identity.accountId = entry.accountId;
+    }
+    result[consensusNode.name] = identity;
+  }
+
+  return result;
 }

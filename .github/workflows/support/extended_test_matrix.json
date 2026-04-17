@@ -1,0 +1,25 @@
+{
+  "tests": [
+    {
+      "name": "jvm-debugger",
+      "type": "script",
+      "path": ".github/workflows/script/test-jvm-debugger.sh",
+      "description": "JVM Debugger connectivity test",
+      "timeout_minutes": 20
+    },
+    {
+      "name": "one-shot-timing",
+      "type": "workflow",
+      "path": ".github/workflows/flow-one-shot-timing.yaml",
+      "description": "One-shot timing performance test",
+      "timeout_minutes": 40
+    },
+    {
+      "name": "reproduce-stale-config",
+      "type": "script",
+      "path": ".github/workflows/script/reproduce-stale-config.sh",
+      "description": "Reproduce stale local-config handling and verify recovery behavior",
+      "timeout_minutes": 10
+    }
+  ]
+}
