@@ -2354,6 +2354,10 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
+        // `helm upgrade` triggers a rolling restart of the node pods when there is a change to items from the
+        // StatefulSet's pod template spec, which only includes application.env from the possible configuration files
+        // that can be updated in this task.
+        const skipRecreate: boolean = config.applicationEnv === flags.applicationEnv.definition.defaultValue;
         const upgradeTimestamp: Date = new Date();
         const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
           {
@@ -2386,6 +2390,7 @@ export class NodeCommandTasks {
           },
           {
             title: 'Check node pods are running',
+            skip: (): boolean => skipRecreate,
             task: (_, task): SoloListr<NodeConnectionsContext> => {
               const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
               for (const node of config.consensusNodes) {
