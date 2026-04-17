@@ -37,6 +37,7 @@ concurrency:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  WSLENV: GITHUB_WORKSPACE/p
 
 jobs:
   standard-runner-one-shot-windows:
@@ -72,12 +73,19 @@ jobs:
           sudo sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
           task --version
 
-      - name: Install Dependencies
+      - name: Copy Source to WSL2 Filesystem
         shell: wsl-bash {0}
-        timeout-minutes: 10
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           set -euo pipefail
-          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          cp -r "$GITHUB_WORKSPACE" ~/solo
+
+      - name: Install Dependencies
+        shell: wsl-bash {0}
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          cd ~/solo
           npm ci
 
       - name: Compile Project
@@ -85,7 +93,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           set -euo pipefail
-          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          cd ~/solo
           task build:compile
 
       - name: One-Shot Single Deploy
@@ -93,7 +101,7 @@ jobs:
         timeout-minutes: 70
         run: |
           set -euo pipefail
-          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          cd ~/solo
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy
 
@@ -119,7 +127,7 @@ jobs:
         shell: wsl-bash {0}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          cd ~/solo
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- deployment diagnostics logs -q --dev || true
 
@@ -128,7 +136,7 @@ jobs:
         shell: wsl-bash {0}
         timeout-minutes: 15
         run: |
-          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          cd ~/solo
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single destroy --quiet-mode || true
 
