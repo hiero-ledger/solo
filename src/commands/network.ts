@@ -998,6 +998,10 @@ export class NetworkCommand extends BaseCommand {
     return await this.k8Factory.getK8(context).crds().ifExists(crdName);
   }
 
+  private async crdIsEstablished(context: string, crdName: string): Promise<boolean> {
+    return await this.k8Factory.getK8(context).crds().isEstablished(crdName);
+  }
+
   /**
    * Ensure the PodLogs CRD from Grafana Alloy is installed
    */
@@ -1134,7 +1138,11 @@ export class NetworkCommand extends BaseCommand {
       const CRD_POLL_INTERVAL_MS: number = 2000;
       const deadline: number = Date.now() + CRD_WAIT_TIMEOUT_MS;
       for (const crdName of missingCrds) {
-        while (!(await this.crdExists(context, crdName))) {
+        // Wait for the Established condition, not just object existence.  The API server
+        // needs to register the new API group/version before CRs of that kind can be
+        // created — creating the CRD object and the group becoming available are two
+        // separate steps, and ifExists() only detects the former.
+        while (!(await this.crdIsEstablished(context, crdName))) {
           if (Date.now() >= deadline) {
             throw new SoloError(
               `Timed out waiting for CRD '${crdName}' to be registered in context '${context}' after ${CRD_WAIT_TIMEOUT_MS / 1000}s`,
@@ -1142,7 +1150,7 @@ export class NetworkCommand extends BaseCommand {
           }
           await sleep(Duration.ofMillis(CRD_POLL_INTERVAL_MS));
         }
-        this.logger.debug(`CRD '${crdName}' is now registered in context '${context}'`);
+        this.logger.debug(`CRD '${crdName}' is now established in context '${context}'`);
       }
       this.logger.info(`All Prometheus Operator CRDs are now registered in context ${context}`);
 
