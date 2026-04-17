@@ -275,6 +275,15 @@ export class ChartManager {
     reuseValues?: boolean,
   ): Promise<boolean> {
     try {
+      // A pending-install or pending-upgrade release (left by an interrupted prior run)
+      // cannot be upgraded — helm returns "release: already exists".  Uninstall it first
+      // so the helm upgrade --install below can proceed cleanly.
+      const isPending: boolean = await this.isChartPending(namespaceName, chartReleaseName, kubeContext);
+      if (isPending) {
+        this.logger.info(`Chart '${chartReleaseName}' is in pending state; uninstalling before upgrade`);
+        await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+      }
+
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
       const options: UpgradeChartOptions = new UpgradeChartOptions(
         namespaceName?.name,
@@ -284,7 +293,23 @@ export class ChartManager {
         version,
       );
       const chart: Chart = new Chart(chartName, repoName);
-      await this.helm.upgradeChart(chartReleaseName, chart, options);
+      try {
+        await this.helm.upgradeChart(chartReleaseName, chart, options);
+      } catch (upgradeError: unknown) {
+        const message: string = String((upgradeError as {message?: string})?.message ?? '');
+        if (
+          message.includes('release: already exists') ||
+          message.includes('cannot re-use a name that is still in use')
+        ) {
+          // Race condition: release entered pending state between our isChartPending() check
+          // and the helm upgrade call.  Uninstall and retry once.
+          this.logger.info(`Chart '${chartReleaseName}' is still pending (race); uninstalling and retrying`);
+          await this.uninstall(namespaceName, chartReleaseName, kubeContext);
+          await this.helm.upgradeChart(chartReleaseName, chart, options);
+        } else {
+          throw upgradeError;
+        }
+      }
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
     } catch (error) {
       throw new SoloError(`failed to upgrade chart ${chartReleaseName}: ${error.message}`, error);
