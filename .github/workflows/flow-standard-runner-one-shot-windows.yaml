@@ -16,7 +16,8 @@
 
 name: "Standard Runner One-Shot Deploy (Windows)"
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
-# using the one-shot single deploy command on a standard GitHub-hosted Windows runner.
+# using the one-shot single deploy command on a standard GitHub-hosted Windows runner via WSL2.
+# Solo on Windows requires WSL2 (Ubuntu) as documented. This workflow mirrors that setup.
 # This acts as a compatibility gate: if Solo stops working on Windows standard runners, this job fails.
 
 on:
@@ -26,10 +27,6 @@ on:
       - reopened
       - synchronize
       - ready_for_review
-
-defaults:
-  run:
-    shell: bash
 
 permissions:
   contents: read
@@ -51,43 +48,57 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
-      - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+      - name: Setup WSL2 (Ubuntu)
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
-          node-version: 22
-          cache: npm
+          distribution: Ubuntu-22.04
+          additional-packages: curl git
+
+      - name: Install Node.js 22 in WSL2
+        shell: wsl-bash {0}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          node --version
+          npm --version
+
+      - name: Install Task in WSL2
+        shell: wsl-bash {0}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          set -euo pipefail
+          sudo sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+          task --version
 
       - name: Install Dependencies
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
-        with:
-          max_attempts: 10
-          timeout_minutes: 10
-          command: npm ci
-
-      - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          version: 3.49.1
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: wsl-bash {0}
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          npm ci
 
       - name: Compile Project
+        shell: wsl-bash {0}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: task build:compile
-
-      - name: Switch Docker to Linux Containers
-        shell: powershell
         run: |
-          & "C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+          set -euo pipefail
+          cd "$(wslpath "$GITHUB_WORKSPACE")"
+          task build:compile
 
       - name: One-Shot Single Deploy
+        shell: wsl-bash {0}
         timeout-minutes: 70
         run: |
+          set -euo pipefail
+          cd "$(wslpath "$GITHUB_WORKSPACE")"
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy
 
       - name: Verify Mirror REST API
+        shell: wsl-bash {0}
         timeout-minutes: 10
         run: |
           echo "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
@@ -105,17 +116,29 @@ jobs:
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
+        shell: wsl-bash {0}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
+          cd "$(wslpath "$GITHUB_WORKSPACE")"
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- deployment diagnostics logs -q --dev || true
 
       - name: One-Shot Single Destroy
         if: always()
+        shell: wsl-bash {0}
         timeout-minutes: 15
         run: |
+          cd "$(wslpath "$GITHUB_WORKSPACE")"
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single destroy --quiet-mode || true
+
+      - name: Copy Logs to Windows Workspace
+        if: always()
+        shell: wsl-bash {0}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          mkdir -p "$(wslpath "$GITHUB_WORKSPACE")/solo-logs"
+          cp -r ~/.solo/logs/. "$(wslpath "$GITHUB_WORKSPACE")/solo-logs/" || true
 
       - name: Upload Logs
         if: always()
@@ -123,6 +146,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: ~/.solo/logs/*
+          path: ${{ github.workspace }}/solo-logs/*
           overwrite: true
           if-no-files-found: warn
