@@ -1075,9 +1075,7 @@ export class NetworkCommand extends BaseCommand {
       this.logger.info(`Waiting for CRD '${PODLOGS_CRD}' to be established in context ${context}...`);
       while (!(await this.crdIsEstablished(context, PODLOGS_CRD))) {
         if (Date.now() >= podlogsDeadline) {
-          throw new SoloError(
-            `Timed out waiting for CRD '${PODLOGS_CRD}' to be established in context '${context}'`,
-          );
+          throw new SoloError(`Timed out waiting for CRD '${PODLOGS_CRD}' to be established in context '${context}'`);
         }
         await sleep(Duration.ofMillis(PODLOGS_POLL_INTERVAL_MS));
       }

@@ -19,28 +19,18 @@ name: "One Shot Recovery Scenarios"
 on:
   workflow_dispatch:
     inputs:
-      node-version:
-        description: "NodeJS Version:"
+      test-name:
+        description: "Recovery scenario test name to run (leave empty to run all)"
         type: string
         required: false
-        default: "22"
-      released-or-latest:
-        description: "Use released or latest version"
-        type: boolean
-        required: false
-        default: false
+        default: ""
   workflow_call:
     inputs:
-      node-version:
-        description: "NodeJS Version:"
+      test-name:
+        description: "Recovery scenario test name to run (leave empty to run all)"
         type: string
         required: false
-        default: "22"
-      released-or-latest:
-        description: "Use released or latest version"
-        type: boolean
-        required: false
-        default: false
+        default: ""
 
 defaults:
   run:
@@ -67,7 +57,12 @@ jobs:
       - name: Read JSON and Set Matrix Output
         id: set_matrix
         run: |
-          JSON_CONTENT=$(cat .github/workflows/support/one-shot-recovery-test-matrix.json | jq -c .)
+          TEST_NAME="${{ inputs.test-name }}"
+          if [[ -n "$TEST_NAME" ]]; then
+            JSON_CONTENT=$(cat .github/workflows/support/one-shot-recovery-test-matrix.json | jq -c --arg name "$TEST_NAME" '[.[] | select(.name == $name)]')
+          else
+            JSON_CONTENT=$(cat .github/workflows/support/one-shot-recovery-test-matrix.json | jq -c .)
+          fi
           echo "JSON_CONTENT: $JSON_CONTENT"
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
@@ -86,10 +81,12 @@ jobs:
       - name: Pre-job Cleanup
         if: always()
         run: |
-          kind delete cluster --name solo-cluster 2>/dev/null || true
-          docker rm --force --volumes \
-            $(docker ps -aq --filter label=io.x-k8s.kind.cluster=solo-cluster 2>/dev/null) \
-            2>/dev/null || true
+          for cluster in $(kind get clusters 2>/dev/null); do
+            docker rm --force --volumes \
+              $(docker ps -aq --filter label=io.x-k8s.kind.cluster=$cluster 2>/dev/null) \
+              2>/dev/null || true
+            kind delete cluster -n $cluster 2>/dev/null || true
+          done
           rm -rf ~/.solo
 
       - name: Harden Runner
@@ -103,7 +100,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: ${{ inputs.node-version || '22' }}
+          node-version: 22
           cache: npm
 
       - name: Install Dependencies
@@ -128,11 +125,7 @@ jobs:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
           export PATH=~/.solo/bin:${PATH}
-          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            export SOLO_COMMAND="npx @hashgraph/solo"
-          else
-            export SOLO_COMMAND="npm run solo --"
-          fi
+          export SOLO_COMMAND="npm run solo --"
           bash .github/workflows/script/${{ matrix.script }}
 
       - name: Collect Deployment Diagnostics Logs
@@ -156,4 +149,4 @@ jobs:
       - name: Cleanup Deployment
         if: always()
         timeout-minutes: 5
-        run: kind delete cluster --name solo-cluster 2>/dev/null || true
+        run: for cluster in $(kind get clusters 2>/dev/null); do kind delete cluster -n $cluster 2>/dev/null || true; done; true

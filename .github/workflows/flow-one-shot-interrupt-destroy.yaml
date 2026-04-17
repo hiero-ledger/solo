@@ -19,28 +19,18 @@ name: "One Shot Interrupt Destroy"
 on:
   workflow_dispatch:
     inputs:
-      node-version:
-        description: "NodeJS Version:"
+      test-name:
+        description: "Recovery scenario test name to run (leave empty to run all)"
         type: string
         required: false
-        default: "22"
-      released-or-latest:
-        description: "Use released or latest version"
-        type: boolean
-        required: false
-        default: false
+        default: ""
   workflow_call:
     inputs:
-      node-version:
-        description: "NodeJS Version:"
+      test-name:
+        description: "Recovery scenario test name to run (leave empty to run all)"
         type: string
         required: false
-        default: "22"
-      released-or-latest:
-        description: "Use released or latest version"
-        type: boolean
-        required: false
-        default: false
+        default: ""
 
 defaults:
   run:
@@ -65,11 +55,13 @@ jobs:
       - name: Pre-job Cleanup
         if: always()
         run: |
-          # Remove any Kind cluster and Docker containers left over from a previous run on this runner.
-          kind delete cluster --name solo-cluster 2>/dev/null || true
-          docker rm --force --volumes \
-            $(docker ps -aq --filter label=io.x-k8s.kind.cluster=solo-cluster 2>/dev/null) \
-            2>/dev/null || true
+          # Remove any Kind clusters and Docker containers left over from a previous run on this runner.
+          for cluster in $(kind get clusters 2>/dev/null); do
+            docker rm --force --volumes \
+              $(docker ps -aq --filter label=io.x-k8s.kind.cluster=$cluster 2>/dev/null) \
+              2>/dev/null || true
+            kind delete cluster -n $cluster 2>/dev/null || true
+          done
           rm -rf ~/.solo
 
       - name: Harden Runner
@@ -83,7 +75,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: ${{ inputs.node-version || '22' }}
+          node-version: 22
           cache: npm
 
       - name: Install Dependencies
@@ -108,11 +100,7 @@ jobs:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
           export PATH=~/.solo/bin:${PATH}
-          if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            export SOLO_COMMAND="npx @hashgraph/solo"
-          else
-            export SOLO_COMMAND="npm run solo --"
-          fi
+          export SOLO_COMMAND="npm run solo --"
           export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
           bash .github/workflows/script/one-shot-interrupt-redeploy.sh
 
@@ -137,11 +125,10 @@ jobs:
       - name: Cleanup Deployment
         if: always()
         timeout-minutes: 5
-        run: kind delete cluster --name solo-cluster 2>/dev/null || true
+        run: for cluster in $(kind get clusters 2>/dev/null); do kind delete cluster -n $cluster 2>/dev/null || true; done; true
 
   recovery-scenarios:
     name: Recovery Scenarios
     uses: ./.github/workflows/flow-one-shot-recovery-scenarios.yaml
     with:
-      node-version: ${{ inputs.node-version || '22' }}
-      released-or-latest: ${{ inputs.released-or-latest || false }}
+      test-name: ${{ inputs.test-name || '' }}
