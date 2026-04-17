@@ -13,7 +13,12 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  CHECK_WRAPS_DIRECTORY_BACKOFF_MS, CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
+  DEFAULT_NETWORK_NODE_NAME,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+} from '../../core/constants.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
@@ -3185,7 +3190,7 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          const attempts: number = 10;
+          const attempts: number = constants.CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS;
           let attempt: number = 0;
           let found: boolean = false;
           while (attempt < attempts) {
@@ -3198,7 +3203,7 @@ export class NodeCommandTasks {
               this.logger.info(
                 `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
               );
-              await sleep(Duration.ofSeconds(2));
+              await sleep(Duration.ofMillis(constants.CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
               attempt++;
             }
           }
