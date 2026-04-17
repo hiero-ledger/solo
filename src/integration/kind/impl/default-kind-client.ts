@@ -151,11 +151,23 @@ export class DefaultKindClient implements KindClient {
   }
 
   public async loadImageArchive(
-    imageName: string,
+    archivePath: string,
     options?: LoadImageArchiveOptions,
   ): Promise<LoadImageArchiveResponse> {
-    const builder: LoadImageArchiveOptionsBuilder = LoadImageArchiveOptionsBuilder.from(options).name(imageName);
-    return this.executeAsync(new LoadImageArchiveRequest(builder.build()), LoadImageArchiveResponse);
+    const builder: LoadImageArchiveOptionsBuilder =
+      LoadImageArchiveOptionsBuilder.from(options).archivePath(archivePath);
+
+    await this.executeCall(new LoadImageArchiveRequest(builder.build()));
+    return new LoadImageArchiveResponse();
+  }
+
+  private async executeCall<T extends KindRequest>(request: T): Promise<void> {
+    const builder: KindExecutionBuilder = new KindExecutionBuilder();
+    builder.executable(this.executable);
+    builder.environmentVariable('PATH', `${this.installationDirectory}${path.delimiter}${process.env.PATH}`);
+    request.apply(builder);
+    const execution: KindExecution = builder.build();
+    await execution.call();
   }
 
   /**

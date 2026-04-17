@@ -133,6 +133,25 @@
     "enable_s6_image": true
   },
   {
+    "name": "Cache",
+    "test-script": "test-e2e-cache",
+    "coverage-subdirectory": "e2e-cache",
+    "coverage-report-name": "E2E_Cache_Tests_Coverage_Report",
+    "test-timeout-minutes": 20,
+    "local-java-build": false,
+    "install-dependencies": true,
+    "runner": "hiero-solo-linux-large",
+    "kind-install": true,
+    "kind-version": "0.29.0",
+    "kind-node-image": "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211",
+    "kubectl-install": true,
+    "kubectl-version": "1.32.2",
+    "helm-install": false,
+    "helm-version": "3.14.2",
+    "node-version": "24.14.0",
+    "enable_s6_image": true
+  },
+  {
     "name": "Standard",
     "test-script": "test-e2e-standard",
     "coverage-subdirectory": "e2e-standard",
