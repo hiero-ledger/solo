@@ -1090,18 +1090,18 @@ export class NetworkCommand extends BaseCommand {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, context] of clusterRefs) {
       let valuesArgument: string = '';
-      let missingCount: number = 0;
+      const missingCrds: string[] = [];
 
       for (const {key, crd} of CRDS) {
         const exists: boolean = await this.crdExists(context, crd);
         if (exists) {
           valuesArgument += ` --set "${key}.enabled=false"`;
         } else {
-          missingCount++;
+          missingCrds.push(crd);
         }
       }
 
-      if (missingCount === 0) {
+      if (missingCrds.length === 0) {
         this.logger.info(`All Prometheus Operator CRDs already present in context ${context}; skipping installation.`);
         continue;
       }
@@ -1121,6 +1121,30 @@ export class NetworkCommand extends BaseCommand {
         valuesArgument,
         context,
       );
+
+      // Helm returning successfully only means the CRD objects were created as Kubernetes
+      // resources.  The API server may take a few seconds to register the new API group/version
+      // (propagate the CRDs) so that custom resources of those kinds can actually be created.
+      // Poll until all newly installed CRDs are queryable before proceeding, because the next
+      // step (solo-deployment install) has a post-install hook that creates a ServiceMonitor CR.
+      this.logger.info(
+        `Waiting for ${missingCrds.length} Prometheus Operator CRD(s) to be registered in context ${context}...`,
+      );
+      const CRD_WAIT_TIMEOUT_MS: number = 120_000;
+      const CRD_POLL_INTERVAL_MS: number = 2000;
+      const deadline: number = Date.now() + CRD_WAIT_TIMEOUT_MS;
+      for (const crdName of missingCrds) {
+        while (!(await this.crdExists(context, crdName))) {
+          if (Date.now() >= deadline) {
+            throw new SoloError(
+              `Timed out waiting for CRD '${crdName}' to be registered in context '${context}' after ${CRD_WAIT_TIMEOUT_MS / 1000}s`,
+            );
+          }
+          await sleep(Duration.ofMillis(CRD_POLL_INTERVAL_MS));
+        }
+        this.logger.debug(`CRD '${crdName}' is now registered in context '${context}'`);
+      }
+      this.logger.info(`All Prometheus Operator CRDs are now registered in context ${context}`);
 
       this.eventBus.emit(new NetworkDeployedEvent(deployment));
 
