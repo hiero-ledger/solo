@@ -81,10 +81,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
-      - name: Solo Init
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npm run solo -- init --dev
-
       - name: One-Shot Single Deploy
         timeout-minutes: 70
         run: |
