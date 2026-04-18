@@ -249,11 +249,11 @@ export class KeyManager {
 
     this.logger.debug(`Loading ${keyName}-keys for node: ${nodeAlias}`, {nodeKeyFiles});
 
-    const keyBytes: Buffer<ArrayBuffer> = fs.readFileSync(nodeKeyFiles.privateKeyFile);
+    const keyBytes: Buffer = fs.readFileSync(nodeKeyFiles.privateKeyFile);
     const keyPem: string = keyBytes.toString();
     const key: CryptoKey = await this.convertPemToPrivateKey(keyPem, algo);
 
-    const certBytes: Buffer<ArrayBuffer> = fs.readFileSync(nodeKeyFiles.certificateFile);
+    const certBytes: Buffer = fs.readFileSync(nodeKeyFiles.certificateFile);
     const certPems: any = x509.PemConverter.decode(certBytes.toString());
 
     const certs: x509.X509Certificate[] = [];

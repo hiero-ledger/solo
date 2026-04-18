@@ -653,6 +653,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.getHelmChartValues(),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
+        this.tasks.reportActivePortForwards(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
