@@ -26,6 +26,8 @@ on_exit() {
   fi
 
   if [[ ${rc} -ne 0 ]]; then
+    echo "Test failed, current port forward process: "
+    ps -ef |grep port-forward
     collect_failure_diagnostics "${rc}"
   fi
 
