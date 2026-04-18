@@ -200,15 +200,6 @@ npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirror
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
 
-# kill existing port-forward process due to restart of relay pods
-curl http://127.0.0.1:37546 || true
-
-# find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
-relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
-echo "Relay Pod Name: ${relayPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 37546:7546 >/tmp/solo-migration-relay-port-forward.log 2>&1 &
-echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 37546:7546 &"
-
 # kill existing port-forward process due to restart of mirror ingress controller
 curl http://127.0.0.1:38081 || true
 # find the new mirror-ingress-controller pod name then enable port-forwarding to it
@@ -232,6 +223,16 @@ npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-a
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+
+# kill existing port-forward process due to restart of relay pods
+curl http://127.0.0.1:37546 || true
+
+# find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
+relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
+echo "Relay Pod Name: ${relayPodName}"
+kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 37546:7546 >/tmp/solo-migration-relay-port-forward.log 2>&1 &
+echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 37546:7546 &"
+
 echo "::endgroup::"
 
 echo "::group::Final Verification"
