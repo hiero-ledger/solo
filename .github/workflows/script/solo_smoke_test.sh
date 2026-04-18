@@ -12,6 +12,72 @@ export USE_MIRROR_NODE_LEGACY_RELEASE_NAME="true"
 export PATH=~/.solo/bin:${PATH}
 source .github/workflows/script/helper.sh
 
+RELAY_LOCAL_PORT="${RELAY_LOCAL_PORT:-37546}"
+RELAY_TARGET_PORT="${RELAY_TARGET_PORT:-7546}"
+
+function is_local_port_open ()
+{
+  local port="${1}"
+  if command -v nc >/dev/null 2>&1; then
+    nc -z 127.0.0.1 "${port}" >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v ncat >/dev/null 2>&1; then
+    ncat -z 127.0.0.1 "${port}" >/dev/null 2>&1
+    return $?
+  fi
+
+  timeout 1 bash -c "cat < /dev/null > /dev/tcp/127.0.0.1/${port}" >/dev/null 2>&1
+}
+
+function resolve_relay_pod_name ()
+{
+  kubectl get pods -n "${SOLO_NAMESPACE}" -o name \
+    | sed 's#pod/##' \
+    | grep '^relay-1-' \
+    | grep -v '\-ws' \
+    | head -n 1
+}
+
+function ensure_relay_port_forward ()
+{
+  local relayPodName=""
+  local cluster_name="${SOLO_CLUSTER_NAME:-solo-e2e}"
+  local retry_count=0
+  local max_retry=12
+
+  if is_local_port_open "${RELAY_LOCAL_PORT}"; then
+    return 0
+  fi
+
+  echo "Relay port-forward on ${RELAY_LOCAL_PORT} is unavailable. Restarting it."
+
+  pkill -f "kubectl port-forward -n ${SOLO_NAMESPACE} --context kind-${cluster_name} .* ${RELAY_LOCAL_PORT}:${RELAY_TARGET_PORT}" >/dev/null 2>&1 || true
+  pkill -f "kubectl port-forward -n ${SOLO_NAMESPACE} .* ${RELAY_LOCAL_PORT}:${RELAY_TARGET_PORT}" >/dev/null 2>&1 || true
+
+  relayPodName="$(resolve_relay_pod_name)"
+  if [ -z "${relayPodName}" ]; then
+    echo "Unable to resolve relay pod in namespace ${SOLO_NAMESPACE}"
+    return 1
+  fi
+
+  echo "Restarting relay port-forward using pod ${relayPodName}"
+  kubectl port-forward -n "${SOLO_NAMESPACE}" --context "kind-${cluster_name}" pods/"${relayPodName}" "${RELAY_LOCAL_PORT}:${RELAY_TARGET_PORT}" >/tmp/solo-migration-relay-port-forward.log 2>&1 &
+
+  while [ "${retry_count}" -lt "${max_retry}" ]; do
+    if is_local_port_open "${RELAY_LOCAL_PORT}"; then
+      echo "Relay port-forward is healthy on ${RELAY_LOCAL_PORT}"
+      return 0
+    fi
+    sleep 1
+    retry_count=$((retry_count + 1))
+  done
+
+  echo "Relay port-forward did not become ready on ${RELAY_LOCAL_PORT} after ${max_retry} seconds"
+  return 1
+}
+
 function clone_smart_contract_repo ()
 {
   echo "Clone hedera-smart-contracts"
@@ -82,14 +148,39 @@ function start_background_transactions ()
 
 function start_contract_test ()
 {
+  local attempt=1
+  local max_attempts=2
+  local result=0
+
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
   sleep 10
-  echo "Show current port forward for debugging purpose"
-  ps -ef | grep port-forward
-  echo "Run smart contract test"
-  result=0
-  npm run hh:test || result=$?
+  while [ "${attempt}" -le "${max_attempts}" ]; do
+    result=0
+    ensure_relay_port_forward || result=$?
+    if [[ $result -ne 0 ]]; then
+      echo "Failed to ensure relay port-forward before smart contract test"
+      break
+    fi
+
+    echo "Show current port forward for debugging purpose"
+    ps -ef | grep port-forward
+    echo "Run smart contract test (attempt ${attempt}/${max_attempts})"
+    result=0
+    npm run hh:test || result=$?
+
+    if [[ $result -eq 0 ]]; then
+      break
+    fi
+
+    if is_local_port_open "${RELAY_LOCAL_PORT}"; then
+      break
+    fi
+
+    echo "Smart contract test failed and relay port-forward is down; retrying after restart."
+    attempt=$((attempt + 1))
+    sleep 3
+  done
   cd -
 
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
