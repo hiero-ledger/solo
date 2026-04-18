@@ -24,9 +24,11 @@ if (!NAMESPACE || !POD || !CONTEXT || !PORT_MAP) {
 
 const MIN_BACKOFF: number = 1; // seconds
 const MAX_BACKOFF: number = 60; // seconds
+const POD_EXISTENCE_POLL_INTERVAL_SECONDS: number = 5;
 let backoff: number = MIN_BACKOFF;
 let child: ChildProcess | undefined;
 let stopping: boolean = false;
+let exitForMissingTarget: boolean = false;
 
 interface CommandResult {
   code: number;
@@ -39,17 +41,12 @@ interface ExecuteKubectlOptions {
   trackAsChild: boolean;
 }
 
-function isTerminalKubectlError(message: string): boolean {
+function isMissingOriginalPodError(message: string): boolean {
   const errorText: string = message.toLowerCase();
 
   return (
-    (errorText.includes('context') && errorText.includes('does not exist')) ||
-    (errorText.includes('connection to the server') && errorText.includes('was refused')) ||
-    errorText.includes('unable to connect to the server') ||
-    errorText.includes('no configuration has been provided') ||
-    errorText.includes('no such host') ||
-    (errorText.includes('not found') &&
-      (errorText.includes('namespaces') || errorText.includes('pods') || errorText.includes('pod')))
+    errorText.includes('notfound') ||
+    (errorText.includes('not found') && (errorText.includes('pods') || errorText.includes('pod')))
   );
 }
 
@@ -112,39 +109,21 @@ async function executeKubectl(
 }
 
 /**
- * Check if a cluster or namespace is still available, and whether to restart the port-forward process or exit.
+ * Check whether the original pod target still exists.
+ * If the pod has been removed, this persistent process should stop and not auto-restart.
  */
 async function shouldExitForMissingTarget(kubectlInstallationDirectory: string): Promise<boolean> {
-  const baseArguments: string[] = CONTEXT ? ['--context', CONTEXT] : [];
-
-  // Namespace existence is a stable signal that the cluster/context is still reachable.
-  const namespaceResult: CommandResult = await executeKubectl(
-    [...baseArguments, 'get', 'namespace', NAMESPACE, '-o', 'name'],
-    kubectlInstallationDirectory,
-    {captureOutput: true, trackAsChild: false},
-  );
-
-  if (namespaceResult.code !== 0) {
-    const combinedNamespaceError: string = `${namespaceResult.stderr}\n${namespaceResult.stdout}`.trim();
-    if (isTerminalKubectlError(combinedNamespaceError)) {
-      console.error(
-        `Stopping persistent port-forward: namespace/context is unavailable (${combinedNamespaceError || 'unknown kubectl error'})`,
-      );
-      return true;
-    }
-  }
-
-  // Pod absence after cluster teardown/deployment destroy is terminal for this specific forward.
+  // The pod argument is the original pod reference this process was started for.
   const podResult: CommandResult = await executeKubectl(
-    [...baseArguments, '-n', NAMESPACE, 'get', POD, '-o', 'name'],
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', POD, '-o', 'name'],
     kubectlInstallationDirectory,
     {captureOutput: true, trackAsChild: false},
   );
   if (podResult.code !== 0) {
     const combinedPodError: string = `${podResult.stderr}\n${podResult.stdout}`.trim();
-    if (isTerminalKubectlError(combinedPodError)) {
+    if (isMissingOriginalPodError(combinedPodError)) {
       console.error(
-        `Stopping persistent port-forward: pod target is unavailable (${combinedPodError || 'unknown kubectl error'})`,
+        `Stopping persistent port-forward: original pod target is no longer available (${combinedPodError || 'unknown kubectl error'})`,
       );
       return true;
     }
@@ -154,10 +133,7 @@ async function shouldExitForMissingTarget(kubectlInstallationDirectory: string):
 }
 
 function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
-  const arguments_: string[] = ['port-forward', '-n', NAMESPACE];
-  if (CONTEXT) {
-    arguments_.push('--context', CONTEXT);
-  }
+  const arguments_: string[] = ['port-forward', '-n', NAMESPACE, '--context', CONTEXT];
   const [LOCAL, REMOTE] = PORT_MAP.split(':');
   arguments_.push(POD, `${LOCAL}:${REMOTE}`);
 
@@ -178,15 +154,46 @@ function sleepSeconds(s: number): Promise<void> {
   return new Promise((res): NodeJS.Timeout => setTimeout(res, s * 1000));
 }
 
+async function runKubectlUntilPodMissing(kubectlInstallationDirectory: string): Promise<number> {
+  const TICK: unique symbol = Symbol('tick');
+  const kubectlRunPromise: Promise<number> = runKubectl(kubectlInstallationDirectory);
+
+  while (!stopping && !exitForMissingTarget) {
+    const result: number | typeof TICK = await Promise.race<number | typeof TICK>([
+      kubectlRunPromise,
+      sleepSeconds(POD_EXISTENCE_POLL_INTERVAL_SECONDS).then((): typeof TICK => TICK),
+    ]);
+
+    if (result !== TICK) {
+      return result;
+    }
+
+    if (await shouldExitForMissingTarget(kubectlInstallationDirectory)) {
+      exitForMissingTarget = true;
+      if (child) {
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+      }
+      break;
+    }
+  }
+
+  return await kubectlRunPromise;
+}
+
 async function main(): Promise<void> {
   const kubectlInstallationDirectory: string = KUBECTL_INSTALLATION_DIRECTORY || '';
-  while (!stopping) {
+  while (!stopping && !exitForMissingTarget) {
     if (await shouldExitForMissingTarget(kubectlInstallationDirectory)) {
+      exitForMissingTarget = true;
       break;
     }
 
-    const rc: number = await runKubectl(kubectlInstallationDirectory);
-    if (stopping) {
+    const rc: number = await runKubectlUntilPodMissing(kubectlInstallationDirectory);
+    if (stopping || exitForMissingTarget) {
       break;
     }
     console.error(`kubectl exited with code ${rc}, restarting in ${backoff} seconds`);
