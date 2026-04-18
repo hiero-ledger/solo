@@ -208,7 +208,7 @@ tasks:
 
       # Test Block Node functionality
       - cmd: |
-          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
+          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 >/tmp/solo-block-node-port-forward.log 2>&1 &
           cd ../../test/data
           
           OUTPUT=$(./get-block.sh 1)
