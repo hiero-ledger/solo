@@ -22,6 +22,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {CacheImageTemplateValues} from '../integration/cache/models/impl/cache-image-template-values.js';
 import * as version from '../../version.js';
 import {DefaultCacheImageTemplateResolver} from '../integration/cache/impl/default-cache-image-template-resolver.js';
+import {CacheTarget} from '../integration/cache/models/impl/cache-target.js';
 
 interface CachePullConfigClass {
   imageCacheHandler: ImageCacheHandler;
@@ -53,6 +54,9 @@ interface CacheClearContext {
 
 interface CacheStatusConfigClass {
   imageCacheHandler: ImageCacheHandler;
+  clusterReference: ClusterReferenceName;
+  context: Context;
+  clusterName: string;
 }
 
 interface CacheStatusContext {
@@ -110,7 +114,7 @@ export class CacheCommand extends BaseCommand {
 
   public static readonly STATUS_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
   };
 
   // ----- Handlers ------- //
@@ -291,22 +295,54 @@ export class CacheCommand extends BaseCommand {
     return true;
   }
 
-  public async status(): Promise<boolean> {
+  public async status(argv: ArgvStruct): Promise<boolean> {
     const tasks: SoloListr<CacheStatusContext> = this.taskList.newTaskList(
       [
         {
           title: 'Check cache status',
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
+            this.configManager.update(argv);
+            flags.disablePrompts(CacheCommand.STATUS_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...CacheCommand.STATUS_FLAGS_LIST.required,
+              ...CacheCommand.STATUS_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
             const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
 
             const config: CacheStatusConfigClass = {
               imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
-            };
+            } as CacheStatusConfigClass;
+
+            const clusterReference: ClusterReferenceName | undefined = this.configManager.getFlag(flags.clusterRef);
+
+            if (clusterReference) {
+              await this.localConfig.load();
+
+              const context: Context = this.getClusterContext(clusterReference);
+              config.clusterReference = clusterReference;
+              config.context = context;
+              config.clusterName = this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent());
+            } else {
+              try {
+                config.clusterName = this.prepareClusterName(this.k8Factory.default().clusters().readCurrent());
+              } catch {
+                // Best effort only. Local cache status should still work.
+              }
+            }
 
             context_.config = config;
 
             const items: readonly ArtifactHealthResult[] = await config.imageCacheHandler.healthcheck();
             const cachedItems: readonly CachedItem[] = await config.imageCacheHandler.list();
+            const expectedTargets: readonly CacheTarget[] = await config.imageCacheHandler.resolveRequiredArtifacts();
+
+            const expectedImages: string[] = expectedTargets.map(
+              (target): string => `${target.name}:${target.version}`,
+            );
 
             const missingImages: string[] = items
               .filter((item): boolean => !item.healthy)
@@ -325,16 +361,51 @@ export class CacheCommand extends BaseCommand {
 
             const totalSizeMb: string = (totalBytes / (1024 * 1024)).toFixed(2);
 
-            try {
-              this.logger.showUser(`Cached images: ${items.length}`);
-              this.logger.showUser(`Total size: ${totalSizeMb} MB`);
-              this.logger.showUser(`Healthy: ${missingImages.length === 0}`);
+            this.logger.showUser(`Cached images: ${items.length}`);
+            this.logger.showUser(`Total size: ${totalSizeMb} MB`);
+            this.logger.showUser(`Healthy: ${missingImages.length === 0}`);
 
-              if (missingImages.length > 0) {
-                this.logger.showList('Missing images', missingImages);
+            if (missingImages.length > 0) {
+              this.logger.showList('Missing cache archives', missingImages);
+            }
+
+            if (!config.clusterName) {
+              this.logger.showUser('Cluster images: unavailable');
+              return;
+            }
+
+            try {
+              const clusterImages: readonly string[] = await this.containerEngineClient.listLoadedImagesInCluster(
+                config.clusterName,
+              );
+
+              const clusterImageSet: Set<string> = new Set(clusterImages);
+              const expectedImageSet: Set<string> = new Set(expectedImages);
+
+              const loadedExpectedImages: string[] = expectedImages.filter((image: string): boolean =>
+                clusterImageSet.has(image),
+              );
+
+              const missingInCluster: string[] = expectedImages.filter((image): boolean => !clusterImageSet.has(image));
+
+              const additionalClusterImages: string[] = clusterImages.filter(
+                (image): boolean => !expectedImageSet.has(image),
+              );
+
+              this.logger.showUser(
+                `Cluster loaded expected images: ${loadedExpectedImages.length}/${expectedImages.length}`,
+              );
+
+              if (missingInCluster.length > 0) {
+                this.logger.showList('Expected but not loaded in cluster', missingInCluster);
               }
-            } catch {
-              this.logger.showUser('No cache found');
+
+              if (additionalClusterImages.length > 0) {
+                this.logger.showList('Additional images loaded in cluster', additionalClusterImages);
+              }
+            } catch (error) {
+              const message: string = error instanceof Error ? error.message : String(error);
+              this.logger.showUser(`Cluster images: failed to inspect (${message})`);
             }
           },
         },

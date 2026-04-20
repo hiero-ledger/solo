@@ -31,4 +31,9 @@ export interface ContainerEngineClient {
    * Removes an image from the local container engine.
    */
   removeImage(image: string): Promise<void>;
+
+  /**
+   * Lists all images loaded into the local container engine.
+   */
+  listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]>;
 }

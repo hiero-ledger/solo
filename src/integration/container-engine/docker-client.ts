@@ -64,4 +64,24 @@ export class DockerClient implements ContainerEngineClient {
   public async removeImage(image: string): Promise<void> {
     await this.shellRunner.run('docker', ['image', 'rm', image]);
   }
+
+  public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
+    const nodeName: string = `${clusterName}-control-plane`;
+
+    const output: string[] = await this.shellRunner.run('docker', [
+      'exec',
+      '--privileged',
+      nodeName,
+      'ctr',
+      '--namespace=k8s.io',
+      'images',
+      'ls',
+      '-q',
+    ]);
+
+    return output
+      .map((line): string => line.trim())
+      .filter((line): boolean => line.length > 0)
+      .filter((line): boolean => !line.startsWith('import-'));
+  }
 }
