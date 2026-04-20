@@ -14,7 +14,7 @@ import {type BaseTestOptions} from './base-test-options.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import fs from 'node:fs/promises';
 import yaml from 'yaml';
-import {AnyObject} from '../../../../src/types/aliases.js';
+import {type AnyObject} from '../../../../src/types/aliases.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 
 export class DeploymentTest extends BaseCommandTest {

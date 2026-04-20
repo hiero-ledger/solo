@@ -94,6 +94,7 @@ export class K8ClientPod implements Pod {
    * @param podPort The pod port to forward to
    * @param reuse - if true, reuse the port number from previous port forward operation
    * @param persist - if true, errors in port-forwarding will restart the port-forwarding, even after ts process has ended
+   * @param isRetry
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
