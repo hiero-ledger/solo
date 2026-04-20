@@ -228,11 +228,20 @@ web3:
     hiero:
       mirror:
         web3:
+          # Enable opcode tracer to support debugging and transaction tracing in solo deployments
           opcode:
             tracer:
               enabled: true
+
+          # Defaults to TESTNET, therefor it needs to be set to OTHER for solo deployments
           evm:
             network: OTHER
+
+          # This cache causes an issue where data about contractState, entity and tokens to be outdated for a short
+          # period after a transaction is imported into the mirror node, which forces users to hardcode sleep logic into
+          # their tests and scripts to wait for the cache to expire before they can access that data.
+          # Disabling the cache makes sure that the data is always up to date and eliminates the need for hardcoded
+          # sleep logic in tests and scripts, resulting in a more reliable results and improved user experience.
           cache:
             contractState: expireAfterWrite=0s,maximumSize=0
             entity: expireAfterWrite=0s,maximumSize=0
