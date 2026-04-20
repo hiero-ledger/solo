@@ -51,7 +51,7 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     expect(parsed.setup['--release-tag']).to.equal(version.HEDERA_PLATFORM_VERSION);
     expect(parsed.mirrorNode['--mirror-node-version']).to.equal(version.MIRROR_NODE_VERSION);
     expect(parsed.relayNode['--relay-release']).to.equal(version.HEDERA_JSON_RPC_RELAY_VERSION);
-    expect(parsed.blockNode['--block-node-chart-version']).to.equal(version.BLOCK_NODE_VERSION);
+    expect(parsed.blockNode['--chart-version']).to.equal(version.BLOCK_NODE_VERSION);
     expect(parsed.explorerNode['--explorer-version']).to.equal(version.EXPLORER_VERSION);
     expect(parsed.network['--solo-chart-version']).to.equal(version.SOLO_CHART_VERSION);
     expect(parsed.explorerNode['--solo-chart-version']).to.equal(version.SOLO_CHART_VERSION);
