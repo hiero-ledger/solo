@@ -20,7 +20,7 @@ function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): Falc
     enableMirrorIngress: true,
     localBuildPath: '',
     debugNodeAlias: '',
-    devMode: false,
+    enableDevChartMode: false,
     forcePortForward: true,
     outputPath: './falcon-values.yaml',
     ...overrides,
@@ -94,7 +94,7 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
 
   it('should apply developer options', (): void => {
     const config: FalconPrepareConfig = createDefaultConfig({
-      devMode: true,
+      enableDevChartMode: true,
       localBuildPath: '/path/to/build',
       debugNodeAlias: 'node1',
     });
