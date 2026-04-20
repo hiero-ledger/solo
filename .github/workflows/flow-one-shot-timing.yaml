@@ -80,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [hiero-solo-linux-large, ubuntu-latest, windows-latest, macos-14]
+        runner: [hiero-solo-linux-large, macos-15-intel]
     steps:
       - name: Harden Runner
         if: ${{ runner.os == 'Linux' }}
@@ -585,7 +585,7 @@ jobs:
       - name: Build Aggregated Summary
         id: aggregate
         run: |
-          RUNNERS=("hiero-solo-linux-large" "ubuntu-latest" "windows-latest" "macos-14")
+          RUNNERS=("hiero-solo-linux-large" "windows-latest" "macos-15-intel")
           declare -A COLD WARM BASELINE STATUS
           for r in "${RUNNERS[@]}"; do
             COLD["$r"]=""
@@ -619,11 +619,11 @@ jobs:
           {
             echo "### One-Shot Timing Results (Aggregated)"
             echo ""
-            echo "| Metric | hiero-solo-linux-large | ubuntu-latest | windows-latest | macos-14 |"
+            echo "| Metric | hiero-solo-linux-large | ubuntu-latest | windows-latest | macos-15-intel |"
             echo "|---|---|---|---|---|"
-            echo "| Cold Start (median) | ${COLD[hiero-solo-linux-large]} | ${COLD[ubuntu-latest]} | ${COLD[windows-latest]} | ${COLD[macos-14]} |"
-            echo "| Warm Start (median) | ${WARM[hiero-solo-linux-large]} | ${WARM[ubuntu-latest]} | ${WARM[windows-latest]} | ${WARM[macos-14]} |"
-            echo "| Runner Calibration | ${BASELINE[hiero-solo-linux-large]} | ${BASELINE[ubuntu-latest]} | ${BASELINE[windows-latest]} | ${BASELINE[macos-14]} |"
+            echo "| Cold Start (median) | ${COLD[hiero-solo-linux-large]} | ${COLD[ubuntu-latest]} | ${COLD[windows-latest]} | ${COLD[macos-15-intel]} |"
+            echo "| Warm Start (median) | ${WARM[hiero-solo-linux-large]} | ${WARM[ubuntu-latest]} | ${WARM[windows-latest]} | ${WARM[macos-15-intel]} |"
+            echo "| Runner Calibration | ${BASELINE[hiero-solo-linux-large]} | ${BASELINE[ubuntu-latest]} | ${BASELINE[windows-latest]} | ${BASELINE[macos-15-intel]} |"
             echo ""
             echo "| Runner | Job Status |"
             echo "|---|---|"
@@ -643,11 +643,11 @@ jobs:
           echo "summary-file=${SUMMARY_FILE}" >> "$GITHUB_OUTPUT"
           echo "slack-table<<EOF" >> "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
-          echo "Metric                  | hiero-solo-linux-large | ubuntu-latest | windows-latest | macos-14" >> "$GITHUB_OUTPUT"
+          echo "Metric                  | hiero-solo-linux-large | ubuntu-latest | windows-latest | macos-15-intel" >> "$GITHUB_OUTPUT"
           echo "-----------------------------------------------------------------------------------------------" >> "$GITHUB_OUTPUT"
-          echo "Cold Start (median)     | ${COLD[hiero-solo-linux-large]} | ${COLD[ubuntu-latest]} | ${COLD[windows-latest]} | ${COLD[macos-14]}" >> "$GITHUB_OUTPUT"
-          echo "Warm Start (median)     | ${WARM[hiero-solo-linux-large]} | ${WARM[ubuntu-latest]} | ${WARM[windows-latest]} | ${WARM[macos-14]}" >> "$GITHUB_OUTPUT"
-          echo "Runner Calibration      | ${BASELINE[hiero-solo-linux-large]} | ${BASELINE[ubuntu-latest]} | ${BASELINE[windows-latest]} | ${BASELINE[macos-14]}" >> "$GITHUB_OUTPUT"
+          echo "Cold Start (median)     | ${COLD[hiero-solo-linux-large]} | ${COLD[ubuntu-latest]} | ${COLD[windows-latest]} | ${COLD[macos-15-intel]}" >> "$GITHUB_OUTPUT"
+          echo "Warm Start (median)     | ${WARM[hiero-solo-linux-large]} | ${WARM[ubuntu-latest]} | ${WARM[windows-latest]} | ${WARM[macos-15-intel]}" >> "$GITHUB_OUTPUT"
+          echo "Runner Calibration      | ${BASELINE[hiero-solo-linux-large]} | ${BASELINE[ubuntu-latest]} | ${BASELINE[windows-latest]} | ${BASELINE[macos-15-intel]}" >> "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
