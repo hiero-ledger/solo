@@ -29,6 +29,8 @@ vars:
   ZIP_PASSWORD: "xxxx"
   ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
+  SHARD: "0"
+  REALM: "0"
 
   POSTGRES_USERNAME: "postgres"
   POSTGRES_PASSWORD: "XXXXXXX"
@@ -135,7 +137,7 @@ tasks:
       # Create deployment
       - cmd: echo "📋 Creating deployment..."
       - cmd: kubectl config use-context kind-solo-e2e-c1
-      - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 2 --shard 3
+      - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm {{ .REALM }} --shard {{ .SHARD }}
 
       # Attach clusters to deployment
       - cmd: echo "🔗 Attaching Cluster 1 to deployment (1 consensus node)..."
@@ -268,7 +270,7 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
-      - cmd: $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2 || true
+      - cmd: $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard {{ .SHARD }} --realm {{ .REALM }} || true
 
   # ==================== External Database Tasks ====================
 
