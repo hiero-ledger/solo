@@ -44,7 +44,7 @@ The wizard prompts for component toggles (mirror node, explorer, relay), consens
 To generate a values file with all defaults (no prompts):
 
 ```bash
-solo one-shot falcon prepare --quiet-mode
+solo one-shot falcon prepare --default
 ```
 
 To specify a custom output path:
@@ -55,14 +55,25 @@ solo one-shot falcon prepare --output-values-file ./my-values.yaml
 
 #### Output file location
 
-- By default, the generated file is written to the **current working directory** as
-  `./falcon-values.yaml` — *not* the Solo installation directory. Run the command
-  from the directory where you want the file to land.
-- The success message always prints the fully resolved absolute path so you can
-  copy it directly into the subsequent `falcon deploy` command.
-- Pass an absolute path (e.g. `--output-values-file /tmp/falcon-values.yaml`) when
-  you want to generate the file in a specific location regardless of where the
+The command always writes the generated file relative to your **current working
+directory** — *not* the Solo installation directory or the repo root. The
+`--output-values-file` flag accepts either a relative or an absolute path, and the
+success message prints the fully resolved absolute path so there is no ambiguity.
+
+Example — running from a different directory:
+
+```bash
+cd /tmp
+solo one-shot falcon prepare --default
+# ✓ Generated falcon values file: /tmp/falcon-values.yaml
+```
+
+- **Default**: `./falcon-values.yaml` — resolved against the CWD at the time the
   command was invoked.
+- **Relative path**: `--output-values-file ./configs/my-values.yaml` — resolved
+  against the CWD (so `/tmp/configs/my-values.yaml` if invoked from `/tmp`).
+- **Absolute path**: `--output-values-file /tmp/falcon-values.yaml` — written to
+  that exact location regardless of the CWD.
 
 The generated file is ready to use with `solo one-shot falcon deploy --values-file`.
 

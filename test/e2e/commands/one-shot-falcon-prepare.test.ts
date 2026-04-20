@@ -22,7 +22,8 @@ const expectedSections: readonly string[] = [
 ];
 
 /**
- * Build an argv array for `solo one-shot falcon prepare` in quiet mode.
+ * Build an argv array for `solo one-shot falcon prepare` with `--default`
+ * (accepts all defaults non-interactively).
  *
  * This helper does NOT use `BaseCommandTest` from `./tests/base-command-test.ts`
  * because that class transitively imports `test/test-utility.ts`, which in turn
@@ -41,7 +42,7 @@ function buildPrepareArgv(outputPath: string): string[] {
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.FALCON_PREPARE,
-    `--${Flags.quiet.name}`,
+    `--${Flags.acceptDefaults.name}`,
     `--${Flags.outputValuesFile.name}`,
     outputPath,
   ];
@@ -52,7 +53,7 @@ function buildPrepareArgv(outputPath: string): string[] {
  *
  * Unlike the other one-shot e2e tests, this suite does **not** require a
  * Kubernetes cluster: the prepare command only generates a values file and
- * exits. It exercises the full `main(argv)` path in quiet mode so that any
+ * exits. It exercises the full `main(argv)` path with `--default` so that any
  * regression in argv handling, `configManager.getFlag` wiring, or YAML
  * generation surfaces here rather than in the unit tests alone.
  */
@@ -74,8 +75,8 @@ describe('One Shot Falcon Prepare E2E', (): void => {
     }
   });
 
-  it('generates a valid values file in quiet mode with all 7 sections', async (): Promise<void> => {
-    const outputPath: string = trackOutputPath('quiet');
+  it('generates a valid values file with --default and all 7 sections', async (): Promise<void> => {
+    const outputPath: string = trackOutputPath('default');
 
     await main(buildPrepareArgv(outputPath));
 
