@@ -347,6 +347,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 }
                 if (profileItems.explorerNode) {
                   config.explorerNodeConfiguration = profileItems.explorerNode;
+                  // --explorer-version is already pushed explicitly from config.versions.explorer
+                  // when building the explorer sub-command argv.  Promote the values-file override
+                  // into config.versions so it takes effect, then remove it from the configuration
+                  // to prevent a double-push that causes yargs to join the values as "26.0.0,26.0.0".
+                  const explorerVersionOverride: unknown = config.explorerNodeConfiguration['--explorer-version'];
+                  if (explorerVersionOverride) {
+                    config.versions.explorer = explorerVersionOverride as string;
+                    delete config.explorerNodeConfiguration['--explorer-version'];
+                  }
                 }
                 if (profileItems.relayNode) {
                   config.relayNodeConfiguration = profileItems.relayNode;
