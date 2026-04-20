@@ -691,27 +691,46 @@ export class DiagnosticsAnalyzer {
     const lines: string[] = content.split(/\r?\n/);
     const blocks: string[] = [];
     const timestampPattern: RegExp = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/;
-    const levelContextPattern: RegExp = /\b(?:ERROR|WARN|FATAL|SEVERE|EXCEPTION)\b/i;
     const exceptionTypeLinePattern: RegExp =
       /^\s*(?:[a-z_][A-Za-z0-9_$]*\.)*[A-Z][A-Za-z0-9_$]*(?:Exception|Error|Throwable)(?::|\b)/;
     const startPattern: RegExp = new RegExp(
       String.raw`${exceptionTypeLinePattern.source}|\b(?:Exception|Error)\b|^\s*Caused by:`,
     );
 
+    // Matches only the severity levels that indicate a real error.
+    const errorLevelPattern: RegExp = /\b(?:ERROR|FATAL|SEVERE)\b/i;
+
     for (let index: number = 0; index < lines.length && blocks.length < maxBlocks; index++) {
       if (!startPattern.test(lines[index])) {
         continue;
       }
 
+      // Look back up to 5 lines to find the nearest timestamped log line and
+      // determine its severity.  Stack traces following a WARN/INFO/DEBUG line
+      // are expected (e.g. FileAlreadyExistsException on a WARN archive attempt)
+      // and must not be reported as findings.
+      let precedingIsError: boolean = false;
+      let precedingLogLine: string = '';
+      for (let scan: number = index - 1; scan >= 0 && scan >= index - 5; scan--) {
+        if (timestampPattern.test(lines[scan])) {
+          precedingLogLine = lines[scan];
+          precedingIsError = errorLevelPattern.test(lines[scan]);
+          break;
+        }
+      }
+      // If the nearest timestamped line exists and is not an error level, skip.
+      if (precedingLogLine && !precedingIsError) {
+        continue;
+      }
+
       const blockLines: string[] = [lines[index]];
       // In swirlds/hgcaa logs, the actual throwable class line can follow a
-      // timestamped ERROR/WARN marker line. If parsing starts from the
-      // throwable line, include that marker line as context for the report.
+      // timestamped ERROR marker line. Include that marker line as context.
       if (
         index > 0 &&
         blockLines.length < maxLinesPerBlock &&
         (/\bERROR\s+EXCEPTION\b/i.test(lines[index - 1]) ||
-          (timestampPattern.test(lines[index - 1]) && levelContextPattern.test(lines[index - 1]))) &&
+          (timestampPattern.test(lines[index - 1]) && errorLevelPattern.test(lines[index - 1]))) &&
         !blockLines.includes(lines[index - 1])
       ) {
         blockLines.unshift(lines[index - 1]);
