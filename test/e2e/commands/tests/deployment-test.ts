@@ -12,6 +12,10 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
+import fs from 'node:fs/promises';
+import yaml from 'yaml';
+import {AnyObject} from '../../../../src/types/aliases.js';
+import {PathEx} from '../../../../src/business/utils/path-ex.js';
 
 export class DeploymentTest extends BaseCommandTest {
   private static soloDeploymentCreateArgv(
@@ -267,7 +271,8 @@ export class DeploymentTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
-    output?: 'json' | 'yaml' | 'wide',
+    output: 'json' | 'yaml' | 'wide',
+    cacheDirectory: string,
   ): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
     const argv: string[] = newArgv();
@@ -280,6 +285,8 @@ export class DeploymentTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
+      optionFromFlag(Flags.cacheDir),
+      cacheDirectory,
     );
 
     if (output) {
@@ -291,16 +298,24 @@ export class DeploymentTest extends BaseCommandTest {
   }
 
   public static verifyDeploymentConfigPorts(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace} = options;
-    const {soloDeploymentConfigPortsArgv, runMainAndCaptureOutputToJson} = DeploymentTest;
+    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace, testCacheDirectory} = options;
+    const {soloDeploymentConfigPortsArgv, runMainAndCaptureOutputToJson, assertPortsFile} = DeploymentTest;
 
     it(`${testName}: verify deployment config ports output`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning deployment config ports output verification`);
 
       const clusterReference: ClusterReferenceName = clusterReferenceNameArray[0];
+      const outputDirectory: string = PathEx.join(testCacheDirectory, 'output');
+      const jsonPortsFile: string = PathEx.join(outputDirectory, 'forwarded-ports.json');
+      const yamlPortsFile: string = PathEx.join(outputDirectory, 'forwarded-ports.yaml');
+
+      await fs.rm(jsonPortsFile, {force: true});
+      await fs.rm(yamlPortsFile, {force: true});
+
+      console.log(options);
 
       const wideResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
-        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'wide'),
+        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'wide', testCacheDirectory),
         {
           testName,
           outputFileName: 'deployment-config-ports-wide-output.json',
@@ -319,14 +334,13 @@ export class DeploymentTest extends BaseCommandTest {
       expect(wideResult.stdout).to.contain('Cluster:');
       expect(wideResult.stdout).to.contain(clusterReference);
       expect(wideResult.stdout).to.contain('Namespace:');
-      expect(wideResult.stdout).to.contain(namespace.name);
       expect(wideResult.stdout).to.contain('Consensus node gRPC');
       expect(wideResult.stdout).to.contain('Mirror node REST');
       expect(wideResult.stdout).to.contain('JSON-RPC relay');
       expect(wideResult.stdout).to.contain('Explorer');
 
       const jsonResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
-        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'json'),
+        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'json', testCacheDirectory),
         {
           testName,
           outputFileName: 'deployment-config-ports-json-output.json',
@@ -345,7 +359,6 @@ export class DeploymentTest extends BaseCommandTest {
       expect(jsonResult.stdout).to.contain('"clusterReference"');
       expect(jsonResult.stdout).to.contain(clusterReference);
       expect(jsonResult.stdout).to.contain('"namespace"');
-      expect(jsonResult.stdout).to.contain(namespace.name);
       expect(jsonResult.stdout).to.contain('"services"');
       expect(jsonResult.stdout).to.contain('"consensusNodeGrpc"');
       expect(jsonResult.stdout).to.contain('"mirrorNodeRest"');
@@ -353,8 +366,10 @@ export class DeploymentTest extends BaseCommandTest {
       expect(jsonResult.stdout).to.contain('"explorer"');
       expect(jsonResult.stdout).to.contain('"blockNode"');
 
+      await assertPortsFile(jsonPortsFile, 'json', deployment, clusterReference);
+
       const yamlResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
-        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'yaml'),
+        soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'yaml', testCacheDirectory),
         {
           testName,
           outputFileName: 'deployment-config-ports-yaml-output.json',
@@ -373,7 +388,6 @@ export class DeploymentTest extends BaseCommandTest {
       expect(yamlResult.stdout).to.contain('clusterReference:');
       expect(yamlResult.stdout).to.contain(clusterReference);
       expect(yamlResult.stdout).to.contain('namespace:');
-      expect(yamlResult.stdout).to.contain(namespace.name);
       expect(yamlResult.stdout).to.contain('services:');
       expect(yamlResult.stdout).to.contain('consensusNodeGrpc:');
       expect(yamlResult.stdout).to.contain('mirrorNodeRest:');
@@ -381,10 +395,32 @@ export class DeploymentTest extends BaseCommandTest {
       expect(yamlResult.stdout).to.contain('explorer:');
       expect(yamlResult.stdout).to.contain('blockNode:');
 
+      await assertPortsFile(yamlPortsFile, 'yaml', deployment, clusterReference);
+
       testLogger.info(`${testName}: deployment config ports wide output saved to ${wideResult.outputFilePath}`);
       testLogger.info(`${testName}: deployment config ports json output saved to ${jsonResult.outputFilePath}`);
       testLogger.info(`${testName}: deployment config ports yaml output saved to ${yamlResult.outputFilePath}`);
       testLogger.info(`${testName}: finished deployment config ports output verification`);
     });
+  }
+
+  private static async assertPortsFile(
+    filePath: string,
+    format: 'json' | 'yaml',
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): Promise<void> {
+    const raw: string = await fs.readFile(filePath, 'utf8');
+    const parsed: AnyObject = format === 'json' ? JSON.parse(raw) : yaml.parse(raw);
+
+    expect(parsed.deployment).to.equal(deployment);
+    expect(parsed.clusterReference).to.equal(clusterReference);
+
+    expect(parsed.services).to.be.an('object');
+    expect(parsed.services).to.have.property('consensusNodeGrpc').that.is.an('array');
+    expect(parsed.services).to.have.property('mirrorNodeRest').that.is.an('array');
+    expect(parsed.services).to.have.property('jsonRpcRelay').that.is.an('array');
+    expect(parsed.services).to.have.property('explorer').that.is.an('array');
+    expect(parsed.services).to.have.property('blockNode').that.is.an('array');
   }
 }

@@ -149,7 +149,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.CONFIG_PORTS,
-              'List all port-forwards for a deployment.',
+              'List all port-forwards for a deployment. JSON and YAMl output formats, create files containing the data',
               this.deploymentCommand,
               this.deploymentCommand.ports,
               DeploymentCommand.PORTS_FLAGS_LIST,

@@ -47,6 +47,8 @@ import find from 'find-process';
 import type ProcessInfo from 'find-process';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import yaml from 'yaml';
+import {PathEx} from '../business/utils/path-ex.js';
+import fs from 'node:fs/promises';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -117,7 +119,7 @@ export class DeploymentCommand extends BaseCommand {
 
   public static PORTS_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.clusterRef, flags.quiet, flags.output],
+    optional: [flags.clusterRef, flags.quiet, flags.output, flags.cacheDir],
   };
 
   /**
@@ -479,6 +481,7 @@ export class DeploymentCommand extends BaseCommand {
       clusterReference: ClusterReferenceName;
       deploymentConfig: Deployment;
       output: 'json' | 'yaml' | 'wide';
+      cacheDirectory: string;
     }
 
     interface PortsContext {
@@ -527,6 +530,7 @@ export class DeploymentCommand extends BaseCommand {
               deploymentConfig,
               namespace: NamespaceName.of(deploymentConfig.namespace),
               output,
+              cacheDirectory: this.configManager.getFlag(flags.cacheDir),
             };
           },
         },
@@ -569,10 +573,23 @@ export class DeploymentCommand extends BaseCommand {
               },
             };
 
+            const targetDirectory: string = PathEx.join(config.cacheDirectory, 'output');
+            await fs.mkdir(targetDirectory, {recursive: true});
+
             if (output === 'json') {
-              this.logger.showUser(JSON.stringify(report, undefined, 2));
+              const targetFile: string = PathEx.join(targetDirectory, 'forwarded-ports.json');
+              const jsonData: string = JSON.stringify(report, undefined, 2);
+
+              await fs.writeFile(targetFile, jsonData, 'utf8');
+              this.logger.showUser(`Ports data file written to: ${targetFile}`);
+              this.logger.showUser(jsonData);
             } else if (output === 'yaml') {
-              this.logger.showUser(yaml.stringify(report));
+              const targetFile: string = PathEx.join(targetDirectory, 'forwarded-ports.yaml');
+              const yamlData: string = yaml.stringify(report);
+
+              await fs.writeFile(targetFile, yamlData, 'utf8');
+              this.logger.showUser(`Ports data file written to: ${targetFile}`);
+              this.logger.showUser(yamlData);
             } else {
               this.logger.showUser(chalk.cyan(`\n=== Port-forwards for deployment: ${deployment} ===`));
               this.logger.showUser(`Cluster: ${clusterReference}`);
