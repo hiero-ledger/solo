@@ -80,6 +80,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
+      - name: Setup Posix Dependencies
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Configure APT to use main Ubuntu archive (disable mirror rotation)
+          sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -221,6 +229,11 @@ jobs:
           cat "$VALUES_FILE"
           echo "path=$VALUES_FILE" >> "$GITHUB_OUTPUT"
 
+      - name: Start Resource Monitoring
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          ./.github/workflows/script/monitor-resources.sh start 30
+
       - name: "Cold Start: Deploy"
         id: cold-start
         timeout-minutes: 60
@@ -268,6 +281,99 @@ jobs:
           WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
           echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
           echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
+
+      - name: Stop Resource Monitoring
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          ./.github/workflows/script/monitor-resources.sh stop || true
+
+      - name: Generate ASCII Resource Chart
+        id: generate-chart
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
+          CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
+
+          DATA_POINTS=$(wc -l < "$METRICS_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+          if [[ -f "$METRICS_FILE" && "$DATA_POINTS" -gt 0 ]]; then
+            echo "Generating ASCII chart from ${DATA_POINTS} data points..."
+            ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
+
+            if [[ -f "$CHART_FILE" && -s "$CHART_FILE" ]]; then
+              echo "chart_generated=true" >> $GITHUB_OUTPUT
+              echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+              MERMAID_FILE="${CHART_FILE%.txt}-mermaid.md"
+              CATEGORIES_FILE="${CHART_FILE%.txt}-categories.txt"
+              [[ -f "$MERMAID_FILE" ]]    && echo "mermaid_file=$MERMAID_FILE"       >> $GITHUB_OUTPUT
+              [[ -f "$CATEGORIES_FILE" ]] && echo "categories_file=$CATEGORIES_FILE" >> $GITHUB_OUTPUT
+              echo "✅ ASCII chart generated successfully"
+            else
+              echo "chart_generated=false" >> $GITHUB_OUTPUT
+              echo "⚠️  ASCII chart generation produced no output"
+            fi
+          else
+            echo "chart_generated=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No metrics data collected (${DATA_POINTS} data points), skipping chart generation"
+          fi
+
+      - name: Write Runner Resource Usage to Workflow Summary
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "## Runner Resource Usage — One-Shot Timing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              cat "$CHART_FILE" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+            MERMAID_FILE="${{ steps.generate-chart.outputs.mermaid_file }}"
+            if [[ -n "$MERMAID_FILE" && -f "$MERMAID_FILE" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### Pod Memory Distribution by Category" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              cat "$MERMAID_FILE" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "_No resource metrics collected._" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Read Pod Memory Category Table
+        id: pod-categories
+        if: ${{ !cancelled() && steps.generate-chart.outputs.categories_file != '' }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          CATEGORIES_FILE="${{ steps.generate-chart.outputs.categories_file }}"
+          if [[ -f "$CATEGORIES_FILE" ]]; then
+            {
+              echo "content<<EOF_CATEGORIES"
+              cat "$CATEGORIES_FILE"
+              echo "EOF_CATEGORIES"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Pod Memory Categories to Slack
+        if: ${{ !cancelled() && steps.pod-categories.outputs.content != '' }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
+          SLACK_COLOR: good
+          SLACK_TITLE: "One-Shot Timing — Pod Memory by Category"
+          SLACK_MESSAGE: |
+            *Branch:* `${{ github.ref_name }}`  *Commit:* `${{ github.sha }}`
+
+            ```
+            ${{ steps.pod-categories.outputs.content }}
+            ```
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Timing Summary
         if: ${{ !cancelled() }}
