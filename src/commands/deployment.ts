@@ -4,6 +4,7 @@ import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
+import {DeploymentAlreadyExistsSoloError} from '../core/errors/types/deployment-already-exists-solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
@@ -18,7 +19,6 @@ import {
   type Shard,
   type SoloListrTask,
 } from '../types/index.js';
-import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -152,7 +152,7 @@ export class DeploymentCommand extends BaseCommand {
                 (d: Deployment): boolean => d.name === context_.config.deployment,
               )
             ) {
-              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
+              throw new DeploymentAlreadyExistsSoloError(context_.config.deployment);
             }
           },
         },

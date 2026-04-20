@@ -48,18 +48,18 @@ export class SoloError extends Error {
   }
 
   /**
-   * Creates a SoloError from the error registry. The message is derived from
-   * the registry entry's messageTemplate with context values interpolated.
-   *
-   * @param code - the SoloErrorCode to look up in the registry
-   * @param context - key-value pairs to interpolate into the message template
-   * @param cause - optional underlying error
+   * Resolves constructor arguments for a registry-coded error. Subclasses call this via
+   * `super(...SoloError.resolveCodeArgs(...))` to avoid duplicating registry lookup logic.
    */
-  public static withCode(code: SoloErrorCode, context?: ErrorContext, cause?: Error): SoloError {
+  protected static resolveCodeArgs(
+    code: SoloErrorCode,
+    context?: ErrorContext,
+    cause?: Error,
+  ): [string, Error | undefined, object, {errorCode: SoloErrorCode; context?: ErrorContext}] {
     const entry: ErrorRegistryEntry | undefined = ErrorRegistry.get(code);
     const template: string = entry ? LocaleRegistry.getMessage(entry.messageTemplate) : ErrorRegistry.formatCode(code);
     const message: string = ErrorRegistry.interpolate(template, context ?? {});
-    return new SoloError(message, cause ?? {}, {}, {errorCode: code, context});
+    return [message, cause, {}, {errorCode: code, context}];
   }
 
   /**

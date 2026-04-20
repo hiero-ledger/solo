@@ -29,6 +29,15 @@ const config = defineConfig({
       ],
       chainId: 298
     },
+    testnet: {
+      type: "http",
+      url: 'https://testnet.hashio.io/api',
+      accounts: [
+        '0x8f96211523c159846ce45a73eac34c74e558757b8f1acc2f1f1eedc3d6e1739a',
+        '0x8f96211523c159846ce45a73eac34c74e558757b8f1acc2f1f1eedc3d6e1739a',
+      ],
+      chainId: 296
+    },
   }
 });
 

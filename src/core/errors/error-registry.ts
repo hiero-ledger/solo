@@ -22,45 +22,11 @@ const REGISTRY_ENTRIES: ReadonlyArray<ErrorRegistryEntry> = [
     troubleshootingSteps: 'remote_configs_mismatch_troubleshooting_steps',
   },
   {
-    code: SoloErrorCode.POD_NOT_READY,
+    code: SoloErrorCode.DEPLOYMENT_NAME_ALREADY_EXISTS,
     category: ErrorCategory.DEPLOYMENT,
-    messageTemplate: 'pod_not_ready_message',
-    retryable: true,
-    troubleshootingSteps: 'pod_not_ready_troubleshooting_steps',
-  },
-  {
-    code: SoloErrorCode.RELAY_NOT_READY,
-    category: ErrorCategory.COMPONENT,
-    messageTemplate: 'relay_not_ready_message',
-    retryable: true,
-    troubleshootingSteps: 'relay_not_ready_troubleshooting_steps',
-  },
-  {
-    code: SoloErrorCode.INVALID_ARGUMENT,
-    category: ErrorCategory.VALIDATION,
-    messageTemplate: 'invalid_argument_message',
+    messageTemplate: 'deployment_already_exists_message',
     retryable: false,
-  },
-  {
-    code: SoloErrorCode.HELM_EXECUTION_FAILED,
-    category: ErrorCategory.SYSTEM,
-    messageTemplate: 'helm_execution_failed_message',
-    retryable: false,
-    troubleshootingSteps: 'helm_execution_failed_troubleshooting_steps',
-  },
-  {
-    code: SoloErrorCode.KUBERNETES_API_ERROR,
-    category: ErrorCategory.SYSTEM,
-    messageTemplate: 'kubernetes_api_error_message',
-    retryable: true,
-    troubleshootingSteps: 'kubernetes_api_error_troubleshooting_steps',
-  },
-  {
-    code: SoloErrorCode.INTERNAL_ERROR,
-    category: ErrorCategory.INTERNAL,
-    messageTemplate: 'internal_error_message',
-    retryable: false,
-    troubleshootingSteps: 'internal_error_troubleshooting_steps',
+    troubleshootingSteps: 'deployment_already_exists_troubleshooting_steps',
   },
 ];
 

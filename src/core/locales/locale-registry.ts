@@ -3,14 +3,15 @@
 import {EN} from './en.js';
 import {ES} from './es.js';
 import {type LocaleData} from './locale-data.js';
-import * as constants from '../constants.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 
 const LOCALES: Readonly<Record<string, LocaleData>> = {en: EN, es: ES};
 const DEFAULT_LOCALE: string = 'en';
 
 export class LocaleRegistry {
   private static get(key: string): string | undefined {
-    const locale: string = constants.SOLO_LOCALE;
+    const locale: string = container.resolve(InjectTokens.SoloLocale);
     const data: LocaleData = LOCALES[locale] ?? LOCALES[DEFAULT_LOCALE]!;
     return data[key] ?? LOCALES[DEFAULT_LOCALE]![key];
   }
