@@ -242,10 +242,10 @@ jobs:
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
           VALUES_FILE="${{ steps.values-file.outputs.path }}"
 
-          echo "==== Cold Start: Measuring one-shot single deploy time ===="
+          echo "==== Cold Start: Measuring one-shot falcon deploy time ===="
           COLD_START_TIME=$SECONDS
 
-          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
+          $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
 
           COLD_ELAPSED=$(( SECONDS - COLD_START_TIME ))
           COLD_MINUTES=$(( COLD_ELAPSED / 60 ))
@@ -259,8 +259,8 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
 
-          echo "==== Destroying one-shot single deployment ===="
-          $SOLO_CMD one-shot single destroy
+          echo "==== Destroying one-shot falcon deployment ===="
+          $SOLO_CMD one-shot falcon destroy
           echo "==== Destroy complete ===="
 
       - name: "Warm Start: Redeploy"
@@ -271,10 +271,10 @@ jobs:
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
           VALUES_FILE="${{ steps.values-file.outputs.path }}"
 
-          echo "==== Warm Start: Measuring one-shot single deploy time ===="
+          echo "==== Warm Start: Measuring one-shot falcon deploy time ===="
           WARM_START_TIME=$SECONDS
 
-          $SOLO_CMD one-shot single deploy --values-file "$VALUES_FILE"
+          $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
 
           WARM_ELAPSED=$(( SECONDS - WARM_START_TIME ))
           WARM_MINUTES=$(( WARM_ELAPSED / 60 ))
@@ -437,4 +437,4 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          $SOLO_CMD one-shot single destroy -q || true
+          $SOLO_CMD one-shot falcon destroy -q || true
