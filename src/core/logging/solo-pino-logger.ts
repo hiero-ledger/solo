@@ -31,6 +31,9 @@ export class SoloPinoLogger implements SoloLogger {
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
 
+  private static readonly MAX_BOX_WIDTH: number = 200;
+  private static readonly MIN_BOX_WIDTH: number = 70;
+
   /**
    * @param logLevel - the log level to use (fatal|error|warn|info|debug|trace)
    * @param developmentMode - if true, show full stack traces in error messages
@@ -137,6 +140,11 @@ export class SoloPinoLogger implements SoloLogger {
     this.info(formatted);
   }
 
+  private stripAnsi(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+  }
+
   public padWithBorder(
     message: string,
     chalkColor: (...text: unknown[]) => string = chalk.red,
@@ -145,77 +153,89 @@ export class SoloPinoLogger implements SoloLogger {
     const border: string = chalkColor('│');
     const messageLines: string[] = [];
     for (const line of message.split('\n')) {
-      const repeats: number = Math.max(0, length - line.length - 2);
-      messageLines.push(`${border}${line}${' '.repeat(repeats)}${border}`);
+      const repeats: number = Math.max(0, length - this.stripAnsi(line).length - 4);
+      messageLines.push(`${border} ${line}${' '.repeat(repeats)} ${border}`);
     }
     return messageLines.join('\n');
   }
 
-  public showUserError(error: unknown): void {
-    // Build chain of causes (up to 10 deep)
+  private buildCauseChain(error: unknown): {message: string; stacktrace?: string}[] {
     const errorObject = error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
-    const stack: {message: string; stacktrace?: string}[] = [
+    const chain: {message: string; stacktrace?: string}[] = [
       {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
     ];
-
     if (errorObject?.cause) {
       let depth: number = 0;
       let cause: unknown = errorObject.cause;
       while (cause && depth < 10) {
         const c = cause as {message?: unknown; stack?: string; cause?: unknown};
         if (c.stack) {
-          stack.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
+          chain.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
         }
         cause = c.cause;
         depth += 1;
       }
     }
+    return chain;
+  }
 
-    console.log(chalk.red('╭─ ERROR ─────────────────────────────────────────────────────────────────────────╮'));
-    let prefix: string = '';
-    let indent: string = ' ';
+  private buildContentLines(error: unknown, causeChain: {message: string; stacktrace?: string}[]): string[] {
+    const lines: string[] = [];
     if (this.developmentMode) {
-      for (const s of stack) {
-        console.log(chalk.red(this.padWithBorder(indent + prefix + String(s.message))));
-        if (s.stacktrace) {
-          // Keep it readable; trim obvious internal noise
-          const formatted: string = String(s.stacktrace)
+      let indent: string = ' ';
+      let prefix: string = '';
+      for (const entry of causeChain) {
+        lines.push(chalk.red(indent + prefix + String(entry.message)));
+        if (entry.stacktrace) {
+          const formatted: string = String(entry.stacktrace)
             .split('\n')
             .filter((l): boolean => !l.includes('node:internal'))
             .join('\n')
             .trim();
-          console.log(this.padWithBorder(chalk.gray(indent + formatted)));
-          console.log(this.padWithBorder(''));
+          lines.push(...(indent + formatted).split('\n').map((l): string => chalk.gray(l)), '');
         }
         indent += '  ';
         prefix += 'Caused by: ';
       }
     } else {
-      const lines: string[] = (error as any)?.message
-        ? String((error as any).message).split('\n')
-        : String(error).split('\n');
-      for (const line of lines) {
-        console.log(chalk.red(this.padWithBorder(line)));
-      }
+      const errorMessage: string = (error as any)?.message ? String((error as any).message) : String(error);
+      lines.push(...errorMessage.split('\n').map((l: string): string => chalk.red(l)));
     }
     if (error instanceof SoloError) {
       const documentUrl: string | undefined = error.getDocumentUrl();
-      if (documentUrl) {
-        console.log(this.padWithBorder(''));
-        console.log(this.padWithBorder(chalk.cyan(`Learn more: ${documentUrl}`)));
-      }
       if (!this.developmentMode) {
         const troubleshootingSteps: ReadonlyArray<string> | undefined = error.getTroubleshootingSteps();
         if (troubleshootingSteps && troubleshootingSteps.length > 0) {
-          for (const [, step] of troubleshootingSteps.entries()) {
-            console.log(this.padWithBorder(chalk.cyan('  →') + ' ' + step));
+          for (const step of troubleshootingSteps) {
+            lines.push(chalk.cyan('  →') + ' ' + step);
           }
         }
       }
+      if (documentUrl) {
+        lines.push('', chalk.cyan(`Learn more: ${documentUrl}`));
+      }
     }
-    console.log(chalk.red('╰─────────────────────────────────────────────────────────────────────────────────╯'));
+    return lines;
+  }
 
-    // Persist the error with structure
+  private renderErrorBox(lines: string[]): void {
+    const maxContentWidth: number = Math.max(...lines.map((l): number => this.stripAnsi(l).length));
+    const boxWidth: number = Math.min(
+      SoloPinoLogger.MAX_BOX_WIDTH,
+      Math.max(SoloPinoLogger.MIN_BOX_WIDTH, maxContentWidth + 4),
+    );
+    const interiorWidth: number = boxWidth - 4;
+    console.log(chalk.red(`╭─ ERROR ─${'─'.repeat(interiorWidth - 7)}╮`));
+    for (const line of lines) {
+      console.log(this.padWithBorder(line, chalk.red, boxWidth));
+    }
+    console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
+  }
+
+  public showUserError(error: unknown): void {
+    const causeChain = this.buildCauseChain(error);
+    const lines: string[] = this.buildContentLines(error, causeChain);
+    this.renderErrorBox(lines);
     this.toPino('error', error, []);
   }
 
