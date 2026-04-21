@@ -11,7 +11,7 @@ This example validates the `ledger system reset` flow using Taskfile steps.
 
 ## Prerequisites
 
-* `kind`, `kubectl`, `npm`, `python3`
+* `kind`, `kubectl`, `npm`
 * `task` installed
 
 ## Run
