@@ -15,6 +15,9 @@ redis:
 # importer is a component of the hiero mirror node
 # config for subchart hiero-mirror/importer
 importer:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/importer
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -30,8 +33,8 @@ importer:
       cpu: 0
       memory: 0
     limits:
-      cpu: 4
-      memory: 5Gi
+      cpu: 1000m
+      memory: 300Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -43,7 +46,7 @@ importer:
   startupProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
-    failureThreshold: 60
+    failureThreshold: 300
   envFrom:
     - secretRef:
         name: mirror-passwords
@@ -73,6 +76,9 @@ importer:
               sidecar:
                 enabled: true
 grpc:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/grpc
   ingress:
     annotations:
       haproxy-ingress.github.io/backend-protocol: h2
@@ -91,8 +97,29 @@ grpc:
       cpu: 0
       memory: 0
     limits:
-      cpu: 2
-      memory: 2048Mi
+      cpu: 500m
+      memory: 200Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+pinger:
+  enabled: true
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 100m
+      memory: 15Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -144,8 +171,8 @@ rest:
       cpu: 0
       memory: 0
     limits:
-      cpu: 1100m
-      memory: 600Mi
+      cpu: 500m
+      memory: 120Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -165,6 +192,9 @@ rest:
   global:
     hostname: "localhost"
 restjava:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/rest-java
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -195,6 +225,9 @@ restjava:
     periodSeconds: 1
     failureThreshold: 60
 web3:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/web3
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -210,8 +243,8 @@ web3:
       cpu: 0
       memory: 0
     limits:
-      cpu: 2
-      memory: 2048Mi
+      cpu: 1000m
+      memory: 145Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -229,6 +262,7 @@ web3:
 # Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
 # Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
 monitor:
+  enabled: false
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
