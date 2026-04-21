@@ -15,14 +15,14 @@ import {LockAcquisitionError} from '../../../src/core/lock/lock-acquisition-erro
 import {StatusCodes} from 'http-status-codes';
 
 describe('IntervalLock', () => {
-  it('should ignore a renew conflict when latest lease is still held by the same process', async () => {
+  it('should ignore a renew conflict when latest lease is still held by the same lock holder', async () => {
     const namespace: NamespaceName = NamespaceName.of('lock-conflict-test');
     const lockHolder: LockHolder = LockHolder.of('lock-user');
     const leaseName = 'lock-conflict-test';
 
-    let readCalls = 0;
-    let renewCalls = 0;
-    let scheduleCalls = 0;
+    let readCallCount = 0;
+    let renewCallCount = 0;
+    let scheduleCallCount = 0;
 
     const initialLease: Lease = createLease(namespace, leaseName, lockHolder.toJson(), '1');
     const latestLease: Lease = createLease(namespace, leaseName, lockHolder.toJson(), '2');
@@ -30,7 +30,7 @@ describe('IntervalLock', () => {
     const renewalService: LockRenewalService = {
       isScheduled: async (): Promise<boolean> => false,
       schedule: async (): Promise<number> => {
-        scheduleCalls++;
+        scheduleCallCount++;
         return 99;
       },
       cancel: async (): Promise<boolean> => true,
@@ -48,11 +48,11 @@ describe('IntervalLock', () => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => {
-        readCalls++;
-        return readCalls === 1 ? initialLease : latestLease;
+        readCallCount++;
+        return readCallCount === 1 ? initialLease : latestLease;
       },
       renew: async (): Promise<Lease> => {
-        renewCalls++;
+        renewCallCount++;
         throw {meta: {statusCode: StatusCodes.CONFLICT}};
       },
       transfer: async (): Promise<Lease> => {
@@ -80,9 +80,9 @@ describe('IntervalLock', () => {
     const lock: IntervalLock = new IntervalLock(k8Factory, renewalService, lockHolder, namespace, leaseName, 20);
     await lock.renew();
 
-    expect(readCalls).to.equal(2);
-    expect(renewCalls).to.equal(1);
-    expect(scheduleCalls).to.equal(1);
+    expect(readCallCount).to.equal(2);
+    expect(renewCallCount).to.equal(1);
+    expect(scheduleCallCount).to.equal(1);
   });
 
   it('should fail renew when conflict resolution reads a lease owned by another holder', async () => {
@@ -91,7 +91,7 @@ describe('IntervalLock', () => {
     const otherLockHolder: LockHolder = LockHolder.of('other-user');
     const leaseName = 'lock-conflict-fail-test';
 
-    let readCalls = 0;
+    let readCallCount = 0;
 
     const initialLease: Lease = createLease(namespace, leaseName, lockHolder.toJson(), '1');
     const conflictingLease: Lease = createLease(namespace, leaseName, otherLockHolder.toJson(), '2');
@@ -114,8 +114,8 @@ describe('IntervalLock', () => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => {
-        readCalls++;
-        return readCalls === 1 ? initialLease : conflictingLease;
+        readCallCount++;
+        return readCallCount === 1 ? initialLease : conflictingLease;
       },
       renew: async (): Promise<Lease> => {
         throw {meta: {statusCode: StatusCodes.CONFLICT}};
