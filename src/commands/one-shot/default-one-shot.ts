@@ -1940,7 +1940,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             config.numberOfConsensusNodes =
               this.configManager.getFlag(flags.numberOfConsensusNodes) ?? config.numberOfConsensusNodes;
-            config.releaseTag = this.configManager.getFlag<string>(flags.releaseTag) ?? config.releaseTag;
+            config.releaseTag = this.configManager.getFlag(flags.releaseTag) ?? config.releaseTag;
             config.relayRelease = this.configManager.getFlag<string>(flags.relayReleaseTag) ?? config.relayRelease;
             config.soloChartVersion =
               this.configManager.getFlag<string>(flags.soloChartVersion) ?? config.soloChartVersion;
