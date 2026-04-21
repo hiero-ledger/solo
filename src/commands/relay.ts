@@ -409,6 +409,14 @@ export class RelayCommand extends BaseCommand {
         // wait for the pod to destroy in case it was an upgrade
         if (commandType === RelayCommandType.UPGRADE) {
           await helpers.sleep(Duration.ofSeconds(40));
+
+          // update relay version in remote config after successful upgrade
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.RelayNodes,
+            new SemanticVersion<string>(config.relayReleaseTag),
+          );
+
+          await this.remoteConfig.persist();
         }
 
         // Add component to remote config
@@ -487,9 +495,21 @@ export class RelayCommand extends BaseCommand {
         }
 
         const podReference: PodReference = pods[0].podReference;
-        const clusterReference: string =
-          (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-          this.k8Factory.default().clusters().readCurrent();
+        const clusterReference: string = this.getClusterReference();
+
+        // always kill pre-existing port forward process first otherwise after upgrade
+        // the old port forward process tied with old relay pod will still be running and cause issues
+        await this.remoteConfig.configuration.components.stopPortForwards(
+          clusterReference,
+          podReference,
+          constants.JSON_RPC_RELAY_PORT, // Pod port
+          constants.JSON_RPC_RELAY_LOCAL_PORT, // Local port
+          this.k8Factory.getK8(config.context),
+          this.logger,
+          ComponentTypes.RelayNodes,
+          'JSON RPC Relay',
+        );
+        await this.remoteConfig.persist();
 
         await this.remoteConfig.configuration.components.managePortForward(
           clusterReference,
@@ -693,6 +713,19 @@ export class RelayCommand extends BaseCommand {
             config.mirrorNodeId = mirrorNodeId;
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+
+            const currentRelayVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+              ComponentTypes.RelayNodes,
+            );
+            if (currentRelayVersion && !currentRelayVersion.equals('0.0.0')) {
+              const targetRelayVersion: SemanticVersion<string> = new SemanticVersion<string>(config.relayReleaseTag);
+              if (targetRelayVersion.lessThanOrEqual(currentRelayVersion)) {
+                throw new SoloError(
+                  `Relay upgrade target version ${config.relayReleaseTag} is not newer than the current version ${currentRelayVersion.toString()} stored in remote config. ` +
+                    'Use --relay-release to specify a version newer than the currently deployed version.',
+                );
+              }
+            }
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
