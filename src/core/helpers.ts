@@ -603,15 +603,15 @@ export function remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): str
     rows.push('Namespace : deployment');
     for (const remoteConfig of remoteConfigs) {
       const remoteConfigData: AnyObject = yaml.parse(remoteConfig.data?.['remote-config-data']) as AnyObject;
-      const clusters_: AnyObject[] = [];
+      const clustersArray: AnyObject[] = [];
 
       if (Array.isArray(remoteConfigData?.clusters)) {
-        clusters_.push(...(remoteConfigData.clusters as AnyObject[]));
+        clustersArray.push(...(remoteConfigData.clusters as AnyObject[]));
       } else if (typeof remoteConfigData?.clusters === 'object' && remoteConfigData.clusters !== null) {
-        clusters_.push(...Object.values(remoteConfigData.clusters as AnyObject));
+        clustersArray.push(...Object.values(remoteConfigData.clusters as AnyObject));
       }
 
-      for (const cluster of clusters_) {
+      for (const cluster of clustersArray) {
         rows.push(`${remoteConfig.namespace.name} : ${cluster.deployment}`);
       }
     }
