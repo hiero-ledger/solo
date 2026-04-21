@@ -317,14 +317,17 @@ jobs:
         run: |
           echo "==== System Calibration ===="
           BASELINE=""
-          if command -v tar >/dev/null 2>&1 && [ -d /usr ]; then
-            CALIBRATION_START=$SECONDS
-            tar -czf /dev/null /usr 2>/dev/null || true
+          CALIBRATION_START=$SECONDS
+          # Hash 100 MB of random data — bounded CPU+IO benchmark (~1-5s on any runner).
+          # sha256sum (Linux) / shasum (macOS) are tried in order.
+          if dd if=/dev/urandom bs=1048576 count=100 2>/dev/null | sha256sum > /dev/null 2>&1; then
+            BASELINE=$(( SECONDS - CALIBRATION_START ))
+          elif dd if=/dev/urandom bs=1048576 count=100 2>/dev/null | shasum -a 256 > /dev/null 2>&1; then
             BASELINE=$(( SECONDS - CALIBRATION_START ))
           fi
           echo "baseline=${BASELINE}" >> "$GITHUB_OUTPUT"
           if [ -n "$BASELINE" ]; then
-            echo "Runner calibration (tar /usr): ${BASELINE}s"
+            echo "Runner calibration (sha256 100MB): ${BASELINE}s"
           else
             echo "Runner calibration skipped on this runner."
           fi
