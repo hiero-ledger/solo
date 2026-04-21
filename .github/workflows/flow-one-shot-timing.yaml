@@ -54,6 +54,11 @@ on:
         type: string
         required: false
         default: ""
+      iterations:
+        description: "Number of cold+warm iterations to run (median is reported)"
+        type: string
+        required: false
+        default: "3"
 
 defaults:
   run:
@@ -67,7 +72,7 @@ env:
 
 jobs:
   one-shot-timing:
-    timeout-minutes: 120
+    timeout-minutes: 360
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
@@ -232,75 +237,79 @@ jobs:
       - name: Start Resource Monitoring
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          ./.github/workflows/script/monitor-resources.sh start 30
+          # 10s interval: cold/warm deploys are ~90-150s so 30s is too coarse
+          ./.github/workflows/script/monitor-resources.sh start 10
 
-      - name: "Cold Start: Deploy"
-        id: cold-start
-        timeout-minutes: 60
+      - name: Run Iterations
+        id: iterations
+        timeout-minutes: 300
         run: |
+          set -eo pipefail
           export PATH=~/.solo/bin:${PATH}
           SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
           VALUES_FILE="${{ steps.values-file.outputs.path }}"
+          N="${{ inputs.iterations }}"
 
-          echo "==== Cold Start: Measuring one-shot falcon deploy time ===="
-          COLD_START_TIME=$SECONDS
+          RESULTS_DIR="$HOME/.solo/logs/iterations"
+          mkdir -p "$RESULTS_DIR"
+          COLD_CSV="$RESULTS_DIR/cold.csv"
+          WARM_CSV="$RESULTS_DIR/warm.csv"
 
-          $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+          fmt_duration() { local s=$1; echo "$(( s / 60 ))m $(( s % 60 ))s (${s}s)"; }
 
-          COLD_ELAPSED=$(( SECONDS - COLD_START_TIME ))
-          COLD_MINUTES=$(( COLD_ELAPSED / 60 ))
-          COLD_SECONDS=$(( COLD_ELAPSED % 60 ))
-          echo "cold-elapsed=${COLD_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Cold start completed in ${COLD_MINUTES}m ${COLD_SECONDS}s ===="
+          for i in $(seq 1 "$N"); do
+            echo "==============================="
+            echo "=== Iteration ${i} / ${N}    ==="
+            echo "==============================="
 
-      - name: "Cold Start: Install Metrics Server"
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update 2>/dev/null || true
-          helm install metrics-server metrics-server/metrics-server \
-            --namespace kube-system \
-            --set "args[0]=--kubelet-insecure-tls" \
-            --wait --timeout 120s || true
+            # --- Cold Start ---
+            echo ">>> Cold Start #${i}"
+            COLD_T0=$SECONDS
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+            COLD_ELAPSED=$(( SECONDS - COLD_T0 ))
+            echo "Cold #${i}: $(fmt_duration "$COLD_ELAPSED")"
 
-      - name: "Destroy Deployment"
-        timeout-minutes: 15
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
+            # Install metrics-server on the fresh cluster and wait until serving
+            ./.github/workflows/script/install-metrics-server.sh
 
-          echo "==== Destroying one-shot falcon deployment ===="
-          $SOLO_CMD one-shot falcon destroy
-          echo "==== Destroy complete ===="
+            # Capture pod memory: 3 samples × 5s (15s total at steady state)
+            COLD_MEM=$(./.github/workflows/script/capture-pod-memory-mb.sh 3 5)
+            echo "Cold #${i}: pod_mem=${COLD_MEM}MB"
+            echo "${COLD_ELAPSED},${COLD_MEM}" >> "$COLD_CSV"
 
-      - name: "Warm Start: Redeploy"
-        id: warm-start
-        timeout-minutes: 60
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          SOLO_CMD="${{ steps.solo-cmd.outputs.cmd }}"
-          VALUES_FILE="${{ steps.values-file.outputs.path }}"
+            # Destroy deployment (keeps cluster + metrics-server for warm start)
+            $SOLO_CMD one-shot falcon destroy
 
-          echo "==== Warm Start: Measuring one-shot falcon deploy time ===="
-          WARM_START_TIME=$SECONDS
+            # --- Warm Start ---
+            echo ">>> Warm Start #${i}"
+            WARM_T0=$SECONDS
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+            WARM_ELAPSED=$(( SECONDS - WARM_T0 ))
+            echo "Warm #${i}: $(fmt_duration "$WARM_ELAPSED")"
 
-          $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+            # Metrics-server still running from cold start; capture immediately
+            WARM_MEM=$(./.github/workflows/script/capture-pod-memory-mb.sh 3 5)
+            echo "Warm #${i}: pod_mem=${WARM_MEM}MB"
+            echo "${WARM_ELAPSED},${WARM_MEM}" >> "$WARM_CSV"
 
-          WARM_ELAPSED=$(( SECONDS - WARM_START_TIME ))
-          WARM_MINUTES=$(( WARM_ELAPSED / 60 ))
-          WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
-          echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
-          echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
+            # Full reset for next cold start: destroy app then delete kind cluster
+            $SOLO_CMD one-shot falcon destroy || true
+            for cluster in $(kind get clusters 2>/dev/null); do
+              kind delete cluster --name "$cluster" 2>/dev/null || true
+            done
+          done
 
-      - name: "Warm Start: Install Metrics Server"
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update 2>/dev/null || true
-          helm install metrics-server metrics-server/metrics-server \
-            --namespace kube-system \
-            --set "args[0]=--kubelet-insecure-tls" \
-            --wait --timeout 120s || true
+          # Compute medians using per-column sort
+          COLD_TIME_MED=$(cut -d, -f1 "$COLD_CSV" | ./.github/workflows/script/compute-median.sh)
+          COLD_MEM_MED=$(cut -d, -f2 "$COLD_CSV" | ./.github/workflows/script/compute-median.sh)
+          WARM_TIME_MED=$(cut -d, -f1 "$WARM_CSV" | ./.github/workflows/script/compute-median.sh)
+          WARM_MEM_MED=$(cut -d, -f2 "$WARM_CSV" | ./.github/workflows/script/compute-median.sh)
+
+          echo "cold-time-median=${COLD_TIME_MED}" >> "$GITHUB_OUTPUT"
+          echo "cold-mem-median=${COLD_MEM_MED}"   >> "$GITHUB_OUTPUT"
+          echo "warm-time-median=${WARM_TIME_MED}" >> "$GITHUB_OUTPUT"
+          echo "warm-mem-median=${WARM_MEM_MED}"   >> "$GITHUB_OUTPUT"
+          echo "results-dir=${RESULTS_DIR}"         >> "$GITHUB_OUTPUT"
 
       - name: Stop Resource Monitoring
         if: ${{ !cancelled() }}
@@ -398,40 +407,59 @@ jobs:
       - name: Timing Summary
         if: ${{ !cancelled() }}
         run: |
-          COLD="${{ steps.cold-start.outputs.cold-elapsed }}"
-          WARM="${{ steps.warm-start.outputs.warm-elapsed }}"
+          N="${{ inputs.iterations }}"
+          COLD_TIME="${{ steps.iterations.outputs.cold-time-median }}"
+          WARM_TIME="${{ steps.iterations.outputs.warm-time-median }}"
+          COLD_MEM="${{ steps.iterations.outputs.cold-mem-median }}"
+          WARM_MEM="${{ steps.iterations.outputs.warm-mem-median }}"
+          RESULTS_DIR="${{ steps.iterations.outputs.results-dir }}"
 
-          echo "### One-Shot Timing Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Metric | Duration |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|--------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          fmt() { local s=$1; echo "$(( s / 60 ))m $(( s % 60 ))s (${s}s)"; }
 
-          if [ -n "$COLD" ]; then
-            echo "| Cold Start | $(( COLD / 60 ))m $(( COLD % 60 ))s (${COLD}s) |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "| Cold Start | Failed |" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "### One-Shot Timing Results (N=${N} iterations, median)"
+            echo ""
 
-          if [ -n "$WARM" ]; then
-            echo "| Warm Start | $(( WARM / 60 ))m $(( WARM % 60 ))s (${WARM}s) |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "| Warm Start | Failed or skipped |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ -n "$COLD" ] && [ -n "$WARM" ]; then
-            DIFF=$(( COLD - WARM ))
-            if [ "$DIFF" -gt 0 ]; then
-              echo "| Improvement | ${DIFF}s faster on warm start |" >> "$GITHUB_STEP_SUMMARY"
-            elif [ "$DIFF" -lt 0 ]; then
-              DELTA=$(( -DIFF ))
-              echo "| Improvement | ${DELTA}s slower on warm start |" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "| Improvement | No difference between cold and warm start |" >> "$GITHUB_STEP_SUMMARY"
+            # Per-iteration detail table (reads cold.csv + warm.csv line by line)
+            if [[ -f "${RESULTS_DIR}/cold.csv" && -f "${RESULTS_DIR}/warm.csv" ]]; then
+              echo "| # | Cold Time | Cold Mem (MB) | Warm Time | Warm Mem (MB) |"
+              echo "|---|-----------|---------------|-----------|---------------|"
+              mapfile -t cold_rows < "${RESULTS_DIR}/cold.csv"
+              mapfile -t warm_rows < "${RESULTS_DIR}/warm.csv"
+              for idx in "${!cold_rows[@]}"; do
+                IFS=, read -r ct cm <<< "${cold_rows[$idx]}"
+                IFS=, read -r wt wm <<< "${warm_rows[$idx]:-0,0}"
+                printf "| %d | %dm %02ds | %s | %dm %02ds | %s |\n" \
+                  "$(( idx + 1 ))" "$(( ct / 60 ))" "$(( ct % 60 ))" "${cm:-0}" \
+                  "$(( wt / 60 ))" "$(( wt % 60 ))" "${wm:-0}"
+              done
+              echo ""
             fi
-          fi
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Metric | Median |"
+            echo "|--------|--------|"
+            if [[ -n "$COLD_TIME" ]]; then
+              echo "| Cold Start Time     | $(fmt "$COLD_TIME") |"
+            else
+              echo "| Cold Start Time     | N/A |"
+            fi
+            echo "| Cold Start Pod Memory | ${COLD_MEM:-N/A} MB |"
+            if [[ -n "$WARM_TIME" ]]; then
+              echo "| Warm Start Time     | $(fmt "$WARM_TIME") |"
+            else
+              echo "| Warm Start Time     | N/A |"
+            fi
+            echo "| Warm Start Pod Memory | ${WARM_MEM:-N/A} MB |"
+            if [[ -n "$COLD_TIME" && -n "$WARM_TIME" ]]; then
+              DIFF=$(( COLD_TIME - WARM_TIME ))
+              if   [[ "$DIFF" -gt 0 ]]; then echo "| Improvement | ${DIFF}s faster on warm start |"
+              elif [[ "$DIFF" -lt 0 ]]; then echo "| Improvement | $(( -DIFF ))s slower on warm start |"
+              else                            echo "| Improvement | No difference |"
+              fi
+            fi
+            echo ""
+            echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}, iterations=${N}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
