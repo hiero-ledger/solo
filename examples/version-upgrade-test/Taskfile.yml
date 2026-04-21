@@ -20,10 +20,13 @@ vars:
 
   # Previous versions (current minus one)
   PREV_CN_VERSION: "v0.70.0"
-  PREV_MIRROR_VERSION: "v0.145.2"
+  PREV_MIRROR_VERSION: "v0.150.0"
   PREV_EXPLORER_VERSION: "25.1.1"
   PREV_RELAY_VERSION: "0.72.0"
   PREV_BLOCK_VERSION: "v0.28.0"
+
+  # Current versions to upgrade to
+  CURRENT_MIRROR_VERSION: "v0.152.0"
 
   # Local build path for network upgrade
   ROOT_DIR:
@@ -132,7 +135,7 @@ tasks:
       # Upgrade mirror node
       - cmd: |
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
-          --mirror-node-version v0.139.0
+          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }}
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Upgrade network to main with local build path
@@ -205,7 +208,7 @@ tasks:
 
       # Test Block Node functionality
       - cmd: |
-          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
+          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 >/tmp/solo-block-node-port-forward.log 2>&1 &
           cd ../../test/data
           
           OUTPUT=$(./get-block.sh 1)

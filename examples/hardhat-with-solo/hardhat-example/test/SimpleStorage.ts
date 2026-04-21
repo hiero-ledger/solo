@@ -34,6 +34,8 @@ describe("SimpleStorage", function () {
     const instance = await SimpleStorage.deploy(1);
     await instance.waitForDeployment();
 
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     const tx = await instance.connect(other).set(5);
     await tx.wait();
 
