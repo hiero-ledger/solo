@@ -30,7 +30,7 @@ import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
-import {confirm as confirmPrompt, input as inputPrompt, select as selectPrompt} from '@inquirer/prompts';
+import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {type FalconPrepareConfig} from './falcon-prepare-config.js';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
@@ -1889,15 +1889,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   /**
-   * Flags whose existing `prompt` functions are reused verbatim for the
-   * falcon prepare wizard. Keeping the list in declaration-order makes the
-   * wizard flow match the CLI help output.
+   * Flags whose `prompt` functions are invoked by the falcon prepare wizard.
+   * Keeping the list in declaration-order makes the wizard flow match the
+   * CLI help output.
    */
   private static readonly FALCON_PREPARE_PROMPTS: CommandFlag[] = [
     flags.numberOfConsensusNodes,
     flags.releaseTag,
     flags.relayReleaseTag,
     flags.soloChartVersion,
+    flags.mirrorNodeVersion,
+    flags.blockNodeChartVersion,
+    flags.explorerVersion,
+    flags.loadBalancerEnabled,
+    flags.forcePortForward,
   ];
 
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
@@ -1941,32 +1946,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             config.numberOfConsensusNodes =
               this.configManager.getFlag(flags.numberOfConsensusNodes) ?? config.numberOfConsensusNodes;
             config.releaseTag = this.configManager.getFlag(flags.releaseTag) ?? config.releaseTag;
-            config.relayRelease = this.configManager.getFlag<string>(flags.relayReleaseTag) ?? config.relayRelease;
-            config.soloChartVersion =
-              this.configManager.getFlag<string>(flags.soloChartVersion) ?? config.soloChartVersion;
-
-            // Inline prompts — no matching flag `prompt` exists, or the
-            // existing flag's prompt signature is not suitable for this
-            // wizard (mirrorNodeVersion/explorerVersion use promptToggle).
-            config.mirrorNodeVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-              message: 'Mirror node version:',
-              default: version.MIRROR_NODE_VERSION,
-            });
-
-            config.blockNodeChartVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-              message: 'Block node chart version:',
-              default: version.BLOCK_NODE_VERSION,
-            });
-
-            config.explorerVersion = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-              message: 'Explorer version:',
-              default: version.EXPLORER_VERSION,
-            });
-
-            // No Flags.loadBalancerEnabled prompt exists.
-            config.loadBalancer = await task
-              .prompt(ListrInquirerPromptAdapter)
-              .run(confirmPrompt, {message: 'Enable load balancer?', default: false});
+            config.relayRelease = this.configManager.getFlag(flags.relayReleaseTag) ?? config.relayRelease;
+            config.soloChartVersion = this.configManager.getFlag(flags.soloChartVersion) ?? config.soloChartVersion;
+            config.mirrorNodeVersion = this.configManager.getFlag(flags.mirrorNodeVersion) ?? config.mirrorNodeVersion;
+            config.blockNodeChartVersion =
+              this.configManager.getFlag(flags.blockNodeChartVersion) ?? config.blockNodeChartVersion;
+            config.explorerVersion = this.configManager.getFlag(flags.explorerVersion) ?? config.explorerVersion;
+            config.loadBalancer = this.configManager.getFlag(flags.loadBalancerEnabled) ?? config.loadBalancer;
+            config.forcePortForward = this.configManager.getFlag(flags.forcePortForward) ?? config.forcePortForward;
 
             // Mirror node REST API is split across two instances (JS + Java) and
             // routed via ingress, so the values file always enables it.
@@ -1981,21 +1968,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             });
 
             if (config.enableDevChartMode) {
-              config.localBuildPath = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-                message: 'Local build path:',
-                default: '',
-              });
-
-              config.debugNodeAlias = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-                message: 'Debug node alias:',
-                default: '',
-              });
+              await this.configManager.executePrompt(task, [flags.localBuildPath, flags.debugNodeAlias]);
+              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath) ?? config.localBuildPath;
+              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias) ?? config.debugNodeAlias;
             }
-
-            // Flags.forcePortForward has no prompt function.
-            config.forcePortForward = await task
-              .prompt(ListrInquirerPromptAdapter)
-              .run(confirmPrompt, {message: 'Force port forwarding?', default: true});
           },
         },
         {

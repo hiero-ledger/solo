@@ -167,7 +167,19 @@ export class Flags {
       defaultValue: true, // always use local port-forwarding by default
       type: 'boolean',
     },
-    prompt: undefined,
+    prompt: async function promptForcePortForward(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.forcePortForward.definition.defaultValue as boolean,
+        'Force port forwarding? ',
+        undefined,
+        Flags.forcePortForward.name,
+      );
+    },
   };
 
   // list of common flags across commands. command specific flags are defined in the command's module.
@@ -1182,7 +1194,19 @@ export class Flags {
       defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptBlockNodeChartVersion(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.blockNodeChartVersion.definition.defaultValue as string,
+        'Enter block node chart version: ',
+        undefined,
+        Flags.blockNodeChartVersion.name,
+      );
+    },
   };
 
   public static readonly priorityMapping: CommandFlag = {
@@ -1342,7 +1366,19 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptLocalBuildPath(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.localBuildPath.definition.defaultValue as string,
+        'Enter local build path: ',
+        undefined,
+        Flags.localBuildPath.name,
+      );
+    },
   };
 
   public static readonly newAccountNumber: CommandFlag = {
@@ -1768,7 +1804,19 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptDebugNodeAlias(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.debugNodeAlias.definition.defaultValue as string,
+        'Enter debug node alias: ',
+        undefined,
+        Flags.debugNodeAlias.name,
+      );
+    },
   };
 
   public static readonly outputDir: CommandFlag = {
@@ -1934,13 +1982,13 @@ export class Flags {
     },
     prompt: async function promptMirrorNodeVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
         task,
         input,
-        Flags.mirrorNodeVersion.definition.defaultValue as boolean,
-        'Would you like to choose mirror node version? ',
+        Flags.mirrorNodeVersion.definition.defaultValue as string,
+        'Enter mirror node version: ',
         undefined,
         Flags.mirrorNodeVersion.name,
       );
@@ -1979,13 +2027,13 @@ export class Flags {
     },
     prompt: async function promptExplorerVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
         task,
         input,
-        Flags.explorerVersion.definition.defaultValue as boolean,
-        'Would you like to choose explorer version? ',
+        Flags.explorerVersion.definition.defaultValue as string,
+        'Enter explorer version: ',
         undefined,
         Flags.explorerVersion.name,
       );
@@ -2689,7 +2737,19 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
+    prompt: async function promptLoadBalancerEnabled(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.loadBalancerEnabled.definition.defaultValue as boolean,
+        'Enable load balancer? ',
+        undefined,
+        Flags.loadBalancerEnabled.name,
+      );
+    },
   };
 
   // --------------- Add Cluster --------------- //
