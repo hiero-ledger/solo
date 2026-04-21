@@ -25,6 +25,7 @@ export default [
       '.git/**/*', // Git files
       '.github/**/*', // GitHub files
       '.idea/**/*', // IDE files
+      '.claude/**/*', // Claude AI files
       'coverage/**/*', // Coverage files
       'docs/**/*', // Documentation files
       'examples/**/*', // Example files

@@ -39,6 +39,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
     pinger: boolean,
+    valuesFile?: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
 
@@ -56,6 +57,10 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     if (pinger) {
       argv.push(optionFromFlag(Flags.pinger));
+    }
+
+    if (valuesFile) {
+      argv.push(optionFromFlag(Flags.valuesFile), valuesFile);
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
@@ -267,11 +272,12 @@ export class MirrorNodeTest extends BaseCommandTest {
       createdAccountIds,
       consensusNodesCount,
       pinger,
+      valuesFile,
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node add`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
+      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger, valuesFile));
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
@@ -358,12 +364,19 @@ export class MirrorNodeTest extends BaseCommandTest {
       createdAccountIds,
       consensusNodesCount,
       pinger,
+      valuesFile,
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus, optionFromFlag} =
       MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv: string[] = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
+      const argv: string[] = soloMirrorNodeDeployArgv(
+        testName,
+        deployment,
+        clusterReferenceNameArray[1],
+        pinger,
+        valuesFile,
+      );
 
       process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
 
@@ -460,22 +473,6 @@ export class MirrorNodeTest extends BaseCommandTest {
         this.postgresReadonlyPassword,
       ]);
     }).timeout(Duration.ofMinutes(2).toMillis());
-  }
-
-  public static runSql(options: BaseTestOptions): void {
-    it('should run SQL command', async (): Promise<void> => {
-      const {testCacheDirectory, contexts} = options;
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const k8: K8 = k8Factory.getK8(contexts[1]);
-      const postgresContainer: Container = MirrorNodeTest.getPostgresContainer(k8);
-
-      await postgresContainer.copyTo(`${testCacheDirectory}/database-seeding-query.sql`, '/tmp');
-      await postgresContainer.execContainer([
-        '/bin/bash',
-        '-c',
-        `PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`,
-      ]);
-    });
   }
 
   public static pullAddressBook(options: BaseTestOptions): void {

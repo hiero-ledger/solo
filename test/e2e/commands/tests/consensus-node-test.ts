@@ -54,7 +54,8 @@ import {
 } from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
-import {TEST_UPGRADE_VERSION} from '../../../../version-test.js';
+import {TEST_UPGRADE_VERSION, TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../../version-test.js';
+import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {Zippy} from '../../../../src/core/zippy.js';
 import {type NetworkNodes} from '../../../../src/core/network-nodes.js';
@@ -772,6 +773,13 @@ export class ConsensusNodeTest extends BaseCommandTest {
       const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
 
       fs.writeFileSync(testApplicationPropertiesPath, updatedContent);
+
+      // Set the consensus node version in remote config to TEST_LOCAL_HEDERA_PLATFORM_VERSION
+      // so the downgrade guard allows upgrading to TEST_UPGRADE_VERSION (which must be newer).
+      remoteConfig.configuration.versions.consensusNode = new SemanticVersion<string>(
+        TEST_LOCAL_HEDERA_PLATFORM_VERSION,
+      );
+      await remoteConfig.persist();
 
       await main(soloConsensusNodeUpgradeArgv(options, undefined, testApplicationPropertiesPath));
 
