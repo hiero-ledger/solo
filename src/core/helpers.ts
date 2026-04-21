@@ -1121,7 +1121,7 @@ export function extractExtraEnvironmentFromValuesFiles(
     if (!rootSection || typeof rootSection !== 'object') {
       return [];
     }
-    const extraEnvironmentArray: unknown = (rootSection as Record<string, unknown>)['extraEnv'];
+    const extraEnvironmentArray: unknown = (rootSection as Record<string, unknown>).extraEnv;
     if (!Array.isArray(extraEnvironmentArray)) {
       return [];
     }
@@ -1161,9 +1161,9 @@ export function extractExtraEnvironmentFromValuesFiles(
     const parsedRecord: Record<string, unknown> = parsedValues as Record<string, unknown>;
 
     // 1. Extract defaults.root.extraEnv — applies to all nodes (lowest priority within this file).
-    const defaultsSection: unknown = parsedRecord['defaults'];
+    const defaultsSection: unknown = parsedRecord.defaults;
     if (defaultsSection && typeof defaultsSection === 'object') {
-      const defaultsRootSection: unknown = (defaultsSection as Record<string, unknown>)['root'];
+      const defaultsRootSection: unknown = (defaultsSection as Record<string, unknown>).root;
       const defaultsEnvironmentVariables: EnvironmentVariable[] = extractExtraEnvironmentArray(defaultsRootSection);
       if (defaultsEnvironmentVariables.length > 0) {
         for (const consensusNode of consensusNodes) {
@@ -1173,12 +1173,12 @@ export function extractExtraEnvironmentFromValuesFiles(
     }
 
     // 2. Extract hedera.nodes[i].root.extraEnv — per-node overrides (higher priority).
-    const hederaSection: unknown = parsedRecord['hedera'];
+    const hederaSection: unknown = parsedRecord.hedera;
     if (!hederaSection || typeof hederaSection !== 'object') {
       continue;
     }
 
-    const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+    const nodesArray: unknown = (hederaSection as Record<string, unknown>).nodes;
     if (!Array.isArray(nodesArray)) {
       continue;
     }
@@ -1188,7 +1188,7 @@ export function extractExtraEnvironmentFromValuesFiles(
       if (!nodeEntry || typeof nodeEntry !== 'object') {
         continue;
       }
-      const nodeRootSection: unknown = (nodeEntry as Record<string, unknown>)['root'];
+      const nodeRootSection: unknown = (nodeEntry as Record<string, unknown>).root;
       const nodeEnvironmentVariables: EnvironmentVariable[] = extractExtraEnvironmentArray(nodeRootSection);
       if (nodeEnvironmentVariables.length > 0) {
         mergeIntoResult(consensusNode.name, nodeEnvironmentVariables);
@@ -1231,12 +1231,12 @@ export function extractPerNodeBlockNodesJsonFromValuesFile(
     return result;
   }
 
-  const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+  const hederaSection: unknown = (parsedValues as Record<string, unknown>).hedera;
   if (!hederaSection || typeof hederaSection !== 'object') {
     return result;
   }
 
-  const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+  const nodesArray: unknown = (hederaSection as Record<string, unknown>).nodes;
   if (!Array.isArray(nodesArray)) {
     return result;
   }
@@ -1246,7 +1246,7 @@ export function extractPerNodeBlockNodesJsonFromValuesFile(
     if (!nodeEntry || typeof nodeEntry !== 'object') {
       continue;
     }
-    const blockNodesJson: unknown = (nodeEntry as Record<string, unknown>)['blockNodesJson'];
+    const blockNodesJson: unknown = (nodeEntry as Record<string, unknown>).blockNodesJson;
     if (typeof blockNodesJson === 'string') {
       result[consensusNode.name] = blockNodesJson;
     }
@@ -1297,12 +1297,12 @@ export function extractPerNodeIdentityFromValuesFile(
     return result;
   }
 
-  const hederaSection: unknown = (parsedValues as Record<string, unknown>)['hedera'];
+  const hederaSection: unknown = (parsedValues as Record<string, unknown>).hedera;
   if (!hederaSection || typeof hederaSection !== 'object') {
     return result;
   }
 
-  const nodesArray: unknown = (hederaSection as Record<string, unknown>)['nodes'];
+  const nodesArray: unknown = (hederaSection as Record<string, unknown>).nodes;
   if (!Array.isArray(nodesArray)) {
     return result;
   }
