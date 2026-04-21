@@ -137,6 +137,20 @@ export class SoloPinoLogger implements SoloLogger {
     this.info(formatted);
   }
 
+  public padWithBorder(
+    message: string,
+    chalkColor: (...text: unknown[]) => string = chalk.red,
+    length: number = 83,
+  ): string {
+    const border: string = chalkColor('│');
+    const messageLines: string[] = [];
+    for (const line of message.split('\n')) {
+      const repeats: number = Math.max(0, length - line.length - 2);
+      messageLines.push(`${border}${line}${' '.repeat(repeats)}${border}`);
+    }
+    return messageLines.join('\n');
+  }
+
   public showUserError(error: unknown): void {
     // Build chain of causes (up to 10 deep)
     const errorObject = error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
@@ -157,12 +171,12 @@ export class SoloPinoLogger implements SoloLogger {
       }
     }
 
-    console.log(chalk.red('*********************************** ERROR *****************************************'));
+    console.log(chalk.red('╭─ ERROR ─────────────────────────────────────────────────────────────────────────╮'));
+    let prefix: string = '';
+    let indent: string = ' ';
     if (this.developmentMode) {
-      let prefix: string = '';
-      let indent: string = '';
       for (const s of stack) {
-        console.log(indent + prefix + chalk.yellow(String(s.message)));
+        console.log(chalk.red(this.padWithBorder(indent + prefix + String(s.message))));
         if (s.stacktrace) {
           // Keep it readable; trim obvious internal noise
           const formatted: string = String(s.stacktrace)
@@ -170,47 +184,36 @@ export class SoloPinoLogger implements SoloLogger {
             .filter((l): boolean => !l.includes('node:internal'))
             .join('\n')
             .trim();
-          console.log(indent + chalk.gray(formatted) + '\n');
+          console.log(this.padWithBorder(chalk.gray(indent + formatted)));
+          console.log(this.padWithBorder(''));
         }
         indent += '  ';
-        prefix = 'Caused by: ';
+        prefix += 'Caused by: ';
       }
     } else {
       const lines: string[] = (error as any)?.message
         ? String((error as any).message).split('\n')
         : String(error).split('\n');
       for (const line of lines) {
-        console.log(chalk.yellow(line));
-      }
-    }
-    if (!this.developmentMode) {
-      const troubleshootingSteps: ReadonlyArray<string> | undefined =
-        error instanceof SoloError ? error.getTroubleshootingSteps() : undefined;
-      if (troubleshootingSteps && troubleshootingSteps.length > 0) {
-        console.log(chalk.cyan('─────────────────────────────── TROUBLESHOOTING ───────────────────────────────────'));
-        for (const [index, step] of troubleshootingSteps.entries()) {
-          console.log(chalk.cyan(`  ${index + 1}.`) + ' ' + step);
-        }
+        console.log(chalk.red(this.padWithBorder(line)));
       }
     }
     if (error instanceof SoloError) {
       const documentUrl: string | undefined = error.getDocumentUrl();
       if (documentUrl) {
-        console.log(chalk.cyan(`  Docs: ${documentUrl}`));
+        console.log(this.padWithBorder(''));
+        console.log(this.padWithBorder(chalk.cyan(`Learn more: ${documentUrl}`)));
       }
       if (!this.developmentMode) {
         const troubleshootingSteps: ReadonlyArray<string> | undefined = error.getTroubleshootingSteps();
         if (troubleshootingSteps && troubleshootingSteps.length > 0) {
-          console.log(
-            chalk.cyan('─────────────────────────────── TROUBLESHOOTING ───────────────────────────────────'),
-          );
-          for (const [index, step] of troubleshootingSteps.entries()) {
-            console.log(chalk.cyan(`  ${index + 1}.`) + ' ' + step);
+          for (const [, step] of troubleshootingSteps.entries()) {
+            console.log(this.padWithBorder(chalk.cyan('  →') + ' ' + step));
           }
         }
       }
     }
-    console.log(chalk.red('***********************************************************************************'));
+    console.log(chalk.red('╰─────────────────────────────────────────────────────────────────────────────────╯'));
 
     // Persist the error with structure
     this.toPino('error', error, []);
