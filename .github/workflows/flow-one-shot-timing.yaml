@@ -435,7 +435,7 @@ jobs:
           fi
 
           if [ -n "$BASELINE" ]; then
-            echo "| Runner Calibration (tar /usr) | ${BASELINE}s |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Runner Calibration (sha256 100MB) | ${BASELINE}s |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           if [ -n "$COLD_MEDIAN" ]; then
