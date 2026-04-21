@@ -292,6 +292,12 @@ jobs:
             echo "Warm #${i}: pod_mem=${WARM_MEM}MB"
             echo "${WARM_ELAPSED},${WARM_MEM}" >> "$WARM_CSV"
 
+            # Inject a point-in-time pod snapshot into the monitoring JSONL files.
+            # The background monitor may miss the live-pods window (it polls every 10s
+            # but deploy+teardown is short); this guarantees the plot script has real
+            # per-pod data for the category chart and Slack notification.
+            ./.github/workflows/script/inject-pod-snapshot.sh || true
+
             # Full reset for next cold start: destroy app then delete kind cluster
             $SOLO_CMD one-shot falcon destroy || true
             for cluster in $(kind get clusters 2>/dev/null); do
