@@ -115,15 +115,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   }
 
   /**
-   * Poll until the pod identified by `podReference` is returned by the Kubernetes API.
+   * Wait until the pod identified by `podReference` appears in the Kubernetes API.
    *
-   * This guards container operations (copyTo / copyFrom / execContainer) against the
-   * brief window where Kubernetes has marked a pod Ready but `pods.read()` still returns
-   * null — a race that is more common on slower GitHub-hosted runners than on local
-   * kind clusters.
-   *
-   * Use this when the exact pod name is already known (e.g. a StatefulSet replica such
-   * as `postgres-0`).  If the pod name is unknown and must be resolved by label selector,
+   * Use this when the exact pod name is known. If the pod must be discovered by labels,
    * use {@link waitForStableReadyPod} instead.
    *
    * @param podReference - exact reference of the pod to wait for
@@ -150,25 +144,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   }
 
   /**
-   * Wait for a ready pod to become stable enough for follow-up operations such as exec or port-forward.
+   * Wait for the newest ready pod to remain the same across repeated checks.
    *
-   * Use this when the pod name is not fixed — e.g. after a rolling update the pod
-   * may have a new name or creation timestamp.  The method polls until the same newest
-   * ready pod (identified by name + creation timestamp) is observed for
-   * `consecutiveStableChecks` polls in a row, ensuring the replacement has fully settled
-   * before the caller proceeds.
+   * Use this when pod names can change (for example, rolling updates).
+   * Use {@link waitForPodByReference} when the exact pod name is known.
    *
-   * This is stricter than {@link waitForReadyStatus}, which returns as soon as any
-   * matching pod reports Ready=True without verifying that the pod identity has settled.
-   *
-   * Use {@link waitForPodByReference} instead when the exact pod name is already known
-   * and you only need to confirm it has appeared in the API (no stability check needed).
-   *
-   * @param namespace - namespace containing the target pod(s)
-   * @param labels - labels used to select the target pod(s)
-   * @param [consecutiveStableChecks] - consecutive checks that must see the same newest ready pod (default 3)
-   * @param [maxAttempts] - maximum polling attempts (default 120)
-   * @param [delay] - delay between poll attempts in milliseconds (default 1000)
+   * @param namespace - namespace to search
+   * @param labels - pod label selector
+   * @param [consecutiveStableChecks] - required matching checks (default 3)
+   * @param [maxAttempts] - max polling attempts (default 120)
+   * @param [delay] - delay between attempts in ms (default 1000)
    * @returns the newest stable ready pod
    */
   public async waitForStableReadyPod(

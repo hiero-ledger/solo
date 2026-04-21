@@ -45,17 +45,11 @@ export class K8ClientContainer implements Container {
   }
 
   /**
-   * Ensures the pod backing this container reference is visible in the Kubernetes API
-   * before a `copyTo`, `copyFrom`, or `execContainer` call is made.
+   * Waits until the pod for this container reference is visible in the API before
+   * `copyTo`, `copyFrom`, or `execContainer`.
    *
-   * Delegates the polling logic to {@link Pods.waitForPodByReference} and converts
-   * any failure into an {@link IllegalArgumentError} with the pod name, which is the
-   * error contract expected by container-operation callers.
-   *
-   * The retry is necessary because Kubernetes can momentarily return null for a pod
-   * that has just been marked Ready — a race condition that is more pronounced on
-   * slower GitHub-hosted runners.  See {@link Pods.waitForPodByReference} for the
-   * full polling behaviour.
+   * Uses {@link Pods.waitForPodByReference} and maps failures to
+   * {@link IllegalArgumentError} with the pod name.
    *
    * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
    * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)

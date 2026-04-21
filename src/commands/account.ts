@@ -65,6 +65,7 @@ import * as CommandHelpers from './command-helpers.js';
 import {invokeSoloCommand} from './command-helpers.js';
 import {NodeCommandTasks} from './node/tasks.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
+import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -566,13 +567,13 @@ export class AccountCommand extends BaseCommand {
           > =>
             invokeSoloCommand(
               'Stop consensus nodes',
-              'consensus node stop',
+              `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_STOP}`,
               (): string[] => {
                 const commandArgv: string[] = CommandHelpers.newArgv();
                 commandArgv.push(
-                  'consensus',
-                  'node',
-                  'stop',
+                  ConsensusCommandDefinition.COMMAND_NAME,
+                  ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+                  ConsensusCommandDefinition.NODE_STOP,
                   CommandHelpers.optionFromFlag(flags.deployment),
                   context_.config.deployment,
                   CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
@@ -981,13 +982,13 @@ export class AccountCommand extends BaseCommand {
                     }
                     return invokeSoloCommand(
                       'Start consensus nodes',
-                      'consensus node start',
+                      ConsensusCommandDefinition.START_COMMAND,
                       (): string[] => {
                         const argv: string[] = CommandHelpers.newArgv();
                         argv.push(
-                          'consensus',
-                          'node',
-                          'start',
+                          ConsensusCommandDefinition.COMMAND_NAME,
+                          ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+                          ConsensusCommandDefinition.NODE_START,
                           CommandHelpers.optionFromFlag(flags.deployment),
                           context_.config.deployment,
                           CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
