@@ -669,19 +669,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         ): Promise<SoloListr<OneShotSingleDeployContext>> => {
                           return task.newListr(
                             [
-                              {
-                                title: 'Configure HikariCP connection pool limits',
-                                skip: (): boolean => !config.deployMirrorNode,
-                                task: (): void => {
-                                  // Limit HikariCP idle connections. minimumIdle defaults to maximumPoolSize when unset,
-                                  // causing every component to hold maximumPoolSize idle connections even under no load.
-                                  config.mirrorNodeConfiguration ??= {};
-                                  const existingValuesFile: string = config.mirrorNodeConfiguration['--values-file'];
-                                  config.mirrorNodeConfiguration['--values-file'] = existingValuesFile
-                                    ? `${existingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
-                                    : constants.MIRROR_NODE_HIKARI_LIMITS_FILE;
-                                },
-                              },
                               invokeSoloCommand(
                                 `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
                                 ConsensusCommandDefinition.SETUP_COMMAND,
@@ -829,13 +816,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.deployment,
                       );
 
-                      config.blockNodeConfiguration ??= {};
-                      const existingValuesFile: string = config.blockNodeConfiguration['--values-file'];
-                      config.blockNodeConfiguration['--values-file'] = existingValuesFile
-                        ? `${existingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
-                        : constants.BLOCK_NODE_SOLO_DEV_FILE;
-
-                      this.appendConfigToArgv(argv, config.blockNodeConfiguration);
+                      // Build a local copy with the dev image values file appended, without mutating
+                      // config.blockNodeConfiguration — it may be an alias for another section's object
+                      // (e.g. via YAML anchors), causing the values file to leak into other commands.
+                      const blockExistingValuesFile: string = config.blockNodeConfiguration?.['--values-file'];
+                      const blockLocalConfig: AnyObject = {
+                        ...config.blockNodeConfiguration,
+                        '--values-file': blockExistingValuesFile
+                          ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
+                          : constants.BLOCK_NODE_SOLO_DEV_FILE,
+                      };
+                      this.appendConfigToArgv(argv, blockLocalConfig);
                       return argvPushGlobalFlags(argv);
                     },
                     this.taskList,
@@ -858,7 +849,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         optionFromFlag(Flags.parallelDeploy),
                         config.parallelDeploy.toString(),
                       );
-                      this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
+                      // Append HikariCP limits file without mutating the shared config object.
+                      const mirrorExistingValuesFile: string = config.mirrorNodeConfiguration?.['--values-file'];
+                      const mirrorLocalConfig: AnyObject = {
+                        ...config.mirrorNodeConfiguration,
+                        '--values-file': mirrorExistingValuesFile
+                          ? `${mirrorExistingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
+                          : constants.MIRROR_NODE_HIKARI_LIMITS_FILE,
+                      };
+                      this.appendConfigToArgv(argv, mirrorLocalConfig);
                       return argvPushGlobalFlags(argv, config.cacheDir);
                     },
                     this.taskList,
