@@ -253,6 +253,16 @@ jobs:
           echo "cold-elapsed=${COLD_ELAPSED}" >> "$GITHUB_OUTPUT"
           echo "==== Cold start completed in ${COLD_MINUTES}m ${COLD_SECONDS}s ===="
 
+      - name: "Cold Start: Install Metrics Server"
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update 2>/dev/null || true
+          helm install metrics-server metrics-server/metrics-server \
+            --namespace kube-system \
+            --set "args[0]=--kubelet-insecure-tls" \
+            --wait --timeout 120s || true
+
       - name: "Destroy Deployment"
         timeout-minutes: 15
         run: |
@@ -281,6 +291,16 @@ jobs:
           WARM_SECONDS=$(( WARM_ELAPSED % 60 ))
           echo "warm-elapsed=${WARM_ELAPSED}" >> "$GITHUB_OUTPUT"
           echo "==== Warm start completed in ${WARM_MINUTES}m ${WARM_SECONDS}s ===="
+
+      - name: "Warm Start: Install Metrics Server"
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update 2>/dev/null || true
+          helm install metrics-server metrics-server/metrics-server \
+            --namespace kube-system \
+            --set "args[0]=--kubelet-insecure-tls" \
+            --wait --timeout 120s || true
 
       - name: Stop Resource Monitoring
         if: ${{ !cancelled() }}

@@ -320,11 +320,15 @@ else
     ASCII+="✅ Resource usage within normal limits"$'\n'
     ASCII+="    Host CPU Peak: ${peak_cpu}%  |  Host Memory Peak: ${mem_label}"$'\n'
   fi
-  if [[ -n "$peak_pod_cpu_m" ]]; then
+  if [[ -n "$peak_pod_cpu_m" && "$peak_pod_cpu_m" != "0" ]]; then
     ASCII+="    Pod CPU Peak: ${peak_pod_cpu_m}m (sum of all containers)"$'\n'
+  elif [[ -z "$peak_pod_cpu_m" || "$peak_pod_cpu_m" == "0" ]]; then
+    ASCII+="    Pod CPU Peak: N/A (metrics-server not available)"$'\n'
   fi
-  if [[ -n "$peak_pod_mem_mb" ]]; then
+  if [[ -n "$peak_pod_mem_mb" && "$peak_pod_mem_mb" != "0" ]]; then
     ASCII+="    Pod Memory Peak: ${peak_pod_mem_mb} MB (sum of all containers)"$'\n'
+  elif [[ -z "$peak_pod_mem_mb" || "$peak_pod_mem_mb" == "0" ]]; then
+    ASCII+="    Pod Memory Peak: N/A (metrics-server not available)"$'\n'
   fi
   ASCII+=$'\n'
 fi
