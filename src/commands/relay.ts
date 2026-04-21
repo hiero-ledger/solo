@@ -485,6 +485,8 @@ export class RelayCommand extends BaseCommand {
       skip: ({config}: RelayDeployContext | RelayUpgradeContext): boolean => !config.forcePortForward,
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
+        const nodeId: number | undefined = undefined;
+        const persistPortForward: boolean = false;
         const pods: Pod[] = await this.k8Factory
           .getK8(config.context)
           .pods()
@@ -524,8 +526,8 @@ export class RelayCommand extends BaseCommand {
           ComponentTypes.RelayNodes,
           'JSON RPC Relay',
           config.isChartInstalled, // Reuse existing port if chart is already installed
-          undefined,
-          false,
+          nodeId,
+          persistPortForward,
           externalAddress,
         );
         await this.remoteConfig.persist();

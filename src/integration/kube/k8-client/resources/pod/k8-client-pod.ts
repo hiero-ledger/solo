@@ -106,7 +106,7 @@ export class K8ClientPod implements Pod {
     isRetry: boolean = false,
   ): Promise<number> {
     let availablePort: number = localPort;
-    const bindAddress: string = externalAddress || constants.LOCAL_HOST;
+    const localBindAddress: string = externalAddress || constants.LOCAL_HOST;
 
     try {
       // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
@@ -193,7 +193,7 @@ export class K8ClientPod implements Pod {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
       this.logger.debug(
-        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${bindAddress}:${availablePort}`,
+        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}`,
       );
 
       this.logger.warn(
@@ -226,7 +226,7 @@ export class K8ClientPod implements Pod {
           `${availablePort}:${podPort}`,
           constants.KUBECTL,
           this.kubectlInstallationDirectory,
-          bindAddress,
+          localBindAddress,
           '&',
         ];
       } else {
@@ -236,7 +236,7 @@ export class K8ClientPod implements Pod {
           '-n',
           this.podReference.namespace.name,
           '--address',
-          bindAddress,
+          localBindAddress,
           '--context',
           this.kubeConfig.currentContext,
           `pods/${this.podReference.name}`,
@@ -291,7 +291,7 @@ export class K8ClientPod implements Pod {
         return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);
       }
 
-      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${bindAddress}:${availablePort}]: ${error.message}`;
+      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}]: ${error.message}`;
       throw new SoloError(message, error);
     }
   }
