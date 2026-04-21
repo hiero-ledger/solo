@@ -219,6 +219,8 @@ ps -ef |grep port-forward
 export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
+echo "Waiting for consensus nodes to be ready after upgrade..."
+sleep 30
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
