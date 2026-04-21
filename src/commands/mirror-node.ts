@@ -560,6 +560,26 @@ export class MirrorNodeCommand extends BaseCommand {
       ? currentVersion.greaterThan(constants.MIRROR_NODE_VERSION_BOUNDARY)
       : false; // If no current version (first install), don't reuse values
 
+    // Don't reuse values when crossing the shared-resources/memory-improvements boundary
+    // (upgrading from < v0.152.0 → >= v0.152.0).  Versions before this boundary used an
+    // embedded chart-managed Redis with sentinel nodes pointed at "<release>-redis".
+    // Reusing those old values would leak the stale "SPRING_DATA_REDIS_SENTINEL_NODES"
+    // configuration into the upgraded pods even though redis.enabled is now set to false,
+    // because --reuse-values merges ALL old chart values (including sentinel node addresses)
+    // and we only explicitly override redis.enabled / redis.host / redis.port — not every
+    // sentinel sub-key.  Forcing a clean value set here prevents pods from failing to
+    // resolve the no-longer-existent "<release>-redis" hostname.
+    if (
+      shouldReuseValues &&
+      currentVersion !== null &&
+      currentVersion.lessThan(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
+      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+        versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION,
+      )
+    ) {
+      shouldReuseValues = false;
+    }
+
     if (commandType === MirrorNodeCommandType.ADD) {
       shouldReuseValues = false;
     }
