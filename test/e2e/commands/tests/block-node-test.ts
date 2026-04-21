@@ -167,7 +167,6 @@ export class BlockNodeTest extends BaseCommandTest {
         ),
       );
       // Block node add can exceed 5 minutes on CI when image/chart pulls are slow.
-      // Keep this timeout aligned with real-world provisioning behavior to avoid flaky false negatives.
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

@@ -75,7 +75,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
           }
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       throw new SoloError('Failed to check kubectl version', error);
     }
     throw new SoloError('Failed to get kubectl version');
