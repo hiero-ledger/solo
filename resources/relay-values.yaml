@@ -6,3 +6,11 @@ livenessProbe:
   initialDelaySeconds: 0
   periodSeconds: 1
   failureThreshold: 60
+relay:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

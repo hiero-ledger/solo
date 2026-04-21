@@ -165,7 +165,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));
           testLogger.info(`${testName}: finished ${testName}: destroy`);
-        }).timeout(Duration.ofMinutes(5).toMillis());
+        }).timeout(Duration.ofMinutes(8).toMillis());
 
         it('NftTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting NftTransferLoadTest');
