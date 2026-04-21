@@ -1939,7 +1939,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             await this.configManager.executePrompt(task, DefaultOneShotCommand.FALCON_PREPARE_PROMPTS);
 
             config.numberOfConsensusNodes =
-              this.configManager.getFlag<number>(flags.numberOfConsensusNodes) ?? config.numberOfConsensusNodes;
+              this.configManager.getFlag(flags.numberOfConsensusNodes) ?? config.numberOfConsensusNodes;
             config.releaseTag = this.configManager.getFlag<string>(flags.releaseTag) ?? config.releaseTag;
             config.relayRelease = this.configManager.getFlag<string>(flags.relayReleaseTag) ?? config.relayRelease;
             config.soloChartVersion =
