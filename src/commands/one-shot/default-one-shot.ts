@@ -1926,7 +1926,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       outputPath: resolvedOutputPath,
     };
 
-    const acceptDefaults: boolean = this.configManager.getFlag<boolean>(flags.acceptDefaults) ?? false;
+    const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults) ?? false;
 
     const tasks: Listr<AnyListrContext, ListrRendererValue, ListrRendererValue> = new Listr(
       [
