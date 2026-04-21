@@ -21,7 +21,10 @@ function createNodeCommandTasksWithPvcData(
   return nodeCommandTasks;
 }
 
-function validateNodePvcsForLocalBuildPath(nodeCommandTasks: NodeCommandTasks, contexts: string[]): Promise<void> {
+function invokeValidateNodePvcsForLocalBuildPath(
+  nodeCommandTasks: NodeCommandTasks,
+  contexts: string[],
+): Promise<void> {
   const validatorFunction: (namespace: NamespaceName, contexts: string[]) => Promise<void> = (
     nodeCommandTasks as unknown as Record<string, (namespace: NamespaceName, contexts: string[]) => Promise<void>>
   ).validateNodePvcsForLocalBuildPath;
@@ -35,7 +38,7 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
       'kind-solo': [],
     });
 
-    await expect(validateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-solo'])).to.be.rejectedWith(
+    await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-solo'])).to.be.rejectedWith(
       'Redeploy the consensus network with --pvcs true',
     );
   });
@@ -46,6 +49,8 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
       'kind-beta': ['data-node2'],
     });
 
-    await validateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta']);
+    await expect(
+      invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta']),
+    ).to.eventually.be.fulfilled;
   });
 });

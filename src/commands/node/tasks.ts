@@ -1427,7 +1427,7 @@ export class NodeCommandTasks {
         }
 
         const nodeAliases: NodeAliases = context_.config[aliasesField] as NodeAliases;
-        const contexts: Context[] = [
+        const uniqueContexts: Context[] = [
           ...new Set(
             nodeAliases.map(
               (nodeAlias: NodeAlias): Context =>
@@ -1435,7 +1435,7 @@ export class NodeCommandTasks {
             ),
           ),
         ];
-        await this.validateNodePvcsForLocalBuildPath(context_.config.namespace, contexts);
+        await this.validateNodePvcsForLocalBuildPath(context_.config.namespace, uniqueContexts);
 
         return this._uploadPlatformSoftware(
           nodeAliases,
