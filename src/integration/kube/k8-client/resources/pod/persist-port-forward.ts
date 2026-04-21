@@ -13,7 +13,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE] = process.argv;
+const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE, KUBECTL_INSTALLATION_DIRECTORY, EXTERNAL_ADDRESS] =
+  process.argv;
 
 if (!NAMESPACE || !POD || !PORT_MAP) {
   console.error('Usage: persist-port-forward <namespace> <pod> <local> <remote> [context]');
@@ -30,6 +31,9 @@ let stopping: boolean = false;
 function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
   return new Promise((resolve): void => {
     const arguments_: string[] = ['port-forward', '-n', NAMESPACE];
+    if (EXTERNAL_ADDRESS) {
+      arguments_.push('--address', EXTERNAL_ADDRESS);
+    }
     if (CONTEXT) {
       arguments_.push('--context', CONTEXT);
     }
@@ -86,7 +90,7 @@ function sleepSeconds(s: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const kubectlInstallationDirectory: string = process.argv[7] || '';
+  const kubectlInstallationDirectory: string = KUBECTL_INSTALLATION_DIRECTORY || '';
   while (!stopping) {
     const rc: number = await runKubectl(kubectlInstallationDirectory);
     if (stopping) {
