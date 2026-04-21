@@ -53,7 +53,7 @@ describe('IntervalLock', () => {
       },
       renew: async (): Promise<Lease> => {
         renewCallCount++;
-        throw {meta: {statusCode: StatusCodes.CONFLICT}};
+        throw createConflictError();
       },
       transfer: async (): Promise<Lease> => {
         throw new Error('not used');
@@ -118,7 +118,7 @@ describe('IntervalLock', () => {
         return readCallCount === 1 ? initialLease : conflictingLease;
       },
       renew: async (): Promise<Lease> => {
-        throw {meta: {statusCode: StatusCodes.CONFLICT}};
+        throw createConflictError();
       },
       transfer: async (): Promise<Lease> => {
         throw new Error('not used');
@@ -162,4 +162,12 @@ function createLease(
     renewTime: new Date(),
     resourceVersion,
   };
+}
+
+function createConflictError(): Error & {meta: {statusCode: number}} {
+  const error: Error & {meta: {statusCode: number}} = new Error('Conflict while replacing lease') as Error & {
+    meta: {statusCode: number};
+  };
+  error.meta = {statusCode: StatusCodes.CONFLICT};
+  return error;
 }
