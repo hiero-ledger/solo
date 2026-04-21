@@ -340,6 +340,24 @@ export class NodeCommandTasks {
     }
   }
 
+  private async validateNodePvcsForLocalBuildPath(namespace: NamespaceName, contexts: string[]): Promise<void> {
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        const pvcs: string[] = await this.k8Factory
+          .getK8(context)
+          .pvcs()
+          .list(namespace, ['solo.hedera.com/type=node-pvc']);
+
+        if (pvcs.length === 0) {
+          throw new SoloError(
+            'Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
+              'Redeploy the consensus network with --pvcs true and run consensus node setup again.',
+          );
+        }
+      }),
+    );
+  }
+
   private _uploadPlatformSoftware(
     nodeAliases: NodeAliases,
     podReferences: Record<NodeAlias, PodReference>,
@@ -1378,7 +1396,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Fetch platform software into network nodes',
-      task: (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
@@ -1389,31 +1407,44 @@ export class NodeCommandTasks {
         if ('upgradeVersion' in context_.config) {
           if (!context_.config.upgradeVersion) {
             this.logger.info('Skip, no need to update the platform software');
-            return Promise.resolve();
+            return;
           }
           releaseTag = context_.config.upgradeVersion;
         }
 
         context_.config.releaseTag = releaseTag;
 
-        return localBuildPath === ''
-          ? this._fetchPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              releaseTag,
-              task,
-              this.platformInstaller,
-              context_.config.consensusNodes,
-              context_.config.stagingDir,
-            )
-          : this._uploadPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              task,
-              localBuildPath,
-              context_.config.consensusNodes,
-              releaseTag,
-            );
+        if (localBuildPath === '') {
+          return this._fetchPlatformSoftware(
+            context_.config[aliasesField],
+            podRefs,
+            releaseTag,
+            task,
+            this.platformInstaller,
+            context_.config.consensusNodes,
+            context_.config.stagingDir,
+          );
+        }
+
+        const nodeAliases: NodeAliases = context_.config[aliasesField] as NodeAliases;
+        const contexts: Context[] = [
+          ...new Set(
+            nodeAliases.map(
+              (nodeAlias: NodeAlias): Context =>
+                extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
+            ),
+          ),
+        ];
+        await this.validateNodePvcsForLocalBuildPath(context_.config.namespace, contexts);
+
+        return this._uploadPlatformSoftware(
+          nodeAliases,
+          podRefs,
+          task,
+          localBuildPath,
+          context_.config.consensusNodes,
+          releaseTag,
+        );
       },
     };
   }
