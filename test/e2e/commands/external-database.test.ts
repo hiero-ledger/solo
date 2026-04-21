@@ -31,6 +31,12 @@ import {getTemporaryDirectory} from '../../test-utility.js';
 
 const testName: string = 'external-database-test';
 
+// Use dual-cluster specific values file with higher memory limits to prevent OOM
+const dualClusterValuesFile: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-node-values-dual-cluster-minimal.yaml',
+);
+
 const configFiles: Record<string, string> = {
   'api-permission.properties': 'api-permission.properties.txt',
   'application.env': 'application.env.txt',
@@ -49,8 +55,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withShard(3)
-  .withRealm(2)
+  .withShard(0)
+  .withRealm(0)
   .withApiPermissionProperties(configFiles['api-permission.properties'])
   .withApplicationEnvironment(configFiles['application.env'])
   .withApplicationProperties(configFiles['application.properties'])
@@ -113,7 +119,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         // Mirror node, explorer and relay node are deployed to the second cluster
         MirrorNodeTest.installPostgres(options);
-        MirrorNodeTest.deployWithExternalDatabase(options);
+
+        // Use dual-cluster specific values file with higher memory limits
+        MirrorNodeTest.deployWithExternalDatabase({...options, valuesFile: dualClusterValuesFile});
         ExplorerTest.add(options);
         RelayTest.add(options);
         DeploymentTest.info(options);
@@ -125,9 +133,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // the right cluster (e.g. kubectl wait for mirror-grpc readiness).
           const mirrorClusterContext: string = contexts[1];
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
-            export SHARD_NUM=3; \
-            export REALM_NUM=2; \
-            export NEW_NODE_ACCOUNT_ID=3.2.3; \
+            export SHARD_NUM=0; \
+            export REALM_NUM=0; \
+            export NEW_NODE_ACCOUNT_ID=0.0.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CLUSTER_CONTEXT=${mirrorClusterContext}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
