@@ -13,16 +13,18 @@ import {type Leases} from '../../../src/integration/kube/resources/lease/leases.
 import {type Lease} from '../../../src/integration/kube/resources/lease/lease.js';
 import {LockAcquisitionError} from '../../../src/core/lock/lock-acquisition-error.js';
 import {StatusCodes} from 'http-status-codes';
+import {Duration} from '../../../src/core/time/duration.js';
+import {type V1Status} from '@kubernetes/client-node';
 
-describe('IntervalLock', () => {
-  it('should ignore a renew conflict when latest lease is still held by the same lock holder', async () => {
+describe('IntervalLock', (): void => {
+  it('should ignore a renew conflict when latest lease is still held by the same lock holder', async (): Promise<void> => {
     const namespace: NamespaceName = NamespaceName.of('lock-conflict-test');
     const lockHolder: LockHolder = LockHolder.of('lock-user');
-    const leaseName = 'lock-conflict-test';
+    const leaseName: string = 'lock-conflict-test';
 
-    let readCallCounter = 0;
-    let renewCallCounter = 0;
-    let scheduleCallCounter = 0;
+    let readCallCounter: number = 0;
+    let renewCallCounter: number = 0;
+    let scheduleCallCounter: number = 0;
 
     const initialLease: Lease = createLease(namespace, leaseName, lockHolder.toJson(), '1');
     const latestLease: Lease = createLease(namespace, leaseName, lockHolder.toJson(), '2');
@@ -35,16 +37,14 @@ describe('IntervalLock', () => {
       },
       cancel: async (): Promise<boolean> => true,
       cancelAll: async (): Promise<Map<number, boolean>> => new Map<number, boolean>(),
-      calculateRenewalDelay: () => {
-        throw new Error('not used');
-      },
+      calculateRenewalDelay: (): Duration => Duration.ofSeconds(1),
     };
 
     const leases: Leases = {
       create: async (): Promise<Lease> => {
         throw new Error('not used');
       },
-      delete: async () => {
+      delete: async (): Promise<V1Status> => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => {
@@ -85,13 +85,13 @@ describe('IntervalLock', () => {
     expect(scheduleCallCounter).to.equal(1);
   });
 
-  it('should fail renew when conflict resolution reads a lease owned by another holder', async () => {
+  it('should fail renew when conflict resolution reads a lease owned by another holder', async (): Promise<void> => {
     const namespace: NamespaceName = NamespaceName.of('lock-conflict-fail-test');
     const lockHolder: LockHolder = LockHolder.of('lock-user');
     const otherLockHolder: LockHolder = LockHolder.of('other-user');
-    const leaseName = 'lock-conflict-fail-test';
+    const leaseName: string = 'lock-conflict-fail-test';
 
-    let readCallCounter = 0;
+    let readCallCounter: number = 0;
 
     const initialLease: Lease = createLease(namespace, leaseName, lockHolder.toJson(), '1');
     const conflictingLease: Lease = createLease(namespace, leaseName, otherLockHolder.toJson(), '2');
@@ -101,16 +101,14 @@ describe('IntervalLock', () => {
       schedule: async (): Promise<number> => 99,
       cancel: async (): Promise<boolean> => true,
       cancelAll: async (): Promise<Map<number, boolean>> => new Map<number, boolean>(),
-      calculateRenewalDelay: () => {
-        throw new Error('not used');
-      },
+      calculateRenewalDelay: (): Duration => Duration.ofSeconds(1),
     };
 
     const leases: Leases = {
       create: async (): Promise<Lease> => {
         throw new Error('not used');
       },
-      delete: async () => {
+      delete: async (): Promise<V1Status> => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => {
