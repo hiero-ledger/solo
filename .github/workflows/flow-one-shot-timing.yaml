@@ -19,6 +19,16 @@ name: "One-Shot Timing Test"
 on:
   workflow_dispatch:
     inputs:
+      enable-memory-sampling:
+        description: "Install metrics-server and capture pod memory (adds ~2min per iteration; disable to measure pure deploy timing)"
+        type: boolean
+        required: false
+        default: true
+      monitor-interval:
+        description: "Background resource monitoring interval in seconds (min 10)"
+        type: string
+        required: false
+        default: "10"
       use-released-solo:
         description: "Use latest released Solo CLI (true) or build from source (false)"
         type: boolean
@@ -237,8 +247,7 @@ jobs:
       - name: Start Resource Monitoring
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          # 10s interval: cold/warm deploys are ~90-150s so 30s is too coarse
-          ./.github/workflows/script/monitor-resources.sh start 10
+          ./.github/workflows/script/monitor-resources.sh start "${{ inputs.monitor-interval }}"
 
       - name: Run Iterations
         id: iterations
@@ -254,6 +263,7 @@ jobs:
           mkdir -p "$RESULTS_DIR"
           COLD_CSV="$RESULTS_DIR/cold.csv"
           WARM_CSV="$RESULTS_DIR/warm.csv"
+          MEMORY_SAMPLING="${{ inputs.enable-memory-sampling }}"
 
           fmt_duration() { local s=$1; echo "$(( s / 60 ))m $(( s % 60 ))s (${s}s)"; }
 
@@ -269,11 +279,13 @@ jobs:
             COLD_ELAPSED=$(( SECONDS - COLD_T0 ))
             echo "Cold #${i}: $(fmt_duration "$COLD_ELAPSED")"
 
-            # Install metrics-server on the fresh cluster and wait until serving
-            ./.github/workflows/script/install-metrics-server.sh
-
-            # Capture pod memory: 3 samples × 5s (15s total at steady state)
-            COLD_MEM=$(./.github/workflows/script/capture-pod-memory-mb.sh 3 5)
+            COLD_MEM=0
+            if [[ "$MEMORY_SAMPLING" == "true" ]]; then
+              # Install metrics-server on the fresh cluster and wait until serving
+              ./.github/workflows/script/install-metrics-server.sh
+              # Capture pod memory: 3 samples × 5s (15s total at steady state)
+              COLD_MEM=$(./.github/workflows/script/capture-pod-memory-mb.sh 3 5)
+            fi
             echo "Cold #${i}: pod_mem=${COLD_MEM}MB"
             echo "${COLD_ELAPSED},${COLD_MEM}" >> "$COLD_CSV"
 
@@ -287,16 +299,18 @@ jobs:
             WARM_ELAPSED=$(( SECONDS - WARM_T0 ))
             echo "Warm #${i}: $(fmt_duration "$WARM_ELAPSED")"
 
-            # Metrics-server still running from cold start; capture immediately
-            WARM_MEM=$(./.github/workflows/script/capture-pod-memory-mb.sh 3 5)
+            WARM_MEM=0
+            if [[ "$MEMORY_SAMPLING" == "true" ]]; then
+              # Metrics-server still running from cold start; capture immediately
+              WARM_MEM=$(./.github/workflows/script/capture-pod-memory-mb.sh 3 5)
+              # Inject a point-in-time pod snapshot into the monitoring JSONL files.
+              # The background monitor may miss the live-pods window (it polls every 10s
+              # but deploy+teardown is short); this guarantees the plot script has real
+              # per-pod data for the category chart and Slack notification.
+              ./.github/workflows/script/inject-pod-snapshot.sh || true
+            fi
             echo "Warm #${i}: pod_mem=${WARM_MEM}MB"
             echo "${WARM_ELAPSED},${WARM_MEM}" >> "$WARM_CSV"
-
-            # Inject a point-in-time pod snapshot into the monitoring JSONL files.
-            # The background monitor may miss the live-pods window (it polls every 10s
-            # but deploy+teardown is short); this guarantees the plot script has real
-            # per-pod data for the category chart and Slack notification.
-            ./.github/workflows/script/inject-pod-snapshot.sh || true
 
             # Full reset for next cold start: destroy app then delete kind cluster
             $SOLO_CMD one-shot falcon destroy || true
@@ -464,7 +478,7 @@ jobs:
               fi
             fi
             echo ""
-            echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}, iterations=${N}"
+            echo "**Configuration:** use-released-solo=${{ inputs.use-released-solo }}, use-local-build=${{ inputs.use-local-build }}, iterations=${N}, memory-sampling=${{ inputs.enable-memory-sampling }}, monitor-interval=${{ inputs.monitor-interval }}s"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect Diagnostics on Failure
