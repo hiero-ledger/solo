@@ -2,6 +2,13 @@
 
 import {LocaleRegistry} from '../locales/locale-registry.js';
 
+type SoloErrorInit = {
+  messageKey: string;
+  code?: string;
+  troubleshootingKey?: string;
+  context?: Readonly<Record<string, string | number | boolean | undefined>>;
+};
+
 export class SoloError extends Error {
   public readonly statusCode?: number;
   protected readonly code?: string;
@@ -13,25 +20,32 @@ export class SoloError extends Error {
   /**
    * Create a custom error object
    *
-   * error metadata will include the `cause`
-   *
-   * @param message error message
+   * @param messageOrInit error message string, or an init object with messageKey, code, troubleshootingKey, and optional context
    * @param cause source error (if any)
    * @param meta additional metadata (if any)
    */
   public constructor(
-    public override message: string,
+    messageOrInit: string | SoloErrorInit,
     public override cause: Error | any = {},
     public meta: any = {},
   ) {
-    super(message);
+    const resolvedMessage: string =
+      typeof messageOrInit === 'string'
+        ? messageOrInit
+        : LocaleRegistry.getMessage(messageOrInit.messageKey, messageOrInit.context);
+    super(resolvedMessage);
     this.name = this.constructor.name;
     // eslint-disable-next-line unicorn/no-useless-error-capture-stack-trace
     Error.captureStackTrace(this, this.constructor);
+    if (typeof messageOrInit !== 'string') {
+      this.code = messageOrInit.code;
+      this.messageKey = messageOrInit.messageKey;
+      this.troubleshootingKey = messageOrInit.troubleshootingKey;
+    }
     if (cause && Object.keys(cause).length > 0) {
       // if the cause message is the same as this message and this is a SoloError, re-throw the cause to avoid redundant wrapping
       if (
-        message?.toString().trim() === cause.message?.toString().trim() &&
+        resolvedMessage?.toString().trim() === cause.message?.toString().trim() &&
         this.name.toString().trim() === cause.name?.toString().trim()
       ) {
         throw cause;
