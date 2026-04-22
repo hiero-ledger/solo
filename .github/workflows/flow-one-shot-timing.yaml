@@ -407,22 +407,32 @@ jobs:
 
       - name: Post Pod Memory Categories to Slack
         if: ${{ !cancelled() && steps.pod-categories.outputs.content != '' }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        timeout-minutes: 1
+        continue-on-error: true
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
-          SLACK_MSG_AUTHOR: Release Engineering
-          SLACK_COLOR: good
-          SLACK_TITLE: "One-Shot Timing — Pod Memory by Category"
-          SLACK_MESSAGE: |
-            *Branch:* `${{ github.ref_name }}`  *Commit:* `${{ github.sha }}`
+          POD_CATEGORIES: ${{ steps.pod-categories.outputs.content }}
+        run: |
+          if [[ -z "${SLACK_WEBHOOK}" ]]; then
+            echo "SLACK_TEST_WEBHOOK is not set; skipping Slack notification"
+            exit 0
+          fi
 
-            ```
-            ${{ steps.pod-categories.outputs.content }}
-            ```
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          payload="$(
+            jq -n \
+              --arg branch "${{ github.ref_name }}" \
+              --arg sha "${{ github.sha }}" \
+              --arg categories "${POD_CATEGORIES}" \
+              --arg run_url "${run_url}" \
+              '{text: "*One-Shot Timing - Pod Memory by Category*\n*Branch:* `\($branch)`  *Commit:* `\($sha)`\n\n```\n\($categories)\n```\n\n:link: <\($run_url)|View Run>"}'
+          )"
 
-            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>
-          SLACK_FOOTER: ${{ github.workflow }}
+          curl --silent --show-error --fail \
+            --connect-timeout 5 --max-time 20 \
+            -H 'Content-Type: application/json' \
+            --data "${payload}" \
+            "${SLACK_WEBHOOK}"
 
       - name: Timing Summary
         if: ${{ !cancelled() }}
