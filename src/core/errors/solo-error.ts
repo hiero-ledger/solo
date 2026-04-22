@@ -85,4 +85,12 @@ export class SoloError extends Error {
     }
     return ErrorRegistry.getDocUrl(this.errorCode);
   }
+
+  /** Returns the formatted error code label (e.g. "SOLO-1001"), or undefined if no code is set. */
+  public getFormattedCode(): string | undefined {
+    if (!this.errorCode) {
+      return undefined;
+    }
+    return ErrorRegistry.formatCode(this.errorCode);
+  }
 }

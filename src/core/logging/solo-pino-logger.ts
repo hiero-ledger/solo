@@ -159,48 +159,47 @@ export class SoloPinoLogger implements SoloLogger {
     return messageLines.join('\n');
   }
 
-  private buildCauseChain(error: unknown): {message: string; stacktrace?: string}[] {
-    const errorObject = error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
-    const chain: {message: string; stacktrace?: string}[] = [
-      {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
-    ];
-    if (errorObject?.cause) {
-      let depth: number = 0;
-      let cause: unknown = errorObject.cause;
-      while (cause && depth < 10) {
-        const c = cause as {message?: unknown; stack?: string; cause?: unknown};
-        if (c.stack) {
-          chain.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
-        }
-        cause = c.cause;
-        depth += 1;
-      }
+  private buildCauseChain(error: Error): Error[] {
+    const chain: Error[] = [error];
+    let cause: unknown = error.cause;
+    let depth: number = 0;
+    while (cause instanceof Error && depth < 10) {
+      chain.push(cause);
+      cause = cause.cause;
+      depth += 1;
     }
     return chain;
   }
 
-  private buildContentLines(error: unknown, causeChain: {message: string; stacktrace?: string}[]): string[] {
+  private getFormattedCode(error: Error): string {
+    const formattedCode: string | undefined = error instanceof SoloError ? error.getFormattedCode() : undefined;
+    return formattedCode ? `[${formattedCode}] ` : '';
+  }
+
+  private buildContentLines(error: Error, causeChain: Error[]): string[] {
     const lines: string[] = [];
     if (this.developmentMode) {
       let indent: string = ' ';
       let prefix: string = '';
       for (const entry of causeChain) {
-        lines.push(chalk.red(indent + prefix + String(entry.message)));
-        if (entry.stacktrace) {
-          const formatted: string = String(entry.stacktrace)
+        const messageText: string = this.getFormattedCode(entry) + entry.message;
+        lines.push(chalk.red(indent + prefix + messageText));
+        if (entry.stack) {
+          const formatted: string = entry.stack
             .split('\n')
-            .filter((l): boolean => !l.includes('node:internal'))
+            .filter((line: string): boolean => !line.includes('node:internal'))
             .join('\n')
             .trim();
-          lines.push(...(indent + formatted).split('\n').map((l): string => chalk.gray(l)), '');
+          lines.push(...(indent + formatted).split('\n').map((line: string): string => chalk.gray(line)), '');
         }
         indent += '  ';
         prefix += 'Caused by: ';
       }
     } else {
-      const errorMessage: string = (error as any)?.message ? String((error as any).message) : String(error);
-      lines.push(...errorMessage.split('\n').map((l: string): string => chalk.red(l)));
+      const errorMessage: string = this.getFormattedCode(error) + error.message;
+      lines.push(...errorMessage.split('\n').map((line: string): string => chalk.red(line)));
     }
+
     if (error instanceof SoloError) {
       const documentUrl: string | undefined = error.getDocumentUrl();
       if (!this.developmentMode) {
@@ -233,8 +232,9 @@ export class SoloPinoLogger implements SoloLogger {
   }
 
   public showUserError(error: unknown): void {
-    const causeChain = this.buildCauseChain(error);
-    const lines: string[] = this.buildContentLines(error, causeChain);
+    const normalizedError: Error = error instanceof Error ? error : new Error(String(error));
+    const causeChain: Error[] = this.buildCauseChain(normalizedError);
+    const lines: string[] = this.buildContentLines(normalizedError, causeChain);
     this.renderErrorBox(lines);
     this.toPino('error', error, []);
   }
