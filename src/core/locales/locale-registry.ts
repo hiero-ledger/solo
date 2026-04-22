@@ -16,23 +16,22 @@ export class LocaleRegistry {
     return data[key] ?? LOCALES[DEFAULT_LOCALE]![key];
   }
 
-  /**
-   * Returns the message template for the given locale key in the active locale.
-   * Falls back to the English entry, then to the key string itself if no entry exists.
-   *
-   * @param key - full locale key, e.g. "pod_not_ready_message"
-   */
-  public static getMessage(key: string): string {
-    return LocaleRegistry.get(key) ?? key;
+  /** Returns the message for the given locale key, optionally interpolating {{placeholder}} tokens. */
+  public static getMessage(
+    key: string,
+    context?: Readonly<Record<string, string | number | boolean | undefined>>,
+  ): string {
+    const template: string = LocaleRegistry.get(key) ?? key;
+    if (!context) {
+      return template;
+    }
+    return template.replaceAll(/\{\{(\w+)\}\}/g, (_match: string, contextKey: string): string => {
+      const value: string | number | boolean | undefined = context[contextKey];
+      return value === undefined ? `{{${contextKey}}}` : String(value);
+    });
   }
 
-  /**
-   * Returns the troubleshooting steps for the given locale key in the active locale,
-   * or undefined if none are defined. Steps are stored as a newline-joined string
-   * and split back into an array on retrieval.
-   *
-   * @param key - full locale key, e.g. "pod_not_ready_troubleshooting_steps"
-   */
+  /** Returns troubleshooting steps for the given locale key, split on newlines. */
   public static getTroubleshootingSteps(key: string): ReadonlyArray<string> | undefined {
     return LocaleRegistry.get(key)?.split('\n');
   }
