@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-export const ErrorCodeRegistry = {
+export const ErrorCodeRegistry: Record<string, string> = {
   // 1xxx - Configuration: Deployment config, schema, existence checks
   LOCAL_CONFIG_NOT_FOUND: 'SOLO-1001',
   REMOTE_CONFIGS_MISMATCH: 'SOLO-1012',
