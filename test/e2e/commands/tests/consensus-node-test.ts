@@ -833,18 +833,6 @@ export class ConsensusNodeTest extends BaseCommandTest {
     expect(podName).to.equal(`network-${nodeAlias}-0`);
   }
 
-  /**
-   * Asserts that the consensus node is NOT yet active (i.e. checkNetworkNodeActiveness times out).
-   *
-   * NOTE: This helper is no longer called from PemKill.  Both the systemd image (via
-   * `systemctl enable`) and the s6 image (via the `network-node.enabled` flag file) will
-   * auto-start the platform when the pod restarts after a kill, causing the node to become
-   * active before this short-timeout check completes.  The same latent failure existed with
-   * the systemd image but never manifested because the slower systemd startup let the 20 s
-   * sleep + 15-attempt window elapse before the node reached ACTIVE.  With the faster s6
-   * autostart in image 0.44.0+, the node becomes active within the window and the assertion
-   * fails.  PemKill now stops the node explicitly instead of relying on this check.
-   */
   private static async verifyPodShouldNotBeActive(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
