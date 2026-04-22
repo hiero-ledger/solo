@@ -24,6 +24,9 @@ on_exit() {
   if [[ -n "${RENDERED_KIND_CLUSTER_CONFIG_FILE:-}" && -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}" ]]; then
     rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
   fi
+  if [[ -n "${UPGRADE_APP_PROPS_FILE:-}" && -f "${UPGRADE_APP_PROPS_FILE}" ]]; then
+    rm -f "${UPGRADE_APP_PROPS_FILE}"
+  fi
 
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
@@ -218,7 +221,18 @@ ps -ef |grep port-forward
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
 export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
+UPGRADE_APP_PROPS_FILE="/tmp/solo-upgrade-application.properties"
+cp "resources/templates/application.properties" "${UPGRADE_APP_PROPS_FILE}"
+{
+  echo ""
+  echo "# launch_network.sh post-upgrade readiness overrides"
+  echo "blockStream.streamMode=BOTH"
+  echo "blockStream.writerMode=FILE_AND_GRPC"
+  echo "tss.hintsEnabled=true"
+  echo "tss.historyEnabled=true"
+} >> "${UPGRADE_APP_PROPS_FILE}"
+echo "Using application.properties override for consensus upgrade: ${UPGRADE_APP_PROPS_FILE}"
+npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" --application-properties "${UPGRADE_APP_PROPS_FILE}" -q --dev
 echo "Waiting for consensus nodes to be ready after upgrade..."
 upgrade_probe_success=false
 for attempt in {1..12}; do

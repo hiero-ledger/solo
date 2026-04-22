@@ -627,7 +627,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             task: (_, task): SoloListr<OneShotSingleDeployContext> => {
               // Network node pipeline: deploy network node, then setup, start consensus node, and account generation
               // Must be sequential
-              const deployNetworkNodeTask = {
+              const deployNetworkNodeTask: {
+                title: string;
+                task: (_, networkNodeTask: SoloListrTaskWrapper<OneShotSingleDeployContext>) => Promise<SoloListr<OneShotSingleDeployContext>>;
+              } = {
                 title: 'Deploy network node',
                 task: async (_, networkNodeTask): Promise<SoloListr<OneShotSingleDeployContext>> => {
                   return networkNodeTask.newListr(
@@ -755,7 +758,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                             publicKey: string;
                                             balance: number;
                                             accountAlias?: string;
-                                          } | null = null;
+                                          } | undefined = undefined;
 
                                           for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
                                             try {
@@ -1628,7 +1631,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  public async info(_argv: ArgvStruct): Promise<boolean> {
+  public async info(): Promise<boolean> {
     const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {

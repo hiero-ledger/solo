@@ -86,6 +86,7 @@ defaults:
 permissions:
   contents: read
   actions: read
+  packages: read
 
 env:
   ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
@@ -338,6 +339,12 @@ jobs:
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
           export PATH=~/.solo/bin:${PATH}
+          if command -v helm >/dev/null 2>&1; then
+            echo "Logging in helm registry client to ghcr.io using GitHub token"
+            echo "${{ github.token }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          else
+            echo "helm binary not found on PATH before running example; continuing without explicit registry login"
+          fi
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"

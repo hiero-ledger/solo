@@ -224,6 +224,7 @@ permissions:
   id-token: write
   contents: read
   actions: read
+  packages: read
   pull-requests: write
   checks: write
   statuses: write
@@ -310,6 +311,17 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.helm-version }}'
+
+      - name: Login Helm Registry (ghcr.io)
+        if: ${{ !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          if command -v helm >/dev/null 2>&1; then
+            echo "Logging in helm registry client to ghcr.io using GitHub token"
+            echo "${{ github.token }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          else
+            echo "helm binary not found on PATH; skipping ghcr.io helm login"
+          fi
 
       - name: Install Dependencies
         id: npm-deps

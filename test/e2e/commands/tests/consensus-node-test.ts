@@ -3,6 +3,7 @@
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {
+  type AnyListrContext,
   type Context,
   type ClusterReferenceName,
   type ClusterReferences,
@@ -28,6 +29,7 @@ import * as constants from '../../../../src/core/constants.js';
 import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type AccountManager} from '../../../../src/core/account-manager.js';
 import {
+  type AnyListrContext,
   AccountCreateTransaction,
   AccountId,
   AccountInfoQuery,
@@ -46,6 +48,7 @@ import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {it} from 'mocha';
 import {
+  type AnyListrContext,
   createAccount,
   queryBalance,
   getTemporaryDirectory,
@@ -850,7 +853,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     await expect(
       container
         .resolve(NodeCommandTasks)
-        .checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
+        .checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<AnyListrContext>, '', undefined, 15),
     ).to.be.rejected;
   }
 

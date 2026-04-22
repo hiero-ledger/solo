@@ -121,8 +121,8 @@ export function startNodesTest(testName: string, argv: Argv): void {
     const deployment: string = argv.getArg<string>(flags.deployment);
     const cacheDirectory: string = argv.getArg<string>(flags.cacheDir);
     const localBuildPath: string = argv.getArg<string>(flags.localBuildPath);
-    const app = argv.getArg<string>(flags.app);
-    const appConfig = argv.getArg<string>(flags.appConfig);
+    const app: string = argv.getArg<string>(flags.app);
+    const appConfig: string = argv.getArg<string>(flags.appConfig);
     await main(ConsensusNodeTest.soloConsensusNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
@@ -516,13 +516,13 @@ export async function getNodeAliasesPrivateKeysHash(
   k8Factory: K8Factory,
   destinationDirectory: string,
 ): Promise<Map<NodeAlias, Map<string, string>>> {
-  const dataKeysDirectory = `${constants.HEDERA_HAPI_PATH}/data/keys`;
-  const tlsKeysDirectory = constants.HEDERA_HAPI_PATH;
-  const nodeKeyHashMap = new Map<NodeAlias, Map<string, string>>();
+  const dataKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+  const tlsKeysDirectory: string = constants.HEDERA_HAPI_PATH;
+  const nodeKeyHashMap: Map<NodeAlias, Map<string, string>> = new Map<NodeAlias, Map<string, string>>();
   for (const networkNodeServices of networkNodeServicesMap.values()) {
-    const keyHashMap = new Map<string, string>();
-    const nodeAlias = networkNodeServices.nodeAlias;
-    const uniqueNodeDestinationDirectory = PathEx.join(destinationDirectory, nodeAlias);
+    const keyHashMap: Map<string, string> = new Map<string, string>();
+    const nodeAlias: NodeAlias = networkNodeServices.nodeAlias;
+    const uniqueNodeDestinationDirectory: string = PathEx.join(destinationDirectory, nodeAlias);
     if (!fs.existsSync(uniqueNodeDestinationDirectory)) {
       fs.mkdirSync(uniqueNodeDestinationDirectory, {recursive: true});
     }
@@ -565,12 +565,12 @@ async function addKeyHashToMap(
       ContainerReference.of(PodReference.of(namespace, Templates.renderNetworkPodName(nodeAlias)), ROOT_CONTAINER),
     )
     .copyFrom(PathEx.join(keyDirectory, privateKeyFileName), uniqueNodeDestinationDirectory);
-  const keyBytes = fs.readFileSync(PathEx.joinWithRealPath(uniqueNodeDestinationDirectory, privateKeyFileName));
-  const keyString = keyBytes.toString();
+  const keyBytes: Buffer = fs.readFileSync(PathEx.joinWithRealPath(uniqueNodeDestinationDirectory, privateKeyFileName));
+  const keyString: string = keyBytes.toString();
   keyHashMap.set(privateKeyFileName, crypto.createHash('sha256').update(keyString).digest('base64'));
 }
 
-export const testLocalConfigData = {
+export const testLocalConfigData: Record<string, unknown> = {
   userIdentity: {
     name: 'john',
     host: 'doe',
