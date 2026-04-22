@@ -12,7 +12,6 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {sleep} from '../../../../src/core/helpers.js';
-import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
@@ -126,75 +125,64 @@ export class MirrorNodeTest extends BaseCommandTest {
     const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
       const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
+      const maxAttempts: number = 90;
 
       let received: boolean = false;
       // wait until the transaction reached consensus and retrievable from the mirror node API
-      while (!received) {
-        const request: http.ClientRequest = http.request(
-          queryUrl,
-          {method: 'GET', timeout: 100, headers: {Connection: 'close'}},
-          (response: http.IncomingMessage): void => {
-            response.setEncoding('utf8');
-
-            response.on('data', (chunk): void => {
-              // convert chunk to json object
-              const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
-              expect(
-                object.nodes?.length,
-                `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
-              ).to.equal(consensusNodesCount);
-
-              expect(
-                object.nodes[0].service_endpoints?.length,
-                'expect there to be at least one service endpoint',
-              ).to.be.greaterThan(0);
-
-              received = true;
-            });
-          },
-        );
-
-        request.on('error', (error: Error): void => {
-          testLogger.debug(`problem with request: ${error.message}`, error);
-        });
-
-        request.end(); // make the request
+      for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
+        try {
+          const response: Response = await fetch(queryUrl, {cache: 'no-store'});
+          if (response.ok) {
+            const object: {nodes?: {service_endpoints?: unknown[]}[]} = await response.json();
+            const hasExpectedNodeCount: boolean = object.nodes?.length === consensusNodesCount;
+            const hasServiceEndpoint: boolean = (object.nodes?.[0]?.service_endpoints?.length ?? 0) > 0;
+            received = hasExpectedNodeCount && hasServiceEndpoint;
+            if (!received) {
+              testLogger.debug(
+                `mirror network nodes not ready yet (attempt ${attempt}/${maxAttempts}), response=${JSON.stringify(object)}`,
+              );
+            }
+          }
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            testLogger.debug(`problem with request: ${error.message}`, error);
+          }
+        }
         await sleep(Duration.ofSeconds(2));
       }
+      expect(
+        received,
+        `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
+      ).to.equal(true);
 
       for (const accountId of createdAccountIds) {
         const accountQueryUrl: string = `http://localhost:5551/api/v1/accounts/${accountId}`;
 
         received = false;
         // wait until the transaction reached consensus and retrievable from the mirror node API
-        while (!received) {
-          const request: http.ClientRequest = http.request(
-            accountQueryUrl,
-            {method: 'GET', timeout: 100, headers: {Connection: 'close'}},
-            (response: http.IncomingMessage): void => {
-              response.setEncoding('utf8');
-
-              response.on('data', (chunk): void => {
-                // convert chunk to json object
-                const object: {account: string} = JSON.parse(chunk);
-
-                expect(
-                  object.account,
-                  'expect the created account to exist in the mirror nodes copy of the accounts',
-                ).to.equal(accountId);
-
-                received = true;
-              });
-            },
-          );
-
-          request.on('error', (error: Error): void => {
-            testLogger.debug(`problem with request: ${error.message}`, error);
-          });
-
-          request.end(); // make the request
+        for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
+          try {
+            const response: Response = await fetch(accountQueryUrl, {cache: 'no-store'});
+            if (response.ok) {
+              const object: {account?: string} = await response.json();
+              received = object.account === accountId;
+              if (!received) {
+                testLogger.debug(
+                  `mirror account not ready yet (attempt ${attempt}/${maxAttempts}), accountId=${accountId}, response=${JSON.stringify(object)}`,
+                );
+              }
+            }
+          } catch (error: unknown) {
+            if (error instanceof Error) {
+              testLogger.debug(`problem with request: ${error.message}`, error);
+            }
+          }
           await sleep(Duration.ofSeconds(2));
         }
+        expect(
+          received,
+          'expect the created account to exist in the mirror nodes copy of the accounts',
+        ).to.equal(true);
 
         await sleep(Duration.ofSeconds(1));
       }

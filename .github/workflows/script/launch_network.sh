@@ -220,8 +220,21 @@ export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 echo "Waiting for consensus nodes to be ready after upgrade..."
-sleep 30
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+upgrade_probe_success=false
+for attempt in {1..12}; do
+  if npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev; then
+    upgrade_probe_success=true
+    break
+  fi
+
+  echo "Post-upgrade transaction probe failed (attempt ${attempt}/12); retrying in 10s..."
+  sleep 10
+done
+
+if [[ "${upgrade_probe_success}" != "true" ]]; then
+  echo "Post-upgrade transaction probe failed after 12 attempts"
+  exit 1
+fi
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
