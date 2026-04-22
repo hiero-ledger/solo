@@ -20,7 +20,7 @@ import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type AnyObject, NodeAliases} from '../../../src/types/aliases.js';
+import {type AnyObject, type NodeAliases} from '../../../src/types/aliases.js';
 
 describe('ProfileManager', (): void => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
