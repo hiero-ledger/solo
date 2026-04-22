@@ -15,6 +15,9 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
+  HELISWAP_PREFUND_START_ACCOUNT: "1001"
+  HELISWAP_PREFUND_END_ACCOUNT: "1100"
+  HELISWAP_PREFUND_HBAR: "10000"
 
 tasks:
   deploy:
@@ -112,6 +115,17 @@ tasks:
 
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          # Pre-fund likely rapid-fire accounts so HeliSwap creator/random payer accounts
+          # have enough HBAR for contract-heavy setup on newer consensus-node versions.
+          for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
+            $SOLO_COMMAND ledger account update \
+              --deployment {{ .SOLO_DEPLOYMENT }} \
+              --account-id 0.0.${account_num} \
+              --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
+              --dev >/dev/null 2>&1 || true
+          done
+
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test HeliSwapLoadTest \

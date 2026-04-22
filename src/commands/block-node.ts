@@ -493,7 +493,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.chartVersion = SemanticVersion.getValidSemanticVersion(
               config.chartVersion,
-              false,
+              true,
               'Block node chart version',
             );
 
@@ -866,7 +866,7 @@ export class BlockNodeCommand extends BaseCommand {
             for (const step of config.migrationPlan) {
               const stepTargetVersion: string = SemanticVersion.getValidSemanticVersion(
                 step.toVersion,
-                false,
+                true,
                 'Block node chart version',
               );
               const stepValuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(

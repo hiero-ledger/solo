@@ -49,7 +49,9 @@ tasks:
           } > "{{.RUNTIME_VALUES_OVERRIDE_FILE}}"
 
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml,{{.RUNTIME_VALUES_OVERRIDE_FILE}} --quiet-mode --dev
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml \
+          --values-file {{.RUNTIME_VALUES_OVERRIDE_FILE}} \
+          --quiet-mode --dev
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
