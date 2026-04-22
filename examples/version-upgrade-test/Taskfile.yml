@@ -149,10 +149,32 @@ tasks:
       # Upgrade block node
       - cmd: |
           $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+      - cmd: |
+          for i in $(seq 1 20); do
+            if $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50; then
+              break
+            fi
+            echo "ledger account create failed after block upgrade (attempt ${i}/20), retrying in 5s..."
+            sleep 5
+            if [ "$i" -eq 20 ]; then
+              echo "ledger account create failed after 20 attempts"
+              exit 1
+            fi
+          done
 
 
-      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+      - cmd: |
+          for i in $(seq 1 20); do
+            if $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50; then
+              break
+            fi
+            echo "second ledger account create failed (attempt ${i}/20), retrying in 5s..."
+            sleep 5
+            if [ "$i" -eq 20 ]; then
+              echo "second ledger account create failed after 20 attempts"
+              exit 1
+            fi
+          done
 
       # Upgrade relay
       - cmd: |

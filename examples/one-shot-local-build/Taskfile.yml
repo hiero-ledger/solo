@@ -45,6 +45,7 @@ vars:
 
   # Runtime values file generated with actual local paths
   RUNTIME_VALUES_FILE: "/tmp/one-shot-local-build-runtime-values.yaml"
+  APP_PROPS_OVERRIDE_FILE: "/tmp/one-shot-local-build-application.properties"
 
 tasks:
   checkout-repos:
@@ -188,6 +189,16 @@ tasks:
     desc: Generate a runtime values YAML file with actual local build and chart paths
     cmds:
       - cmd: |
+          cp "{{.ROOT_DIR}}/resources/templates/application.properties" "{{.APP_PROPS_OVERRIDE_FILE}}"
+          {
+            echo ""
+            echo "# one-shot-local-build overrides"
+            echo "blockStream.streamMode=BOTH"
+            echo "blockStream.writerMode=FILE_AND_GRPC"
+            echo "tss.hintsEnabled=true"
+            echo "tss.historyEnabled=true"
+          } >> "{{.APP_PROPS_OVERRIDE_FILE}}"
+
           echo "CN_VERSION={{.CN_VERSION}}"
           {
             echo "network:"
@@ -196,6 +207,7 @@ tasks:
             echo "setup:"
             echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""
             echo "  --release-tag: \"{{.CN_VERSION}}\""
+            echo "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
             echo ""
             echo "blockNode:"
             echo "  --block-node-chart-dir: \"{{.BLOCK_NODE_CHART_DIR}}\""

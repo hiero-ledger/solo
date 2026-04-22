@@ -179,10 +179,7 @@ export class MirrorNodeTest extends BaseCommandTest {
           }
           await sleep(Duration.ofSeconds(2));
         }
-        expect(
-          received,
-          'expect the created account to exist in the mirror nodes copy of the accounts',
-        ).to.equal(true);
+        expect(received, 'expect the created account to exist in the mirror nodes copy of the accounts').to.equal(true);
 
         await sleep(Duration.ofSeconds(1));
       }

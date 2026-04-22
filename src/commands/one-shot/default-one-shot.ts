@@ -747,19 +747,46 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                         ): Promise<void> => {
                                           await helpers.sleep(Duration.ofMillis(100 * index));
 
-                                          const createdAccount: {
+                                          const maxAttempts: number = 30;
+                                          const retryDelay: Duration = Duration.ofSeconds(2);
+                                          let createdAccount: {
                                             accountId: string;
                                             privateKey: string;
                                             publicKey: string;
                                             balance: number;
                                             accountAlias?: string;
-                                          } = await this.accountManager.createNewAccount(
-                                            context_.config.namespace,
-                                            account.privateKey,
-                                            account.balance.to(HbarUnit.Hbar).toNumber(),
-                                            account.alias,
-                                            context_.config.context,
-                                          );
+                                          } | null = null;
+
+                                          for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+                                            try {
+                                              createdAccount = await this.accountManager.createNewAccount(
+                                                context_.config.namespace,
+                                                account.privateKey,
+                                                account.balance.to(HbarUnit.Hbar).toNumber(),
+                                                account.alias,
+                                                context_.config.context,
+                                              );
+                                              break;
+                                            } catch (error: unknown) {
+                                              const message: string =
+                                                error instanceof Error ? error.message : String(error);
+                                              const shouldRetry: boolean =
+                                                message.includes('WAITING_FOR_LEDGER_ID') ||
+                                                message.includes('CREATING_SYSTEM_ENTITIES') ||
+                                                message.includes('PLATFORM_NOT_ACTIVE');
+                                              if (!shouldRetry || attempt === maxAttempts) {
+                                                throw error;
+                                              }
+                                              subTask.title = `Creating Account ${index} (retry ${attempt}/${maxAttempts})`;
+                                              await helpers.sleep(retryDelay);
+                                            }
+                                          }
+
+                                          if (!createdAccount) {
+                                            throw new SoloError(
+                                              `Failed to create predefined account after ${maxAttempts} attempts`,
+                                            );
+                                          }
 
                                           context_.createdAccounts.push({
                                             accountId: AccountId.fromString(createdAccount.accountId),

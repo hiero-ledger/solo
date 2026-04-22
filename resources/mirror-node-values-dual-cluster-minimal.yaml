@@ -23,3 +23,11 @@ rest:
     limits:
       cpu: 500m
       memory: 800Mi
+web3:
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 1000m
+      memory: 500Mi
