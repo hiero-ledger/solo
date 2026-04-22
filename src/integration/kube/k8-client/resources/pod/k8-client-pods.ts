@@ -108,7 +108,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     try {
       return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay, createdAfter);
     } catch (error: Error | unknown) {
-      throw new SoloError(`Pod not ready [maxAttempts = ${maxAttempts}]`, error);
+      throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
     }
   }
 
