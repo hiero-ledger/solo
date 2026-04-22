@@ -339,11 +339,20 @@ jobs:
         working-directory: ${{ steps.prepare_example.outputs.run_dir }}
         run: |
           export PATH=~/.solo/bin:${PATH}
+          export HELM_REGISTRY_CONFIG="${HOME}/.config/helm/registry/config.json"
+          mkdir -p "$(dirname "${HELM_REGISTRY_CONFIG}")"
+          GHCR_AUTH="$(printf "%s:%s" "${{ github.actor }}" "${{ github.token }}" | base64 | tr -d '\n')"
+          cat > "${HELM_REGISTRY_CONFIG}" <<EOF
+          {"auths":{"ghcr.io":{"auth":"${GHCR_AUTH}"}}}
+          EOF
+
+          # If helm is already installed, perform explicit login as well; if not, the
+          # pre-seeded HELM_REGISTRY_CONFIG above will still be used once solo installs helm.
           if command -v helm >/dev/null 2>&1; then
             echo "Logging in helm registry client to ghcr.io using GitHub token"
             echo "${{ github.token }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           else
-            echo "helm binary not found on PATH before running example; continuing without explicit registry login"
+            echo "helm binary not found on PATH before running example; using pre-seeded HELM_REGISTRY_CONFIG auth"
           fi
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
