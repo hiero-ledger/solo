@@ -16,8 +16,8 @@ vars:
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   HELISWAP_PREFUND_START_ACCOUNT: "1001"
-  HELISWAP_PREFUND_END_ACCOUNT: "1100"
-  HELISWAP_PREFUND_HBAR: "10000"
+  HELISWAP_PREFUND_END_ACCOUNT: "1030"
+  HELISWAP_PREFUND_HBAR: "3000"
 
 tasks:
   deploy:
@@ -116,15 +116,27 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          # Pre-fund likely rapid-fire accounts so HeliSwap creator/random payer accounts
-          # have enough HBAR for contract-heavy setup on newer consensus-node versions.
+          # Pre-fund rapid-fire accounts created by earlier tests.
+          # This is intentionally scoped (1001-1030) to avoid draining the operator.
+          prefunded=0
           for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
-            $SOLO_COMMAND ledger account update \
+            account_id="0.0.${account_num}"
+            if $SOLO_COMMAND ledger account get \
               --deployment {{ .SOLO_DEPLOYMENT }} \
-              --account-id 0.0.${account_num} \
-              --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
-              --dev >/dev/null 2>&1 || true
+              --account-id "${account_id}" \
+              --dev >/dev/null 2>&1; then
+              if ! $SOLO_COMMAND ledger account update \
+                --deployment {{ .SOLO_DEPLOYMENT }} \
+                --account-id "${account_id}" \
+                --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
+                --dev >/dev/null 2>&1; then
+                echo "Failed to pre-fund ${account_id}; aborting to avoid a silent HeliSwap payer failure"
+                exit 1
+              fi
+              prefunded=$((prefunded + 1))
+            fi
           done
+          echo "Pre-funded ${prefunded} account(s) for HeliSwap"
 
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \

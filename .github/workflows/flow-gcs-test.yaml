@@ -156,14 +156,18 @@ jobs:
         run: |
           export HELM_REGISTRY_CONFIG="${HOME}/.config/helm/registry/config.json"
           mkdir -p "$(dirname "${HELM_REGISTRY_CONFIG}")"
-          GHCR_AUTH="$(printf "%s:%s" "${{ github.actor }}" "${{ github.token }}" | base64 | tr -d '\n')"
+          GHCR_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}"
+          if [ -z "${GHCR_TOKEN}" ]; then
+            GHCR_TOKEN="${{ github.token }}"
+          fi
+          GHCR_AUTH="$(printf "%s:%s" "${{ github.actor }}" "${GHCR_TOKEN}" | base64 | tr -d '\n')"
           cat > "${HELM_REGISTRY_CONFIG}" <<EOF
           {"auths":{"ghcr.io":{"auth":"${GHCR_AUTH}"}}}
           EOF
 
           if command -v helm >/dev/null 2>&1; then
-            echo "Logging in helm registry client to ghcr.io using GitHub token"
-            echo "${{ github.token }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+            echo "Logging in helm registry client to ghcr.io"
+            echo "${GHCR_TOKEN}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           else
             echo "helm binary not found on PATH; using pre-seeded HELM_REGISTRY_CONFIG auth"
           fi
