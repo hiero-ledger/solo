@@ -43,6 +43,7 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
+import {CreateDeploymentSoloError} from '../core/errors/types/create-deployment-solo-error.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -184,8 +185,8 @@ export class DeploymentCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | unknown) {
-        throw new SoloError('Error creating deployment', error);
+      } catch (error) {
+        throw new CreateDeploymentSoloError(error);
       }
     }
 

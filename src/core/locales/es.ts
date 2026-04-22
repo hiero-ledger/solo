@@ -15,4 +15,8 @@ export const ES: LocaleData = {
     "Ya existe un despliegue con el nombre '{{deploymentName}}'. Por favor selecciona un nombre diferente",
   deployment_already_exists_troubleshooting_steps:
     'Consulta los despliegues existentes: solo deployment list\nElige un nombre diferente para tu despliegue',
+
+  create_deployment_error_message: 'Error al crear el despliegue',
+  create_deployment_troubleshooting_steps:
+    'Revisa los registros para más detalles: tail -f ~/.solo/logs/solo.log | jq\nVerifica la conectividad del clúster: kubectl get nodes\nRevisa tu configuración: solo deployment config view',
 };

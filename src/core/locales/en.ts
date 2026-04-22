@@ -14,4 +14,8 @@ export const EN: LocaleData = {
     "A deployment named '{{deploymentName}}' already exists. Please select a different name",
   deployment_already_exists_troubleshooting_steps:
     'Check existing deployments: solo deployment list\nChoose a different name for your deployment',
+
+  create_deployment_error_message: 'Error creating deployment',
+  create_deployment_troubleshooting_steps:
+    'Check the logs for details: tail -f ~/.solo/logs/solo.log | jq\nVerify cluster connectivity: kubectl get nodes\nReview your configuration: solo deployment config view',
 };
