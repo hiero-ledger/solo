@@ -345,11 +345,6 @@ export class DiagnosticsAnalyzer {
    * `~/.solo/logs/solo.log` location.  ERROR lines are extracted and reported
    * as `app-error` findings.
    *
-   * solo.log uses the format:
-   *   `[HH:MM:SS.mmm] LEVEL: message [traceId="..."]`
-   *
-   * ANSI escape codes and traceId suffixes are stripped before matching so
-   * that evidence lines are human-readable.
    */
   private analyzeSoloLogFiles(
     hieroOutputDirectory: string,
