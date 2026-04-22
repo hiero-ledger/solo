@@ -629,7 +629,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               // Must be sequential
               const deployNetworkNodeTask: {
                 title: string;
-                task: (_, networkNodeTask: SoloListrTaskWrapper<OneShotSingleDeployContext>) => Promise<SoloListr<OneShotSingleDeployContext>>;
+                task: (
+                  _: any,
+                  networkNodeTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+                ) => Promise<SoloListr<OneShotSingleDeployContext>>;
               } = {
                 title: 'Deploy network node',
                 task: async (_, networkNodeTask): Promise<SoloListr<OneShotSingleDeployContext>> => {
@@ -752,13 +755,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                                           const maxAttempts: number = 30;
                                           const retryDelay: Duration = Duration.ofSeconds(2);
-                                          let createdAccount: {
-                                            accountId: string;
-                                            privateKey: string;
-                                            publicKey: string;
-                                            balance: number;
-                                            accountAlias?: string;
-                                          } | undefined = undefined;
+                                          let createdAccount:
+                                            | {
+                                                accountId: string;
+                                                privateKey: string;
+                                                publicKey: string;
+                                                balance: number;
+                                                accountAlias?: string;
+                                              }
+                                            | undefined = undefined;
 
                                           for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
                                             try {
