@@ -50,7 +50,7 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
     });
 
     await expect(
-      invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta']),
+      invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta'])
     ).to.eventually.be.fulfilled;
   });
 });
