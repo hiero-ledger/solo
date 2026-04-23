@@ -42,7 +42,6 @@ permissions:
   pull-requests: write
   checks: write
   statuses: write
-  packages: read
 
 defaults:
   run:
