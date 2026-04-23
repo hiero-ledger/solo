@@ -190,7 +190,7 @@ export class NodeCommandConfigs {
         'Consensus node',
         context_.config.upgradeVersion,
         this.remoteConfig.configuration.versions.consensusNode,
-        '--upgrade-version',
+        flags.upgradeVersion.name,
       );
     }
 
