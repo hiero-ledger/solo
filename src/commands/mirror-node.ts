@@ -1239,9 +1239,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
 
-            config.valuesArg += ` --set web3.config.${chartNamespace}.mirror.web3.opcode.tracer.enabled=true`;
-            config.valuesArg += ` --set web3.config.${chartNamespace}.mirror.web3.evm.network=OTHER`;
-
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;

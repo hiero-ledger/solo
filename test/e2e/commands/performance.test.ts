@@ -285,7 +285,11 @@ export function soloOneShotDestroy(testName: string): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
 
   const argv: string[] = newArgv();
-  argv.push('one-shot', 'single', 'destroy');
+  argv.push(
+    OneShotCommandDefinition.COMMAND_NAME,
+    OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
+    OneShotCommandDefinition.SINGLE_DESTROY,
+  );
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

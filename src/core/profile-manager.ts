@@ -148,7 +148,6 @@ export class ProfileManager {
     consensusNodes: ConsensusNode[],
     nodeAliases: NodeAliases,
     yamlRoot: AnyObject,
-    domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
     stagingOptions?: Partial<ProfileManagerStagingOptions>,
@@ -185,7 +184,6 @@ export class ProfileManager {
         consensusNodes,
         stagingDirectory,
         resolvedStagingOptions.releaseTag,
-        domainNamesMapping,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
       );
@@ -199,6 +197,7 @@ export class ProfileManager {
     );
 
     await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
+    await this.updateApplicationPropertiesWithChainId(applicationPropertiesPath, resolvedStagingOptions.chainId);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const sourceFilePath: string = this.configManager.getFlagFile(flag);
@@ -216,6 +215,9 @@ export class ProfileManager {
 
       fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
     }
+
+    const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
+    await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
 
     if (configTxtPath) {
       this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
@@ -332,15 +334,14 @@ export class ProfileManager {
   /**
    * Prepare a values file for Solo Helm chart
    * @param consensusNodes - the list of consensus nodes
-   * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
    * @param jfrFile - the name of the custom JFR settings file to use for recording (basename only)
+   * @param stagingOptions
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
     consensusNodes: ConsensusNode[],
-    domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
     jfrFile: string = '',
@@ -360,7 +361,6 @@ export class ProfileManager {
         consensusNodes,
         nodeAliases,
         yamlRoot,
-        domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
         stagingOptions,
@@ -471,6 +471,35 @@ export class ProfileManager {
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
+  private async updateApplicationPropertiesWithChainId(
+    applicationPropertiesPath: string,
+    chainId: string,
+  ): Promise<void> {
+    const fileText: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileText.split('\n');
+
+    for (const line of lines) {
+      if (line.startsWith('contracts.chainId=')) {
+        lines[lines.indexOf(line)] = `contracts.chainId=${chainId}`;
+      }
+    }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  private async updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath: string, chainId: string): Promise<void> {
+    const fileText: string = await readFile(bootstrapPropertiesPath, 'utf8');
+    const lines: string[] = fileText.split('\n');
+
+    for (const line of lines) {
+      if (line.startsWith('contracts.chainId=')) {
+        lines[lines.indexOf(line)] = `contracts.chainId=${chainId}`;
+      }
+    }
+
+    await writeFile(bootstrapPropertiesPath, lines.join('\n') + '\n');
+  }
+
   private async updateApplicationPropertiesWithRealmAndShard(
     applicationPropertiesPath: string,
     realm: Realm,
@@ -573,12 +602,10 @@ export class ProfileManager {
    * Prepares config.txt file for the node
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
-   * @param destPath - path to the destination directory to write the config.txt file
+   * @param destinationPath
    * @param releaseTagOverride - release tag override
-   * @param domainNamesMapping
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
-   * @param [loadBalancerEnabled] - whether the load balancer is enabled (flag is not set by default)
    * @returns the config.txt file path
    */
   public async prepareConfigTxt(
@@ -586,7 +613,6 @@ export class ProfileManager {
     consensusNodes: ConsensusNode[],
     destinationPath: string,
     releaseTagOverride: string,
-    domainNamesMapping: Record<NodeAlias, string>,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
   ): Promise<string> {
