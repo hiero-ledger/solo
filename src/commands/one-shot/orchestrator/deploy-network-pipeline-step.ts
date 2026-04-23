@@ -7,7 +7,6 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type TaskList} from '../../../core/task-list/task-list.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../types/index.js';
-import {type ArgvStruct} from '../../../types/aliases.js';
 import {type Realm, type Shard} from '../../../types/index.js';
 import {type OneShotSingleDeployConfigClass} from '../one-shot-single-deploy-config-class.js';
 import {type OneShotSingleDeployContext} from '../one-shot-single-deploy-context.js';
@@ -87,10 +86,7 @@ export class DeployNetworkPipelineStep {
     return argvPushGlobalFlags(argv);
   }
 
-  private buildCreateAccountsTask(
-    config: OneShotSingleDeployConfigClass,
-    argv: ArgvStruct,
-  ): SoloListrTask<OneShotSingleDeployContext> {
+  private buildCreateAccountsTask(config: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> {
     return {
       title: 'Create Accounts',
       skip: (): boolean => config.predefinedAccounts === false,
@@ -99,7 +95,7 @@ export class DeployNetworkPipelineStep {
         task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
       ): Promise<Listr<OneShotSingleDeployContext>> => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(config.argv);
 
         const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
@@ -184,10 +180,7 @@ export class DeployNetworkPipelineStep {
     };
   }
 
-  public asListrTask(
-    config: OneShotSingleDeployConfigClass,
-    argv: ArgvStruct,
-  ): SoloListrTask<OneShotSingleDeployContext> {
+  public asListrTask(config: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> {
     return {
       title: 'Deploy network node',
       task: async (
@@ -222,7 +215,7 @@ export class DeployNetworkPipelineStep {
                       (): string[] => this.buildStartArgv(config),
                       this.taskList,
                     ),
-                    this.buildCreateAccountsTask(config, argv),
+                    this.buildCreateAccountsTask(config),
                   ],
                   {concurrent: false, rendererOptions: {collapseSubtasks: false}},
                 );

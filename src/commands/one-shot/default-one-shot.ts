@@ -277,6 +277,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 allFlags,
               ) as OneShotSingleDeployConfigClass;
               config = context_.config;
+              config.argv = argv;
 
               // Initialize component config sections to empty objects to prevent undefined errors
               config.consensusNodeConfiguration = {};
@@ -596,7 +597,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Deploy Solo components',
             task: (_, task): SoloListr<OneShotSingleDeployContext> =>
-              this.deployOrchestrator.buildDeployTaskList(config, argv, task),
+              this.deployOrchestrator.buildDeployTaskList(config, task),
           },
           {
             title: 'Finish',
