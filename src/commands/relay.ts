@@ -488,43 +488,60 @@ export class RelayCommand extends BaseCommand {
         const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.context);
         const ingressReleaseName: string = `${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}`;
         const ingressSelector: string[] = [`app.kubernetes.io/instance=${ingressReleaseName}`];
+        const mirrorRestSelector: string[] = [
+          `app.kubernetes.io/instance=${config.mirrorNodeReleaseName}`,
+          constants.SOLO_MIRROR_REST_NAME_LABEL,
+        ];
         const operatorIdUsing: string =
           config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
         const maxAttempts: number = RelayCommand.MIRROR_OPERATOR_ACCOUNT_MAX_ATTEMPTS;
-
-        try {
-          await k8
-            .pods()
-            .waitForReadyStatus(
-              config.mirrorNamespace,
-              ingressSelector,
-              constants.PODS_READY_MAX_ATTEMPTS,
-              constants.PODS_READY_DELAY,
-            );
-        } catch (error) {
-          throw new SoloError(
-            `Mirror ingress controller ${ingressReleaseName} is not ready in namespace ${config.mirrorNamespace}: ${error.message}`,
-            error,
-          );
-        }
-
         const ingressPods: Pod[] = await k8.pods().list(config.mirrorNamespace, ingressSelector);
-        if (ingressPods.length === 0) {
-          throw new SoloError(
-            `No mirror ingress controller pod found for release ${ingressReleaseName} in namespace ${config.mirrorNamespace}`,
-          );
-        }
-
-        const preferredIngressPod: Pod | undefined = ingressPods.find((pod): boolean =>
-          pod?.podReference?.name?.name?.startsWith('mirror-ingress'),
-        );
-        const ingressPod: Pod = preferredIngressPod ?? ingressPods[0];
 
         let localPort: number;
+        let mirrorPod: Pod;
+        let mirrorPodPort: number;
         let received: boolean = false;
         let lastStatus: string = 'no successful response received from mirror node yet';
         try {
-          localPort = await ingressPod.portForward(constants.MIRROR_NODE_PORT, 80, false, false);
+          if (ingressPods.length > 0) {
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                config.mirrorNamespace,
+                ingressSelector,
+                constants.PODS_READY_MAX_ATTEMPTS,
+                constants.PODS_READY_DELAY,
+              );
+
+            const preferredIngressPod: Pod | undefined = ingressPods.find((pod): boolean =>
+              pod?.podReference?.name?.name?.startsWith('mirror-ingress'),
+            );
+            mirrorPod = preferredIngressPod ?? ingressPods[0];
+            mirrorPodPort = 80;
+            localPort = constants.MIRROR_NODE_PORT;
+          } else {
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                config.mirrorNamespace,
+                mirrorRestSelector,
+                constants.PODS_READY_MAX_ATTEMPTS,
+                constants.PODS_READY_DELAY,
+              );
+
+            const mirrorRestPods: Pod[] = await k8.pods().list(config.mirrorNamespace, mirrorRestSelector);
+            if (mirrorRestPods.length === 0) {
+              throw new SoloError(
+                `No mirror REST pod found for release ${config.mirrorNodeReleaseName} in namespace ${config.mirrorNamespace}`,
+              );
+            }
+
+            mirrorPod = mirrorRestPods[0];
+            mirrorPodPort = constants.MIRROR_NODE_REST_PORT;
+            localPort = constants.MIRROR_NODE_REST_PORT;
+          }
+
+          localPort = await mirrorPod.portForward(localPort, mirrorPodPort, false, false);
           const accountQueryUrl: string = `http://localhost:${localPort}/api/v1/accounts/${operatorIdUsing}`;
 
           for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
@@ -552,7 +569,7 @@ export class RelayCommand extends BaseCommand {
           }
         } finally {
           if (localPort) {
-            await ingressPod.stopPortForward(localPort);
+            await mirrorPod.stopPortForward(localPort);
           }
         }
 

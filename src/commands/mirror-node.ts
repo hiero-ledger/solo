@@ -1129,6 +1129,8 @@ export class MirrorNodeCommand extends BaseCommand {
   private waitForImporterToIndexOperatorAccountTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Wait for importer account indexing',
+      skip: ({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): boolean =>
+        config.storageType !== constants.StorageType.MINIO_ONLY,
       task: async ({config}, task): Promise<void> => {
         const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.clusterContext);
         const operatorIdUsing: string =
