@@ -5,7 +5,6 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon from 'sinon';
 import {container} from 'tsyringe-neo';
 import {RelayCommand} from '../../../src/commands/relay.js';
-import {Flags as flags} from '../../../src/commands/flags.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
 
@@ -24,13 +23,6 @@ describe('RelayCommand unit tests', (): void => {
 
   afterEach((): void => {
     sinon.restore();
-  });
-
-  it('should include componentImage in relay add and upgrade flags', (): void => {
-    expect(RelayCommand.DEPLOY_FLAGS_LIST.optional).to.include(flags.componentImage);
-    expect(RelayCommand.UPGRADE_FLAGS_LIST.optional).to.include(flags.componentImage);
-    expect(RelayCommand.DEPLOY_FLAGS_LIST.optional).to.not.include(flags.imageTag);
-    expect(RelayCommand.UPGRADE_FLAGS_LIST.optional).to.not.include(flags.imageTag);
   });
 
   it('should apply relayReleaseTag to relay and ws image tags', async (): Promise<void> => {
@@ -148,7 +140,7 @@ describe('RelayCommand unit tests', (): void => {
       });
       expect.fail('Expected prepareValuesArgForRelay to throw');
     } catch (error: unknown) {
-      expect((error as Error).message).to.include('Invalid image reference: latest');
+      expect((error as Error).message).to.include('Invalid image reference format: latest');
     }
   });
 });

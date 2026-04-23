@@ -24,6 +24,14 @@ export class ImageReference {
       throw new IllegalArgumentError(`Invalid image reference format: ${imageReference}`, imageReference);
     }
 
+    if (
+      !trimmedImageReference.includes('/') &&
+      !trimmedImageReference.includes(':') &&
+      !trimmedImageReference.includes('@')
+    ) {
+      throw new IllegalArgumentError(`Invalid image reference format: ${imageReference}`, imageReference);
+    }
+
     if (trimmedImageReference.includes('@')) {
       throw new IllegalArgumentError(
         `Digest-based image references are not supported: ${imageReference}`,

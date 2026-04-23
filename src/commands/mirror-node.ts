@@ -426,35 +426,27 @@ export class MirrorNodeCommand extends BaseCommand {
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 
     if (config.componentImage) {
-      if (
-        config.componentImage.includes('/') ||
-        config.componentImage.includes(':') ||
-        config.componentImage.includes('@')
-      ) {
-        const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
-        valuesArgument += helpers.populateHelmArguments({
-          'importer.image.registry': parsedImageReference.registry,
-          'grpc.image.registry': parsedImageReference.registry,
-          'rest.image.registry': parsedImageReference.registry,
-          'restjava.image.registry': parsedImageReference.registry,
-          'web3.image.registry': parsedImageReference.registry,
-          'monitor.image.registry': parsedImageReference.registry,
-          'importer.image.repository': parsedImageReference.repository,
-          'grpc.image.repository': parsedImageReference.repository,
-          'rest.image.repository': parsedImageReference.repository,
-          'restjava.image.repository': parsedImageReference.repository,
-          'web3.image.repository': parsedImageReference.repository,
-          'monitor.image.repository': parsedImageReference.repository,
-          'importer.image.tag': parsedImageReference.tag,
-          'grpc.image.tag': parsedImageReference.tag,
-          'rest.image.tag': parsedImageReference.tag,
-          'restjava.image.tag': parsedImageReference.tag,
-          'web3.image.tag': parsedImageReference.tag,
-          'monitor.image.tag': parsedImageReference.tag,
-        });
-      } else {
-        throw new IllegalArgumentError(`Invalid image reference: ${config.componentImage}`, config.componentImage);
-      }
+      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+      valuesArgument += helpers.populateHelmArguments({
+        'importer.image.registry': parsedImageReference.registry,
+        'grpc.image.registry': parsedImageReference.registry,
+        'rest.image.registry': parsedImageReference.registry,
+        'restjava.image.registry': parsedImageReference.registry,
+        'web3.image.registry': parsedImageReference.registry,
+        'monitor.image.registry': parsedImageReference.registry,
+        'importer.image.repository': parsedImageReference.repository,
+        'grpc.image.repository': parsedImageReference.repository,
+        'rest.image.repository': parsedImageReference.repository,
+        'restjava.image.repository': parsedImageReference.repository,
+        'web3.image.repository': parsedImageReference.repository,
+        'monitor.image.repository': parsedImageReference.repository,
+        'importer.image.tag': parsedImageReference.tag,
+        'grpc.image.tag': parsedImageReference.tag,
+        'rest.image.tag': parsedImageReference.tag,
+        'restjava.image.tag': parsedImageReference.tag,
+        'web3.image.tag': parsedImageReference.tag,
+        'monitor.image.tag': parsedImageReference.tag,
+      });
     }
 
     if (config.storageBucket) {

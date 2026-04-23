@@ -47,5 +47,11 @@ describe('ImageReference', (): void => {
         ImageReference.parseImageReference('ghcr.io/org/relay@sha256:123');
       }).to.throw('Digest-based image references are not supported');
     });
+
+    it('should reject plain image values without separators', (): void => {
+      expect((): void => {
+        ImageReference.parseImageReference('latest');
+      }).to.throw('Invalid image reference format');
+    });
   });
 });

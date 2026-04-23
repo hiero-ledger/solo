@@ -3,7 +3,6 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
-import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -263,17 +262,13 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (componentImage) {
-      if (componentImage.includes('/') || componentImage.includes(':') || componentImage.includes('@')) {
-        const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(componentImage);
-        valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
-        valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
-        valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
-        valuesArgument += ` --set ws.image.repository=${parsedImageReference.repository}`;
-        valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
-        valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
-      } else {
-        throw new IllegalArgumentError(`Invalid image reference: ${componentImage}`, componentImage);
-      }
+      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(componentImage);
+      valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
+      valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
+      valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
+      valuesArgument += ` --set ws.image.repository=${parsedImageReference.repository}`;
+      valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
+      valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
     }
 
     if (replicaCount) {
