@@ -16,8 +16,9 @@ vars:
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   HELISWAP_PREFUND_START_ACCOUNT: "1001"
-  HELISWAP_PREFUND_END_ACCOUNT: "1030"
-  HELISWAP_PREFUND_HBAR: "3000"
+  HELISWAP_PREFUND_END_ACCOUNT: "1300"
+  HELISWAP_PREFUND_HBAR: "200000"
+  HELISWAP_PREFUND_SLEEP_SECONDS: "1"
 
 tasks:
   deploy:
@@ -116,32 +117,54 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          # Pre-fund rapid-fire accounts created by earlier tests.
-          # This is intentionally scoped (1001-1030) to avoid draining the operator.
-          prefunded=0
-          for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
-            account_id="0.0.${account_num}"
-            if $SOLO_COMMAND ledger account get \
-              --deployment {{ .SOLO_DEPLOYMENT }} \
-              --account-id "${account_id}" \
-              --dev >/dev/null 2>&1; then
-              if ! $SOLO_COMMAND ledger account update \
-                --deployment {{ .SOLO_DEPLOYMENT }} \
-                --account-id "${account_id}" \
-                --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
-                --dev >/dev/null 2>&1; then
-                echo "Failed to pre-fund ${account_id}; aborting to avoid a silent HeliSwap payer failure"
-                exit 1
-              fi
-              prefunded=$((prefunded + 1))
-            fi
-          done
-          echo "Pre-funded ${prefunded} account(s) for HeliSwap"
+          # Keep funding newly-created rapid-fire accounts while HeliSwap is running.
+          # HeliSwap creates the payer during execution, so one-time prefund misses it.
+          funded_ids_file="$(mktemp /tmp/heliswap-funded-ids.XXXXXX)"
+          touch "${funded_ids_file}"
 
-      - cmd: |
+          (
+            while true; do
+              for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
+                account_id="0.0.${account_num}"
+                if grep -qx "${account_id}" "${funded_ids_file}"; then
+                  continue
+                fi
+
+                if $SOLO_COMMAND ledger account get \
+                  --deployment {{ .SOLO_DEPLOYMENT }} \
+                  --account-id "${account_id}" \
+                  --dev >/dev/null 2>&1; then
+                  if $SOLO_COMMAND ledger account update \
+                    --deployment {{ .SOLO_DEPLOYMENT }} \
+                    --account-id "${account_id}" \
+                    --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
+                    --dev >/dev/null 2>&1; then
+                    echo "${account_id}" >> "${funded_ids_file}"
+                    echo "Pre-funded ${account_id} for HeliSwap"
+                  else
+                    echo "Warning: failed to pre-fund ${account_id}; will retry"
+                  fi
+                fi
+              done
+              sleep {{ .HELISWAP_PREFUND_SLEEP_SECONDS }}
+            done
+          ) &
+          prefunder_pid=$!
+
+          set +e
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test HeliSwapLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
+            --test HeliSwapLoadTest \
+            --args '"-c 5 -a 10 -R -t 10"'
+          heliswap_exit_code=$?
+          set -e
+
+          kill "${prefunder_pid}" >/dev/null 2>&1 || true
+          wait "${prefunder_pid}" 2>/dev/null || true
+          rm -f "${funded_ids_file}"
+
+          if [ "${heliswap_exit_code}" -ne 0 ]; then
+            exit "${heliswap_exit_code}"
+          fi
 
       # Run load test with the com.hedera.benchmark.LongevityLoadTest class
       # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]

@@ -235,7 +235,7 @@ env:
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
-  TEST_LOCAL_BLOCK_NODE_VERSION: 'v0.28.0'
+  TEST_LOCAL_BLOCK_NODE_VERSION: 'v0.28.1'
 
 jobs:
   e2e-test:

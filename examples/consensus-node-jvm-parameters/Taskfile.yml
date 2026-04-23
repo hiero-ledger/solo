@@ -17,7 +17,6 @@ vars:
   CLUSTER_NAME: "falcon-cluster"
   CONTEXT: "kind-falcon-cluster"
   APP_PROPS_OVERRIDE_FILE: "/tmp/consensus-node-jvm-parameters-application.properties"
-  RUNTIME_VALUES_OVERRIDE_FILE: "/tmp/consensus-node-jvm-parameters-values-override.yaml"
   MERGED_VALUES_FILE: "/tmp/consensus-node-jvm-parameters-falcon-values-merged.yaml"
 
 tasks:
@@ -44,16 +43,19 @@ tasks:
             echo "tss.historyEnabled=true"
           } >> "{{.APP_PROPS_OVERRIDE_FILE}}"
 
-          {
-            echo "network:"
-            echo "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
-          } > "{{.RUNTIME_VALUES_OVERRIDE_FILE}}"
-
           cp "{{ .USER_WORKING_DIR }}/falcon-values.yaml" "{{.MERGED_VALUES_FILE}}"
-          {
-            echo ""
-            cat "{{.RUNTIME_VALUES_OVERRIDE_FILE}}"
-          } >> "{{.MERGED_VALUES_FILE}}"
+          if grep -Eq '^[[:space:]]*#?[[:space:]]*--application-properties:' "{{.MERGED_VALUES_FILE}}"; then
+            sed -E 's|^[[:space:]]*#?[[:space:]]*--application-properties:.*$|  --application-properties: "{{.APP_PROPS_OVERRIDE_FILE}}"|' \
+              "{{.MERGED_VALUES_FILE}}" > "{{.MERGED_VALUES_FILE}}.tmp"
+          else
+            awk '
+              { print }
+              /^network:[[:space:]]*$/ {
+                print "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
+              }
+            ' "{{.MERGED_VALUES_FILE}}" > "{{.MERGED_VALUES_FILE}}.tmp"
+          fi
+          mv "{{.MERGED_VALUES_FILE}}.tmp" "{{.MERGED_VALUES_FILE}}"
 
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{.MERGED_VALUES_FILE}} \
@@ -69,7 +71,7 @@ tasks:
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
       # Remove generated overrides
-      - cmd: rm -f {{.APP_PROPS_OVERRIDE_FILE}} {{.RUNTIME_VALUES_OVERRIDE_FILE}} {{.MERGED_VALUES_FILE}}
+      - cmd: rm -f {{.APP_PROPS_OVERRIDE_FILE}} {{.MERGED_VALUES_FILE}}
 
   default:
     desc: Run the default deploy task

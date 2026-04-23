@@ -64,7 +64,7 @@ tasks:
       - cmd: |
           if [ ! -d "{{.BLOCK_NODE_REPO_DIR}}" ]; then
             git clone https://github.com/hiero-ledger/hiero-block-node.git \
-              --depth 1 --branch {{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
+              --depth 1 --branch v{{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
           else
             echo "Skipping clone: {{.BLOCK_NODE_REPO_DIR}} already exists"
           fi
