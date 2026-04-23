@@ -140,6 +140,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.deployMetricsServer,
       flags.rollback,
       flags.parallelDeploy,
     ],
@@ -518,6 +519,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
+              if (config.deployMetricsServer) {
+                argv.push(optionFromFlag(Flags.deployMetricsServer));
+              }
               return argvPushGlobalFlags(argv);
             },
             this.taskList,

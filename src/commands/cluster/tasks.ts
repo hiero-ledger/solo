@@ -282,6 +282,49 @@ export class ClusterCommandTasks {
     };
   }
 
+  public installMetricsServer(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+    return {
+      title: 'Install metrics-server chart',
+      task: async (context_): Promise<void> => {
+        const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
+          constants.METRICS_SERVER_NAMESPACE,
+          constants.METRICS_SERVER_RELEASE_NAME,
+          context_.config.context,
+        );
+
+        if (isMetricsServerInstalled) {
+          this.logger.showUser('⏭️  metrics-server chart already installed, skipping');
+        } else {
+          try {
+            await this.chartManager.install(
+              constants.METRICS_SERVER_NAMESPACE,
+              constants.METRICS_SERVER_RELEASE_NAME,
+              constants.METRICS_SERVER_CHART,
+              constants.METRICS_SERVER_CHART,
+              versions.METRICS_SERVER_VERSION,
+              '--set "args[0]=--kubelet-insecure-tls"',
+              context_.config.context,
+            );
+            this.logger.showUser('✅ metrics-server chart installed successfully');
+          } catch (error) {
+            this.logger.debug('Error installing metrics-server chart', error);
+            try {
+              await this.chartManager.uninstall(
+                constants.METRICS_SERVER_NAMESPACE,
+                constants.METRICS_SERVER_RELEASE_NAME,
+                context_.config.context,
+              );
+            } catch (uninstallError) {
+              this.logger.showUserError(uninstallError);
+            }
+            throw new SoloError('Error installing metrics-server chart', error);
+          }
+        }
+      },
+      skip: context_ => !context_.config.deployMetricsServer,
+    };
+  }
+
   public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install pod-monitor-role ClusterRole',
@@ -363,6 +406,10 @@ export class ClusterCommandTasks {
           subtasks.push(this.installPrometheusStack(argv));
         }
 
+        if (context_.config.deployMetricsServer) {
+          subtasks.push(this.installMetricsServer(argv));
+        }
+
         const result = await task.newListr(subtasks, {concurrent: false});
 
         if (argv.dev) {
@@ -425,6 +472,30 @@ export class ClusterCommandTasks {
     };
   }
 
+  public uninstallMetricsServer(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    return {
+      title: 'Uninstall metrics-server chart',
+      task: async ({config: {context}}): Promise<void> => {
+        const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
+          constants.METRICS_SERVER_NAMESPACE,
+          constants.METRICS_SERVER_RELEASE_NAME,
+          context,
+        );
+
+        if (isMetricsServerInstalled) {
+          await this.chartManager.uninstall(
+            constants.METRICS_SERVER_NAMESPACE,
+            constants.METRICS_SERVER_RELEASE_NAME,
+            context,
+          );
+          this.logger.showUser('✅ metrics-server chart uninstalled successfully');
+        } else {
+          this.logger.showUser('⏭️  metrics-server chart not installed, skipping');
+        }
+      },
+    };
+  }
+
   public uninstallClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall cluster charts',
@@ -450,7 +521,12 @@ export class ClusterCommandTasks {
         }
 
         return task.newListr(
-          [this.uninstallPrometheusStack(argv), this.uninstallMinioOperator(argv), this.uninstallPodMonitorRole(argv)],
+          [
+            this.uninstallMetricsServer(argv),
+            this.uninstallPrometheusStack(argv),
+            this.uninstallMinioOperator(argv),
+            this.uninstallPodMonitorRole(argv),
+          ],
           {concurrent: false},
         );
       },
