@@ -52,21 +52,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     return parentTask.newListr(
       [
         // Phase 1: independent deployments that can run concurrently
-        {
-          title: 'Deploy network components',
-          task: (
-            _: OneShotSingleDeployContext,
-            networkTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-          ): SoloListr<OneShotSingleDeployContext> =>
-            networkTask.newListr(
-              [
-                this.blockNodeStep.asListrTask(config),
-                this.networkPipelineStep.asListrTask(config, argv),
-                this.mirrorNodeStep.asListrTask(config),
-              ],
-              {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
-            ),
-        },
+        this.blockNodeStep.asListrTask(config),
+        this.networkPipelineStep.asListrTask(config, argv),
+        this.mirrorNodeStep.asListrTask(config),
         // Phase 2: explorer — requires mirror node to be deployed first
         {
           title: `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
@@ -105,7 +93,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           },
         },
       ],
-      {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+      {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
     );
   }
 }
