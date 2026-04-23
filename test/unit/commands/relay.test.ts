@@ -147,8 +147,8 @@ describe('RelayCommand unit tests', (): void => {
         mirrorNamespace: 'solo-e2e',
       });
       expect.fail('Expected prepareValuesArgForRelay to throw');
-    } catch (error: unknown) {
-      expect((error as Error).message).to.include('Invalid image reference: latest');
+    } catch (error) {
+      expect(error.message).to.include('Invalid image reference: latest');
     }
   });
 });
