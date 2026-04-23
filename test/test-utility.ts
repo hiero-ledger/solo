@@ -467,11 +467,37 @@ export async function createAccount(
   expect(accountManager._nodeClient).not.to.be.null;
   const privateKey: PrivateKey = PrivateKey.generate();
   const amount: number = 100;
+  const maxAttempts: number = 30;
+  const retryDelay: Duration = Duration.ofSeconds(2);
+  let newAccount: TransactionResponse | undefined;
 
-  const newAccount: TransactionResponse = await new AccountCreateTransaction()
-    .setKey(privateKey)
-    .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-    .execute(accountManager._nodeClient);
+  for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      newAccount = await new AccountCreateTransaction()
+        .setKey(privateKey)
+        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+        .execute(accountManager._nodeClient);
+      break;
+    } catch (error: unknown) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      const shouldRetry: boolean =
+        message.includes('WAITING_FOR_LEDGER_ID') ||
+        message.includes('CREATING_SYSTEM_ENTITIES') ||
+        message.includes('PLATFORM_NOT_ACTIVE');
+      if (!shouldRetry || attempt === maxAttempts) {
+        throw error;
+      }
+
+      logger.showUser(
+        `createAccount probe retry ${attempt}/${maxAttempts} due to transient precheck (${message.split('\n')[0]})`,
+      );
+      await sleep(retryDelay);
+    }
+  }
+
+  if (!newAccount) {
+    throw new Error(`failed to create account after ${maxAttempts} attempts`);
+  }
 
   // Get the new account ID
   const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);

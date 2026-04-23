@@ -104,6 +104,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
+          // Collect diagnostic logs/JFR before local metrics post-processing so
+          // failures there do not skip artifact collection.
+          await preDestroy(endToEndTestSuite);
+
           // read all logged metrics and parse the JSON
           const namespace: string = await getNamespaceFromDeployment();
           const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
@@ -159,8 +163,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             PathEx.join(tartgetDirectory, `${namespace}.json`),
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
-
-          await preDestroy(endToEndTestSuite);
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));
