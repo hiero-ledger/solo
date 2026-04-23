@@ -382,12 +382,20 @@ export class IntervalLock implements Lock {
         // handles the condition for creating a lease on cluster setup which may not have a namespace created yet
         await this.k8Factory.default().namespaces().create(this.namespace);
       }
-      await (lease
-        ? this.k8Factory.default().leases().renew(this.namespace, this.leaseName, lease)
-        : this.k8Factory
-            .default()
-            .leases()
-            .create(this.namespace, this.leaseName, this.lockHolder.toJson(), this.durationSeconds));
+      if (lease) {
+        try {
+          await this.k8Factory.default().leases().renew(this.namespace, this.leaseName, lease);
+        } catch (error) {
+          if (!(await this.shouldIgnoreRenewConflict(error))) {
+            throw error;
+          }
+        }
+      } else {
+        await this.k8Factory
+          .default()
+          .leases()
+          .create(this.namespace, this.leaseName, this.lockHolder.toJson(), this.durationSeconds);
+      }
 
       if (!this.scheduleId) {
         this.scheduleId = await this.renewalService.schedule(this);
@@ -398,6 +406,50 @@ export class IntervalLock implements Lock {
         error,
       );
     }
+  }
+
+  /**
+   * Determines if a renew conflict can be safely ignored.
+   *
+   * @param error - the renew error to evaluate.
+   * @returns true if the conflict should be ignored; otherwise, false.
+   */
+  private async shouldIgnoreRenewConflict(error: unknown): Promise<boolean> {
+    if (!IntervalLock.hasStatusCode(error, StatusCodes.CONFLICT)) {
+      return false;
+    }
+
+    const latestLease: Lease = await this.retrieveLease();
+    return !!latestLease && this.heldBySameProcess(latestLease);
+  }
+
+  /**
+   * Determines whether an error or any nested cause contains the specified status code.
+   *
+   * @param error - the error to inspect.
+   * @param statusCode - the status code to match.
+   * @returns true if the status code is found in the error chain; otherwise, false.
+   */
+  private static hasStatusCode(error: unknown, statusCode: number): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const typedError: {
+      statusCode?: number;
+      code?: number;
+      meta?: {
+        statusCode?: number;
+      };
+      cause?: unknown;
+    } = error;
+
+    return (
+      typedError.statusCode === statusCode ||
+      typedError.code === statusCode ||
+      typedError.meta?.statusCode === statusCode ||
+      IntervalLock.hasStatusCode(typedError.cause, statusCode)
+    );
   }
 
   /**
