@@ -719,10 +719,10 @@ export class RelayCommand extends BaseCommand {
             );
             if (currentRelayVersion && !currentRelayVersion.equals('0.0.0')) {
               const targetRelayVersion: SemanticVersion<string> = new SemanticVersion<string>(config.relayReleaseTag);
-              if (targetRelayVersion.lessThanOrEqual(currentRelayVersion)) {
+              if (targetRelayVersion.lessThan(currentRelayVersion)) {
                 throw new SoloError(
-                  `Relay upgrade target version ${config.relayReleaseTag} is not newer than the current version ${currentRelayVersion.toString()} stored in remote config. ` +
-                    'Use --relay-release to specify a version newer than the currently deployed version.',
+                  `Relay upgrade target version ${config.relayReleaseTag} is older than the current version ${currentRelayVersion.toString()} stored in remote config. ` +
+                    'Use --relay-release to specify a version equal to or newer than the currently deployed version.',
                 );
               }
             }

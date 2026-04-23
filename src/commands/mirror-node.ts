@@ -1415,10 +1415,10 @@ export class MirrorNodeCommand extends BaseCommand {
               const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
                 config.mirrorNodeVersion,
               );
-              if (targetMirrorNodeVersion.lessThanOrEqual(currentMirrorNodeVersion)) {
+              if (targetMirrorNodeVersion.lessThan(currentMirrorNodeVersion)) {
                 throw new SoloError(
-                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is not newer than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
-                    'Use --mirror-node-version to specify a version newer than the currently deployed version.',
+                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is older than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
+                    'Use --mirror-node-version to specify a version equal to or newer than the currently deployed version.',
                 );
               }
             }

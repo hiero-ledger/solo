@@ -811,10 +811,10 @@ export class BlockNodeCommand extends BaseCommand {
             if (config.currentVersion !== '0.0.0') {
               const currentSemVersion: SemanticVersion<string> = new SemanticVersion<string>(config.currentVersion);
               const targetSemVersion: SemanticVersion<string> = new SemanticVersion<string>(config.upgradeVersion);
-              if (targetSemVersion.lessThanOrEqual(currentSemVersion)) {
+              if (targetSemVersion.lessThan(currentSemVersion)) {
                 throw new SoloError(
-                  `Block node upgrade target version ${config.upgradeVersion} is not newer than the current version ${config.currentVersion} stored in remote config. ` +
-                    'Use --upgrade-version to specify a version newer than the currently deployed version.',
+                  `Block node upgrade target version ${config.upgradeVersion} is older than the current version ${config.currentVersion} stored in remote config. ` +
+                    'Use --upgrade-version to specify a version equal to or newer than the currently deployed version.',
                 );
               }
             }

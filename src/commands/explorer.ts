@@ -792,10 +792,10 @@ export class ExplorerCommand extends BaseCommand {
               const targetExplorerVersion: SemanticVersion<string> = new SemanticVersion<string>(
                 config.explorerVersion,
               );
-              if (targetExplorerVersion.lessThanOrEqual(currentExplorerVersion)) {
+              if (targetExplorerVersion.lessThan(currentExplorerVersion)) {
                 throw new SoloError(
-                  `Explorer upgrade target version ${config.explorerVersion} is not newer than the current version ${currentExplorerVersion.toString()} stored in remote config. ` +
-                    'Use --explorer-version to specify a version newer than the currently deployed version.',
+                  `Explorer upgrade target version ${config.explorerVersion} is older than the current version ${currentExplorerVersion.toString()} stored in remote config. ` +
+                    'Use --explorer-version to specify a version equal to or newer than the currently deployed version.',
                 );
               }
             }
