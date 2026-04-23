@@ -151,6 +151,10 @@ enum RelayCommandType {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
+  private static readonly MIRROR_OPERATOR_ACCOUNT_MAX_ATTEMPTS: number = 120;
+
+  private static readonly MIRROR_OPERATOR_ACCOUNT_DELAY: Duration = Duration.ofSeconds(2);
+
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
 
@@ -477,6 +481,90 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
+  private waitForMirrorOperatorAccountTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for mirror operator account',
+      task: async ({config}, task): Promise<void> => {
+        const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.context);
+        const ingressReleaseName: string = `${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}`;
+        const ingressSelector: string[] = [`app.kubernetes.io/instance=${ingressReleaseName}`];
+        const operatorIdUsing: string =
+          config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
+        const maxAttempts: number = RelayCommand.MIRROR_OPERATOR_ACCOUNT_MAX_ATTEMPTS;
+
+        try {
+          await k8
+            .pods()
+            .waitForReadyStatus(
+              config.mirrorNamespace,
+              ingressSelector,
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+            );
+        } catch (error) {
+          throw new SoloError(
+            `Mirror ingress controller ${ingressReleaseName} is not ready in namespace ${config.mirrorNamespace}: ${error.message}`,
+            error,
+          );
+        }
+
+        const ingressPods: Pod[] = await k8.pods().list(config.mirrorNamespace, ingressSelector);
+        if (ingressPods.length === 0) {
+          throw new SoloError(
+            `No mirror ingress controller pod found for release ${ingressReleaseName} in namespace ${config.mirrorNamespace}`,
+          );
+        }
+
+        const preferredIngressPod: Pod | undefined = ingressPods.find((pod): boolean =>
+          pod?.podReference?.name?.name?.startsWith('mirror-ingress'),
+        );
+        const ingressPod: Pod = preferredIngressPod ?? ingressPods[0];
+
+        let localPort: number;
+        let received: boolean = false;
+        let lastStatus: string = 'no successful response received from mirror node yet';
+        try {
+          localPort = await ingressPod.portForward(constants.MIRROR_NODE_PORT, 80, false, false);
+          const accountQueryUrl: string = `http://localhost:${localPort}/api/v1/accounts/${operatorIdUsing}`;
+
+          for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
+            try {
+              const response: Response = await fetch(accountQueryUrl, {cache: 'no-store'});
+
+              if (response.ok) {
+                const object: {account?: string} = await response.json();
+                received = object.account === operatorIdUsing;
+
+                if (!received) {
+                  lastStatus = `account mismatch in mirror response (expected ${operatorIdUsing}, received ${object.account ?? 'undefined'})`;
+                }
+              } else {
+                lastStatus = `HTTP ${response.status}`;
+              }
+            } catch (error: unknown) {
+              lastStatus = error instanceof Error ? error.message : String(error);
+            }
+
+            task.title = `Wait for mirror operator account - account ${operatorIdUsing}, attempt ${attempt}/${maxAttempts}`;
+            if (!received) {
+              await helpers.sleep(RelayCommand.MIRROR_OPERATOR_ACCOUNT_DELAY);
+            }
+          }
+        } finally {
+          if (localPort) {
+            await ingressPod.stopPortForward(localPort);
+          }
+        }
+
+        if (!received) {
+          throw new SoloError(
+            `Mirror node did not expose operator account ${operatorIdUsing} after ${maxAttempts} attempts (last status: ${lastStatus})`,
+          );
+        }
+      },
+    };
+  }
+
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for relay node',
@@ -609,6 +697,7 @@ export class RelayCommand extends BaseCommand {
         this.addRelayComponent(),
         this.checkChartIsInstalledTask(),
         this.prepareChartValuesTask(),
+        this.waitForMirrorOperatorAccountTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
@@ -734,6 +823,7 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.prepareChartValuesTask(),
+        this.waitForMirrorOperatorAccountTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),

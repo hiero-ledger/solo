@@ -1564,10 +1564,9 @@ export class NodeCommandTasks {
                 );
 
                 const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
-
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
-                if (output.includes('TSS protocol ready to sign blocks')) {
+                if (output.includes(constants.TSS_SIGNER_READY_MSG)) {
                   await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
                   success = true;
                 } else {
