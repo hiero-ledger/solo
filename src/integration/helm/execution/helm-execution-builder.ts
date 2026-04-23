@@ -198,7 +198,8 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
 
     command.push(...this._positionals);
 
-    this.logger.debug(`Helm command: helm ${command.slice(1).join(' ')}`);
+    const redactedCommand: string[] = HelmExecution.redactCommand(command);
+    this.logger.debug(`Helm command: helm ${redactedCommand.slice(1).join(' ')}`);
 
     return command;
   }
