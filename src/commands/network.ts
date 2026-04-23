@@ -427,7 +427,6 @@ export class NetworkCommand extends BaseCommand {
       jfrFilePath === '' ? '' : jfrFilePath.slice(Math.max(0, jfrFilePath.lastIndexOf(path.sep) + 1));
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
       config.consensusNodes,
-      config.domainNamesMapping,
       deploymentName,
       applicationPropertiesPath,
       jfrFile,
