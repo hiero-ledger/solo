@@ -50,6 +50,7 @@ import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-u
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../../core/upgrade-version-guard.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
@@ -185,13 +186,12 @@ export class NodeCommandConfigs {
       }
 
       // Compare target version against the version stored in remote config
-      const currentConsensusVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
-      if (!currentConsensusVersion.equals('0.0.0') && semVersion.lessThan(currentConsensusVersion)) {
-        throw new SoloError(
-          `Consensus node upgrade target version ${context_.config.upgradeVersion} is older than the current version ${currentConsensusVersion.toString()} stored in remote config. ` +
-            'Use --upgrade-version to specify a version equal to or newer than the currently deployed version.',
-        );
-      }
+      assertUpgradeVersionNotOlder(
+        'Consensus node',
+        context_.config.upgradeVersion,
+        this.remoteConfig.configuration.versions.consensusNode,
+        '--upgrade-version',
+      );
     }
 
     await this.initializeSetup(context_.config, this.k8Factory);

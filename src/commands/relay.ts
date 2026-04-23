@@ -41,6 +41,7 @@ import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
@@ -714,18 +715,12 @@ export class RelayCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
-            const currentRelayVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
-              ComponentTypes.RelayNodes,
+            assertUpgradeVersionNotOlder(
+              'Relay',
+              config.relayReleaseTag,
+              this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
+              '--relay-release',
             );
-            if (currentRelayVersion && !currentRelayVersion.equals('0.0.0')) {
-              const targetRelayVersion: SemanticVersion<string> = new SemanticVersion<string>(config.relayReleaseTag);
-              if (targetRelayVersion.lessThan(currentRelayVersion)) {
-                throw new SoloError(
-                  `Relay upgrade target version ${config.relayReleaseTag} is older than the current version ${currentRelayVersion.toString()} stored in remote config. ` +
-                    'Use --relay-release to specify a version equal to or newer than the currently deployed version.',
-                );
-              }
-            }
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);

@@ -50,6 +50,7 @@ import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -1408,20 +1409,12 @@ export class MirrorNodeCommand extends BaseCommand {
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
 
-            const currentMirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
-              ComponentTypes.MirrorNode,
+            assertUpgradeVersionNotOlder(
+              'Mirror node',
+              config.mirrorNodeVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
+              '--mirror-node-version',
             );
-            if (currentMirrorNodeVersion && !currentMirrorNodeVersion.equals('0.0.0')) {
-              const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
-                config.mirrorNodeVersion,
-              );
-              if (targetMirrorNodeVersion.lessThan(currentMirrorNodeVersion)) {
-                throw new SoloError(
-                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is older than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
-                    'Use --mirror-node-version to specify a version equal to or newer than the currently deployed version.',
-                );
-              }
-            }
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,

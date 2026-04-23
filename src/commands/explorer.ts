@@ -36,6 +36,7 @@ import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
@@ -785,20 +786,12 @@ export class ExplorerCommand extends BaseCommand {
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
-            const currentExplorerVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
-              ComponentTypes.Explorer,
+            assertUpgradeVersionNotOlder(
+              'Explorer',
+              config.explorerVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              '--explorer-version',
             );
-            if (currentExplorerVersion && !currentExplorerVersion.equals('0.0.0')) {
-              const targetExplorerVersion: SemanticVersion<string> = new SemanticVersion<string>(
-                config.explorerVersion,
-              );
-              if (targetExplorerVersion.lessThan(currentExplorerVersion)) {
-                throw new SoloError(
-                  `Explorer upgrade target version ${config.explorerVersion} is older than the current version ${currentExplorerVersion.toString()} stored in remote config. ` +
-                    'Use --explorer-version to specify a version equal to or newer than the currently deployed version.',
-                );
-              }
-            }
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
