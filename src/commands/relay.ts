@@ -47,6 +47,7 @@ import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {optionFromFlag} from './command-helpers.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -719,7 +720,7 @@ export class RelayCommand extends BaseCommand {
               'Relay',
               config.relayReleaseTag,
               this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              '--relay-release',
+              optionFromFlag(flags.relayReleaseTag),
             );
 
             if (!this.oneShotState.isActive()) {

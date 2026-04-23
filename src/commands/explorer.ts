@@ -42,6 +42,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {K8} from '../integration/kube/k8.js';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {optionFromFlag} from './command-helpers.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -790,7 +791,7 @@ export class ExplorerCommand extends BaseCommand {
               'Explorer',
               config.explorerVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
-              '--explorer-version',
+              optionFromFlag(flags.explorerVersion),
             );
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);

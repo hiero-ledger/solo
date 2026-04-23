@@ -56,6 +56,7 @@ import {type NodeConnectionsConfigClass} from './config-interfaces/node-connecti
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
+import {optionFromFlag} from '../command-helpers.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME: string = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -190,7 +191,7 @@ export class NodeCommandConfigs {
         'Consensus node',
         context_.config.upgradeVersion,
         this.remoteConfig.configuration.versions.consensusNode,
-        flags.upgradeVersion.name,
+        optionFromFlag(flags.upgradeVersion),
       );
     }
 

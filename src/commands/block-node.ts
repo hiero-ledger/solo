@@ -52,6 +52,7 @@ import {
   ComponentUpgradeMigrationRules,
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
+import {optionFromFlag} from './command-helpers.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -813,7 +814,7 @@ export class BlockNodeCommand extends BaseCommand {
               'Block node',
               config.upgradeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode),
-              '--upgrade-version',
+              optionFromFlag(flags.upgradeVersion),
             );
 
             if (!this.oneShotState.isActive()) {

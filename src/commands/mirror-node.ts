@@ -65,6 +65,7 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
+import {optionFromFlag} from './command-helpers.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -1413,7 +1414,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Mirror node',
               config.mirrorNodeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
-              '--mirror-node-version',
+              optionFromFlag(flags.mirrorNodeVersion),
             );
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(

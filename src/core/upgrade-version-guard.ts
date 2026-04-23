@@ -3,15 +3,6 @@
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {SoloError} from './errors/solo-error.js';
 
-/**
- * Throws if the target upgrade version is older than the currently deployed version.
- * Same-version (equal) and newer-version upgrades are allowed.
- *
- * @param componentName - human-readable name for the error message (e.g. "Block node")
- * @param targetVersion - the version the user wants to upgrade to
- * @param currentVersion - the version currently deployed (from remote config), or undefined/null if not yet deployed
- * @param flagHint - the CLI flag to mention in the error message (e.g. "--upgrade-version")
- */
 export function assertUpgradeVersionNotOlder(
   componentName: string,
   targetVersion: string,
