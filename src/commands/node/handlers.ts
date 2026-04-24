@@ -43,9 +43,9 @@ import {getSoloVersion} from '../../../version.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 import {
   findDeploymentsFromRemoteConfig,
-  getSoloRemoteConfigMapTask,
-  type RemoteDeploymentInfo,
-} from '../util/remote-config-collector.js';
+} from '../util/find-deployments-from-remote-config.js';
+import {getSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
+import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 
 @injectable()
@@ -86,6 +86,37 @@ export class NodeCommandHandlers extends CommandHandler {
   private resolveDeploymentFlag(argv: ArgvStruct): string {
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.deployment) || '';
+  }
+
+  private resolveQuietFlag(argv: ArgvStruct): boolean {
+    this.nodeConfigManager.update(argv);
+    return this.nodeConfigManager.getFlag<boolean>(flags.quiet) === true;
+  }
+
+  private setResolvedFlags(
+    argv: ArgvStruct,
+    deployment: string,
+    namespace?: ArgvStruct[string],
+    context?: ArgvStruct[string],
+  ): void {
+    argv[flags.deployment.name] = deployment;
+    this.nodeConfigManager.setFlag<string>(flags.deployment, deployment);
+
+    if (namespace !== undefined) {
+      argv[flags.namespace.name] = namespace;
+      this.nodeConfigManager.setFlag(flags.namespace, namespace);
+    }
+
+    if (context !== undefined) {
+      argv[flags.context.name] = context;
+      this.nodeConfigManager.setFlag<string>(flags.context, context as string);
+    }
+  }
+
+  private ensureInteractiveSelectionPrompt(): void {
+    if (!process.stdout.isTTY || !process.stdin.isTTY) {
+      throw new SoloError('Cannot prompt for input in non-interactive mode');
+    }
   }
 
   /** ******** Task Lists **********/
@@ -699,7 +730,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
-    const deploymentFromFlag: string = argv[flags.deployment.name] as string;
+    const deploymentFromFlag: string = this.resolveDeploymentFlag(argv);
     if (deploymentFromFlag && deploymentFromFlag.trim()) {
       return;
     }
@@ -730,12 +761,13 @@ export class NodeCommandHandlers extends CommandHandler {
       if (remoteDeploymentNames.length === 1) {
         selectedFromRemote = remoteDeploymentNames[0];
         this.logger.showUser(`Using deployment from remote config: ${selectedFromRemote}`);
-      } else if ((argv[flags.quiet.name] as boolean) === true) {
+      } else if (this.resolveQuietFlag(argv)) {
         const names: string = remoteDeploymentNames.join(', ');
         throw new SoloError(
           `Multiple deployments found in remote config (${names}). Please provide --${flags.deployment.name}.`,
         );
       } else {
+        this.ensureInteractiveSelectionPrompt();
         selectedFromRemote = (await selectPrompt({
           message: 'Select deployment for diagnostics logs:',
           choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
@@ -744,31 +776,30 @@ export class NodeCommandHandlers extends CommandHandler {
       }
 
       const remoteInfo: RemoteDeploymentInfo = remoteDeployments.get(selectedFromRemote)!;
-      argv[flags.deployment.name] = selectedFromRemote;
-      argv[flags.namespace.name] = remoteInfo.namespace;
-      argv[flags.context.name] = remoteInfo.context;
+      this.setResolvedFlags(argv, selectedFromRemote, remoteInfo.namespace, remoteInfo.context);
       return;
     }
 
     if (validDeployments.length === 1) {
       const deployment: Deployment = validDeployments[0];
-      argv[flags.deployment.name] = deployment.name;
+      this.setResolvedFlags(argv, deployment.name);
       this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
       return;
     }
 
-    if ((argv[flags.quiet.name] as boolean) === true) {
+    if (this.resolveQuietFlag(argv)) {
       const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
       throw new SoloError(
         `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
       );
     }
 
+    this.ensureInteractiveSelectionPrompt();
     const selectedDeployment: string = (await selectPrompt({
       message: 'Select deployment for diagnostics logs:',
       choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
     })) as string;
-    argv[flags.deployment.name] = selectedDeployment;
+    this.setResolvedFlags(argv, selectedDeployment);
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
   }
 
@@ -873,7 +904,7 @@ export class NodeCommandHandlers extends CommandHandler {
       deployment: this.resolveDeploymentFlag(argv),
       outputDirectory: this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR),
       soloVersion: getSoloVersion(),
-      isQuiet: (argv[flags.quiet.name] as boolean) === true,
+      isQuiet: this.resolveQuietFlag(argv),
       collectDebug: async (): Promise<void> => {
         await this.debug(argv, true);
       },

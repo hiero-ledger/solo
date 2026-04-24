@@ -42,6 +42,11 @@ type DiagnosticsReportContext = {
   cancelled: boolean;
 };
 
+type FilePathModificationTime = {
+  filePath: string;
+  mtime: number;
+};
+
 /**
  * Utility class for the `deployment diagnostics report` command.
  * Handles gh CLI availability checks, issue body assembly, and issue creation.
@@ -202,17 +207,17 @@ export class DiagnosticsReporter {
     }
 
     const prefix: string = `solo-debug-${deployment}-`;
-    const candidates: {filePath: string; mtime: number}[] = fs
+    const candidates: FilePathModificationTime[] = fs
       .readdirSync(searchDirectory)
       .filter((file: string): boolean => file.startsWith(prefix) && file.endsWith('.zip'))
-      .map((file: string): {filePath: string; mtime: number} => {
+      .map((file: string): FilePathModificationTime => {
         const filePath: string = PathEx.join(searchDirectory, file);
         const mtime: number = fs.statSync(filePath).mtimeMs;
         return {filePath, mtime};
       })
-      .filter(({mtime}: {filePath: string; mtime: number}): boolean => mtime >= afterTimestampMs)
+      .filter(({mtime}: FilePathModificationTime): boolean => mtime >= afterTimestampMs)
       // eslint-disable-next-line unicorn/no-array-sort
-      .sort((a: {filePath: string; mtime: number}, b: {filePath: string; mtime: number}): number => b.mtime - a.mtime);
+      .sort((a: FilePathModificationTime, b: FilePathModificationTime): number => b.mtime - a.mtime);
 
     return candidates.length > 0 ? candidates[0].filePath : undefined;
   }
