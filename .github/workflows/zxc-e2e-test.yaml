@@ -242,7 +242,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -262,7 +262,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: ${{ inputs.node-version }}
@@ -285,7 +285,7 @@ jobs:
 
       - name: Install Kubectl
         if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true && !cancelled() && !failure() }}
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        uses: step-security/setup-kubectl@8489d0d7bf2110e44a330d8db821786e6e8c8d73 # pinned to v4.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.kubectl-version }}'
@@ -381,7 +381,7 @@ jobs:
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
             ls -ltr
-            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info || exit 1
             cd ../solo
 
       - name: Setup E2E Tests
@@ -563,21 +563,22 @@ jobs:
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
           CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
           
-          if [[ -f "$METRICS_FILE" ]]; then
-            echo "Generating ASCII chart from metrics..."
+          DATA_POINTS=$(wc -l < "$METRICS_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+          if [[ -f "$METRICS_FILE" && "$DATA_POINTS" -gt 0 ]]; then
+            echo "Generating ASCII chart from ${DATA_POINTS} data points..."
             ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
-          
-            if [[ -f "$CHART_FILE" ]]; then
+
+            if [[ -f "$CHART_FILE" && -s "$CHART_FILE" ]]; then
               echo "chart_generated=true" >> $GITHUB_OUTPUT
               echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
               echo "✅ ASCII chart generated successfully"
             else
               echo "chart_generated=false" >> $GITHUB_OUTPUT
-              echo "⚠️  ASCII chart generation failed"
+              echo "⚠️  ASCII chart generation produced no output"
             fi
           else
             echo "chart_generated=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No metrics file found, skipping chart generation"
+            echo "ℹ️  No metrics data collected (${DATA_POINTS} data points), skipping chart generation"
           fi
 
       - name: Write Log Metrics Message File
@@ -621,16 +622,11 @@ jobs:
           
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
-      - name: Comment PR with Log Metrics
-        if: >-
-          ${{ github.event_name == 'pull_request' && steps.log-metrics-file.conclusion == 'success' &&
-          github.event.pull_request.head.repo.fork == false && !cancelled() && !failure() }}
-        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+      - name: Write Log Metrics to Workflow Summary
+        if: ${{ !cancelled() && steps.log-metrics-file.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          mode: recreate
-          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
-          comment-tag: log-metrics-${{ inputs.test-script }}
+        run: |
+          cat "${{ steps.log-metrics-file.outputs.log_file }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
