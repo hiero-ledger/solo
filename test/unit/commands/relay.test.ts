@@ -140,7 +140,7 @@ describe('RelayCommand unit tests', (): void => {
       });
       expect.fail('Expected prepareValuesArgForRelay to throw');
     } catch (error) {
-      expect(error.message).to.include('Invalid image reference: latest');
+      expect(error.message).to.include('Invalid image reference format: latest');
     }
   });
 });

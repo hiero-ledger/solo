@@ -21,7 +21,7 @@ export class ImageReference {
   public static parseImageReference(imageReference: string): ParsedImageReference {
     const trimmedImageReference: string = imageReference.trim();
     if (!trimmedImageReference) {
-      throw new IllegalArgumentError(`Invalid image reference: ${imageReference}`, imageReference);
+      throw new IllegalArgumentError(`Invalid image reference format: ${imageReference}`, imageReference);
     }
 
     if (
@@ -29,7 +29,7 @@ export class ImageReference {
       !trimmedImageReference.includes(':') &&
       !trimmedImageReference.includes('@')
     ) {
-      throw new IllegalArgumentError(`Invalid image reference: ${imageReference}`, imageReference);
+      throw new IllegalArgumentError(`Invalid image reference format: ${imageReference}`, imageReference);
     }
 
     if (trimmedImageReference.includes('@')) {
