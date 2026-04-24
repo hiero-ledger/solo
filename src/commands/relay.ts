@@ -549,6 +549,7 @@ export class RelayCommand extends BaseCommand {
 
           localPort = await mirrorPod.portForward(localPort, mirrorPodPort, false, false);
           const accountQueryUrl: string = `http://localhost:${localPort}/api/v1/accounts/${operatorIdUsing}`;
+          const networkNodesQueryUrl: string = `http://localhost:${localPort}/api/v1/network/nodes?limit=1`;
 
           for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
             try {
@@ -563,6 +564,17 @@ export class RelayCommand extends BaseCommand {
                 }
               } else {
                 lastStatus = `HTTP ${response.status}`;
+
+                // In some environments account 0.0.2 may lag in mirror while importer is otherwise healthy.
+                // Accept readiness once mirror serves network nodes.
+                const networkResponse: Response = await fetch(networkNodesQueryUrl, {cache: 'no-store'});
+                if (networkResponse.ok) {
+                  const networkObject: {nodes?: unknown[]} = await networkResponse.json();
+                  if (Array.isArray(networkObject.nodes) && networkObject.nodes.length > 0) {
+                    received = true;
+                    lastStatus = `network nodes available (count=${networkObject.nodes.length})`;
+                  }
+                }
               }
             } catch (error: unknown) {
               lastStatus = error instanceof Error ? error.message : String(error);

@@ -905,15 +905,9 @@ export class ConsensusNodeTest extends BaseCommandTest {
   }
 
   public static PemStop(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger, consensusNodesCount, deployment, contexts} = options;
-    const {
-      checkNetwork,
-      refresh,
-      verifyPodShouldNotBeActive,
-      verifyPodShouldBeRunning,
-      soloNodeStartArgv,
-      soloConsensusNodeStopArgv,
-    } = ConsensusNodeTest;
+    const {namespace, testName, testLogger, consensusNodesCount, contexts} = options;
+    const {checkNetwork, refresh, verifyPodShouldNotBeActive, verifyPodShouldBeRunning, soloConsensusNodeStopArgv} =
+      ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
@@ -930,11 +924,6 @@ export class ConsensusNodeTest extends BaseCommandTest {
       await refresh(options);
 
       await checkNetwork(testName, namespace, testLogger);
-
-      await main(soloNodeStartArgv(testName, deployment, undefined, false));
-
-      testLogger.showUser('Sleeping for 20 seconds');
-      await sleep(Duration.ofSeconds(20));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
