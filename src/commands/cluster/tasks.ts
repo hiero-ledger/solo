@@ -321,7 +321,7 @@ export class ClusterCommandTasks {
           }
         }
       },
-      skip: context_ => !context_.config.deployMetricsServer,
+      skip: ({config: {deployMetricsServer}}): boolean => !deployMetricsServer,
     };
   }
 
