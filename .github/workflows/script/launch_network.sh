@@ -234,21 +234,7 @@ cp "resources/templates/application.properties" "${UPGRADE_APP_PROPS_FILE}"
 echo "Using application.properties override for consensus upgrade: ${UPGRADE_APP_PROPS_FILE}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" --application-properties "${UPGRADE_APP_PROPS_FILE}" -q --dev
 echo "Waiting for consensus nodes to be ready after upgrade..."
-upgrade_probe_success=false
-for attempt in {1..12}; do
-  if npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev; then
-    upgrade_probe_success=true
-    break
-  fi
-
-  echo "Post-upgrade transaction probe failed (attempt ${attempt}/12); retrying in 10s..."
-  sleep 10
-done
-
-if [[ "${upgrade_probe_success}" != "true" ]]; then
-  echo "Post-upgrade transaction probe failed after 12 attempts"
-  exit 1
-fi
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"

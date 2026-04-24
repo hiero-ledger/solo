@@ -187,8 +187,6 @@ export type LeaseWrapper = {lease: Lock};
 @injectable()
 export class NodeCommandTasks {
   private readonly soloConfig: SoloConfig;
-  private static readonly LEDGER_ID_WAIT_MAX_ATTEMPTS: number = 12;
-  private static readonly LEDGER_ID_WAIT_RETRY_DELAY: Duration = Duration.ofSeconds(5);
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
@@ -234,35 +232,6 @@ export class NodeCommandTasks {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
-  }
-
-  private async transferAmountWithLedgerIdRetry(
-    fromAccountId: AccountId | string,
-    toAccountId: AccountId | string,
-    amount: number,
-  ): Promise<void> {
-    for (let attempt: number = 1; attempt <= NodeCommandTasks.LEDGER_ID_WAIT_MAX_ATTEMPTS; attempt++) {
-      try {
-        await this.accountManager.transferAmount(fromAccountId, toAccountId, amount);
-        return;
-      } catch (error: unknown) {
-        const message: string = error instanceof Error ? error.message : String(error);
-        const isWaitingForLedgerId: boolean = message.includes('WAITING_FOR_LEDGER_ID');
-        const hasAttemptsRemaining: boolean = attempt < NodeCommandTasks.LEDGER_ID_WAIT_MAX_ATTEMPTS;
-
-        if (isWaitingForLedgerId && hasAttemptsRemaining) {
-          this.logger.warn(
-            `Transfer ${fromAccountId} -> ${toAccountId} hit WAITING_FOR_LEDGER_ID ` +
-              `(attempt ${attempt}/${NodeCommandTasks.LEDGER_ID_WAIT_MAX_ATTEMPTS}), retrying in ` +
-              `${NodeCommandTasks.LEDGER_ID_WAIT_RETRY_DELAY.seconds} seconds...`,
-          );
-          await sleep(NodeCommandTasks.LEDGER_ID_WAIT_RETRY_DELAY);
-          continue;
-        }
-
-        throw error;
-      }
-    }
   }
 
   private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
@@ -911,7 +880,7 @@ export class NodeCommandTasks {
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
           const accountId: string = accountMap.get(nodeAlias)!;
-          await this.transferAmountWithLedgerIdRetry(treasuryAccountId, accountId, 1);
+          await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -1617,6 +1586,72 @@ export class NodeCommandTasks {
     };
   }
 
+  public waitForLedgerIdReady(
+    nodeAliasesProperty: string,
+  ): SoloListrTask<
+    NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
+  > {
+    return {
+      title: 'Wait for ledger ID',
+      task: async ({config}, task): Promise<
+        SoloListr<
+          NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
+        >
+      > => {
+        const subTasks: SoloListrTask<
+          NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
+        >[] = [];
+
+        for (const nodeAlias of config[nodeAliasesProperty] as NodeAliases) {
+          const node: Optional<ConsensusNode> = config.consensusNodes.find(
+            (consensusNode: ConsensusNode): boolean => consensusNode.name === nodeAlias,
+          );
+
+          if (!node) {
+            throw new SoloError(`Could not find consensus node ${nodeAlias} while waiting for ledger ID readiness`);
+          }
+
+          subTasks.push({
+            title: `Waiting for node: ${nodeAlias}`,
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
+              let attempt: number = 0;
+              let success: boolean = false;
+
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                if (
+                  output.includes(constants.LEDGER_ID_SET_MSG) ||
+                  output.includes(constants.LEDGER_ID_EXTERNALIZED_MSG)
+                ) {
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+                }
+              }
+
+              if (!success) {
+                throw new Error(`Node ${node.name} did not report ledger ID readiness after ${maxAttempts} attempts`);
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(
     nodeAliasesProperty: string,
     subcommandType: NodeSubcommandType,
@@ -2083,7 +2118,7 @@ export class NodeCommandTasks {
         for (const nodeAlias of accountMap.keys()) {
           const accountId: string = accountMap.get(nodeAlias);
           config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
-          await this.transferAmountWithLedgerIdRetry(treasuryAccountId, accountId, 1);
+          await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };

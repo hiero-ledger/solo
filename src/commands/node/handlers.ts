@@ -178,6 +178,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
+      this.tasks.waitForLedgerIdReady('allNodeAliases'),
       this.tasks.waitForTss(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
@@ -227,6 +228,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
+      this.tasks.waitForLedgerIdReady('allNodeAliases'),
       this.tasks.triggerStakeWeightCalculate<NodeUpdateContext>(NodeSubcommandType.UPDATE),
       this.tasks.finalize(),
     ];
@@ -262,6 +264,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
+      this.tasks.waitForLedgerIdReady('allNodeAliases'),
       this.tasks.finalize(),
     ];
   }
@@ -833,6 +836,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.setupNetworkNodes('nodeAliases', true),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
+        this.tasks.waitForLedgerIdReady('nodeAliases'),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in refreshing nodes',
@@ -901,6 +905,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
+        this.tasks.waitForLedgerIdReady('nodeAliases'),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
@@ -982,6 +987,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
         this.tasks.checkNodesAndProxiesAreActive('existingNodeAliases'),
+        this.tasks.waitForLedgerIdReady('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
