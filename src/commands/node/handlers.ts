@@ -836,7 +836,6 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.setupNetworkNodes('nodeAliases', true),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
-        this.tasks.waitForLedgerIdReady('nodeAliases'),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in refreshing nodes',
