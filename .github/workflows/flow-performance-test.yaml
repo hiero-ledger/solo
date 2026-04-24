@@ -58,7 +58,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -77,7 +77,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 22
@@ -123,6 +123,7 @@ jobs:
             ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
+        id: run-e2e-tests
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -133,6 +134,9 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
+
+          # Start resource monitoring in background (30s interval for finer granularity)
+          ./.github/workflows/script/monitor-resources.sh start 30
 
           TASK_PID=""
           TASK_PGID=""
@@ -154,6 +158,7 @@ jobs:
               wait "${TASK_PID}" 2>/dev/null || true
             fi
             [[ -n "${CANCEL_POLLER_PID}" ]] && kill "${CANCEL_POLLER_PID}" 2>/dev/null || true
+            ./.github/workflows/script/monitor-resources.sh stop || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
@@ -211,6 +216,9 @@ jobs:
           TASK_PGID=""
           trap - SIGTERM SIGINT
 
+          # Stop resource monitoring and display summary
+          ./.github/workflows/script/monitor-resources.sh stop
+
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
             npm run solo-test -- deployment diagnostics logs -q --dev || true
@@ -238,6 +246,60 @@ jobs:
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
+      - name: Generate ASCII Resource Chart
+        id: generate-chart
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
+          CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
+
+          DATA_POINTS=$(wc -l < "$METRICS_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+          if [[ -f "$METRICS_FILE" && "$DATA_POINTS" -gt 0 ]]; then
+            echo "Generating ASCII chart from ${DATA_POINTS} data points..."
+            ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
+
+            if [[ -f "$CHART_FILE" && -s "$CHART_FILE" ]]; then
+              echo "chart_generated=true" >> $GITHUB_OUTPUT
+              echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
+              MERMAID_FILE="${CHART_FILE%.txt}-mermaid.md"
+              CATEGORIES_FILE="${CHART_FILE%.txt}-categories.txt"
+              [[ -f "$MERMAID_FILE" ]]    && echo "mermaid_file=$MERMAID_FILE"       >> $GITHUB_OUTPUT
+              [[ -f "$CATEGORIES_FILE" ]] && echo "categories_file=$CATEGORIES_FILE" >> $GITHUB_OUTPUT
+              echo "✅ ASCII chart generated successfully"
+            else
+              echo "chart_generated=false" >> $GITHUB_OUTPUT
+              echo "⚠️  ASCII chart generation produced no output"
+            fi
+          else
+            echo "chart_generated=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No metrics data collected (${DATA_POINTS} data points), skipping chart generation"
+          fi
+
+      - name: Write Runner Resource Usage to Workflow Summary
+        if: ${{ !cancelled() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "## Runner Resource Usage — Performance Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              cat "$CHART_FILE" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+            MERMAID_FILE="${{ steps.generate-chart.outputs.mermaid_file }}"
+            if [[ -n "$MERMAID_FILE" && -f "$MERMAID_FILE" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### Pod Memory Distribution by Category" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              cat "$MERMAID_FILE" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "_No resource metrics collected._" >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Write Log Metrics Message File
         id: log-metrics-file
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
@@ -248,6 +310,23 @@ jobs:
         run: |
           echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
+
+          # Add ASCII resource chart if available
+          if [[ "${{ steps.generate-chart.outputs.chart_generated }}" == "true" ]]; then
+            CHART_FILE="${{ steps.generate-chart.outputs.chart_file }}"
+            if [[ -f "$CHART_FILE" ]]; then
+              echo "<details>" >> $LOG_FILE
+              echo "<summary>📊 Runner Resource Usage</summary>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              cat "$CHART_FILE" >> $LOG_FILE
+              echo '```' >> $LOG_FILE
+              echo "" >> $LOG_FILE
+              echo "</details>" >> $LOG_FILE
+              echo "" >> $LOG_FILE
+            fi
+          fi
+
           echo "<details>" >> $LOG_FILE
           echo "<summary>" >> $LOG_FILE
           echo "JSON Log Metrics" >> $LOG_FILE
@@ -258,16 +337,44 @@ jobs:
           echo "</details>" >> $LOG_FILE
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
-      - name: Comment PR with Log Metrics
-        if: >-
-          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' &&
-          steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
-        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+      - name: Write Log Metrics to Workflow Summary
+        if: ${{ !cancelled() && steps.log-metrics-file.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          mode: recreate
-          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
-          comment-tag: log-metrics-performance-test
+        run: |
+          cat "${{ steps.log-metrics-file.outputs.log_file }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Read Pod Memory Category Table
+        id: pod-categories
+        if: ${{ !cancelled() && steps.generate-chart.outputs.categories_file != '' }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          CATEGORIES_FILE="${{ steps.generate-chart.outputs.categories_file }}"
+          if [[ -f "$CATEGORIES_FILE" ]]; then
+            {
+              echo "content<<EOF_CATEGORIES"
+              cat "$CATEGORIES_FILE"
+              echo "EOF_CATEGORIES"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Pod Memory Categories to Slack
+        if: ${{ !cancelled() && steps.pod-categories.outputs.content != '' }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
+          SLACK_COLOR: good
+          SLACK_TITLE: "Performance Test — Pod Memory by Category"
+          SLACK_MESSAGE: |
+            *Branch:* `${{ github.ref_name }}`  *Commit:* `${{ github.sha }}`
+
+            ```
+            ${{ steps.pod-categories.outputs.content }}
+            ```
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

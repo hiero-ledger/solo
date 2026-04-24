@@ -31,6 +31,9 @@ tasks:
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --quiet-mode --dev
+        
+      # Run verification task to check application.properties in the deployed consensus node
+      - task: verify
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
@@ -40,6 +43,50 @@ tasks:
 
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+
+  verify:
+    desc: Verify custom application.properties was merged into the consensus node container
+    cmds:
+      - cmd: |
+          # Find the namespace containing network-node pods directly from Kubernetes
+          NAMESPACE=$(kubectl get pods --all-namespaces -l "solo.hedera.com/type=network-node" \
+            -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null)
+          if [[ -z "$NAMESPACE" ]]; then
+            NAMESPACE=$(cat ~/.solo/cache/last-one-shot-deployment.txt 2>/dev/null || echo "{{ .DEPLOYMENT }}")
+          fi
+          # Find the first network-node pod in that namespace
+          POD=$(kubectl get pods -n "$NAMESPACE" -l "solo.hedera.com/type=network-node" \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [[ -z "$POD" ]]; then
+            echo "No consensus node pod found in namespace $NAMESPACE"
+            exit 1
+          fi
+          APP_PROPS="/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties"
+          echo "=== application.properties inside $POD (namespace: $NAMESPACE) ==="
+          kubectl exec -n "$NAMESPACE" "$POD" -c root-container -- cat "$APP_PROPS"
+          echo ""
+          echo "=== Checking for custom override (hedera.recordStream.logPeriod) ==="
+          ACTUAL=$(kubectl exec -n "$NAMESPACE" "$POD" -c root-container -- \
+            grep "^hedera.recordStream.logPeriod=" "$APP_PROPS" | tail -1 | cut -d= -f2 | tr -d '[:space:]')
+          EXPECTED="2"
+          if [[ "$ACTUAL" == "$EXPECTED" ]]; then
+            echo "✅ PASS: hedera.recordStream.logPeriod=${ACTUAL} (expected: ${EXPECTED})"
+          else
+            echo "❌ FAIL: hedera.recordStream.logPeriod=${ACTUAL} (expected: ${EXPECTED})"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== Checking new property (fake.property) was appended ==="
+          FAKE=$(kubectl exec -n "$NAMESPACE" "$POD" -c root-container -- \
+            grep "^fake.property=" "$APP_PROPS" | cut -d= -f2 | tr -d '[:space:]')
+          FAKE_EXPECTED="example"
+          if [[ "$FAKE" == "$FAKE_EXPECTED" ]]; then
+            echo "✅ PASS: fake.property=${FAKE} (expected: ${FAKE_EXPECTED})"
+          else
+            echo "❌ FAIL: fake.property=${FAKE} (expected: ${FAKE_EXPECTED})"
+            exit 1
+          fi
 
   default:
     desc: Run the default deploy task
