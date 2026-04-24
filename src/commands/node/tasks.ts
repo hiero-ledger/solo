@@ -326,7 +326,7 @@ export class NodeCommandTasks {
     await container.execContainer([
       'bash',
       '-c',
-      `rm -rf ${constants.HEDERA_HAPI_PATH}/data/lib/*.jar ${constants.HEDERA_HAPI_PATH}/data/apps/*.jar`,
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
     ]);
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
@@ -376,6 +376,7 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
+
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
@@ -1762,15 +1763,13 @@ export class NodeCommandTasks {
   public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task): SoloListr<AnyListrContext> => {
-        const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
+      task: ({config}, task): SoloListr<AnyListrContext> => {
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
         const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
-            task: async (context_): Promise<void> => {
-              const config: any = context_.config;
-              const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            task: async ({config}): Promise<void> => {
+              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
                 config.cacheDir,
                 'templates',
@@ -1779,7 +1778,6 @@ export class NodeCommandTasks {
 
               const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
               const yamlRoot: AnyObject = {};
-              const emptyDomainNamesMapping: Record<string, IP> = {};
 
               const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
@@ -1791,7 +1789,6 @@ export class NodeCommandTasks {
                   consensusNodes,
                   nodeAliases,
                   yamlRoot,
-                  emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
                 );
@@ -1840,6 +1837,22 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
+
+              for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
+                const directoryPath: string = `${constants.HEDERA_HAPI_PATH}/${directory}`;
+                const output: string = await container.execContainer([
+                  'bash',
+                  '-c',
+                  `ls "${directoryPath}"/*.jar 2>/dev/null | wc -l`,
+                ]);
+                if (Number.parseInt(output.trim(), 10) === 0) {
+                  throw new SoloError(
+                    `Node '${nodeAlias}': no JAR files found in ${directoryPath}. ` +
+                      'Ensure platform software was copied to the node before starting.',
+                  );
+                }
+              }
+
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
                     'bash',
