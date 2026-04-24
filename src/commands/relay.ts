@@ -486,16 +486,22 @@ export class RelayCommand extends BaseCommand {
       title: 'Wait for mirror operator account',
       task: async ({config}, task): Promise<void> => {
         const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.context);
-        const ingressReleaseName: string = `${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}`;
+        const mirrorNamespace: string = config.mirrorNamespace || config.namespace?.name;
+        const mirrorNodeReleaseName: string = config.mirrorNodeReleaseName || constants.MIRROR_NODE_RELEASE_NAME;
+        if (!mirrorNamespace) {
+          throw new SoloError('Mirror namespace could not be resolved for relay mirror readiness check');
+        }
+        const mirrorNamespaceName: NamespaceName = NamespaceName.of(mirrorNamespace);
+        const ingressReleaseName: string = `${constants.MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}`;
         const ingressSelector: string[] = [`app.kubernetes.io/instance=${ingressReleaseName}`];
         const mirrorRestSelector: string[] = [
-          `app.kubernetes.io/instance=${config.mirrorNodeReleaseName}`,
+          `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
           constants.SOLO_MIRROR_REST_NAME_LABEL,
         ];
         const operatorIdUsing: string =
           config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
         const maxAttempts: number = RelayCommand.MIRROR_OPERATOR_ACCOUNT_MAX_ATTEMPTS;
-        const ingressPods: Pod[] = await k8.pods().list(config.mirrorNamespace, ingressSelector);
+        const ingressPods: Pod[] = await k8.pods().list(mirrorNamespaceName, ingressSelector);
 
         let localPort: number;
         let mirrorPod: Pod;
@@ -507,7 +513,7 @@ export class RelayCommand extends BaseCommand {
             await k8
               .pods()
               .waitForReadyStatus(
-                config.mirrorNamespace,
+                mirrorNamespaceName,
                 ingressSelector,
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
@@ -523,16 +529,16 @@ export class RelayCommand extends BaseCommand {
             await k8
               .pods()
               .waitForReadyStatus(
-                config.mirrorNamespace,
+                mirrorNamespaceName,
                 mirrorRestSelector,
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
               );
 
-            const mirrorRestPods: Pod[] = await k8.pods().list(config.mirrorNamespace, mirrorRestSelector);
+            const mirrorRestPods: Pod[] = await k8.pods().list(mirrorNamespaceName, mirrorRestSelector);
             if (mirrorRestPods.length === 0) {
               throw new SoloError(
-                `No mirror REST pod found for release ${config.mirrorNodeReleaseName} in namespace ${config.mirrorNamespace}`,
+                `No mirror REST pod found for release ${mirrorNodeReleaseName} in namespace ${mirrorNamespace}`,
               );
             }
 
