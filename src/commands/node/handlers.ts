@@ -82,11 +82,20 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   private resolveDeploymentFlag(argv: ArgvStruct): string {
+    const deploymentFromArgument: string = (argv[flags.deployment.name] as string) || '';
+    if (deploymentFromArgument) {
+      return deploymentFromArgument;
+    }
+
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.deployment) || '';
   }
 
   private resolveQuietFlag(argv: ArgvStruct): boolean {
+    if (argv[flags.quiet.name] !== undefined) {
+      return argv[flags.quiet.name] === true;
+    }
+
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<boolean>(flags.quiet) === true;
   }
